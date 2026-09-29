@@ -1,0 +1,41 @@
+{
+  "name": "@statewalker/webrun-cells",
+  "version": "0.0.1",
+  "description": "webrun-cells: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers \u2014 prototypes P01\u2013P07",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p browser/tsconfig.json",
+    "mutate": "node scripts/mutate.mjs",
+    "browser:prepare": "mkdir -p browser/public/vendor && cp node_modules/@statewalker/webrun-http-browser/dist/sw-worker.js browser/public/vendor/webrun-http-sw-worker.js",
+    "browser:dev": "pnpm run browser:prepare && vite browser --config browser/vite.config.ts",
+    "browser:build": "pnpm run browser:prepare && vite build browser --config browser/vite.config.ts",
+    "e2e": "playwright test",
+    "e2e:npm-chromium": "PW_CHROMIUM=\"$(node scripts/npm-chromium.mjs)\" playwright test",
+    "mutate:browser": "node scripts/mutate-browser.mjs",
+    "probes:browser": "PW_CHROMIUM=\"${PW_CHROMIUM:-$(node scripts/npm-chromium.mjs)}\" playwright test --config playwright.probes.config.ts --reporter=line",
+    "probes:node": "node --no-warnings probes/sqlite-lock.probe.mjs"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.8.0",
+    "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
+    "@statewalker/webrun-http-streams": "^0.2.2",
+    "@statewalker/webrun-rpc": "^0.4.0",
+    "@statewalker/webrun-streams": "^0.2.0",
+    "@statewalker/webrun-files": "^0.10.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@sparticuz/chromium": "^153.0.0",
+    "@statewalker/webrun-files-mem": "^0.10.0",
+    "@statewalker/webrun-http-browser": "^0.6.0",
+    "@statewalker/webrun-modules": "^0.2.1",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "vite": "catalog:",
+    "esbuild": "^0.28.0"
+  },
+  "private": true
+}

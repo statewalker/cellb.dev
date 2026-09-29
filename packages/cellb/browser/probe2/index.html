@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><body><script type="module">
+const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+await navigator.serviceWorker.ready;
+const id = Math.random().toString(36).slice(2, 6);
+const ch = new MessageChannel();
+(reg.active).postMessage({ type: "port", id, port: ch.port2 }, [ch.port2]);
+window.__keep = ch.port1;
+navigator.locks.request("probe-lock-" + id, () => new Promise(() => {}));
+window.__id = id;
+window.__query = () => new Promise((r) => { navigator.serviceWorker.onmessage = (e) => r(e.data); reg.active.postMessage({ type: "query" }); });
+document.body.dataset.ready = "1";
+</script></body>

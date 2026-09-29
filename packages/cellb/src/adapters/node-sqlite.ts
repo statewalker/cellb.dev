@@ -1,0 +1,98 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import type { DatabaseSync as DatabaseSyncT } from "node:sqlite";
+
+// Loaded via require: bundlers (vite/vitest) strip the "node:" prefix of the
+// still-experimental node:sqlite builtin and fail to resolve "sqlite".
+const { DatabaseSync } = createRequire(import.meta.url)(
+  "node:sqlite",
+) as typeof import("node:sqlite");
+
+import { splitSqlStatements } from "../core/sql-split.js";
+import type { OpenCellSql, SqlResult, SyncSqlDriver } from "../ports.js";
+
+/** Server-side SyncSqlDriver over node:sqlite (Node >= 22.13). */
+export class NodeSqliteDriver implements SyncSqlDriver {
+  #db: DatabaseSyncT;
+  #path: string;
+  readonly #exclusive: boolean;
+  constructor(path = ":memory:", opts: { exclusive?: boolean } = {}) {
+    this.#path = path;
+    this.#exclusive = !!opts.exclusive;
+    this.#db = new DatabaseSync(path);
+    // EXCLUSIVE locking: the first write takes an OS lock on the file that is
+    // kept until close (or process death) — a second process can neither read
+    // nor write the cell. Storage-level fencing on one host, no lease needed.
+    if (opts.exclusive) this.#db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
+  }
+  exec(sql: string, params: unknown[]): SqlResult {
+    const statements = params.length === 0 ? splitSqlStatements(sql) : [sql];
+    let last: SqlResult = { columnNames: [], rows: [], rowsWritten: 0 };
+    for (const text of statements) last = this.#one(text, params);
+    return last;
+  }
+  #one(sql: string, params: unknown[]): SqlResult {
+    const stmt = this.#db.prepare(sql);
+    const columnNames = stmt.columns().map((c) => c.name);
+    const args = params.map(toSqlite) as any[];
+    if (columnNames.length === 0) {
+      const r = stmt.run(...args);
+      return { columnNames, rows: [], rowsWritten: Number(r.changes) };
+    }
+    stmt.setReturnArrays(true);
+    const rows = (stmt.all(...args) as unknown as unknown[][]).map((row) => row.map(fromSqlite));
+    return { columnNames, rows, rowsWritten: 0 };
+  }
+  databaseSize(): number {
+    const [pc] = this.exec("PRAGMA page_count", []).rows[0] as [number];
+    const [ps] = this.exec("PRAGMA page_size", []).rows[0] as [number];
+    return Number(pc) * Number(ps);
+  }
+  close(): void {
+    this.#db.close();
+  }
+
+  /** `VACUUM INTO` a temp file: a consistent, compact image (no open transaction allowed). */
+  snapshot(): Uint8Array {
+    const tmp = join(mkdtempSync(join(tmpdir(), "cell-snap-")), "db.sqlite");
+    try {
+      this.#db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
+      return new Uint8Array(readFileSync(tmp));
+    } finally {
+      rmSync(dirname(tmp), { recursive: true, force: true });
+    }
+  }
+
+  /** Replaces the database file with `image` and reopens it (an in-memory DB becomes file-backed). */
+  restore(image: Uint8Array): void {
+    this.#db.close();
+    if (this.#path === ":memory:")
+      this.#path = join(mkdtempSync(join(tmpdir(), "cell-mem-")), "db.sqlite");
+    for (const suffix of ["-wal", "-shm", "-journal"]) rmSync(this.#path + suffix, { force: true });
+    writeFileSync(this.#path, image);
+    this.#db = new DatabaseSync(this.#path);
+    if (this.#exclusive) this.#db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
+  }
+}
+
+function toSqlite(v: unknown): unknown {
+  if (v instanceof ArrayBuffer) return new Uint8Array(v);
+  if (typeof v === "boolean") return v ? 1 : 0;
+  return v === undefined ? null : v;
+}
+/** Workers return BLOBs as ArrayBuffer. */
+function fromSqlite(v: unknown): unknown {
+  if (v instanceof Uint8Array) return v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength);
+  return v;
+}
+
+/** One file per cell in `dir`, or in-memory when `dir` is omitted. */
+export function nodeSqliteOpener(dir?: string, opts: { exclusive?: boolean } = {}): OpenCellSql {
+  return (cellKey) =>
+    new NodeSqliteDriver(
+      dir ? `${dir}/${cellKey.replace(/[^\w.-]/g, "_")}.sqlite` : ":memory:",
+      opts,
+    );
+}
