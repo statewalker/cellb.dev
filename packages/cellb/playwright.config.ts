@@ -21,7 +21,8 @@ export default defineConfig({
   webServer: {
     command: "npm run browser:prepare && npx vite browser --config browser/vite.config.ts",
     url: "http://localhost:5173",
-    reuseExistingServer: true,
+    // Never reuse: a stale dev server from an earlier run would serve old code.
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 });

@@ -22,7 +22,7 @@ export function runMutants(mutants, cmd, { timeoutMs = 600_000 } = {}) {
   try {
     // MUTANTS=0,2 runs a subset (keeps each run under a CI/sandbox time limit).
     const only = process.env.MUTANTS?.split(",").map(Number);
-    for (const [i, [name, file, from, to]] of mutants.entries()) {
+    for (const [i, [name, file, from, to, only_]] of mutants.entries()) {
       if (only && !only.includes(i)) continue;
       const path = join(work, file);
       const orig = readFileSync(path, "utf8");
@@ -30,7 +30,7 @@ export function runMutants(mutants, cmd, { timeoutMs = 600_000 } = {}) {
       writeFileSync(path, orig.replace(from, to));
       let killed = false;
       try {
-        execSync(cmd, { cwd: work, stdio: "pipe", timeout: timeoutMs });
+        execSync(only_ ? `${cmd} ${only_}` : cmd, { cwd: work, stdio: "pipe", timeout: timeoutMs });
       } catch {
         killed = true;
       }

@@ -84,8 +84,8 @@ const mutants = [
   [
     "lease: claim does not bump the manifest",
     "src/lease/cas-lease.ts",
-    '    this.#etag = (await this.store.put(this.key, body, cur ? { ifMatch: cur.etag } : { ifNoneMatch: "*" })).etag;',
-    '    this.#etag = cur ? cur.etag : (await this.store.put(this.key, body, { ifNoneMatch: "*" })).etag;',
+    'await this.store.put(this.key, body, cur ? { ifMatch: cur.etag } : { ifNoneMatch: "*" })',
+    'cur ? { etag: cur.etag } : await this.store.put(this.key, body, { ifNoneMatch: "*" })',
   ],
   [
     "file lease: normal locking mode",
@@ -157,13 +157,32 @@ const mutants = [
   [
     "ws: server does not echo the close handshake",
     "src/ws/server.ts",
-    "if (wasOpen) this[kPort]!.postMessage(",
-    "if (false) this[kPort]!.postMessage(",
+    "    if (wasOpen)\n      this[kPort]!.postMessage(",
+    "    if (false)\n      this[kPort]!.postMessage(",
   ],
   [
     "ws: failed connect emits no error event",
     "src/ws/client.ts",
     '    this.#emit(new Event("error"), this.onerror);',
+    "",
+  ],
+  [
+    "ws routing: cross-shard port not forwarded",
+    "src/router/cell-router.ts",
+    'ctl.postMessage(m, m.t === "ws-accept" ? [m.port as unknown as Transferable] : []);',
+    "void ctl;",
+  ],
+  [
+    "ws routing: Upgrade not carried across links",
+    "src/router/shard-host.ts",
+    'headers.set(H.upgrade, "websocket");',
+    "",
+  ],
+  ["ws heartbeat: client never pings", "src/ws/client.ts", "if (!heartbeatMs) return;", "return;"],
+  [
+    "ws heartbeat: server never gives up",
+    "src/ws/server.ts",
+    "if (Date.now() - this.#lastPing > 3 * hb) this.#gone();",
     "",
   ],
   [
