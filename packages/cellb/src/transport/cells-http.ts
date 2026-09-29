@@ -8,6 +8,8 @@ import {
 } from "../core/namespace.js";
 import type { CellRuntime } from "../core/runtime.js";
 import type { ValueCodec } from "../ports.js";
+import { type CfWebSocket, takeClientPort } from "../ws/server.js";
+import { withUpgrade } from "../ws/upgrade.js";
 
 /**
  * Everything a remote caller can do with a cell host is expressed as HTTP:
@@ -27,12 +29,21 @@ export const H = {
   target: "x-webrun-cells-target", // "name:<n>" | "id:<hex>"
   method: "x-webrun-cells-method",
   proto: "x-webrun-cells-proto", // original scheme (the HTTP/1.1 wire drops it)
+  ws: "x-webrun-cells-ws", // request: id under which the caller awaits a WebSocket port
+  wsAccepted: "x-webrun-cells-ws-accepted", // response: the port was handed over (control channel)
+  upgrade: "x-webrun-cells-upgrade", // `Upgrade` is hop-by-hop: dropped by the HTTP/1.1 wire, carried here
 } as const;
 
 const CT_VALUES = "application/x-webrun-cells-values";
 
 export interface CellsHttpOptions {
   codec?: ValueCodec;
+  /**
+   * A stub.fetch answered 101 with a WebSocket: hand the client end's port to the
+   * caller out of band (the HTTP link cannot carry ports). Without it, WebSocket
+   * upgrades cannot cross this link.
+   */
+  onUpgrade?: (id: string, port: MessagePort, protocol?: string) => void;
 }
 
 /** Server side: exposes a runtime as one HTTP handler. */
@@ -56,7 +67,25 @@ export function cellsHttpHandler(
         req.headers.get(H.binding) ?? "",
         req.headers.get(H.target) ?? "",
       );
-      if (kind === "fetch") return await stub.fetch(stripControl(req));
+      if (kind === "fetch") {
+        const wsId = req.headers.get(H.ws);
+        let inner = stripControl(req);
+        const upgrade = req.headers.get(H.upgrade);
+        if (upgrade) inner = withUpgrade(inner, upgrade);
+        const res = (await stub.fetch(inner)) as Response & { webSocket?: CfWebSocket | null };
+        if (res.status !== 101 || !res.webSocket) return res;
+        if (!wsId || !opts.onUpgrade)
+          throw new Error("WebSocket upgrade cannot cross this link (no control channel)");
+        const protocol = res.headers.get("Sec-WebSocket-Protocol") ?? undefined;
+        opts.onUpgrade(wsId, takeClientPort(res.webSocket), protocol);
+        return new Response(null, {
+          status: 200,
+          headers: {
+            [H.wsAccepted]: wsId,
+            ...(protocol ? { "Sec-WebSocket-Protocol": protocol } : {}),
+          },
+        });
+      }
       if (kind === "rpc") {
         const args = codec.decode(new Uint8Array(await req.arrayBuffer())) as unknown[];
         const result = await stub[req.headers.get(H.method) ?? ""](...args);
@@ -151,13 +180,22 @@ function control(kind: string, headers: Record<string, string>, body?: Uint8Arra
 function addHeaders(req: Request, extra: Record<string, string>): Request {
   const headers = new Headers(req.headers);
   for (const [k, v] of Object.entries(extra)) headers.set(k, v);
-  return new Request(req.url, {
-    method: req.method,
-    headers,
-    body: req.body,
-    signal: req.signal,
-    duplex: "half",
-  } as RequestInit);
+  return keepUpgrade(
+    req,
+    new Request(req.url, {
+      method: req.method,
+      headers,
+      body: req.body,
+      signal: req.signal,
+      duplex: "half",
+    } as RequestInit),
+  );
+}
+
+/** Browsers drop the forbidden `Upgrade` header from every rebuilt Request: carry it over. */
+function keepUpgrade(from: Request, to: Request): Request {
+  const upgrade = from.headers.get("Upgrade");
+  return upgrade ? withUpgrade(to, upgrade) : to;
 }
 
 export function withScheme(req: Request): Request {
@@ -170,13 +208,16 @@ function restoreScheme(req: Request): Request {
   const url = new URL(req.url);
   if (url.protocol === `${proto}:`) return req;
   url.protocol = `${proto}:`;
-  return new Request(url, {
-    method: req.method,
-    headers: req.headers,
-    body: req.body,
-    signal: req.signal,
-    duplex: "half",
-  } as RequestInit);
+  return keepUpgrade(
+    req,
+    new Request(url, {
+      method: req.method,
+      headers: req.headers,
+      body: req.body,
+      signal: req.signal,
+      duplex: "half",
+    } as RequestInit),
+  );
 }
 
 export function stripControl(req: Request): Request {
@@ -184,11 +225,14 @@ export function stripControl(req: Request): Request {
   let changed = false;
   for (const h of Object.values(H)) if (headers.has(h)) headers.delete(h), (changed = true);
   if (!changed) return req;
-  return new Request(req.url, {
-    method: req.method,
-    headers,
-    body: req.body,
-    signal: req.signal,
-    duplex: "half",
-  } as RequestInit);
+  return keepUpgrade(
+    req,
+    new Request(req.url, {
+      method: req.method,
+      headers,
+      body: req.body,
+      signal: req.signal,
+      duplex: "half",
+    } as RequestInit),
+  );
 }

@@ -11,6 +11,7 @@ import {
   createCellRuntime,
   createWebSocketClass,
   DurableObject,
+  takeClientPort,
   WebSocketPair,
 } from "../src/index.js";
 
@@ -204,5 +205,50 @@ describe("P07w user code built by webrun-modules: WebSocket / WebSocketPair / Re
       typeof globalThis.WebSocket === "undefined" ||
         globalThis.WebSocket !== registry.get("WebSocket"),
     ).toBe(true); // real global untouched
+  });
+});
+
+describe("P07w heartbeat: MessagePorts never report a dead peer, so both ends ping", () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it("client: closes with 1006 when the server end stops answering pings", async () => {
+    const { port1, port2 } = new MessageChannel(); // port2 is a server that never answers
+    port2.start();
+    const WS = createWebSocketClass(async () => ({ port: port1 }), { heartbeatMs: 50 });
+    const ws = new WS("ws://x/");
+    await next(ws, "open");
+    const t0 = Date.now();
+    const ev = await next(ws, "close");
+    expect([ev.code, ev.wasClean]).toEqual([1006, false]);
+    expect(Date.now() - t0).toBeLessThan(400);
+  });
+
+  it("server: a CfWebSocket closes with 1006 when the client stops pinging", async () => {
+    const pair = new WebSocketPair();
+    const server = pair[1];
+    server.accept();
+    const port = takeClientPort(pair[0]);
+    port.start();
+    port.postMessage({ t: "p", hb: 50 }); // one ping, then silence (tab closed)
+    const ev = await new Promise<any>((r) => server.addEventListener("close", r, { once: true }));
+    expect([ev.code, ev.wasClean, server.readyState]).toEqual([1006, false, 3]);
+  });
+
+  it("a live socket stays open across many heartbeat periods", async () => {
+    const { WS: base } = setup();
+    void base;
+    const rt = createCellRuntime({
+      worker,
+      durableObjects: { ROOM: { className: "Room" } },
+      openSql: nodeSqliteOpener(),
+    });
+    const WS = createWebSocketClass((url, p) => rt.connectWebSocket(url, p), { heartbeatMs: 20 });
+    const ws = new WS("ws://cells.local/room/hb");
+    await next(ws, "open");
+    await sleep(250);
+    expect(ws.readyState).toBe(WS.OPEN);
+    const msg = next(ws, "message");
+    ws.send("still here");
+    expect((await msg).data).toBe("still here");
   });
 });

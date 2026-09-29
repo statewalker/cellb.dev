@@ -8,12 +8,12 @@ const host = createShardHost({
   shard: workerData.shard,
   shards: workerData.shards,
   worker,
-  durableObjects: { COUNTER: { className: "Counter" } },
+  durableObjects: { COUNTER: { className: "Counter" }, ROOM: { className: "Room" } },
   openSql: nodeSqliteOpener(workerData.dir),
 });
 parentPort!.on("message", async (m) => {
   if (m?.type === "link") {
-    await host.link(m.down, m.up);
+    await host.link(m.down, m.up, m.ctl);
     parentPort!.postMessage({ type: "linked" });
   }
 });

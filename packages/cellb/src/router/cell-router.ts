@@ -1,6 +1,12 @@
 import { idFromName } from "../core/id.js";
 import { shardOf } from "../core/shard.js";
 import { errorResponse, H, type Send, stripControl } from "../transport/cells-http.js";
+import {
+  type ControlMessage,
+  type ControlPort,
+  PortRendezvous,
+  shardOfControlId,
+} from "../ws/control.js";
 
 export interface CellRouterOptions {
   shards: number;
@@ -38,6 +44,7 @@ interface Link {
   send: Send;
   token: unknown;
   inflight: Set<AbortController>;
+  ctl?: ControlPort;
 }
 
 /**
@@ -55,6 +62,9 @@ export class CellRouter {
   #watchdog: ReturnType<typeof setInterval> | undefined;
   readonly #waiters = new Map<number, (() => void)[]>();
   #rr = 0;
+  #wsSeq = 0;
+  readonly #wsShard = new Map<string, number>();
+  readonly #ports = new PortRendezvous();
 
   constructor(opts: CellRouterOptions) {
     this.#opts = opts;
@@ -69,9 +79,13 @@ export class CellRouter {
    * gone (Web Locks / leases guarantee a single live owner): its in-flight
    * requests fail at once instead of hanging on a dead port.
    */
-  attach(shard: number, send: Send, token?: unknown): void {
+  attach(shard: number, send: Send, token?: unknown, ctl?: ControlPort): void {
     const prev = this.#links.get(shard);
-    this.#links.set(shard, { send, token, inflight: new Set() });
+    this.#links.set(shard, { send, token, inflight: new Set(), ctl });
+    if (ctl) {
+      ctl.onmessage = (e) => this.#onControl(e.data as ControlMessage);
+      ctl.start?.();
+    }
     if (prev) this.#fail(shard, prev);
     if (token !== undefined && this.#opts.watchOwner)
       this.#opts.watchOwner(shard, token).then(
@@ -94,7 +108,47 @@ export class CellRouter {
     return this.#links.get(shard)?.inflight.size ?? 0;
   }
 
+  /**
+   * WebSocket ingress (a ServiceWorker cannot intercept WebSockets): asks a live
+   * shard, over its control channel, to run the Worker's fetch with an Upgrade
+   * request; resolves with the client end's port (transfer it to the page).
+   */
+  async connectWebSocket(url: string, protocols: string[] = [], headers?: [string, string][]) {
+    const live = this.attachedShards;
+    const shard = live.length ? live[this.#rr++ % live.length] : 0;
+    const link = await this.#linkFor(shard);
+    if (!link.ctl) throw new Error(`shard ${shard} has no control channel: WebSockets unavailable`);
+    const id = `r:${++this.#wsSeq}`;
+    this.#wsShard.set(id, shard);
+    link.ctl.postMessage({ t: "ws-connect", id, url, protocols, headers } satisfies ControlMessage);
+    try {
+      return await this.#ports.wait(id);
+    } finally {
+      this.#wsShard.delete(id);
+    }
+  }
+
+  #onControl(m: ControlMessage): void {
+    if (m.t !== "ws-accept" && m.t !== "ws-refuse") return;
+    const target = shardOfControlId(m.id);
+    if (target !== undefined) {
+      // Cross-shard hand-over: the Worker that asked lives in shard `target`.
+      const ctl = this.#links.get(target)?.ctl;
+      if (!ctl) {
+        if (m.t === "ws-accept") m.port.close();
+        return;
+      }
+      ctl.postMessage(m, m.t === "ws-accept" ? [m.port as unknown as Transferable] : []);
+      return;
+    }
+    this.#ports.deliver(
+      m.id,
+      m.t === "ws-accept" ? { port: m.port, protocol: m.protocol } : new Error(m.message),
+    );
+  }
+
   #fail(shard: number, link: Link): void {
+    this.#ports.failAll((id) => this.#wsShard.get(id) === shard, new ShardOwnerLostError(shard));
     for (const ac of link.inflight) ac.abort(new ShardOwnerLostError(shard));
     link.inflight.clear();
   }

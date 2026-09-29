@@ -1,7 +1,17 @@
 /** Wire protocol of a WebSocket carried by a MessagePort (both directions). */
 export type Frame =
   | { t: "m"; d: string | ArrayBuffer } // message
-  | { t: "c"; code: number; reason: string }; // close (initiating or echo)
+  | { t: "c"; code: number; reason: string } // close (initiating or echo)
+  | { t: "p"; hb: number } // ping (client → server), carries the heartbeat period
+  | { t: "q" }; // pong (server → client)
+
+/**
+ * MessagePorts never report that the other side died (no `close` event in
+ * browsers), so both ends run a heartbeat: the client pings every `hb` ms and
+ * closes with 1006 when pongs stop for 2·hb; the server closes with 1006 when
+ * pings stop for 3·hb. This is what makes a socket notice a closed tab.
+ */
+export const DEFAULT_HEARTBEAT_MS = 10_000;
 
 export function toFrameData(data: unknown): string | ArrayBuffer {
   if (typeof data === "string") return data;

@@ -61,5 +61,13 @@ export {
   createWebSocketClass,
   type WebSocketConnector,
 } from "./ws/client.js";
+export {
+  type ControlMessage,
+  type ControlPort,
+  PortRendezvous,
+  shardOfControlId,
+} from "./ws/control.js";
 export { CellsCloseEvent } from "./ws/frames.js";
 export { CellsResponse, CfWebSocket, takeClientPort, WebSocketPair } from "./ws/server.js";
+export { serviceWorkerConnector } from "./ws/sw-connector.js";
+export { withUpgrade } from "./ws/upgrade.js";

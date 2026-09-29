@@ -1,7 +1,7 @@
 {
   "name": "@statewalker/webrun-cells",
   "version": "0.0.1",
-  "description": "webrun-cells: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers \u2014 prototypes P01\u2013P07",
+  "description": "webrun-cells: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers — prototypes P01–P07",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -20,22 +20,23 @@
   "dependencies": {
     "@noble/hashes": "^1.8.0",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
+    "@statewalker/webrun-files": "^0.10.0",
     "@statewalker/webrun-http-streams": "^0.2.2",
     "@statewalker/webrun-rpc": "^0.4.0",
-    "@statewalker/webrun-streams": "^0.2.0",
-    "@statewalker/webrun-files": "^0.10.0"
+    "@statewalker/webrun-streams": "^0.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@sparticuz/chromium": "^153.0.0",
+    "@statewalker/webrun-files-browser": "^0.10.0",
     "@statewalker/webrun-files-mem": "^0.10.0",
     "@statewalker/webrun-http-browser": "^0.6.0",
-    "@statewalker/webrun-modules": "^0.2.1",
+    "@statewalker/webrun-modules": "catalog:",
     "@types/node": "catalog:",
+    "esbuild": "^0.28.0",
     "typescript": "catalog:",
-    "vitest": "catalog:",
     "vite": "catalog:",
-    "esbuild": "^0.28.0"
+    "vitest": "catalog:"
   },
   "private": true
 }

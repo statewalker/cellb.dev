@@ -1,0 +1,30 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>webrun-cells — OPFS backup / restore (P06a)</title>
+<body>
+  <script type="module">
+    // Each call spawns (or reuses) a worker; the spec drives the scenario.
+    const workers = new Map();
+    window.__cellWorker = (id) => {
+      if (!workers.has(id)) workers.set(id, new Worker(new URL("./backup-worker.ts", import.meta.url), { type: "module" }));
+      const w = workers.get(id);
+      return (msg) =>
+        new Promise((resolve, reject) => {
+          const { port1, port2 } = new MessageChannel();
+          port1.onmessage = (e) => (e.data.ok ? resolve(e.data.v) : reject(new Error(e.data.error)));
+          w.postMessage(msg, [port2]);
+        });
+    };
+    window.__kill = (id) => { workers.get(id)?.terminate(); workers.delete(id); };
+    window.__listBackups = async () => {
+      const out = [];
+      const walk = async (dir, prefix) => {
+        for await (const [name, h] of dir.entries()) h.kind === "directory" ? await walk(h, `${prefix}${name}/`) : out.push(`${prefix}${name}`);
+      };
+      const root = await navigator.storage.getDirectory();
+      await walk(await root.getDirectoryHandle("cells-backups", { create: true }), "");
+      return out.sort();
+    };
+    document.body.dataset.ready = "true";
+  </script>
+</body>

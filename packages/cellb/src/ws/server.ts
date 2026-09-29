@@ -21,10 +21,38 @@ export class CfWebSocket extends EventTarget {
   #queued: Frame[] = [];
   #attachment: unknown;
 
+  #lastPing = 0;
+  #watch: ReturnType<typeof setInterval> | undefined;
+
   constructor(port: MessagePort) {
     super();
     this[kPort] = port;
-    port.onmessage = (e) => (this.#accepted ? this.#frame(e.data) : this.#queued.push(e.data));
+    port.onmessage = (e) => {
+      const f = e.data as Frame;
+      if (f.t === "p") return this.#ping(f.hb); // answered even before accept()
+      if (this.#accepted) this.#frame(f);
+      else this.#queued.push(f);
+    };
+  }
+
+  /** Heartbeat: answer the client's ping; close 1006 when pings stop for 3 periods. */
+  #ping(hb: number): void {
+    this.#lastPing = Date.now();
+    this[kPort]?.postMessage({ t: "q" } satisfies Frame);
+    if (this.#watch || !hb) return;
+    this.#watch = setInterval(() => {
+      if (this.readyState === 3) return clearInterval(this.#watch);
+      if (Date.now() - this.#lastPing > 3 * hb) this.#gone();
+    }, hb);
+  }
+
+  /** The client stopped pinging (tab closed, worker killed): abnormal closure. */
+  #gone(): void {
+    clearInterval(this.#watch);
+    if (this.readyState === 3) return;
+    this.readyState = 3;
+    this[kPort]?.close();
+    this.dispatchEvent(new CellsCloseEvent("close", { code: 1006, reason: "", wasClean: false }));
   }
 
   accept(): void {
@@ -48,10 +76,12 @@ export class CfWebSocket extends EventTarget {
       this.dispatchEvent(new MessageEvent("message", { data: f.d }));
       return;
     }
+    if (f.t !== "c") return;
     const wasOpen = this.readyState === 1;
     if (wasOpen)
       this[kPort]!.postMessage({ t: "c", code: f.code, reason: f.reason } satisfies Frame);
     this.readyState = 3;
+    clearInterval(this.#watch);
     this[kPort]!.close();
     this.dispatchEvent(
       new CellsCloseEvent("close", { code: f.code, reason: f.reason, wasClean: true }),
@@ -94,6 +124,7 @@ export function takeClientPort(ws: CfWebSocket): MessagePort {
   if (!port) throw new TypeError("WebSocket end already handed over");
   ws[kPort] = undefined;
   port.onmessage = null;
+  ws.readyState = 3; // handed over: this end must not answer pings any more
   return port;
 }
 

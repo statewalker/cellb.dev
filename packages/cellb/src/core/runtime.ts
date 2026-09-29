@@ -2,6 +2,7 @@ import { type Clock, systemClock } from "../lease/lease.js";
 import type { CellBackup, CellDurability, OpenCellSql, ValueCodec } from "../ports.js";
 import { httpEndpoint, postVia, type Send } from "../transport/cells-http.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
+import { withUpgrade } from "../ws/upgrade.js";
 import { jsonCodec } from "./codec.js";
 import type { ExecutionContext } from "./durable-object.js";
 import type { DurableObjectId } from "./id.js";
@@ -129,7 +130,9 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       h.set("Upgrade", "websocket");
       if (protocols.length) h.set("Sec-WebSocket-Protocol", protocols.join(", "));
       const httpUrl = url.replace(/^ws(s?):/, "http$1:");
-      const res = (await this.fetch(new Request(httpUrl, { headers: h }))) as Response & {
+      const res = (await this.fetch(
+        withUpgrade(new Request(httpUrl, { headers: h })),
+      )) as Response & {
         webSocket?: CfWebSocket | null;
       };
       if (res.status !== 101 || !res.webSocket)

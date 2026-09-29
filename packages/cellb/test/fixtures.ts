@@ -1,4 +1,4 @@
-import { DurableObject, type WorkerModule } from "../src/index.js";
+import { CellsResponse, DurableObject, WebSocketPair, type WorkerModule } from "../src/index.js";
 
 export interface Env {
   COUNTER: import("../src/index.js").DurableObjectNamespace;
@@ -68,11 +68,33 @@ export class Counter extends DurableObject<Env> {
   }
 }
 
+/** Chat room with Cloudflare-style WebSockets: broadcast, "where?" → hosting shard, "bye" → close. */
+export class Room extends DurableObject<Env> {
+  sockets = new Set<any>();
+  async fetch(req: Request): Promise<Response> {
+    if (req.headers.get("Upgrade")?.toLowerCase() !== "websocket")
+      return new Response("expected websocket", { status: 426 });
+    const pair = new WebSocketPair();
+    const server = pair[1];
+    server.accept();
+    this.sockets.add(server);
+    server.addEventListener("message", (e: any) => {
+      if (e.data === "where?") return server.send(`shard:${(this.env as any).SHARD}`);
+      if (e.data === "bye") return server.close(4000, "bye bye");
+      for (const s of this.sockets) s.send(e.data);
+    });
+    server.addEventListener("close", () => this.sockets.delete(server));
+    return new CellsResponse(null, { status: 101, webSocket: pair[0] });
+  }
+}
+
 export const worker: WorkerModule = {
   Counter,
+  Room,
   default: {
     async fetch(req: Request, env: Env) {
       const [, kind, name, ...rest] = new URL(req.url).pathname.split("/");
+      if (kind === "room" && name) return (env as any).ROOM.getByName(name).fetch(req);
       if (kind === "echo")
         return new Response(req.body ? await req.arrayBuffer() : null, {
           status: 201,

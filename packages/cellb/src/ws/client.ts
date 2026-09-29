@@ -1,4 +1,10 @@
-import { CellsCloseEvent, checkClose, type Frame, toFrameData } from "./frames.js";
+import {
+  CellsCloseEvent,
+  checkClose,
+  DEFAULT_HEARTBEAT_MS,
+  type Frame,
+  toFrameData,
+} from "./frames.js";
 
 /** Opens the transport of a socket: resolves with the MessagePort once the server accepted (101). */
 export type WebSocketConnector = (
@@ -14,7 +20,16 @@ type Handler = ((ev: any) => void) | null;
  * Installed for user code through webrun-modules `~deps` (provided `WebSocket`),
  * so the real `globalThis.WebSocket` is left untouched.
  */
-export function createWebSocketClass(connect: WebSocketConnector) {
+export interface CellsWebSocketOptions {
+  /** Liveness ping period (ms); 0 disables. The peer is declared dead after 2 missed periods. */
+  heartbeatMs?: number;
+}
+
+export function createWebSocketClass(
+  connect: WebSocketConnector,
+  options: CellsWebSocketOptions = {},
+) {
+  const heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
   return class CellsWebSocket extends EventTarget {
     static readonly CONNECTING = 0;
     static readonly OPEN = 1;
@@ -37,6 +52,23 @@ export function createWebSocketClass(connect: WebSocketConnector) {
     onerror: Handler = null;
     #port: MessagePort | undefined;
     #pendingClose: { code?: number; reason?: string } | undefined;
+    #beat: ReturnType<typeof setInterval> | undefined;
+    #lastPong = 0;
+
+    #startHeartbeat(): void {
+      if (!heartbeatMs) return;
+      this.#lastPong = Date.now();
+      this.#beat = setInterval(() => {
+        if (this.readyState >= 3) return this.#stopHeartbeat();
+        if (Date.now() - this.#lastPong > 2 * heartbeatMs) return this.#fail(); // peer gone
+        this.#port?.postMessage({ t: "p", hb: heartbeatMs } satisfies Frame);
+      }, heartbeatMs);
+      this.#port?.postMessage({ t: "p", hb: heartbeatMs } satisfies Frame);
+    }
+    #stopHeartbeat(): void {
+      clearInterval(this.#beat);
+      this.#beat = undefined;
+    }
 
     constructor(url: string | URL, protocols: string | string[] = []) {
       super();
@@ -78,11 +110,14 @@ export function createWebSocketClass(connect: WebSocketConnector) {
         return;
       }
       this.readyState = 1;
+      this.#startHeartbeat();
       this.#emit(new Event("open"), this.onopen);
     }
 
     #fail(): void {
       if (this.readyState === 3) return;
+      this.#stopHeartbeat();
+      this.#port?.close();
       this.readyState = 3;
       this.#emit(new Event("error"), this.onerror);
       this.#emit(
@@ -92,6 +127,11 @@ export function createWebSocketClass(connect: WebSocketConnector) {
     }
 
     #frame(f: Frame): void {
+      if (f.t === "q") {
+        this.#lastPong = Date.now();
+        return;
+      }
+      if (f.t === "p") return;
       if (f.t === "m") {
         if (this.readyState !== 1) return;
         let data: unknown = f.d;
@@ -106,6 +146,7 @@ export function createWebSocketClass(connect: WebSocketConnector) {
         if (echo)
           this.#port!.postMessage({ t: "c", code: f.code, reason: f.reason } satisfies Frame); // close handshake
         this.readyState = 3;
+        this.#stopHeartbeat();
         this.#port!.close();
         this.#emit(
           new CellsCloseEvent("close", { code: f.code, reason: f.reason, wasClean: true }),

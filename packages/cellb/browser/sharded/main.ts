@@ -1,6 +1,21 @@
 // P05b — page side: competes for shard ownership with Web Locks; the tab holding
 // the lock of shard i runs its worker and attaches it to the ServiceWorker router.
+import { createWebSocketClass, serviceWorkerConnector } from "../../src/index.js";
 import { SHARDS } from "./config.js";
+
+// Host registry of THIS realm: what webrun-modules' ~deps proxies of page code resolve to.
+// WebSocket = a WebSocket-compatible class whose transport is a MessagePort from the SW.
+(globalThis as any).__webrunHostRegistry = new Map<string, unknown>([
+  ["WebSocket", createWebSocketClass(serviceWorkerConnector(), { heartbeatMs: 1_000 })],
+  ["WebSocketPair", undefined],
+  ["Response", Response],
+]);
+Object.assign(window, {
+  /** Imports user code served by webrun-modules from the ServiceWorker. */
+  __importUser: (path: string) =>
+    import(/* @vite-ignore */ `${location.origin}/sharded/modules/~/${path}`),
+  __CellsWebSocket: (globalThis as any).__webrunHostRegistry.get("WebSocket"),
+});
 
 const owned = new Map<number, Worker>();
 const log = (msg: string) => (document.getElementById("log")!.textContent += `${msg}\n`);
@@ -35,14 +50,26 @@ const ownerLocks = new Map<Worker, string>();
 async function attach(shard: number, w: Worker): Promise<void> {
   const down = new MessageChannel(); // router → shard
   const up = new MessageChannel(); // shard → router
+  const ctl = new MessageChannel(); // WebSocket port hand-over
   const linked = once(w, "linked");
-  w.postMessage({ type: "link", down: down.port2, up: up.port2 }, [down.port2, up.port2]);
+  w.postMessage({ type: "link", down: down.port2, up: up.port2, ctl: ctl.port2 }, [
+    down.port2,
+    up.port2,
+    ctl.port2,
+  ]);
   await linked;
   const sw = await swReady();
   const attached = once(navigator.serviceWorker, "cells-attached", (d) => d.shard === shard);
   sw.postMessage(
-    { type: "cells-attach", shard, ownerLock: ownerLocks.get(w), down: down.port1, up: up.port1 },
-    [down.port1, up.port1],
+    {
+      type: "cells-attach",
+      shard,
+      ownerLock: ownerLocks.get(w),
+      down: down.port1,
+      up: up.port1,
+      ctl: ctl.port1,
+    },
+    [down.port1, up.port1, ctl.port1],
   );
   await attached;
 }
