@@ -15,6 +15,35 @@ Object.assign(window, {
   __importUser: (path: string) =>
     import(/* @vite-ignore */ `${location.origin}/sharded/modules/~/${path}`),
   __CellsWebSocket: (globalThis as any).__webrunHostRegistry.get("WebSocket"),
+  /**
+   * Runs one case of test/ws-conformance.ts in this page against the native browser
+   * WebSocket (talking to a real server at `nativeBase`) or webrun-cells sockets
+   * (SW router → shard workers → Room Durable Object).
+   */
+  __wsCase: async (impl: "native" | "cells", name: string, nativeBase: string) => {
+    const { cases } = await import("../../test/ws-conformance.js");
+    const wsOrigin = location.origin.replace(/^http/, "ws");
+    const env =
+      impl === "native"
+        ? {
+            WS: WebSocket,
+            room: (n: string) => `${nativeBase}/room/${n}`,
+            refused: `${nativeBase}/nope`,
+            label: impl,
+          }
+        : {
+            WS: (globalThis as any).__webrunHostRegistry.get("WebSocket"),
+            room: (n: string) => `${wsOrigin}/sharded/cells/room/${n}`,
+            refused: `${wsOrigin}/sharded/cells/nope/x`,
+            label: impl,
+          };
+    try {
+      await cases[name](env);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: `${(e as Error).name}: ${(e as Error).message}` };
+    }
+  },
 });
 
 const owned = new Map<number, Worker>();

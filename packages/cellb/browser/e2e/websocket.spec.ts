@@ -39,7 +39,7 @@ test("page WebSockets reach a Room DO through SW → shard (local and cross-shar
       native: a instanceof WebSocket,
     };
   });
-  expect(r.hostedBy).toMatch(/^shard:[01]$/);
+  expect(r.hostedBy).toMatch(/^where:shard[01]$/);
   expect(r.broadcast).toEqual(["hello", "hello"]);
   expect(r.close).toEqual([4000, "bye bye", true]);
   expect(r.native).toBe(false);
@@ -88,4 +88,58 @@ test("a socket held by another tab's shard closes with 1006 when that tab dies",
     ]),
   );
   expect(closed).toEqual([1006, false]);
+});
+
+test("a Room DO opens a WebSocket to another Room (DO as client), same shard and cross-shard", async ({
+  page,
+}) => {
+  await open(page);
+  const replies = await page.evaluate(async () => {
+    const WS = (window as any).__CellsWebSocket;
+    const base = `${location.origin.replace("http", "ws")}/sharded/cells/room`;
+    const ws = new WS(`${base}/h${Date.now()}`);
+    await new Promise((r) => ws.addEventListener("open", r, { once: true }));
+    const out: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const m = new Promise<any>((r) => ws.addEventListener("message", r, { once: true }));
+      ws.send(`relay:t${i}x${Date.now()}:hi${i}`); // six targets: both shards are hit
+      out.push((await m).data);
+    }
+    ws.close();
+    return out;
+  });
+  for (const [i, r] of replies.entries())
+    expect(r).toMatch(new RegExp(`^relayed:t${i}x\\d+:hi${i}:relay\\.v1$`));
+});
+
+test("the server side notices a client tab that died: the room count drops (heartbeat)", async ({
+  context,
+}) => {
+  const owner = await context.newPage();
+  await open(owner); // hosts the shards and keeps one socket in the room
+  const room = `ws://localhost:5173/sharded/cells/room/d${Date.now()}`;
+  await owner.evaluate(async (url) => {
+    const ws = new (window as any).__CellsWebSocket(url);
+    (window as any).__ws = ws;
+    await new Promise((r) => ws.addEventListener("open", r, { once: true }));
+  }, room);
+  const visitor = await context.newPage();
+  await visitor.goto("/sharded/");
+  await visitor.waitForFunction(() => document.body.dataset.ready === "true");
+  await visitor.evaluate(async (url) => {
+    const ws = new (window as any).__CellsWebSocket(url);
+    await new Promise((r) => ws.addEventListener("open", r, { once: true }));
+  }, room);
+  const count = () =>
+    owner.evaluate(async () => {
+      const ws = (window as any).__ws;
+      const m = new Promise<any>((r) => ws.addEventListener("message", r, { once: true }));
+      ws.send("count?");
+      return (await m).data;
+    });
+  expect(await count()).toBe("count:2");
+  await visitor.close(); // no close frame: the tab just disappears
+  const t0 = Date.now();
+  await expect.poll(count, { timeout: 10_000, intervals: [250] }).toBe("count:1");
+  console.log(`server noticed the dead client after ${Date.now() - t0} ms (heartbeat 1 s × 3)`);
 });

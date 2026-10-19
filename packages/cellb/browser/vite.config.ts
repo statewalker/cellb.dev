@@ -1,7 +1,28 @@
-import { defineConfig } from "vite";
+import { existsSync, realpathSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { defineConfig, searchForWorkspaceRoot } from "vite";
+
+/**
+ * Directories the dev server may serve. pnpm keeps packages in the WORKSPACE root's
+ * node_modules/.pnpm, reached through symlinks; when the app is copied elsewhere (the
+ * mutation harness symlinks node_modules into a temp copy), that store lies outside the
+ * copy and Vite would refuse sqlite3.wasm — shards would never start.
+ */
+function allowedRoots(): string[] {
+  const roots = [searchForWorkspaceRoot(resolve(import.meta.dirname, ".."))];
+  let dir = realpathSync(resolve(import.meta.dirname, "../node_modules"));
+  while (dir !== dirname(dir)) {
+    if (existsSync(join(dir, "pnpm-workspace.yaml"))) {
+      roots.push(dir);
+      break;
+    }
+    dir = dirname(dir);
+  }
+  return roots;
+}
 
 export default defineConfig({
-  root: __dirname,
+  root: import.meta.dirname,
   // sqlite-wasm must not be pre-bundled (it locates its .wasm next to its module).
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm"],
@@ -18,13 +39,17 @@ export default defineConfig({
       "index.html",
       "sharded/index.html",
       "backup/index.html",
-      "**/*worker*.ts",
+      "cell-worker.ts",
+      "sharded/shard-worker.ts",
+      "backup/backup-worker.ts",
       "sharded/sw.ts",
+      // NOT sharded/user/**: user sources import "cloudflare:workers", which only the
+      // webrun-modules server resolves — in the scan it aborts all pre-bundling.
     ],
   },
   worker: { format: "es" },
   build: { target: "es2022", outDir: "dist", emptyOutDir: true },
-  server: { port: 5173, strictPort: true },
+  server: { port: 5173, strictPort: true, fs: { allow: allowedRoots() } },
   preview: { port: 5173, strictPort: true },
   // No COOP/COEP needed: opfs-sahpool works without SharedArrayBuffer.
 });

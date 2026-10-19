@@ -9,7 +9,7 @@ import {
 import type { CellRuntime } from "../core/runtime.js";
 import type { ValueCodec } from "../ports.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
-import { withUpgrade } from "../ws/upgrade.js";
+import { carryWebSocketHeaders, withUpgrade } from "../ws/upgrade.js";
 
 /**
  * Everything a remote caller can do with a cell host is expressed as HTTP:
@@ -32,6 +32,7 @@ export const H = {
   ws: "x-webrun-cells-ws", // request: id under which the caller awaits a WebSocket port
   wsAccepted: "x-webrun-cells-ws-accepted", // response: the port was handed over (control channel)
   upgrade: "x-webrun-cells-upgrade", // `Upgrade` is hop-by-hop: dropped by the HTTP/1.1 wire, carried here
+  wsProtocol: "x-webrun-cells-ws-protocol", // `Sec-WebSocket-Protocol` is forbidden in browser Requests
 } as const;
 
 const CT_VALUES = "application/x-webrun-cells-values";
@@ -71,7 +72,14 @@ export function cellsHttpHandler(
         const wsId = req.headers.get(H.ws);
         let inner = stripControl(req);
         const upgrade = req.headers.get(H.upgrade);
-        if (upgrade) inner = withUpgrade(inner, upgrade);
+        if (upgrade) {
+          const offered = req.headers.get(H.wsProtocol);
+          inner = withUpgrade(
+            inner,
+            upgrade,
+            offered ? { "Sec-WebSocket-Protocol": offered } : undefined,
+          );
+        }
         const res = (await stub.fetch(inner)) as Response & { webSocket?: CfWebSocket | null };
         if (res.status !== 101 || !res.webSocket) return res;
         if (!wsId || !opts.onUpgrade)
@@ -194,8 +202,7 @@ function addHeaders(req: Request, extra: Record<string, string>): Request {
 
 /** Browsers drop the forbidden `Upgrade` header from every rebuilt Request: carry it over. */
 function keepUpgrade(from: Request, to: Request): Request {
-  const upgrade = from.headers.get("Upgrade");
-  return upgrade ? withUpgrade(to, upgrade) : to;
+  return carryWebSocketHeaders(from.headers, to);
 }
 
 export function withScheme(req: Request): Request {

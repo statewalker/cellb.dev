@@ -32,9 +32,9 @@ const mutants = [
   ],
   [
     "browser drops Upgrade: not re-attached on rebuilt requests",
-    "src/transport/cells-http.ts",
-    "return upgrade ? withUpgrade(to, upgrade) : to;",
-    "return to;",
+    "src/ws/upgrade.ts",
+    '  const upgrade = from.get("Upgrade");\n  if (!upgrade) return to;',
+    '  const upgrade = from.get("Upgrade");\n  return to;',
     "websocket",
   ],
   [
@@ -44,9 +44,31 @@ const mutants = [
     "",
     "backup",
   ],
+  [
+    "browser drops Sec-WebSocket-Protocol: not re-attached by connectWebSocket",
+    "src/core/runtime.ts",
+    'protocols.length ? { "Sec-WebSocket-Protocol": protocols.join(", ") } : undefined',
+    "undefined",
+    "ws-conformance",
+  ],
+  [
+    "server never notices dead clients (no server heartbeat watch)",
+    "src/ws/server.ts",
+    "if (Date.now() - this.#lastPing > 3 * hb) this.#gone();",
+    "",
+    "websocket.spec",
+  ],
+  // Node keeps Sec-* headers on rebuilt Requests, so only a browser can catch this one.
+  [
+    "ws: offered subprotocol dropped across shard links",
+    "src/router/shard-host.ts",
+    "if (offered) headers.set(H.wsProtocol, offered);",
+    "",
+    "websocket.spec",
+  ],
 ];
-const cmd = process.env.PW_CHROMIUM
-  ? "npx playwright test --reporter=dot"
-  : "npm run e2e:npm-chromium -- --reporter=dot";
+// The Playwright config finds a Chrome by itself (PW_CHROMIUM, Playwright's own, or the
+// one packaged in node_modules by @sparticuz/chromium).
+const cmd = "npx playwright test --reporter=dot";
 const survived = runMutants(mutants, cmd);
 process.exit(survived ? 1 : 0);

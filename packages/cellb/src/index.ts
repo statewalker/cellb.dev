@@ -70,4 +70,4 @@ export {
 export { CellsCloseEvent } from "./ws/frames.js";
 export { CellsResponse, CfWebSocket, takeClientPort, WebSocketPair } from "./ws/server.js";
 export { serviceWorkerConnector } from "./ws/sw-connector.js";
-export { withUpgrade } from "./ws/upgrade.js";
+export { carryWebSocketHeaders, withUpgrade } from "./ws/upgrade.js";

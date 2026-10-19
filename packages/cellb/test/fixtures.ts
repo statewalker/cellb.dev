@@ -2,6 +2,7 @@ import { CellsResponse, DurableObject, WebSocketPair, type WorkerModule } from "
 
 export interface Env {
   COUNTER: import("../src/index.js").DurableObjectNamespace;
+  ROOM: import("../src/index.js").DurableObjectNamespace;
 }
 
 /** A Wrangler-style Worker module, written exactly as for Cloudflare/celld. */
@@ -68,9 +69,38 @@ export class Counter extends DurableObject<Env> {
   }
 }
 
-/** Chat room with Cloudflare-style WebSockets: broadcast, "where?" → hosting shard, "bye" → close. */
+/**
+ * Echo room with Cloudflare-style WebSockets — the protocol shared with the reference
+ * `ws` server (test/ws-reference-server.ts) so the same conformance cases run against
+ * native WebSockets and webrun-cells sockets:
+ *   text → broadcast to every socket of the room; binary → reversed bytes to the sender;
+ *   "where?" → "where:shard<N>"; "count?" → "count:<sockets>"; "big:<n>" → n × "x";
+ *   "bye" → server closes 4000 "bye bye"; "relay:<room>:<text>" → see relay();
+ *   the subprotocol is the client's first offer.
+ */
 export class Room extends DurableObject<Env> {
   sockets = new Set<any>();
+
+  /**
+   * "relay:<room>:<text>": this object becomes a WebSocket CLIENT of another Room (as in
+   * Cloudflare: stub.fetch with an Upgrade request, then `res.webSocket.accept()`), sends
+   * <text>, and answers "relayed:<room>:<reply>:<protocol>" — possibly across shards.
+   */
+  async relay(server: any, d: string): Promise<void> {
+    const [, room, text] = d.split(":");
+    const res: any = await this.env.ROOM.getByName(room).fetch("http://room/", {
+      headers: { Upgrade: "websocket", "Sec-WebSocket-Protocol": "relay.v1" },
+    });
+    const ws = res.webSocket;
+    if (res.status !== 101 || !ws) return server.send(`relay-failed:${res.status}`);
+    ws.accept();
+    ws.addEventListener("message", (e: any) => {
+      server.send(`relayed:${room}:${e.data}:${res.headers.get("Sec-WebSocket-Protocol")}`);
+      ws.close(1000, "relay done");
+    });
+    ws.send(text);
+  }
+
   async fetch(req: Request): Promise<Response> {
     if (req.headers.get("Upgrade")?.toLowerCase() !== "websocket")
       return new Response("expected websocket", { status: 426 });
@@ -79,12 +109,22 @@ export class Room extends DurableObject<Env> {
     server.accept();
     this.sockets.add(server);
     server.addEventListener("message", (e: any) => {
-      if (e.data === "where?") return server.send(`shard:${(this.env as any).SHARD}`);
-      if (e.data === "bye") return server.close(4000, "bye bye");
-      for (const s of this.sockets) s.send(e.data);
+      const d = e.data;
+      if (typeof d !== "string") return server.send(new Uint8Array(d).reverse());
+      if (d === "where?") return server.send(`where:shard${(this.env as any).SHARD}`);
+      if (d === "count?") return server.send(`count:${this.sockets.size}`);
+      if (d.startsWith("big:")) return server.send("x".repeat(Number(d.slice(4))));
+      if (d === "bye") return server.close(4000, "bye bye");
+      if (d.startsWith("relay:")) return void this.relay(server, d);
+      for (const s of this.sockets) s.send(d);
     });
     server.addEventListener("close", () => this.sockets.delete(server));
-    return new CellsResponse(null, { status: 101, webSocket: pair[0] });
+    const offered = req.headers.get("Sec-WebSocket-Protocol")?.split(",")[0]?.trim();
+    return new CellsResponse(null, {
+      status: 101,
+      webSocket: pair[0],
+      headers: offered ? { "Sec-WebSocket-Protocol": offered } : {},
+    });
   }
 }
 

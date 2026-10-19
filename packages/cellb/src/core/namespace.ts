@@ -1,4 +1,4 @@
-import { withUpgrade } from "../ws/upgrade.js";
+import { carryWebSocketHeaders } from "../ws/upgrade.js";
 import { DurableObjectId, idFromName, newUniqueId } from "./id.js";
 import type { ObjectHost } from "./object-host.js";
 import type { DurableObjectState } from "./state.js";
@@ -95,11 +95,13 @@ function createStub(id: DurableObjectId, endpoint: () => ObjectEndpoint): Durabl
     name: id.name,
     fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       const req = new Request(input as any, init);
-      // Keep a WebSocket upgrade that browsers strip from new Request() (forbidden header).
-      const upgrade =
-        new Headers(init?.headers).get("Upgrade") ??
-        (input instanceof Request ? input.headers.get("Upgrade") : null);
-      return endpoint().fetch(upgrade ? withUpgrade(req, upgrade) : req);
+      // Keep a WebSocket upgrade that browsers strip from new Request() (forbidden headers).
+      const source = init?.headers
+        ? new Headers(init.headers)
+        : input instanceof Request
+          ? input.headers
+          : undefined;
+      return endpoint().fetch(source ? carryWebSocketHeaders(source, req) : req);
     },
   };
   return new Proxy(target, {

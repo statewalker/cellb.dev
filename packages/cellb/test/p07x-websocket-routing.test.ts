@@ -92,7 +92,7 @@ describe("P07x WebSocket routing: control ports carry socket ports between route
 
     const where = next(sockets[0], "message");
     sockets[0].send("where?");
-    expect((await where).data).toBe("shard:1");
+    expect((await where).data).toBe("where:shard1");
 
     const got = Promise.all(sockets.map((s) => next(s, "message")));
     sockets[2].send("hello room");
@@ -117,5 +117,24 @@ describe("P07x WebSocket routing: control ports carry socket ports between route
     router.detach(0);
     const ev = await next(ws, "close");
     expect(ev.code).toBe(1006);
+  });
+
+  it("a Durable Object can be a WebSocket CLIENT of another one, locally and across shards", async () => {
+    const { WS } = await start();
+    const home = roomIn(0, "home");
+    const sameShard = roomIn(0, "near");
+    const otherShard = roomIn(2, "far");
+    const ws = new WS(`ws://cells.local/room/${home}`);
+    await next(ws, "open");
+    const replies: string[] = [];
+    for (const target of [sameShard, otherShard]) {
+      const m = next(ws, "message");
+      ws.send(`relay:${target}:ping`);
+      replies.push((await m).data);
+    }
+    expect(replies).toEqual([
+      `relayed:${sameShard}:ping:relay.v1`,
+      `relayed:${otherShard}:ping:relay.v1`,
+    ]);
   });
 });

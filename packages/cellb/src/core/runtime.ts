@@ -131,7 +131,11 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       if (protocols.length) h.set("Sec-WebSocket-Protocol", protocols.join(", "));
       const httpUrl = url.replace(/^ws(s?):/, "http$1:");
       const res = (await this.fetch(
-        withUpgrade(new Request(httpUrl, { headers: h })),
+        withUpgrade(
+          new Request(httpUrl, { headers: h }),
+          "websocket",
+          protocols.length ? { "Sec-WebSocket-Protocol": protocols.join(", ") } : undefined,
+        ),
       )) as Response & {
         webSocket?: CfWebSocket | null;
       };

@@ -186,6 +186,18 @@ const mutants = [
     "",
   ],
   [
+    "ws client: duplicate subprotocols accepted",
+    "src/ws/client.ts",
+    "if (seen.has(p.toLowerCase()))",
+    "if (false)",
+  ],
+  [
+    "ws client: URL fragment accepted",
+    "src/ws/client.ts",
+    'if (u.hash || String(url).includes("#"))',
+    "if (false)",
+  ],
+  [
     "stub args not cloned",
     "src/core/namespace.ts",
     "const copied = cross(args);",

@@ -41,6 +41,8 @@ export function createShardHost(opts: ShardHostOptions): ShardHost {
     const headers = new Headers(req.headers);
     headers.set(H.ws, id);
     headers.set(H.upgrade, "websocket"); // hop-by-hop `Upgrade` does not survive the HTTP/1.1 link
+    const offered = req.headers.get("Sec-WebSocket-Protocol"); // forbidden in browser Requests
+    if (offered) headers.set(H.wsProtocol, offered);
     const res = await rawUp(new Request(req.url, { method: req.method, headers }));
     if (res.headers.get(H.wsAccepted) !== id) return res; // refused upgrade (plain HTTP answer)
     const { port, protocol } = await ports.wait(id);

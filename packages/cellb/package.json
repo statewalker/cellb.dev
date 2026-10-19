@@ -1,7 +1,7 @@
 {
   "name": "@statewalker/webrun-cells",
   "version": "0.0.1",
-  "description": "webrun-cells: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers — prototypes P01–P07",
+  "description": "webrun-cells: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers \u2014 prototypes P01\u2013P07",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -36,7 +36,9 @@
     "esbuild": "^0.28.0",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "ws": "catalog:",
+    "@types/ws": "catalog:"
   },
   "private": true
 }

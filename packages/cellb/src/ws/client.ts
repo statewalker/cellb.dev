@@ -20,6 +20,9 @@ type Handler = ((ev: any) => void) | null;
  * Installed for user code through webrun-modules `~deps` (provided `WebSocket`),
  * so the real `globalThis.WebSocket` is left untouched.
  */
+/** RFC 7230 token (subprotocol names). */
+const TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
 export interface CellsWebSocketOptions {
   /** Liveness ping period (ms); 0 disables. The peer is declared dead after 2 missed periods. */
   heartbeatMs?: number;
@@ -72,13 +75,29 @@ export function createWebSocketClass(
 
     constructor(url: string | URL, protocols: string | string[] = []) {
       super();
-      const u = new URL(String(url), (globalThis as any).location?.href ?? "http://localhost/");
+      // WHATWG "new WebSocket(url, protocols)" validation, in spec order.
+      let u: URL;
+      try {
+        u = new URL(String(url), (globalThis as any).location?.href ?? "http://localhost/");
+      } catch {
+        throw new DOMException(`The URL '${String(url)}' is invalid.`, "SyntaxError");
+      }
       if (u.protocol === "http:") u.protocol = "ws:";
       if (u.protocol === "https:") u.protocol = "wss:";
       if (u.protocol !== "ws:" && u.protocol !== "wss:")
         throw new DOMException(`The URL's scheme must be either 'ws' or 'wss'.`, "SyntaxError");
-      this.url = u.toString();
+      if (u.hash || String(url).includes("#"))
+        throw new DOMException("The URL contains a fragment identifier.", "SyntaxError");
       const list = typeof protocols === "string" ? [protocols] : [...protocols];
+      const seen = new Set<string>();
+      for (const p of list) {
+        if (!TOKEN.test(p))
+          throw new DOMException(`The subprotocol '${p}' is invalid.`, "SyntaxError");
+        if (seen.has(p.toLowerCase()))
+          throw new DOMException(`The subprotocol '${p}' is duplicated.`, "SyntaxError");
+        seen.add(p.toLowerCase());
+      }
+      this.url = u.toString();
       connect(this.url, list).then(
         ({ port, protocol }) => this.#opened(port, protocol ?? ""),
         () => this.#fail(),
