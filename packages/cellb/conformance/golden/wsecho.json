@@ -1,0 +1,33 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 426,
+      "contentType": null,
+      "body": "websocket upgrade required"
+    },
+    {
+      "request": "WS / [\"one\",\"two\"]",
+      "messages": [
+        {
+          "echo": "one",
+          "count": 1
+        },
+        {
+          "echo": "two",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "request": "WS / [\"three\"]",
+      "messages": [
+        {
+          "echo": "three",
+          "count": 3
+        }
+      ]
+    }
+  ]
+}

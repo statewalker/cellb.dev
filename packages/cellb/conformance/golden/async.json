@@ -1,0 +1,29 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 1
+      }
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 2
+      }
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 3
+      }
+    }
+  ]
+}

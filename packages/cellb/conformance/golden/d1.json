@@ -1,0 +1,61 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /count",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 0
+      }
+    },
+    {
+      "request": "POST /",
+      "status": 201,
+      "contentType": "application/json",
+      "body": {
+        "id": 1,
+        "changes": 1
+      }
+    },
+    {
+      "request": "POST /",
+      "status": 201,
+      "contentType": "application/json",
+      "body": {
+        "id": 2,
+        "changes": 1
+      }
+    },
+    {
+      "request": "GET /count",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 2
+      }
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 2,
+        "entries": [
+          {
+            "id": 2,
+            "name": "alan",
+            "message": "hello",
+            "at": "<number>"
+          },
+          {
+            "id": 1,
+            "name": "ada",
+            "message": "hi",
+            "at": "<number>"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "fires": 0,
+        "pendingAlarm": "<null>"
+      }
+    },
+    {
+      "request": "GET /arm",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "armed": true,
+        "at": "<number>"
+      }
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "fires": 0,
+        "pendingAlarm": "<number>"
+      }
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "fires": 1,
+        "pendingAlarm": "<null>"
+      }
+    }
+  ]
+}

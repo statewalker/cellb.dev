@@ -1,0 +1,124 @@
+import type { FilesApi } from "@statewalker/webrun-files";
+import type { DurableObjectNamespace } from "../core/namespace.js";
+import { type CellRuntime, type CellRuntimeOptions, createCellRuntime, type WorkerModule } from "../core/runtime.js";
+import { filesApiBlobService } from "../miniflare-compat/blob-service.js";
+import { kvNamespaceBinding } from "../miniflare-compat/kv-binding.js";
+import { simulatorFetcher } from "../miniflare-compat/simulator-fetcher.js";
+import { D1DatabaseObject, KVNamespaceObject, makeD1Binding } from "../miniflare-compat/vendored.js";
+import { splitSqlStatements } from "../core/sql-split.js";
+
+/** The subset of wrangler.json(c) that celld deploys (and webrun-cells reads). */
+export interface WranglerConfig {
+  name?: string;
+  main?: string;
+  compatibility_date?: string;
+  compatibility_flags?: string[];
+  vars?: Record<string, unknown>;
+  durable_objects?: { bindings?: { name: string; class_name: string; script_name?: string }[] };
+  migrations?: {
+    tag: string;
+    new_sqlite_classes?: string[];
+    new_classes?: string[];
+    renamed_classes?: { from: string; to: string }[];
+    deleted_classes?: string[];
+  }[];
+  kv_namespaces?: { binding: string; id: string }[];
+  d1_databases?: { binding: string; database_name: string; database_id: string }[];
+  r2_buckets?: { binding: string; bucket_name: string }[];
+  queues?: { producers?: { binding: string; queue: string }[]; consumers?: { queue: string }[] };
+  workflows?: { binding: string; name: string; class_name: string }[];
+  triggers?: { crons?: string[] };
+  assets?: unknown;
+  services?: unknown[];
+}
+
+export interface ProjectHost extends Pick<CellRuntimeOptions, "openSql" | "durability" | "backup" | "clock"> {
+  /** Blob store of the KV simulator (large values): OPFS in a browser, a directory or S3 on a server. */
+  files: FilesApi;
+}
+
+export interface ProjectRuntime {
+  runtime: CellRuntime;
+  /** Configuration entries webrun-cells does not support yet (reported, not silently ignored). */
+  unsupported: string[];
+}
+
+// Internal bindings carrying the runtime-supplied objects behind KV and D1.
+const KV_OBJECTS = "__CELLS_KV_OBJECTS";
+const D1_OBJECTS = "__CELLS_D1_OBJECTS";
+
+/**
+ * Builds a runtime from a wrangler config and the Worker's module namespace — the same
+ * inputs celld deploys. Hosts differ only in `host` (storage) and in how they load `main`.
+ */
+export function createProjectRuntime(config: WranglerConfig, module: WorkerModule, host: ProjectHost): ProjectRuntime {
+  const unsupported: string[] = [];
+  const durableObjects: NonNullable<CellRuntimeOptions["durableObjects"]> = {};
+  const sqliteClasses = new Set<string>();
+  for (const m of config.migrations ?? []) {
+    for (const c of m.new_sqlite_classes ?? []) sqliteClasses.add(c);
+    for (const c of m.new_classes ?? []) sqliteClasses.add(c); // KV-backed on Cloudflare; SQLite here (superset)
+    for (const r of m.renamed_classes ?? []) unsupported.push(`migrations.renamed_classes (${r.from} → ${r.to})`);
+  }
+  for (const b of config.durable_objects?.bindings ?? []) {
+    if (b.script_name) unsupported.push(`durable_objects.bindings[${b.name}].script_name`);
+    durableObjects[b.name] = { className: b.class_name };
+  }
+  const worker: WorkerModule = { ...module };
+  if (config.kv_namespaces?.length) {
+    worker.__CellsKVNamespace = KVNamespaceObject;
+    durableObjects[KV_OBJECTS] = { className: "__CellsKVNamespace" };
+  }
+  if (config.d1_databases?.length) {
+    worker.__CellsD1Database = D1DatabaseObject;
+    durableObjects[D1_OBJECTS] = { className: "__CellsD1Database" };
+  }
+  for (const key of ["r2_buckets", "queues", "workflows", "assets", "services"] as const)
+    if (config[key] && (!Array.isArray(config[key]) || (config[key] as unknown[]).length)) unsupported.push(key);
+  if (config.triggers?.crons?.length) unsupported.push("triggers.crons");
+  for (const f of config.compatibility_flags ?? []) unsupported.push(`compatibility_flags: ${f}`);
+
+  const runtime = createCellRuntime({
+    worker,
+    durableObjects,
+    vars: { ...config.vars, MINIFLARE_BLOBS: filesApiBlobService(host.files) },
+    openSql: host.openSql,
+    durability: host.durability,
+    backup: host.backup,
+    clock: host.clock,
+  });
+  const env = runtime.env as Record<string, unknown>;
+  for (const kv of config.kv_namespaces ?? [])
+    env[kv.binding] = kvNamespaceBinding(env[KV_OBJECTS] as DurableObjectNamespace, kv.id);
+  for (const d1 of config.d1_databases ?? [])
+    env[d1.binding] = celldExec(
+      makeD1Binding({
+        fetcher: simulatorFetcher(env[D1_OBJECTS] as DurableObjectNamespace, d1.database_id) as never,
+      }) as D1Like,
+    );
+  for (const name of [...sqliteClasses]) if (!Object.values(durableObjects).some((d) => d.className === name)) {
+    // A migrated class without a binding is fine (reachable through other code paths only).
+  }
+  return { runtime, unsupported };
+}
+
+interface D1Like {
+  exec(sql: string): Promise<{ count: number; duration: number }>;
+  prepare(sql: string): { run(): Promise<unknown> };
+}
+
+/**
+ * `D1Database#exec` as celld implements it: statements are split by SQL syntax.
+ * workerd's d1-api.ts splits on NEWLINES (Cloudflare's documented behaviour), so a
+ * multi-line `CREATE TABLE` fails there but works on celld — and celld is the
+ * reference here (verified on celld 0.6.2 by the d1 example in conformance/).
+ */
+function celldExec<T extends D1Like>(db: T): T {
+  const exec = async (sql: string) => {
+    const t0 = Date.now();
+    const statements = splitSqlStatements(sql).filter((s) => s.trim());
+    for (const statement of statements) await db.prepare(statement).run();
+    return { count: statements.length, duration: Date.now() - t0 };
+  };
+  return new Proxy(db, { get: (t, p, r) => (p === "exec" ? exec : Reflect.get(t, p, r)) });
+}

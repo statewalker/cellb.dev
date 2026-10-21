@@ -1,0 +1,21 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /p/q?foo=bar&x=1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "pathname": "/p/q",
+        "search": "?foo=bar&x=1",
+        "query_foo": "bar",
+        "encoded_len": 5,
+        "b64": "aGVsbG8=",
+        "back": "hello",
+        "header": "1, 2",
+        "protocol": "http:",
+        "host": "{host}"
+      }
+    }
+  ]
+}

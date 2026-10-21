@@ -1,0 +1,17 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": null,
+      "body": "0:hello, facet"
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": null,
+      "body": "1:hello, facet"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /a",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "name": "a",
+        "n": 1
+      }
+    },
+    {
+      "request": "GET /a",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "name": "a",
+        "n": 2
+      }
+    },
+    {
+      "request": "GET /b",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "name": "b",
+        "n": 1
+      }
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "name": "default",
+        "n": 1
+      }
+    }
+  ]
+}

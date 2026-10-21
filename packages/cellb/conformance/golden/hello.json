@@ -1,0 +1,17 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": null,
+      "body": "Hello from cells! url={origin}/"
+    },
+    {
+      "request": "GET /a/b?x=1",
+      "status": 200,
+      "contentType": null,
+      "body": "Hello from cells! url={origin}/a/b?x=1"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /job-1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "queued": {
+          "path": "/job-1",
+          "createdAt": "<string>"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /greeting",
+      "status": 404,
+      "contentType": null,
+      "body": "Not found."
+    },
+    {
+      "request": "PUT /greeting",
+      "status": 204,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /greeting",
+      "status": 200,
+      "contentType": null,
+      "body": "hello"
+    },
+    {
+      "request": "PUT /greeting",
+      "status": 204,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /greeting",
+      "status": 200,
+      "contentType": null,
+      "body": "hello again ✓"
+    },
+    {
+      "request": "DELETE /greeting",
+      "status": 204,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /greeting",
+      "status": 404,
+      "contentType": null,
+      "body": "Not found."
+    },
+    {
+      "request": "GET /",
+      "status": 400,
+      "contentType": null,
+      "body": "Use /KEY."
+    }
+  ]
+}

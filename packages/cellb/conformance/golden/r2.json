@@ -1,0 +1,35 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /notes.txt",
+      "status": 404,
+      "contentType": null,
+      "body": "Not found."
+    },
+    {
+      "request": "PUT /notes.txt",
+      "status": 204,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /notes.txt",
+      "status": 200,
+      "contentType": "text/plain",
+      "body": "hello r2"
+    },
+    {
+      "request": "DELETE /notes.txt",
+      "status": 204,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /notes.txt",
+      "status": 404,
+      "contentType": null,
+      "body": "Not found."
+    }
+  ]
+}

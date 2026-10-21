@@ -71,3 +71,5 @@ export { CellsCloseEvent } from "./ws/frames.js";
 export { CellsResponse, CfWebSocket, takeClientPort, WebSocketPair } from "./ws/server.js";
 export { serviceWorkerConnector } from "./ws/sw-connector.js";
 export { carryWebSocketHeaders, withUpgrade } from "./ws/upgrade.js";
+export { createProjectRuntime, type ProjectHost, type ProjectRuntime, type WranglerConfig } from "./project/wrangler.js";
+export { parseJsonc } from "./project/jsonc.js";

@@ -1,0 +1,41 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /increment?name=alpha",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "n": 1,
+        "url": "{origin}/increment?name=alpha"
+      }
+    },
+    {
+      "request": "GET /increment?name=alpha",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "n": 2,
+        "url": "{origin}/increment?name=alpha"
+      }
+    },
+    {
+      "request": "GET /increment?name=beta",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "n": 1,
+        "url": "{origin}/increment?name=beta"
+      }
+    },
+    {
+      "request": "GET /?name=alpha",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "n": 3,
+        "url": "{origin}/?name=alpha"
+      }
+    }
+  ]
+}
