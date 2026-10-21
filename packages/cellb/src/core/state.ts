@@ -35,6 +35,15 @@ export class DurableObjectState {
     this.#waitUntil(p);
   }
 
+  /** `ctx.exports`: loopback handles of the Worker's exports (set by the host). */
+  exports: Record<string, unknown> = {};
+  /** `ctx.facets`: child objects with their own SQLite (set by the host). */
+  facets!: {
+    get(name: string, start: () => unknown): Record<string, any>;
+    abort(name: string, reason?: unknown): void;
+    delete(name: string): Promise<void>;
+  };
+
   // ---- WebSocket hibernation API ------------------------------------------------
   // Sockets accepted here belong to the RUNTIME, not to the object instance: their
   // events are delivered as object events (through the input gate) to

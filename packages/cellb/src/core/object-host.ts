@@ -7,7 +7,8 @@ import type {
   ValueCodec,
 } from "../ports.js";
 import { InputGate, OutputGate } from "./gates.js";
-import type { DurableObjectId } from "./id.js";
+import { asyncStub, isClassHandle } from "./handles.js";
+import { type DurableObjectId, DurableObjectId as DurableObjectIdClass } from "./id.js";
 import { SqlStorage } from "./sql-storage.js";
 import { DurableObjectState } from "./state.js";
 import { DurableObjectStorage, SyncKvStorage } from "./storage.js";
@@ -60,6 +61,8 @@ export class ObjectHost {
     backup?: CellBackup;
     /** The stored alarm changed (null = cleared). */
     onAlarmChange?: (at: number | null) => void;
+    /** `ctx.exports` (loopback handles of the Worker's exports). */
+    exports?: Record<string, unknown>;
   }) {
     this.#backup = opts.backup;
     this.cellKey = opts.cellKey;
@@ -75,6 +78,19 @@ export class ObjectHost {
     );
     this.state = state;
     state.attachDispatcher((fn) => this.deliver(fn));
+    state.exports = opts.exports ?? {};
+    state.facets = createFacets(
+      opts,
+      (name, cls, env, id) =>
+        new ObjectHost({
+          ...opts,
+          cellKey: `${opts.cellKey}/facets/${name}`,
+          id,
+          cls,
+          env,
+          onAlarmChange: undefined,
+        }),
+    );
     const construct = () => (this.#instance = new opts.cls(state, opts.env));
     const load = opts.backup?.load;
     if (!load) {
@@ -182,4 +198,67 @@ export class ObjectHost {
   close(): void {
     this.#driver.close();
   }
+}
+
+/**
+ * `ctx.facets` (celld docs/services/durable-object-facets.md): named child objects with a
+ * SQLite database of their own (`<cellKey>/facets/<name>`), started on first call from a
+ * class (or class handle) returned by the callback; the name alone selects the database.
+ */
+function createFacets(
+  parent: { id: DurableObjectId; env: unknown },
+  spawn: (name: string, cls: DurableObjectClass, env: unknown, id: DurableObjectId) => ObjectHost,
+) {
+  const running = new Map<string, Promise<ObjectHost>>();
+  const stopped = new Map<string, unknown>();
+  const hostOf = (name: string, start?: () => unknown): Promise<ObjectHost> => {
+    if (stopped.has(name)) return Promise.reject(stopped.get(name));
+    let p = running.get(name);
+    if (!p) {
+      if (!start) return Promise.reject(new Error(`Facet "${name}" is not running`));
+      p = (async () => {
+        const info = (await start()) as { class: unknown; id?: unknown };
+        let cls: DurableObjectClass;
+        let env = parent.env;
+        if (isClassHandle(info.class)) ({ cls, env } = await info.class.resolve());
+        else cls = info.class as DurableObjectClass;
+        const id = info.id instanceof DurableObjectIdClass ? info.id : parent.id;
+        return spawn(name, cls, env, id);
+      })();
+      p.catch(() => running.delete(name));
+      running.set(name, p);
+    }
+    return p;
+  };
+  return {
+    get(name: string, start: () => unknown) {
+      if (new TextEncoder().encode(name).byteLength > 256)
+        throw new Error("A facet name has a limit of 256 bytes");
+      return asyncStub(
+        async (method, args) =>
+          (await hostOf(name, start)).deliver((obj) => {
+            const fn = obj[method];
+            if (typeof fn !== "function")
+              throw new TypeError(`The RPC receiver does not implement the method "${method}".`);
+            return fn.apply(obj, args);
+          }),
+        async (req) => (await hostOf(name, start)).deliver((obj) => obj.fetch(req)),
+      );
+    },
+    abort(name: string, reason?: unknown) {
+      stopped.set(name, reason ?? new Error(`Facet "${name}" was aborted`));
+      void running.get(name)?.then((h) => h.close());
+      running.delete(name);
+    },
+    async delete(name: string) {
+      const p = running.get(name);
+      running.delete(name);
+      stopped.delete(name);
+      if (p) {
+        const h = await p;
+        await h.deliver((_o, state) => state.storage.deleteAll());
+        h.close();
+      }
+    },
+  };
 }

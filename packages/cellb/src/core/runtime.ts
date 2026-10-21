@@ -5,7 +5,8 @@ import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
 import { jsonCodec } from "./codec.js";
-import type { ExecutionContext } from "./durable-object.js";
+import { type ExecutionContext, WorkerEntrypoint } from "./durable-object.js";
+import { classHandle, entrypointStub } from "./handles.js";
 import { DurableObjectId } from "./id.js";
 import { DurableObjectNamespace, localEndpoint } from "./namespace.js";
 import { type DurableObjectClass, ObjectHost } from "./object-host.js";
@@ -73,6 +74,23 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   };
   const env: Record<string, unknown> = { ...opts.vars };
   const bindingClasses: Record<string, string> = {};
+  // ctx.exports: loopback handles of the Worker's named exports.
+  const exportsObj: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(opts.worker)) {
+    if (name === "default" || typeof value !== "function") continue;
+    if (value.prototype instanceof WorkerEntrypoint)
+      exportsObj[name] = (o: { props?: unknown } = {}) =>
+        entrypointStub(value, env, o.props, exportsObj);
+    else {
+      // A Durable Object class: usable as a facet class handle, or called with props.
+      const handle = (o: { props?: unknown } = {}) =>
+        classHandle(async () => ({ cls: value as DurableObjectClass, env, props: o.props }));
+      exportsObj[name] = Object.assign(
+        handle,
+        classHandle(async () => ({ cls: value as DurableObjectClass, env })),
+      );
+    }
+  }
   const clock = opts.clock ?? systemClock;
   // Hosts by class name: the alarm scheduler wakes objects that nobody is calling.
   const hostsByClass = new Map<string, (id: DurableObjectId) => ObjectHost>();
@@ -129,6 +147,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           waitUntil,
           backup: opts.backup,
           onAlarmChange: (at) => alarms.set({ cellKey, className, idHex: id.toString() }, at),
+          exports: exportsObj,
         });
         hosts.set(cellKey, h);
       }
@@ -196,7 +215,11 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     async fetch(req) {
       const handler = opts.worker.default?.fetch;
       if (!handler) return new Response("Worker has no fetch handler", { status: 500 });
-      const ctx: ExecutionContext = { waitUntil, passThroughOnException() {} };
+      const ctx = {
+        waitUntil,
+        passThroughOnException() {},
+        exports: exportsObj,
+      } as ExecutionContext;
       try {
         return await handler.call(opts.worker.default, req, env, ctx);
       } catch (e) {

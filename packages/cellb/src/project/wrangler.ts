@@ -6,6 +6,7 @@ import {
   queueProducer,
 } from "../bindings/queues.js";
 import { r2Bucket } from "../bindings/r2.js";
+import { type ModuleLoader, workerLoader } from "../bindings/worker-loader.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
   type CellRuntime,
@@ -49,10 +50,13 @@ export interface WranglerConfig {
   triggers?: { crons?: string[] };
   assets?: unknown;
   services?: unknown[];
+  worker_loaders?: { binding: string }[];
 }
 
 export interface ProjectHost
   extends Pick<CellRuntimeOptions, "openSql" | "durability" | "backup" | "clock"> {
+  /** Compiles code given to a Worker Loader binding (esbuild on Node, webrun-modules in browsers). */
+  loadModules?: ModuleLoader;
   /** Blob store of the KV simulator (large values): OPFS in a browser, a directory or S3 on a server. */
   files: FilesApi;
 }
@@ -150,6 +154,11 @@ export function createProjectRuntime(
         await Promise.allSettled(pending);
       },
     };
+  }
+  for (const l of config.worker_loaders ?? []) {
+    if (!host.loadModules)
+      unsupported.push(`worker_loaders[${l.binding}] (the host provides no module loader)`);
+    else env[l.binding] = workerLoader(host.loadModules);
   }
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
   for (const r2 of config.r2_buckets ?? [])

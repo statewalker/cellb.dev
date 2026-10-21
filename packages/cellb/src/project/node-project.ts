@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "esbuild";
+import type { ModuleLoader } from "../bindings/worker-loader.js";
 import type { WorkerModule } from "../core/runtime.js";
 import { parseJsonc } from "./jsonc.js";
 import {
@@ -25,27 +26,27 @@ export function readWranglerConfig(dir: string): WranglerConfig {
  * `cloudflare:workers` resolves to webrun-cells' module so user classes extend the
  * runtime's own DurableObject / WorkerEntrypoint.
  */
-export async function loadNodeProject(
-  dir: string,
-  host: ProjectHost,
-): Promise<ProjectRuntime & { config: WranglerConfig }> {
-  const config = readWranglerConfig(dir);
-  if (!config.main) throw new Error("wrangler config has no `main`");
-  const out = join(mkdtempSync(join(tmpdir(), "cells-project-")), "worker.mjs");
+/** Bundles Worker code (a file, or in-memory modules) with the runtime's module mappings, then imports it. */
+export async function bundleWorker(
+  entry: { path: string } | { modules: Record<string, string>; main: string },
+): Promise<WorkerModule> {
+  const out = join(mkdtempSync(join(tmpdir(), "cells-worker-")), "worker.mjs");
   const cfWorkers = resolve(import.meta.dirname, "cloudflare-workers.ts");
+  const memory = "modules" in entry ? entry.modules : undefined;
   await build({
-    entryPoints: [resolve(dir, config.main)],
+    entryPoints: [
+      memory ? `memory:${(entry as { main: string }).main}` : (entry as { path: string }).path,
+    ],
     outfile: out,
     bundle: true,
     format: "esm",
     platform: "neutral",
     target: "es2022",
     logLevel: "silent",
-    // Workers globals (Response with status 101 + webSocket, WebSocketPair), bundle-local.
     inject: [resolve(import.meta.dirname, "workers-globals.ts")],
     plugins: [
       {
-        name: "cloudflare-workers",
+        name: "cells-modules",
         setup(b) {
           b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({
             path: cfWorkers,
@@ -55,10 +56,50 @@ export async function loadNodeProject(
             path: resolve(import.meta.dirname, "../ws/server.ts"),
             external: true,
           }));
+          if (!memory) return;
+          b.onResolve({ filter: /^memory:/ }, (a) => ({
+            path: a.path.slice(7),
+            namespace: "memory",
+          }));
+          b.onResolve({ filter: /^\.{1,2}\// }, (a) =>
+            a.namespace === "memory"
+              ? {
+                  path: new URL(a.path, `file:///${a.importer}`).pathname.slice(1),
+                  namespace: "memory",
+                }
+              : undefined,
+          );
+          b.onLoad({ filter: /.*/, namespace: "memory" }, (a) => ({
+            contents: memory[a.path],
+            loader: "js",
+          }));
         },
       },
     ],
   });
-  const module = (await import(/* @vite-ignore */ out)) as WorkerModule;
-  return { ...createProjectRuntime(config, module, host), config };
+  return (await import(/* @vite-ignore */ out)) as WorkerModule;
+}
+
+/** Worker Loader on Node: compiles `WorkerCode.modules` with esbuild (as celld compiles loaded code). */
+export const nodeModuleLoader: ModuleLoader = async (_id, code) => {
+  const modules: Record<string, string> = {};
+  for (const [name, m] of Object.entries(code.modules))
+    modules[name] =
+      typeof m === "string"
+        ? m
+        : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
+  return (await bundleWorker({ modules, main: code.mainModule })) as Record<string, unknown>;
+};
+
+export async function loadNodeProject(
+  dir: string,
+  host: Omit<ProjectHost, "loadModules"> & Partial<Pick<ProjectHost, "loadModules">>,
+): Promise<ProjectRuntime & { config: WranglerConfig }> {
+  const config = readWranglerConfig(dir);
+  if (!config.main) throw new Error("wrangler config has no `main`");
+  const module = await bundleWorker({ path: resolve(dir, config.main) });
+  return {
+    ...createProjectRuntime(config, module, { loadModules: nodeModuleLoader, ...host }),
+    config,
+  };
 }
