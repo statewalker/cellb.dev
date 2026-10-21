@@ -45,3 +45,5 @@ Key decisions so far:
 Mutation harness: `npm run mutate` — every known defect must break at least one test.
 
 Server ownership: `RegistryLease` (Miniflare 4 heartbeat registry, notes/10) + exclusive SQLite files as fence.
+
+WebSocket conformance (19 WHATWG cases, native vs webrun-cells, Node + Chromium): ✅ notes/15.

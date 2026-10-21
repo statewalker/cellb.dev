@@ -14,8 +14,10 @@ explains what was learned. `docs/plan.md` is the plan; `docs/notes/NN-*.md` the 
 
 ## Status
 
-94 unit tests (Node, incl. worker threads and child processes), 15 Chromium end-to-end tests,
-mutation harnesses: 34/34 Node mutants and 6/6 browser mutants killed.
+151 unit tests + 2 documented skips (Node, incl. worker threads and child processes),
+55 Chromium end-to-end tests (incl. 2 × 19 WebSocket conformance cases), mutation harnesses:
+36/36 Node mutants and 9/9 browser mutants killed — each run preceded by a passing
+baseline of the unmutated copy.
 
 ## Aspects, code, tests, notes
 
@@ -32,6 +34,7 @@ mutation harnesses: 34/34 Node mutants and 6/6 browser mutants killed.
 | Durability: periodic backup callback, FilesApi, restore on open | `src/core/object-host.ts`, `src/adapters/files-backup.ts` | `test/p06a-backup.test.ts`, `browser/e2e/backup.spec.ts` | 11, 14 |
 | WebSockets over MessagePorts, injected via webrun-modules `~deps` | `src/ws/{client,server,frames}.ts` | `test/p07w-websocket.test.ts` | 12 |
 | WebSocket routing (SW ⇄ shards, cross-shard), heartbeat, webrun-modules in the SW | `src/ws/{control,sw-connector,upgrade}.ts`, `browser/sharded/modules.ts` | `test/p07x-websocket-routing.test.ts`, `browser/e2e/websocket.spec.ts` | 13 |
+| WebSocket conformance: 19 WHATWG cases, native vs webrun-cells, Node and Chromium | `test/ws-conformance.ts`, `test/ws-reference-server.ts` | `test/p07y-ws-conformance.test.ts`, `browser/e2e/ws-conformance.spec.ts` | 15 |
 
 Gaps that remain (alarms, hibernation, RPC richness, Worker Loader and isolation,
 changeset replication, conformance against `celld dev`) are listed in notes 08 and 09.
@@ -57,9 +60,8 @@ const res = await rt.fetch(new Request("http://local/counter/a"));
 |---|---|
 | `pnpm test` | unit tests (vitest; Node ≥ 22.13 for `node:sqlite`) |
 | `pnpm typecheck` | TypeScript for `src/`, `test/` and the browser code |
-| `pnpm e2e` | Chromium tests (`npx playwright install chromium` first) |
-| `pnpm e2e:npm-chromium` | same, with the Chromium shipped in the npm package `@sparticuz/chromium` (no CDN access needed) |
-| `pnpm mutate` / `pnpm mutate:browser` | mutation harnesses: every listed defect must make a test fail; mutants run in a throw-away copy of the app (`MUTANTS=0,3` runs a subset) |
+| `pnpm e2e` | Chromium tests; Chrome is found automatically: `PW_CHROMIUM`, else Playwright's own Chromium, else the one packaged in `node_modules` by `@sparticuz/chromium` (no CDN access needed) |
+| `pnpm mutate` / `pnpm mutate:browser` | mutation harnesses: every listed defect must make a test fail; mutants run in a throw-away copy of the app after a mandatory baseline run (`MUTANTS=0,3` runs a subset) |
 | `pnpm probes:node` / `pnpm probes:browser` | exploratory probes (SQLite locks; MessagePort close, lock watch, SW idling) |
 | `pnpm browser:dev` | demo pages: `/` (single cell worker), `/sharded/` (router + shards), `/backup/` |
 
