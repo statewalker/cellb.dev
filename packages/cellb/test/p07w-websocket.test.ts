@@ -158,11 +158,16 @@ describe("P07w user code built by webrun-modules: WebSocket / WebSocketPair / Re
       }
     `,
     );
-    // Late-bound registry: the client class needs the runtime, created after the build.
+    // Every binding must be registered BEFORE the first served module is imported:
+    // since webrun-modules 0.3 the globals proxy is one shared module per directory
+    // (~deps/~globals.js), evaluated once per realm. The client class reaches the
+    // runtime lazily, through `rt` assigned below.
+    let rt: ReturnType<typeof createCellRuntime> | undefined;
     const registry = newHostRegistry({
       "cloudflare:workers": { DurableObject },
       WebSocketPair,
       Response: CellsResponse,
+      WebSocket: createWebSocketClass((url, p) => rt!.connectWebSocket(url, p)),
     });
     const host = `globalThis.__webrunHostRegistry.get`;
     const server = newModuleServer({
@@ -190,15 +195,11 @@ describe("P07w user code built by webrun-modules: WebSocket / WebSocketPair / Re
     };
     const chat = await load("/chat.ts");
     expect(chat.urls.some((u) => u.includes("~deps"))).toBe(true);
-    const rt = createCellRuntime({
+    rt = createCellRuntime({
       worker: chat.mod,
       durableObjects: { ROOM: { className: "Room" } },
       openSql: nodeSqliteOpener(),
     });
-    registry.set(
-      "WebSocket",
-      createWebSocketClass((url, p) => rt.connectWebSocket(url, p)),
-    );
     const client = await load("/client.ts");
     expect(await client.mod.talk("ws://cells.local/", "hi")).toBe("echo:hi");
     expect(
