@@ -141,6 +141,8 @@ export function createProjectRuntime(
   for (const f of config.compatibility_flags ?? []) {
     if (f === "sqlite_vec")
       sqlExtensions.push("sqlite_vec"); // vec0 virtual tables, as on celld
+    else if (f === "nodejs_compat" || f === "nodejs_compat_v2")
+      continue; // the host's bundler maps node:*
     else unsupported.push(`compatibility_flags: ${f}`);
   }
 

@@ -5,11 +5,16 @@
  * from host registries set by the browser runtime — the ~deps idea, done at bundle time.
  */
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { build } from "esbuild";
+import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../src/node-compat/modules.ts";
 import { readAssetDirectory, readWranglerConfig } from "../src/project/node-project.ts";
 import type { WranglerConfig } from "../src/project/wrangler.ts";
 import { projectDir } from "./projects.ts";
+
+const app = resolve(import.meta.dirname, "..");
+const requireFromApp = createRequire(resolve(app, "package.json"));
 
 export interface BrowserProject {
   name: string;
@@ -27,6 +32,7 @@ export async function bundleProjectForBrowser(name: string): Promise<BrowserProj
   const dir = projectDir(name);
   const config = readWranglerConfig(dir);
   let code: string | null = null;
+  const nodeCompat = (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
   if (config.main) {
     const out = await build({
       entryPoints: [resolve(dir, config.main)],
@@ -36,11 +42,26 @@ export async function bundleProjectForBrowser(name: string): Promise<BrowserProj
       platform: "browser",
       target: "es2022",
       logLevel: "silent",
-      inject: ["cells:globals"],
+      inject: [
+        "cells:globals",
+        ...(nodeCompat ? [resolve(app, "src/node-compat/globals.ts")] : []),
+      ],
       plugins: [
         {
           name: "cells-browser",
           setup(b) {
+            // nodejs_compat: node:* → browser polyfills, bundled in.
+            if (nodeCompat)
+              b.onResolve({ filter: /^node:/ }, (a) => {
+                const file = NODE_POLYFILL_FILES[a.path];
+                if (file) return { path: resolve(app, "src/node-compat", file) };
+                const pkg = NODE_POLYFILL_PACKAGES[a.path];
+                // "buffer/" (trailing slash): the npm package, not the Node.js built-in of that name
+                if (pkg) return { path: requireFromApp.resolve(`${pkg}/`) };
+                return {
+                  errors: [{ text: `${a.path} is not available in browsers (nodejs_compat)` }],
+                };
+              });
             b.onResolve({ filter: /^cloudflare:workers$|^cells:globals$/ }, (a) => ({
               path: a.path,
               namespace: "cells",

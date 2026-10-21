@@ -3,6 +3,7 @@
 // webrun-site-builder + webrun-modules): `import()` of real URLs; Worker Loader over the site.
 
 import { cellsCaches } from "../../src/bindings/cache.js";
+import { installNodeGlobals } from "../../src/node-compat/install.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "../../src/project/site.js";
 import type { WranglerConfig } from "../../src/project/wrangler.js";
@@ -22,6 +23,9 @@ scope.onmessage = async (e) => {
     wsServer?: string;
   };
   const logs = captureLogs();
+  const cfg = (e.data.project?.config ?? e.data.config) as WranglerConfig;
+  const nodeCompat = (cfg?.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
+  if (nodeCompat) installNodeGlobals();
   try {
     workersHostRegistry({
       workersModule,
@@ -29,6 +33,11 @@ scope.onmessage = async (e) => {
       WebSocketPair,
       caches: cellsCaches,
       HTMLRewriter,
+      // Loaded on demand, after installNodeGlobals(): the npm `util` polyfill reads `process`
+      // when it is imported.
+      node: nodeCompat
+        ? (await import("../../src/node-compat/browser-registry.js")).nodeRegistryEntries
+        : undefined,
     });
     const module = job.config.main
       ? await import(/* @vite-ignore */ `${job.baseUrl}modules/~/${job.config.main}`)

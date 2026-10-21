@@ -290,6 +290,7 @@ export const scenarios: Record<string, Scenario> = {
     project: "html-rewriter",
     steps: [{ path: "/async" }],
   },
+  "node-compat": { steps: [{ path: "/" }] },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

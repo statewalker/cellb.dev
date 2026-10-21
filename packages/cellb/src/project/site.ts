@@ -8,6 +8,7 @@ import {
   outboundFetch,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
+import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
 
 /**
  * A project served by an in-browser "HTTP server" (webrun-site-builder handler, hosted in a
@@ -26,18 +27,29 @@ import {
  */
 export const LOADED_CONSOLES = "__cellsLoadedConsoles";
 
-export function createProjectSite(opts: { projectFiles: FilesApi }): SiteHandler {
+export function createProjectSite(opts: {
+  projectFiles: FilesApi;
+  nodeCompat?: boolean;
+}): SiteHandler {
   const host = "globalThis.__webrunHostRegistry.get";
-  const provided = { "cloudflare:workers": {} };
+  // nodejs_compat: node:* and the Buffer/process globals come from the realm's registry too.
+  const provided: Record<string, object> = { "cloudflare:workers": {} };
+  if (opts.nodeCompat)
+    for (const name of [
+      ...Object.keys(NODE_POLYFILL_PACKAGES),
+      ...Object.keys(NODE_POLYFILL_FILES),
+    ])
+      provided[nodeAlias(name)] = {};
   const globals = {
     Response: `${host}("Response")`,
     WebSocketPair: `${host}("WebSocketPair")`,
     caches: `${host}("caches")`,
     HTMLRewriter: `${host}("HTMLRewriter")`,
+    ...(opts.nodeCompat ? { Buffer: `${host}("Buffer")`, process: `${host}("process")` } : {}),
   };
   const modules = newModuleServer({
     cache: new MemFilesApi(),
-    project: opts.projectFiles,
+    project: opts.nodeCompat ? withNodeAliases(opts.projectFiles) : opts.projectFiles,
     basePath: "/modules/",
     target: "browser",
     provided,
@@ -86,6 +98,8 @@ export function createProjectSite(opts: { projectFiles: FilesApi }): SiteHandler
 
 /** The registry the `~deps` proxies read, for the realm that runs the Worker code. */
 export function workersHostRegistry(entries: {
+  /** nodejs_compat: "node:buffer" → module namespace, and the Buffer/process globals. */
+  node?: Record<string, unknown>;
   workersModule: unknown;
   Response: unknown;
   WebSocketPair: unknown;
@@ -98,6 +112,7 @@ export function workersHostRegistry(entries: {
     ["WebSocketPair", entries.WebSocketPair],
     ["caches", entries.caches],
     ["HTMLRewriter", entries.HTMLRewriter],
+    ...Object.entries(entries.node ?? {}),
   ]);
   (globalThis as Record<string, unknown>).__webrunHostRegistry = {
     get: (k: string) => map.get(k),
@@ -152,4 +167,38 @@ export function siteModuleLoader(baseUrl: string): ModuleLoader {
       unknown
     >;
   };
+}
+
+/**
+ * webrun-modules resolves `node:*` to its own polyfills (jspm nodelibs) BEFORE host-provided
+ * names, and those lack parts of what nodejs_compat offers (e.g. crypto.timingSafeEqual).
+ * Served sources therefore have `node:x` rewritten to `cells-node-x`, a provided name the
+ * worker's registry binds to webrun-cells' polyfills. (Upstream fix: let provided names win.)
+ */
+export const nodeAlias = (name: string) => `cells-node-${name.slice("node:".length)}`;
+
+const SOURCE = /\.(m?js|ts|jsx|tsx)$/;
+function withNodeAliases(files: FilesApi): FilesApi {
+  return new Proxy(files, {
+    get(target, prop, receiver) {
+      if (prop !== "read") return Reflect.get(target, prop, receiver);
+      return (path: string, options?: unknown) => {
+        const inner = target.read(path, options as never);
+        if (!SOURCE.test(path) || options) return inner;
+        return (async function* () {
+          const chunks: Uint8Array[] = [];
+          for await (const c of inner) chunks.push(c);
+          const text = new TextDecoder().decode(
+            chunks.length === 1 ? chunks[0] : new Uint8Array(chunks.flatMap((c) => [...c])),
+          );
+          yield new TextEncoder().encode(
+            text.replace(
+              /(["'])node:([\w/]+)\1/g,
+              (_m, q, n) => `${q}${nodeAlias(`node:${n}`)}${q}`,
+            ),
+          );
+        })();
+      };
+    },
+  });
 }

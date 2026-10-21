@@ -3,6 +3,7 @@
 // Worker-Loader code are Blob-URL modules.
 
 import { cellsCaches } from "../../src/bindings/cache.js";
+import { installNodeGlobals } from "../../src/node-compat/install.js";
 import { browserModuleLoader } from "../../src/project/browser-modules.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import type { WranglerConfig } from "../../src/project/wrangler.js";
@@ -26,6 +27,9 @@ scope.onmessage = async (e) => {
     wsServer?: string;
   };
   const logs = captureLogs();
+  const cfg = (e.data.project?.config ?? e.data.config) as WranglerConfig;
+  if ((cfg?.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat")))
+    installNodeGlobals();
   try {
     const g = globalThis as Record<string, unknown>;
     g.__cellsWorkersModule = workersModule;

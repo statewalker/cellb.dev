@@ -20,7 +20,14 @@ interface Job {
     await projectFiles.write(p, [Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))]);
   const site = await new HostedSiteBuilder()
     .setSiteKey(`site-${job.name}-${Math.random().toString(36).slice(2, 8)}`)
-    .setHandler(createProjectSite({ projectFiles }))
+    .setHandler(
+      createProjectSite({
+        projectFiles,
+        nodeCompat: (
+          (job.config as { compatibility_flags?: string[] }).compatibility_flags ?? []
+        ).some((f) => f.startsWith("nodejs_compat")),
+      }),
+    )
     .build();
   const worker = new Worker(new URL("./site-worker.ts", import.meta.url), { type: "module" });
   try {

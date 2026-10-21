@@ -33,6 +33,12 @@ export default defineConfig({
       "@statewalker/webrun-http-streams",
       "@statewalker/webrun-modules",
       "@statewalker/webrun-files-mem",
+      "@statewalker/webrun-site-host",
+      "@statewalker/webrun-site-builder",
+      "buffer",
+      "events",
+      "path-browserify",
+      "util",
       "@statewalker/webrun-files",
     ],
     entries: [
