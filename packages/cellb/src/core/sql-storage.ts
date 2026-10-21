@@ -72,6 +72,16 @@ export class SqlStorage {
     return new SqlStorageCursor<T>(this.internalExec(query, bindings));
   }
 
+  /**
+   * workerd's `sql.prepare(query)`: a reusable statement, called with bindings.
+   * Not in Cloudflare's public docs, but used by Miniflare's simulator objects.
+   */
+  prepare<T = Record<string, unknown>>(
+    query: string,
+  ): (...bindings: unknown[]) => SqlStorageCursor<T> {
+    return (...bindings) => this.exec<T>(query, ...bindings);
+  }
+
   get databaseSize(): number {
     return this.#driver.databaseSize();
   }

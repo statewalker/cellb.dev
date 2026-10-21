@@ -95,6 +95,10 @@ function createStub(id: DurableObjectId, endpoint: () => ObjectEndpoint): Durabl
     name: id.name,
     fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       const req = new Request(input as any, init);
+      // Cloudflare's `cf` request property (RequestInit.cf or Request#cf) is not part of
+      // the Fetch standard: re-attach it so objects can read `request.cf`.
+      const cf = (init as { cf?: unknown } | undefined)?.cf ?? (input as { cf?: unknown }).cf;
+      if (cf !== undefined) Object.defineProperty(req, "cf", { value: cf, enumerable: true });
       // Keep a WebSocket upgrade that browsers strip from new Request() (forbidden headers).
       const source = init?.headers
         ? new Headers(init.headers)
