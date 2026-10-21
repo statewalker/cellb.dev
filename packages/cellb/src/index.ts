@@ -1,3 +1,10 @@
+export {
+  type R2HTTPMetadata,
+  type R2ListOptions,
+  R2Object,
+  R2ObjectBody,
+  r2Bucket,
+} from "./bindings/r2.js";
 export { jsonCodec } from "./core/codec.js";
 export { DurableObject, type ExecutionContext, WorkerEntrypoint } from "./core/durable-object.js";
 export { InputGate, OutputGate } from "./core/gates.js";

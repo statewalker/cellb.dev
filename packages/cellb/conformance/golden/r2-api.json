@@ -1,0 +1,137 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /put",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "key": "docs/a.txt",
+        "size": 5,
+        "etag": "<string>",
+        "httpEtag": "<string>",
+        "httpMetadata": {
+          "cacheControl": "max-age=60",
+          "contentType": "text/plain"
+        },
+        "customMetadata": {
+          "owner": "ada"
+        },
+        "uploadedIsDate": true,
+        "versionIsString": true
+      }
+    },
+    {
+      "request": "GET /head",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "a": {
+          "key": "docs/a.txt",
+          "size": 5,
+          "etag": "<string>",
+          "httpEtag": "<string>",
+          "httpMetadata": {
+            "cacheControl": "max-age=60",
+            "contentType": "text/plain"
+          },
+          "customMetadata": {
+            "owner": "ada"
+          },
+          "uploadedIsDate": true,
+          "versionIsString": true
+        },
+        "missing": null
+      }
+    },
+    {
+      "request": "GET /get",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "key": "docs/a.txt",
+        "size": 5,
+        "etag": "<string>",
+        "httpEtag": "<string>",
+        "httpMetadata": {
+          "cacheControl": "max-age=60",
+          "contentType": "text/plain"
+        },
+        "customMetadata": {
+          "owner": "ada"
+        },
+        "range": {
+          "length": 5,
+          "offset": 0
+        },
+        "uploadedIsDate": true,
+        "versionIsString": true,
+        "text": "alpha",
+        "headers": {
+          "cache-control": "max-age=60",
+          "content-type": "text/plain"
+        }
+      }
+    },
+    {
+      "request": "GET /range",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "r1": [2, 3],
+        "r1range": {
+          "length": 2,
+          "offset": 1
+        },
+        "r2": [4, 5],
+        "r2range": {
+          "length": 2,
+          "offset": 3
+        }
+      }
+    },
+    {
+      "request": "GET /json",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "b": 1
+      }
+    },
+    {
+      "request": "GET /list",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "all": ["docs/a.txt", "docs/b.json", "docs/sub/c.bin", "top.txt"],
+        "allTruncated": false,
+        "docs": ["docs/a.txt", "docs/b.json"],
+        "docsPrefixes": ["docs/sub/"],
+        "page": ["docs/a.txt", "docs/b.json"],
+        "pageTruncated": true,
+        "rest": ["docs/sub/c.bin", "top.txt"],
+        "withMeta": [
+          [
+            "docs/a.txt",
+            {
+              "cacheControl": "max-age=60",
+              "contentType": "text/plain"
+            },
+            {
+              "owner": "ada"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "request": "GET /delete",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "left": ["docs/sub/c.bin"],
+        "gone": null
+      }
+    }
+  ]
+}

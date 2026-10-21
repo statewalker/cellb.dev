@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+
 /**
  * Request scripts for the celld examples (conformance/celld-examples). The same script runs
  * against celld (recorded into golden/) and against webrun-cells; transcripts must match.
@@ -104,6 +106,14 @@ export const scenarios: Record<string, Scenario> = {
     ],
   },
   facets: { steps: [{ path: "/" }, { path: "/" }] },
+  // conformance/projects (ours): API coverage beyond celld's examples.
+  "r2-api": {
+    steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
+      path: `/${s}`,
+    })),
+    // celld's ETag (dev mode: a store generation number, "16") is not R2's MD5: compared by type only.
+    mask: ["etag", "httpEtag"],
+  },
 };
 
 export interface Exchange {
@@ -180,4 +190,11 @@ export async function runScenario(target: Target, s: Scenario): Promise<Exchange
     });
   }
   return out;
+}
+
+/** Directory of a scenario's project: ours (conformance/projects) or celld's own examples. */
+export function projectDir(name: string): string {
+  const base = new URL(".", import.meta.url).pathname;
+  const own = `${base}projects/${name}`;
+  return existsSync(own) ? own : `${base}celld-examples/${name}`;
 }

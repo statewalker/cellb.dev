@@ -2,19 +2,18 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { runScenario, scenarios, type Target } from "../conformance/scenarios.js";
+import { projectDir, runScenario, scenarios, type Target } from "../conformance/scenarios.js";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createWebSocketClass } from "../src/index.js";
 import { loadNodeProject } from "../src/project/node-project.js";
 
 // celld's own examples, unchanged, from their own wrangler.jsonc, must answer exactly as
 // the real celld 0.6.2 answered (conformance/golden, recorded by conformance/record-celld.ts).
-const examples = join(__dirname, "../conformance/celld-examples");
 const golden = (name: string) =>
   JSON.parse(readFileSync(join(__dirname, `../conformance/golden/${name}.json`), "utf8"));
 
 async function target(name: string): Promise<Target & { unsupported: string[] }> {
-  const { runtime, unsupported } = await loadNodeProject(join(examples, name), {
+  const { runtime, unsupported } = await loadNodeProject(projectDir(name), {
     openSql: nodeSqliteOpener(),
     files: new MemFilesApi(),
   });

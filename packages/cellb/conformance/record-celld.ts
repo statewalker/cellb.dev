@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { runScenario, scenarios, type Target } from "./scenarios.ts";
+import { projectDir, runScenario, scenarios, type Target } from "./scenarios.ts";
 
 const celld = process.env.CELLD_BIN ?? "celld";
 const here = import.meta.dirname;
@@ -16,7 +16,7 @@ let port = 18_700;
 
 for (const name of names) {
   const dir = join(mkdtempSync(join(tmpdir(), `celld-${name}-`)), name);
-  cpSync(resolve(here, "celld-examples", name), dir, { recursive: true });
+  cpSync(projectDir(name), dir, { recursive: true });
   const p = ++port;
   const env = { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` };
   const proc = spawn(celld, ["dev", ".", "--port", String(p)], {
