@@ -42,14 +42,31 @@ export const scenarios: Record<string, Scenario> = {
   d1: {
     steps: [
       { path: "/count" },
-      { method: "POST", path: "/", body: JSON.stringify({ name: "ada", message: "hi" }), headers: json },
-      { method: "POST", path: "/", body: JSON.stringify({ name: "alan", message: "hello" }), headers: json },
+      {
+        method: "POST",
+        path: "/",
+        body: JSON.stringify({ name: "ada", message: "hi" }),
+        headers: json,
+      },
+      {
+        method: "POST",
+        path: "/",
+        body: JSON.stringify({ name: "alan", message: "hello" }),
+        headers: json,
+      },
       { path: "/count" },
       { path: "/" },
     ],
     mask: ["at"],
   },
-  rpc: { steps: [{ path: "/" }, { method: "POST", path: "/" }, { method: "POST", path: "/" }, { path: "/" }] },
+  rpc: {
+    steps: [
+      { path: "/" },
+      { method: "POST", path: "/" },
+      { method: "POST", path: "/" },
+      { path: "/" },
+    ],
+  },
   router: { steps: [{ path: "/a" }, { path: "/a" }, { path: "/b" }, { path: "/" }] },
   body: {
     steps: [
@@ -65,13 +82,22 @@ export const scenarios: Record<string, Scenario> = {
     mask: ["at", "pendingAlarm"],
   },
   wsecho: {
-    steps: [{ path: "/" }, { ws: "/", send: ["one", "two"], receive: 2 }, { ws: "/", send: ["three"], receive: 1 }],
+    steps: [
+      { path: "/" },
+      { ws: "/", send: ["one", "two"], receive: 2 },
+      { ws: "/", send: ["three"], receive: 1 },
+    ],
   },
   queues: { steps: [{ path: "/job-1" }], mask: ["createdAt"] },
   r2: {
     steps: [
       { path: "/notes.txt" },
-      { method: "PUT", path: "/notes.txt", body: "hello r2", headers: { "content-type": "text/plain" } },
+      {
+        method: "PUT",
+        path: "/notes.txt",
+        body: "hello r2",
+        headers: { "content-type": "text/plain" },
+      },
       { path: "/notes.txt" },
       { method: "DELETE", path: "/notes.txt" },
       { path: "/notes.txt" },
@@ -101,7 +127,10 @@ export function normalize(text: string, origin: string, mask: string[] = []): un
     if (Array.isArray(v)) return v.map(walk);
     if (v && typeof v === "object")
       return Object.fromEntries(
-        Object.entries(v).map(([k, x]) => [k, mask.includes(k) ? `<${x === null ? "null" : typeof x}>` : walk(x)]),
+        Object.entries(v).map(([k, x]) => [
+          k,
+          mask.includes(k) ? `<${x === null ? "null" : typeof x}>` : walk(x),
+        ]),
       );
     return v;
   };
@@ -112,7 +141,9 @@ export interface Target {
   origin: string;
   fetch(req: Request): Promise<Response>;
   /** Opens a WebSocket to `url` and returns a minimal client. */
-  websocket(url: string): Promise<{ send(m: string): void; next(): Promise<unknown>; close(): void }>;
+  websocket(
+    url: string,
+  ): Promise<{ send(m: string): void; next(): Promise<unknown>; close(): void }>;
 }
 
 /** Runs one scenario against a target and returns the normalized transcript. */
@@ -127,14 +158,19 @@ export async function runScenario(target: Target, s: Scenario): Promise<Exchange
       const ws = await target.websocket(`${target.origin.replace(/^http/, "ws")}${step.ws}`);
       const messages: unknown[] = [];
       for (const m of step.send) ws.send(m);
-      for (let i = 0; i < step.receive; i++) messages.push(normalize(String(await ws.next()), target.origin, s.mask));
+      for (let i = 0; i < step.receive; i++)
+        messages.push(normalize(String(await ws.next()), target.origin, s.mask));
       ws.close();
       out.push({ request: `WS ${step.ws} ${JSON.stringify(step.send)}`, messages });
       continue;
     }
     const method = step.method ?? "GET";
     const res = await target.fetch(
-      new Request(`${target.origin}${step.path}`, { method, body: step.body, headers: step.headers }),
+      new Request(`${target.origin}${step.path}`, {
+        method,
+        body: step.body,
+        headers: step.headers,
+      }),
     );
     out.push({
       request: `${method} ${step.path}`,

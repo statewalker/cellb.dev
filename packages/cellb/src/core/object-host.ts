@@ -74,6 +74,7 @@ export class ObjectHost {
       this.#breakOn(e),
     );
     this.state = state;
+    state.attachDispatcher((fn) => this.deliver(fn));
     const construct = () => (this.#instance = new opts.cls(state, opts.env));
     const load = opts.backup?.load;
     if (!load) {

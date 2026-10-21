@@ -225,10 +225,14 @@ export class DurableObjectStorage extends AsyncKvApi {
   }
   setAlarm(scheduledTime: number | Date, _opts?: unknown): Promise<void> {
     const at = scheduledTime instanceof Date ? scheduledTime.getTime() : Number(scheduledTime);
-    if (!Number.isFinite(at)) return Promise.reject(new TypeError("setAlarm() requires a finite time"));
+    if (!Number.isFinite(at))
+      return Promise.reject(new TypeError("setAlarm() requires a finite time"));
     return this.op(() => {
       this.#meta();
-      this.sql.internalExec("INSERT OR REPLACE INTO _cf_METADATA (key, value) VALUES ('alarm', ?)", [at]);
+      this.sql.internalExec(
+        "INSERT OR REPLACE INTO _cf_METADATA (key, value) VALUES ('alarm', ?)",
+        [at],
+      );
       this.onAlarmChange(at);
     });
   }

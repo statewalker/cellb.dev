@@ -34,6 +34,13 @@ export {
 export { acquire, type Clock, type Lease, type LeaseHandle, systemClock } from "./lease/lease.js";
 export type { BackupInfo, CellBackup } from "./ports.js";
 export * from "./ports.js";
+export { parseJsonc } from "./project/jsonc.js";
+export {
+  createProjectRuntime,
+  type ProjectHost,
+  type ProjectRuntime,
+  type WranglerConfig,
+} from "./project/wrangler.js";
 export { CellRouter, type CellRouterOptions, ShardOwnerLostError } from "./router/cell-router.js";
 export { createShardHost, type ShardHost, type ShardHostOptions } from "./router/shard-host.js";
 export {
@@ -71,5 +78,3 @@ export { CellsCloseEvent } from "./ws/frames.js";
 export { CellsResponse, CfWebSocket, takeClientPort, WebSocketPair } from "./ws/server.js";
 export { serviceWorkerConnector } from "./ws/sw-connector.js";
 export { carryWebSocketHeaders, withUpgrade } from "./ws/upgrade.js";
-export { createProjectRuntime, type ProjectHost, type ProjectRuntime, type WranglerConfig } from "./project/wrangler.js";
-export { parseJsonc } from "./project/jsonc.js";

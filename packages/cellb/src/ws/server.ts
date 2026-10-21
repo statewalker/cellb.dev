@@ -145,6 +145,8 @@ export class CellsResponse extends Response {
     this.webSocket = init.webSocket ?? null;
   }
   get status(): number {
-    return this.#status;
+    // Static helpers (CellsResponse.json(), .redirect(), .error()) may build instances
+    // without running this constructor: fall back to the platform's status.
+    return #status in this ? this.#status : super.status;
   }
 }

@@ -1,11 +1,20 @@
 import type { FilesApi } from "@statewalker/webrun-files";
 import type { DurableObjectNamespace } from "../core/namespace.js";
-import { type CellRuntime, type CellRuntimeOptions, createCellRuntime, type WorkerModule } from "../core/runtime.js";
+import {
+  type CellRuntime,
+  type CellRuntimeOptions,
+  createCellRuntime,
+  type WorkerModule,
+} from "../core/runtime.js";
+import { splitSqlStatements } from "../core/sql-split.js";
 import { filesApiBlobService } from "../miniflare-compat/blob-service.js";
 import { kvNamespaceBinding } from "../miniflare-compat/kv-binding.js";
 import { simulatorFetcher } from "../miniflare-compat/simulator-fetcher.js";
-import { D1DatabaseObject, KVNamespaceObject, makeD1Binding } from "../miniflare-compat/vendored.js";
-import { splitSqlStatements } from "../core/sql-split.js";
+import {
+  D1DatabaseObject,
+  KVNamespaceObject,
+  makeD1Binding,
+} from "../miniflare-compat/vendored.js";
 
 /** The subset of wrangler.json(c) that celld deploys (and webrun-cells reads). */
 export interface WranglerConfig {
@@ -32,7 +41,8 @@ export interface WranglerConfig {
   services?: unknown[];
 }
 
-export interface ProjectHost extends Pick<CellRuntimeOptions, "openSql" | "durability" | "backup" | "clock"> {
+export interface ProjectHost
+  extends Pick<CellRuntimeOptions, "openSql" | "durability" | "backup" | "clock"> {
   /** Blob store of the KV simulator (large values): OPFS in a browser, a directory or S3 on a server. */
   files: FilesApi;
 }
@@ -51,14 +61,19 @@ const D1_OBJECTS = "__CELLS_D1_OBJECTS";
  * Builds a runtime from a wrangler config and the Worker's module namespace — the same
  * inputs celld deploys. Hosts differ only in `host` (storage) and in how they load `main`.
  */
-export function createProjectRuntime(config: WranglerConfig, module: WorkerModule, host: ProjectHost): ProjectRuntime {
+export function createProjectRuntime(
+  config: WranglerConfig,
+  module: WorkerModule,
+  host: ProjectHost,
+): ProjectRuntime {
   const unsupported: string[] = [];
   const durableObjects: NonNullable<CellRuntimeOptions["durableObjects"]> = {};
   const sqliteClasses = new Set<string>();
   for (const m of config.migrations ?? []) {
     for (const c of m.new_sqlite_classes ?? []) sqliteClasses.add(c);
     for (const c of m.new_classes ?? []) sqliteClasses.add(c); // KV-backed on Cloudflare; SQLite here (superset)
-    for (const r of m.renamed_classes ?? []) unsupported.push(`migrations.renamed_classes (${r.from} → ${r.to})`);
+    for (const r of m.renamed_classes ?? [])
+      unsupported.push(`migrations.renamed_classes (${r.from} → ${r.to})`);
   }
   for (const b of config.durable_objects?.bindings ?? []) {
     if (b.script_name) unsupported.push(`durable_objects.bindings[${b.name}].script_name`);
@@ -74,7 +89,8 @@ export function createProjectRuntime(config: WranglerConfig, module: WorkerModul
     durableObjects[D1_OBJECTS] = { className: "__CellsD1Database" };
   }
   for (const key of ["r2_buckets", "queues", "workflows", "assets", "services"] as const)
-    if (config[key] && (!Array.isArray(config[key]) || (config[key] as unknown[]).length)) unsupported.push(key);
+    if (config[key] && (!Array.isArray(config[key]) || (config[key] as unknown[]).length))
+      unsupported.push(key);
   if (config.triggers?.crons?.length) unsupported.push("triggers.crons");
   for (const f of config.compatibility_flags ?? []) unsupported.push(`compatibility_flags: ${f}`);
 
@@ -93,12 +109,16 @@ export function createProjectRuntime(config: WranglerConfig, module: WorkerModul
   for (const d1 of config.d1_databases ?? [])
     env[d1.binding] = celldExec(
       makeD1Binding({
-        fetcher: simulatorFetcher(env[D1_OBJECTS] as DurableObjectNamespace, d1.database_id) as never,
+        fetcher: simulatorFetcher(
+          env[D1_OBJECTS] as DurableObjectNamespace,
+          d1.database_id,
+        ) as never,
       }) as D1Like,
     );
-  for (const name of [...sqliteClasses]) if (!Object.values(durableObjects).some((d) => d.className === name)) {
-    // A migrated class without a binding is fine (reachable through other code paths only).
-  }
+  for (const name of [...sqliteClasses])
+    if (!Object.values(durableObjects).some((d) => d.className === name)) {
+      // A migrated class without a binding is fine (reachable through other code paths only).
+    }
   return { runtime, unsupported };
 }
 

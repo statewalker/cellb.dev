@@ -3,10 +3,10 @@ import type { CellBackup, CellDurability, OpenCellSql, ValueCodec } from "../por
 import { httpEndpoint, postVia, type Send } from "../transport/cells-http.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
+import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
 import { jsonCodec } from "./codec.js";
 import type { ExecutionContext } from "./durable-object.js";
 import { DurableObjectId } from "./id.js";
-import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
 import { DurableObjectNamespace, localEndpoint } from "./namespace.js";
 import { type DurableObjectClass, ObjectHost } from "./object-host.js";
 
@@ -78,7 +78,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   const hostsByClass = new Map<string, (id: DurableObjectId) => ObjectHost>();
   const alarms = new AlarmScheduler({
     clock,
-    index: opts.openSql("__webrun-cells/alarms"),
+    openIndex: () => opts.openSql("__webrun-cells/alarms"),
     fire: (e) => fireAlarm(e, 0),
   });
   const MAX_ALARM_RETRIES = 6; // as Cloudflare: exponential backoff from 2 s, then give up
@@ -92,7 +92,8 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
         // The alarm is consumed when its handler starts: getAlarm() inside it returns null
         // unless the handler sets a new one.
         if (state.storage.alarmSync() === e.at) state.storage.clearAlarmSync();
-        if (typeof obj.alarm === "function") await obj.alarm({ retryCount, isRetry: retryCount > 0 });
+        if (typeof obj.alarm === "function")
+          await obj.alarm({ retryCount, isRetry: retryCount > 0 });
       });
     } catch {
       failed = true;
@@ -102,7 +103,10 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     const current = host.state.storage.alarmSync();
     if (current !== null) return;
     const retryAt = clock.now() + 2 ** (retryCount + 1) * 1000;
-    clock.setTimeout(() => void fireAlarm({ ...e, at: retryAt }, retryCount + 1), retryAt - clock.now());
+    clock.setTimeout(
+      () => void fireAlarm({ ...e, at: retryAt }, retryCount + 1),
+      retryAt - clock.now(),
+    );
   }
 
   for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {

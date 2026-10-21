@@ -19,7 +19,11 @@ for (const name of names) {
   cpSync(resolve(here, "celld-examples", name), dir, { recursive: true });
   const p = ++port;
   const env = { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` };
-  const proc = spawn(celld, ["dev", ".", "--port", String(p)], { cwd: dir, env, stdio: ["ignore", "pipe", "pipe"] });
+  const proc = spawn(celld, ["dev", ".", "--port", String(p)], {
+    cwd: dir,
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   let log = "";
   proc.stdout.on("data", (d) => (log += d));
   proc.stderr.on("data", (d) => (log += d));
@@ -47,14 +51,18 @@ for (const name of names) {
         ws.onopen = () =>
           resolveWs({
             send: (m) => ws.send(m),
-            next: () => (queue.length ? Promise.resolve(queue.shift()) : new Promise((r) => waiters.push(r))),
+            next: () =>
+              queue.length ? Promise.resolve(queue.shift()) : new Promise((r) => waiters.push(r)),
             close: () => ws.close(),
           });
       }),
   };
   try {
     const transcript = await runScenario(target, scenarios[name]);
-    writeFileSync(resolve(here, "golden", `${name}.json`), `${JSON.stringify({ celld: "0.6.2", transcript }, null, 2)}\n`);
+    writeFileSync(
+      resolve(here, "golden", `${name}.json`),
+      `${JSON.stringify({ celld: "0.6.2", transcript }, null, 2)}\n`,
+    );
     console.log(`✓ ${name}: ${transcript.length} exchanges`);
   } catch (e) {
     console.log(`✗ ${name}: ${(e as Error).message}`);

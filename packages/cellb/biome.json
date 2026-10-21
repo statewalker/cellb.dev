@@ -3,6 +3,6 @@
   "root": false,
   "extends": "//",
   "files": {
-    "includes": ["**", "!vendor"]
+    "includes": ["**", "!vendor", "!conformance/celld-examples"]
   }
 }

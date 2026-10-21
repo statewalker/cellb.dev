@@ -17,23 +17,51 @@ export interface AlarmEntry {
 export class AlarmScheduler {
   readonly #timers = new Map<string, unknown>();
   readonly #clock: Clock;
-  readonly #index?: SyncSqlDriver;
+  readonly #openIndex?: () => SyncSqlDriver;
+  #indexDb: SyncSqlDriver | null | undefined;
   readonly #fire: (e: AlarmEntry) => Promise<void>;
 
-  constructor(opts: { clock: Clock; index?: SyncSqlDriver; fire: (e: AlarmEntry) => Promise<void> }) {
+  constructor(opts: {
+    clock: Clock;
+    openIndex?: () => SyncSqlDriver;
+    fire: (e: AlarmEntry) => Promise<void>;
+  }) {
     this.#clock = opts.clock;
-    this.#index = opts.index;
+    this.#openIndex = opts.openIndex;
     this.#fire = opts.fire;
-    this.#index?.exec(
-      "CREATE TABLE IF NOT EXISTS alarms (cell_key TEXT PRIMARY KEY, class_name TEXT, id_hex TEXT, at INTEGER)",
-      [],
-    );
+  }
+
+  /**
+   * The index is opened lazily and is best effort: if it cannot be opened (e.g. another
+   * process holds it in EXCLUSIVE locking mode) alarms still fire for live objects; only
+   * the catch-up after a restart is lost for this runtime.
+   */
+  get #index(): SyncSqlDriver | undefined {
+    if (this.#indexDb === undefined) {
+      try {
+        const db = this.#openIndex?.() ?? null;
+        db?.exec(
+          "CREATE TABLE IF NOT EXISTS alarms (cell_key TEXT PRIMARY KEY, class_name TEXT, id_hex TEXT, at INTEGER)",
+          [],
+        );
+        this.#indexDb = db;
+      } catch {
+        this.#indexDb = null;
+      }
+    }
+    return this.#indexDb ?? undefined;
   }
 
   /** Re-arms every alarm recorded in the index (due ones fire at once). */
   restore(): void {
-    for (const [cellKey, className, idHex, at] of this.#index?.exec("SELECT * FROM alarms", []).rows ?? [])
-      this.#arm({ cellKey: String(cellKey), className: String(className), idHex: String(idHex), at: Number(at) });
+    for (const [cellKey, className, idHex, at] of this.#index?.exec("SELECT * FROM alarms", [])
+      .rows ?? [])
+      this.#arm({
+        cellKey: String(cellKey),
+        className: String(className),
+        idHex: String(idHex),
+        at: Number(at),
+      });
   }
 
   set(entry: Omit<AlarmEntry, "at">, at: number | null): void {
@@ -42,7 +70,12 @@ export class AlarmScheduler {
       this.#index?.exec("DELETE FROM alarms WHERE cell_key = ?", [entry.cellKey]);
       return;
     }
-    this.#index?.exec("INSERT OR REPLACE INTO alarms VALUES (?, ?, ?, ?)", [entry.cellKey, entry.className, entry.idHex, at]);
+    this.#index?.exec("INSERT OR REPLACE INTO alarms VALUES (?, ?, ?, ?)", [
+      entry.cellKey,
+      entry.className,
+      entry.idHex,
+      at,
+    ]);
     this.#arm({ ...entry, at });
   }
 

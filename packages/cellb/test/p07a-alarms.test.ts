@@ -8,7 +8,8 @@ import { FakeClock } from "./fake-clock.js";
 
 /** Records every alarm() call; fails while `failures` > 0; can re-arm itself. */
 class Sleeper extends DurableObject {
-  static calls: { name: string; retryCount: number; isRetry: boolean; seenAlarm: number | null }[] = [];
+  static calls: { name: string; retryCount: number; isRetry: boolean; seenAlarm: number | null }[] =
+    [];
   static failures = 0;
   static rearmMs = 0;
   static lastAt = 0;

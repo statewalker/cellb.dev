@@ -4,7 +4,12 @@ import { join, resolve } from "node:path";
 import { build } from "esbuild";
 import type { WorkerModule } from "../core/runtime.js";
 import { parseJsonc } from "./jsonc.js";
-import { createProjectRuntime, type ProjectHost, type ProjectRuntime, type WranglerConfig } from "./wrangler.js";
+import {
+  createProjectRuntime,
+  type ProjectHost,
+  type ProjectRuntime,
+  type WranglerConfig,
+} from "./wrangler.js";
 
 /** Reads `wrangler.jsonc` / `wrangler.json` of a project directory (celld reads the same files). */
 export function readWranglerConfig(dir: string): WranglerConfig {
@@ -20,7 +25,10 @@ export function readWranglerConfig(dir: string): WranglerConfig {
  * `cloudflare:workers` resolves to webrun-cells' module so user classes extend the
  * runtime's own DurableObject / WorkerEntrypoint.
  */
-export async function loadNodeProject(dir: string, host: ProjectHost): Promise<ProjectRuntime & { config: WranglerConfig }> {
+export async function loadNodeProject(
+  dir: string,
+  host: ProjectHost,
+): Promise<ProjectRuntime & { config: WranglerConfig }> {
   const config = readWranglerConfig(dir);
   if (!config.main) throw new Error("wrangler config has no `main`");
   const out = join(mkdtempSync(join(tmpdir(), "cells-project-")), "worker.mjs");
@@ -33,11 +41,20 @@ export async function loadNodeProject(dir: string, host: ProjectHost): Promise<P
     platform: "neutral",
     target: "es2022",
     logLevel: "silent",
+    // Workers globals (Response with status 101 + webSocket, WebSocketPair), bundle-local.
+    inject: [resolve(import.meta.dirname, "workers-globals.ts")],
     plugins: [
       {
         name: "cloudflare-workers",
         setup(b) {
-          b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({ path: cfWorkers, external: true }));
+          b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({
+            path: cfWorkers,
+            external: true,
+          }));
+          b.onResolve({ filter: /^webrun-cells:ws$/ }, () => ({
+            path: resolve(import.meta.dirname, "../ws/server.ts"),
+            external: true,
+          }));
         },
       },
     ],
