@@ -1,4 +1,10 @@
 import type { FilesApi } from "@statewalker/webrun-files";
+import {
+  makeQueueCell,
+  type QueueConsumerConfig,
+  type QueueDispatcher,
+  queueProducer,
+} from "../bindings/queues.js";
 import { r2Bucket } from "../bindings/r2.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
@@ -35,7 +41,10 @@ export interface WranglerConfig {
   kv_namespaces?: { binding: string; id: string }[];
   d1_databases?: { binding: string; database_name: string; database_id: string }[];
   r2_buckets?: { binding: string; bucket_name: string }[];
-  queues?: { producers?: { binding: string; queue: string }[]; consumers?: { queue: string }[] };
+  queues?: {
+    producers?: { binding: string; queue: string; delivery_delay?: number }[];
+    consumers?: QueueConsumerConfig[];
+  };
   workflows?: { binding: string; name: string; class_name: string }[];
   triggers?: { crons?: string[] };
   assets?: unknown;
@@ -57,6 +66,7 @@ export interface ProjectRuntime {
 // Internal bindings carrying the runtime-supplied objects behind KV and D1.
 const KV_OBJECTS = "__CELLS_KV_OBJECTS";
 const D1_OBJECTS = "__CELLS_D1_OBJECTS";
+const QUEUE_OBJECTS = "__CELLS_QUEUE_OBJECTS";
 
 /**
  * Builds a runtime from a wrangler config and the Worker's module namespace — the same
@@ -89,7 +99,19 @@ export function createProjectRuntime(
     worker.__CellsD1Database = D1DatabaseObject;
     durableObjects[D1_OBJECTS] = { className: "__CellsD1Database" };
   }
-  for (const key of ["queues", "workflows", "assets", "services"] as const)
+  // Queues: every queue is a cell of a runtime-supplied class (as on celld).
+  const consumers = new Map((config.queues?.consumers ?? []).map((c) => [c.queue, c]));
+  let queueDispatcher: QueueDispatcher | undefined;
+  if (config.queues?.producers?.length || consumers.size) {
+    worker.__CellsQueue = makeQueueCell(
+      consumers,
+      () => queueDispatcher,
+      () => runtime.env[QUEUE_OBJECTS] as DurableObjectNamespace,
+      host.clock ? () => host.clock!.now() : undefined,
+    );
+    durableObjects[QUEUE_OBJECTS] = { className: "__CellsQueue" };
+  }
+  for (const key of ["workflows", "assets", "services"] as const)
     if (config[key] && (!Array.isArray(config[key]) || (config[key] as unknown[]).length))
       unsupported.push(key);
   if (config.triggers?.crons?.length) unsupported.push("triggers.crons");
@@ -107,6 +129,28 @@ export function createProjectRuntime(
   const env = runtime.env as Record<string, unknown>;
   for (const kv of config.kv_namespaces ?? [])
     env[kv.binding] = kvNamespaceBinding(env[KV_OBJECTS] as DurableObjectNamespace, kv.id);
+  for (const p of config.queues?.producers ?? [])
+    env[p.binding] = queueProducer(
+      env[QUEUE_OBJECTS] as DurableObjectNamespace,
+      p.queue,
+      p.delivery_delay ?? 0,
+    );
+  if (consumers.size) {
+    const handler = (module.default as { queue?: (b: unknown, e: unknown, c: unknown) => unknown })
+      .queue;
+    if (typeof handler !== "function")
+      unsupported.push("queues.consumers without a queue() handler");
+    queueDispatcher = {
+      deliver: async (batch) => {
+        const pending: Promise<unknown>[] = [];
+        await handler?.call(module.default, batch, env, {
+          waitUntil: (p: Promise<unknown>) => pending.push(p),
+          passThroughOnException() {},
+        });
+        await Promise.allSettled(pending);
+      },
+    };
+  }
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
   for (const r2 of config.r2_buckets ?? [])
     env[r2.binding] = r2Bucket(host.files, `/r2/${r2.bucket_name}`);

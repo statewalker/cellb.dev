@@ -107,6 +107,9 @@ export const scenarios: Record<string, Scenario> = {
   },
   facets: { steps: [{ path: "/" }, { path: "/" }] },
   // conformance/projects (ours): API coverage beyond celld's examples.
+  "queues-api": {
+    steps: [{ path: "/errors" }, { path: "/send" }, { waitMs: 8000 }, { path: "/log" }],
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

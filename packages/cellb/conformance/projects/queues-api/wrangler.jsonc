@@ -1,0 +1,20 @@
+{
+  "name": "queues-api",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": { "bindings": [{ "name": "LOG", "class_name": "Log" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Log"] }],
+  "queues": {
+    "producers": [{ "binding": "QUEUE", "queue": "work" }],
+    "consumers": [
+      {
+        "queue": "work",
+        "max_batch_size": 3,
+        "max_batch_timeout": 1,
+        "max_retries": 1,
+        "dead_letter_queue": "work-dlq"
+      },
+      { "queue": "work-dlq", "max_batch_timeout": 1 }
+    ]
+  }
+}

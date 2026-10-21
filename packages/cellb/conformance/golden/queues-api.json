@@ -1,0 +1,38 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /errors",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "tooLate": "Error",
+        "tooMany": "Error",
+        "textNotString": "ok"
+      }
+    },
+    {
+      "request": "GET /send",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "sent": 5
+      }
+    },
+    {
+      "request": "GET /log",
+      "status": 200,
+      "contentType": "application/json",
+      "body": [
+        "work \"42\" attempt=1",
+        "work \"fail\" attempt=1",
+        "work \"fail\" attempt=2",
+        "work \"plain\" attempt=1",
+        "work {\"n\":1} attempt=1",
+        "work {\"n\":2} attempt=1",
+        "work {\"n\":3} attempt=1",
+        "work-dlq \"fail\" attempt=1"
+      ]
+    }
+  ]
+}
