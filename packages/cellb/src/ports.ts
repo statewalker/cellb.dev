@@ -62,6 +62,8 @@ export interface CellDurability {
  */
 export interface CommitChanges {
   logSeq: number;
+  /** Fencing epoch of the owner that committed it (from the cell's lease), if owned. */
+  epoch?: number;
   ddl: string[];
   changeset: Uint8Array;
   statements: [string, unknown[]][];

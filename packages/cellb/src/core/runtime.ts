@@ -33,6 +33,10 @@ export interface CellRuntimeOptions {
   route?: (cellKey: string, id: DurableObjectId) => Send | undefined;
   /** Periodic backup of cell databases to a separate store (e.g. a FilesApi); restore on open. */
   backup?: CellBackup;
+  /** Per-cell ownership: each object takes this lease before it opens (fencing epoch → log). */
+  ownership?: {
+    tryAcquire(name: string): Promise<{ epoch: number; lost: AbortSignal } | undefined>;
+  };
   /** Hibernate objects idle this long (ms); swept every max(1 s, half of it). Off by default. */
   hibernateAfterMs?: number;
   /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
@@ -157,6 +161,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           backup: opts.backup,
           onAlarmChange: (at) => alarms.set({ cellKey, className, idHex: id.toString() }, at),
           exports: exportsObj,
+          acquire: opts.ownership ? (key) => opts.ownership!.tryAcquire(key) : undefined,
           sqlExtensions: opts.sqlExtensions,
         });
         hosts.set(cellKey, h);

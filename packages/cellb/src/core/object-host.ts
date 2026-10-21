@@ -65,6 +65,12 @@ export class ObjectHost {
     exports?: Record<string, unknown>;
     /** SQLite extensions to load into every cell database (e.g. "sqlite_vec"). */
     sqlExtensions?: string[];
+    /**
+     * Ownership: acquire the cell's lease before restoring it. No lease → the cell is owned
+     * elsewhere (the host refuses events). The lease epoch fences the cell's log segments;
+     * losing the lease breaks the host so it stops serving.
+     */
+    acquire?: (cellKey: string) => Promise<{ epoch: number; lost: AbortSignal } | undefined>;
   }) {
     this.#backup = opts.backup;
     this.cellKey = opts.cellKey;
@@ -76,8 +82,12 @@ export class ObjectHost {
     }
     this.#sql = new SqlStorage(
       this.#driver,
-      (changes) =>
-        this.#out.track(opts.durability.committed(this.cellKey, { seq: ++this.#seq, changes })),
+      (changes) => {
+        if (changes && this.#epoch !== undefined) changes.epoch = this.#epoch;
+        return this.#out.track(
+          opts.durability.committed(this.cellKey, { seq: ++this.#seq, changes }),
+        );
+      },
       { capture: !!opts.durability.captureChanges },
     );
     const kv = new SyncKvStorage(this.#sql, opts.codec);
@@ -105,13 +115,26 @@ export class ObjectHost {
     this.#construct = construct;
     const load = opts.backup?.load;
     const replay = opts.backup?.replay;
-    if (!load && !replay) {
+    const acquire = opts.acquire;
+    if (!load && !replay && !acquire) {
       construct();
       return;
     }
     // Restore-on-open: events queue behind the closed gate until the image is in.
     void this.#gate
       .runClosed(async () => {
+        if (acquire) {
+          const lease = await acquire(this.cellKey);
+          if (!lease) throw new CellOwnedElsewhereError(this.cellKey);
+          this.#epoch = lease.epoch;
+          lease.lost.addEventListener(
+            "abort",
+            () => this.#breakOn(new Error(`lease of ${this.cellKey} lost`)),
+            {
+              once: true,
+            },
+          );
+        }
         const empty =
           Number(this.#driver.exec("SELECT count(*) FROM sqlite_master", []).rows[0][0]) === 0;
         if (empty) {
@@ -193,9 +216,16 @@ export class ObjectHost {
         started.then(
           (r) => {
             this.#pinIfStandardWebSocket(r);
-            this.#barrier().then(() => (done(), resolve(r)), (e) => (done(), reject(e)));
+            this.#barrier().then(
+              () => (done(), resolve(r)),
+              (e) => (done(), reject(e)),
+            );
           },
-          (e) => this.#barrier().then(() => (done(), reject(e)), (e2) => (done(), reject(e2))),
+          (e) =>
+            this.#barrier().then(
+              () => (done(), reject(e)),
+              (e2) => (done(), reject(e2)),
+            ),
         );
       });
       this.#pump();
@@ -265,6 +295,7 @@ export class ObjectHost {
   }
 
   #construct?: () => unknown;
+  #epoch: number | undefined;
 
   // ---- hibernation ---------------------------------------------------------------------
   #active = 0;
@@ -283,8 +314,9 @@ export class ObjectHost {
    * as on Cloudflare, only the hibernation API lets an object sleep with open sockets.
    */
   #pinIfStandardWebSocket(r: unknown): void {
-    const server = (r as { webSocket?: { peer?: { accepted: boolean; hibernatable: boolean } & EventTarget } })
-      ?.webSocket?.peer;
+    const server = (
+      r as { webSocket?: { peer?: { accepted: boolean; hibernatable: boolean } & EventTarget } }
+    )?.webSocket?.peer;
     if (!server || server.hibernatable || !server.accepted) return;
     this.#pinned++;
     server.addEventListener("close", () => this.#pinned--, { once: true });
@@ -296,7 +328,14 @@ export class ObjectHost {
    * next event constructs the class again. Returns whether it hibernated.
    */
   hibernate(): boolean {
-    if (this.#hibernated || this.broken || this.#active || this.#queue.length || this.#sql.held || this.#pinned)
+    if (
+      this.#hibernated ||
+      this.broken ||
+      this.#active ||
+      this.#queue.length ||
+      this.#sql.held ||
+      this.#pinned
+    )
       return false;
     if (!this.#gate.isOpen) return false;
     this.#sql.commit();
@@ -381,4 +420,12 @@ function createFacets(
       }
     },
   };
+}
+
+/** The cell's lease is held by another owner (route the request there, or retry later). */
+export class CellOwnedElsewhereError extends Error {
+  constructor(cellKey: string) {
+    super(`Durable Object ${cellKey} is owned by another node`);
+    this.name = "CellOwnedElsewhereError";
+  }
 }

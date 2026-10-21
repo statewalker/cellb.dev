@@ -95,8 +95,9 @@ export function filesApiChangeLog(
 
     async committed(cellKey, { changes }) {
       if (!changes) return;
-      const name = `${pad(epoch, 10)}-${pad(changes.logSeq, 12)}.seg`;
-      await files.write(`${cellDir(cellKey)}/log/${name}`, [encodeSegment(changes, epoch)]);
+      const e = changes.epoch ?? epoch; // the cell's lease epoch wins over the static one
+      const name = `${pad(e, 10)}-${pad(changes.logSeq, 12)}.seg`;
+      await files.write(`${cellDir(cellKey)}/log/${name}`, [encodeSegment(changes, e)]);
     },
 
     async save(cellKey: string, image: Uint8Array, info: BackupInfo) {

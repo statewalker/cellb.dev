@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
-import { CellsResponse, createCellRuntime, createWebSocketClass, DurableObject, WebSocketPair } from "../src/index.js";
+import {
+  CellsResponse,
+  createCellRuntime,
+  createWebSocketClass,
+  DurableObject,
+  WebSocketPair,
+} from "../src/index.js";
 
 /** Counts constructions; keeps an in-memory field to show the instance really went away. */
 class Sleepy extends DurableObject {
@@ -16,7 +22,7 @@ class Sleepy extends DurableObject {
     const pair = new WebSocketPair();
     if (url.searchParams.has("standard")) {
       pair[1].accept(); // standard WebSocket: pins the object
-      pair[1].addEventListener("message", (e: MessageEvent) => pair[1].send(`std:${e.data}`));
+      pair[1].addEventListener("message", (e: any) => pair[1].send(`std:${e.data}`));
     } else {
       this.ctx.acceptWebSocket(pair[1], ["t"]);
       pair[1].serializeAttachment({ name: url.searchParams.get("name") });
@@ -27,7 +33,15 @@ class Sleepy extends DurableObject {
     this.memory++;
     const n = ((await this.ctx.storage.get<number>("n")) ?? 0) + 1;
     await this.ctx.storage.put("n", n);
-    ws.send(JSON.stringify({ msg, n, memory: this.memory, name: ws.deserializeAttachment().name, sockets: this.ctx.getWebSockets("t").length }));
+    ws.send(
+      JSON.stringify({
+        msg,
+        n,
+        memory: this.memory,
+        name: ws.deserializeAttachment().name,
+        sockets: this.ctx.getWebSockets("t").length,
+      }),
+    );
   }
   async webSocketClose(_ws: any, code: number) {
     Sleepy.closes.push(code);
@@ -61,11 +75,23 @@ describe("P07i hibernation", () => {
     const { rt, open } = setup();
     const a = await open("name=ada");
     a.ws.send("one");
-    expect(JSON.parse(await a.next())).toEqual({ msg: "one", n: 1, memory: 1, name: "ada", sockets: 1 });
+    expect(JSON.parse(await a.next())).toEqual({
+      msg: "one",
+      n: 1,
+      memory: 1,
+      name: "ada",
+      sockets: 1,
+    });
     expect(Sleepy.constructed).toBe(1);
     expect(rt.hibernateIdle(0)).toBe(1);
     a.ws.send("two"); // wakes it: constructor again, in-memory state gone, storage + attachment kept
-    expect(JSON.parse(await a.next())).toEqual({ msg: "two", n: 2, memory: 1, name: "ada", sockets: 1 });
+    expect(JSON.parse(await a.next())).toEqual({
+      msg: "two",
+      n: 2,
+      memory: 1,
+      name: "ada",
+      sockets: 1,
+    });
     expect(Sleepy.constructed).toBe(2);
   });
 
@@ -77,7 +103,8 @@ describe("P07i hibernation", () => {
     await a.next();
     expect(rt.hibernateIdle(0)).toBe(1);
     a.ws.close(4100, "bye");
-    for (let i = 0; i < 100 && !Sleepy.closes.length; i++) await new Promise((r) => setTimeout(r, 5));
+    for (let i = 0; i < 100 && !Sleepy.closes.length; i++)
+      await new Promise((r) => setTimeout(r, 5));
     expect(Sleepy.closes).toEqual([4100]);
   });
 

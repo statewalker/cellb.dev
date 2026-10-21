@@ -21,7 +21,7 @@ export {
   type DurableObjectStub,
   runInDurableObject,
 } from "./core/namespace.js";
-export { BrokenObjectError } from "./core/object-host.js";
+export { BrokenObjectError, CellOwnedElsewhereError } from "./core/object-host.js";
 export {
   type CellRuntime,
   type CellRuntimeOptions,
