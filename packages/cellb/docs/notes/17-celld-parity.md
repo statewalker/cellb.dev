@@ -24,7 +24,7 @@ workerd, TLA+ specs and fleet fault injection, but the corpus is not published
 therefore celld's **examples** plus its **docs**; both are used here: the examples run
 against the real binary, and documented rules (e.g. the cron dialect) became unit tests.
 
-## Results (Node runtime) — 25 projects, all match celld 0.6.2
+## Results (Node runtime) — 24 projects (18 celld examples + 6 ours), all match celld 0.6.2
 
 | Project | Needed |
 |---|---|
@@ -79,3 +79,5 @@ same lines captured from webrun-cells).
 worker-timers is not used for alarms (they run in shard workers, where timers are not
 throttled; frozen or closed tabs are handled by the alarm index). It is used for the
 WebSocket client heartbeat on a page's main thread (`createWebSocketClass(…, { timers })`).
+
+**Chromium:** the same 24 projects also match celld inside Chromium — see note 18.

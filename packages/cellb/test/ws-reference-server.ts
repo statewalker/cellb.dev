@@ -15,7 +15,8 @@ export async function startReferenceServer(
   const server = createServer((req, res) => {
     const m = /^\/text\/(\d+)$/.exec(req.url ?? "");
     if (!m) return void res.writeHead(404).end();
-    res.writeHead(200, { "content-type": "text/plain" });
+    // CORS: browser-hosted runtimes fetch it cross-origin (celld, a server, does not need it).
+    res.writeHead(200, { "content-type": "text/plain", "access-control-allow-origin": "*" });
     res.end(Array.from({ length: Number(m[1]) }, (_, i) => `line ${i + 1}`).join("\n"));
   });
   const wss = new WebSocketServer({

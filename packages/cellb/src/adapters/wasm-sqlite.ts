@@ -42,6 +42,19 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   snapshot(): Uint8Array {
     return this.#hooks!.snapshot(this.#db);
   }
+  /**
+   * WASM builds cannot load extensions at run time; an extension must be compiled into the
+   * build (e.g. the `sqlite-vec-wasm-demo` package for "sqlite_vec"). This only checks it is.
+   */
+  loadExtension(name: string): void {
+    const probe: Record<string, string> = { sqlite_vec: "SELECT vec_version()" };
+    if (!probe[name]) throw new Error(`Unknown SQLite extension "${name}"`);
+    try {
+      this.exec(probe[name], []);
+    } catch {
+      throw new Error(`SQLite extension "${name}" is not compiled into this SQLite WASM build`);
+    }
+  }
   restore(image: Uint8Array): void {
     this.#db = this.#hooks!.restore(this.#db, image);
   }

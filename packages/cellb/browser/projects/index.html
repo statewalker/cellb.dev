@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>webrun-cells — celld projects in the browser</title>
+<body>
+  <script type="module">
+    // One fresh Dedicated Worker per project run.
+    window.__runProject = (job) =>
+      new Promise((resolve) => {
+        const w = new Worker(new URL("./project-worker.ts", import.meta.url), { type: "module" });
+        const { port1, port2 } = new MessageChannel();
+        port1.onmessage = (e) => {
+          resolve(e.data);
+          w.terminate();
+        };
+        w.onerror = (e) => resolve({ ok: false, error: e.message });
+        w.postMessage(job, [port2]);
+      });
+    document.body.dataset.ready = "true";
+  </script>
+</body>

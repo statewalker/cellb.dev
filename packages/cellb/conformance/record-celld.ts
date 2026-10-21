@@ -8,7 +8,8 @@ import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { startReferenceServer } from "../test/ws-reference-server.ts";
-import { normalizeLogs, projectDir, runScenario, scenarios, type Target } from "./scenarios.ts";
+import { projectDir } from "./projects.ts";
+import { normalizeLogs, runScenario, scenarios, type Target } from "./scenarios.ts";
 
 const celld = process.env.CELLD_BIN ?? "celld";
 const here = import.meta.dirname;

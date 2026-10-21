@@ -2,13 +2,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
+import { projectDir } from "../conformance/projects.js";
 import {
+  alignDocumentedDifferences,
   formatLog,
   normalizeLogs,
-  projectDir,
   runScenario,
   scenarios,
   type Target,
+  withContentLength,
 } from "../conformance/scenarios.js";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createWebSocketClass } from "../src/index.js";
@@ -29,21 +31,7 @@ async function target(name: string): Promise<Target & { unsupported: string[] }>
   return {
     unsupported,
     origin: "http://127.0.0.1:18701",
-    // celld answers through an HTTP server, which sets Content-Length on buffered bodies;
-    // the in-process runtime has no wire, so the test adds it the same way.
-    fetch: async (req) => {
-      const res = await runtime.fetch(req);
-      if (res.headers.has("content-length") || [101, 204, 205, 304].includes(res.status))
-        return res;
-      const body = await res.arrayBuffer();
-      const headers = new Headers(res.headers);
-      headers.set("content-length", String(body.byteLength));
-      return new Response(req.method === "HEAD" ? null : body, {
-        status: res.status,
-        statusText: res.statusText,
-        headers,
-      });
-    },
+    fetch: async (req) => withContentLength(req, await runtime.fetch(req)),
     websocket: (url) =>
       new Promise((resolve, reject) => {
         const ws = new WS(url);
@@ -61,19 +49,6 @@ async function target(name: string): Promise<Target & { unsupported: string[] }>
           });
       }),
   };
-}
-
-/**
- * Documented difference, not hidden: celld 0.6.2 sends NO Content-Type for
- * `new Response("text")`, while the Fetch standard (browsers, Node, workerd) sets
- * "text/plain;charset=UTF-8". Only that exact pair is aligned.
- */
-function alignDocumentedDifferences(ours: any[], theirs: any[]): any[] {
-  return ours.map((e, i) =>
-    theirs[i]?.contentType === null && e.contentType === "text/plain;charset=UTF-8"
-      ? { ...e, contentType: null }
-      : e,
-  );
 }
 
 describe("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.2", () => {

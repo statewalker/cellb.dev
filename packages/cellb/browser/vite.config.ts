@@ -25,7 +25,7 @@ export default defineConfig({
   root: import.meta.dirname,
   // sqlite-wasm must not be pre-bundled (it locates its .wasm next to its module).
   optimizeDeps: {
-    exclude: ["@sqlite.org/sqlite-wasm"],
+    exclude: ["@sqlite.org/sqlite-wasm", "sqlite-vec-wasm-demo"],
     // Pre-bundle at startup: a dependency discovered late makes Vite reload the page mid-test.
     include: [
       "@statewalker/webrun-files-browser",
@@ -40,6 +40,8 @@ export default defineConfig({
       "sharded/index.html",
       "backup/index.html",
       "miniflare/index.html",
+      "projects/index.html",
+      "projects/project-worker.ts",
       "miniflare/mf-worker.ts",
       "cell-worker.ts",
       "sharded/shard-worker.ts",

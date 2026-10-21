@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-
 /**
  * Request scripts for the celld examples (conformance/celld-examples). The same script runs
  * against celld (recorded into golden/) and against webrun-cells; transcripts must match.
@@ -364,17 +362,39 @@ export async function runScenario(target: Target, s: Scenario): Promise<Exchange
   return out;
 }
 
-/** Directory of a scenario's project: ours (conformance/projects) or celld's own examples. */
-export function projectDir(name: string): string {
-  const base = new URL(".", import.meta.url).pathname;
-  const own = `${base}projects/${name}`;
-  return existsSync(own) ? own : `${base}celld-examples/${name}`;
-}
-
 /** Volatile header values (ETag digests, absolute Location) normalized like bodies. */
 function normalizeHeader(name: string, value: string | null, origin: string): string | null {
   if (value === null) return null;
   if (name === "etag")
     return /^(W\/)?"[0-9a-f]{64}"$/.test(value) ? "<sha256-etag>" : `<etag:${value}>`;
   return value.split(origin).join("{origin}");
+}
+
+/**
+ * Documented difference, not hidden: celld 0.6.2 sends NO Content-Type for
+ * `new Response("text")`, while the Fetch standard (browsers, Node, workerd) sets
+ * "text/plain;charset=UTF-8". Only that exact pair is aligned.
+ */
+export function alignDocumentedDifferences(ours: Exchange[], theirs: Exchange[]): Exchange[] {
+  return ours.map((e, i) =>
+    theirs[i]?.contentType === null && e.contentType === "text/plain;charset=UTF-8"
+      ? { ...e, contentType: null }
+      : e,
+  );
+}
+
+/**
+ * celld answers through an HTTP server, which sets Content-Length on buffered bodies; an
+ * in-process runtime has no wire, so the runner adds it the same way.
+ */
+export async function withContentLength(req: Request, res: Response): Promise<Response> {
+  if (res.headers.has("content-length") || [101, 204, 205, 304].includes(res.status)) return res;
+  const body = await res.arrayBuffer();
+  const headers = new Headers(res.headers);
+  headers.set("content-length", String(body.byteLength));
+  return new Response(req.method === "HEAD" ? null : body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
 }

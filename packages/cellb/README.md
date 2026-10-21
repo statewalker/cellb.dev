@@ -15,7 +15,7 @@ explains what was learned. `docs/plan.md` is the plan; `docs/notes/NN-*.md` the 
 ## Status
 
 204 unit tests + 2 documented skips (Node, incl. worker threads and child processes),
-56 Chromium end-to-end tests (incl. 2 × 19 WebSocket conformance cases), mutation harnesses:
+80 Chromium end-to-end tests (incl. 2 × 19 WebSocket conformance cases), mutation harnesses:
 36/36 Node mutants and 9/9 browser mutants killed — each run preceded by a passing
 baseline of the unmutated copy.
 
@@ -35,7 +35,8 @@ baseline of the unmutated copy.
 | WebSockets over MessagePorts, injected via webrun-modules `~deps` | `src/ws/{client,server,frames}.ts` | `test/p07w-websocket.test.ts` | 12 |
 | WebSocket routing (SW ⇄ shards, cross-shard), heartbeat, webrun-modules in the SW | `src/ws/{control,sw-connector,upgrade}.ts`, `browser/sharded/modules.ts` | `test/p07x-websocket-routing.test.ts`, `browser/e2e/websocket.spec.ts` | 13 |
 | Reuse of Miniflare 4 simulators (KV, D1) and workerd's D1 client, unchanged | `scripts/vendor-miniflare.mjs`, `src/miniflare-compat/*`, `vendor/miniflare/*` | `test/p08a-miniflare-kv.test.ts`, `test/p08b-miniflare-d1.test.ts`, `browser/e2e/miniflare.spec.ts` | 16 |
-| Parity with celld: wrangler projects, differential tests against the real celld 0.6.2 (25/25 projects match) | `src/project/*`, `src/bindings/{r2,queues,worker-loader}.ts`, `src/core/{alarms,handles}.ts`, `conformance/*` | `test/p09-celld-conformance.test.ts`, `test/p07a-alarms.test.ts`, `test/p07h-websocket-hibernation.test.ts` | 17 |
+| Parity with celld: wrangler projects, differential tests against the real celld 0.6.2 (24/24 projects match, in Node and in Chromium) | `src/project/*`, `src/bindings/{r2,queues,worker-loader}.ts`, `src/core/{alarms,handles}.ts`, `conformance/*` | `test/p09-celld-conformance.test.ts`, `test/p07a-alarms.test.ts`, `test/p07h-websocket-hibernation.test.ts` | 17 |
+| The celld projects in Chromium (Dedicated Worker, OPFS, browser Worker Loader, sqlite-vec WASM) | `conformance/browser-bundle.ts`, `browser/projects/*`, `src/project/browser-modules.ts` | `browser/e2e/celld-projects.spec.ts` | 18 |
 | WebSocket conformance: 19 WHATWG cases, native vs webrun-cells, Node and Chromium | `test/ws-conformance.ts`, `test/ws-reference-server.ts` | `test/p07y-ws-conformance.test.ts`, `browser/e2e/ws-conformance.spec.ts` | 15 |
 
 Gaps that remain (alarms, hibernation, RPC richness, Worker Loader and isolation,
