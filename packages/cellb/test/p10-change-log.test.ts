@@ -122,7 +122,10 @@ describe("P10 durability and fencing", () => {
     const p = runInDurableObject((rt.env.LEDGER as any).getByName("z"), async (_o, ctx) => {
       await ctx.storage.put("k", 1);
       return "done";
-    }).then((v) => ((answered = true), v));
+    }).then((v) => {
+      answered = true;
+      return v;
+    });
     await new Promise((r) => setTimeout(r, 50));
     expect(answered).toBe(false);
     release();
