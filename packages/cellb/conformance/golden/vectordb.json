@@ -1,0 +1,62 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /255,0,0",
+      "status": 404,
+      "contentType": null,
+      "body": "The palette is empty.\n"
+    },
+    {
+      "request": "PUT /red",
+      "status": 201,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "PUT /navy",
+      "status": 201,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "PUT /light%20green",
+      "status": 201,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /250,10,5",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "name": "red",
+        "distance": 0.04802921041846275
+      }
+    },
+    {
+      "request": "GET /10,10,120",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "name": "navy",
+        "distance": 0.06371796131134033
+      }
+    },
+    {
+      "request": "GET /150,230,150",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "name": "light green",
+        "distance": 0.045732952654361725
+      }
+    },
+    {
+      "request": "GET /300,0,0",
+      "status": 400,
+      "contentType": null,
+      "body": "Use an RGB array with three values from 0 through 255.\n"
+    }
+  ]
+}

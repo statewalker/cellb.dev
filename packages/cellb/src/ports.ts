@@ -21,6 +21,8 @@ export interface SyncSqlDriver {
   /** Size of the database in bytes (ctx.storage.sql.databaseSize). */
   databaseSize(): number;
   close(): void;
+  /** Loads a named SQLite extension (e.g. "sqlite_vec" for celld's `sqlite_vec` flag). */
+  loadExtension?(name: string): void;
   /** Consistent image of the whole database (no transaction may be open). Needed for backups. */
   snapshot?(): Uint8Array;
   /** Replaces the whole database with an image produced by `snapshot()`. Needed for restores. */

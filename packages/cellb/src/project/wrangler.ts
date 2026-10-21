@@ -134,13 +134,19 @@ export function createProjectRuntime(
   for (const key of ["services"] as const)
     if (config[key] && (!Array.isArray(config[key]) || (config[key] as unknown[]).length))
       unsupported.push(key);
-  for (const f of config.compatibility_flags ?? []) unsupported.push(`compatibility_flags: ${f}`);
+  const sqlExtensions: string[] = [];
+  for (const f of config.compatibility_flags ?? []) {
+    if (f === "sqlite_vec")
+      sqlExtensions.push("sqlite_vec"); // vec0 virtual tables, as on celld
+    else unsupported.push(`compatibility_flags: ${f}`);
+  }
 
   const runtime = createCellRuntime({
     worker,
     durableObjects,
     vars: { ...config.vars, MINIFLARE_BLOBS: filesApiBlobService(host.files) },
     openSql: host.openSql,
+    sqlExtensions,
     durability: host.durability,
     backup: host.backup,
     clock: host.clock,

@@ -63,10 +63,17 @@ export class ObjectHost {
     onAlarmChange?: (at: number | null) => void;
     /** `ctx.exports` (loopback handles of the Worker's exports). */
     exports?: Record<string, unknown>;
+    /** SQLite extensions to load into every cell database (e.g. "sqlite_vec"). */
+    sqlExtensions?: string[];
   }) {
     this.#backup = opts.backup;
     this.cellKey = opts.cellKey;
     this.#driver = opts.openSql(opts.cellKey);
+    for (const ext of opts.sqlExtensions ?? []) {
+      if (!this.#driver.loadExtension)
+        throw new Error(`SQLite extension "${ext}" is not available on this host`);
+      this.#driver.loadExtension(ext);
+    }
     this.#sql = new SqlStorage(this.#driver, () =>
       this.#out.track(opts.durability.committed(this.cellKey, { seq: ++this.#seq })),
     );

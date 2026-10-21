@@ -13,6 +13,11 @@ const { DatabaseSync } = createRequire(import.meta.url)(
 import { splitSqlStatements } from "../core/sql-split.js";
 import type { OpenCellSql, SqlResult, SyncSqlDriver } from "../ports.js";
 
+const requireCjs = createRequire(import.meta.url);
+const KNOWN_EXTENSIONS: Record<string, () => string> = {
+  sqlite_vec: () => (requireCjs("sqlite-vec") as { getLoadablePath(): string }).getLoadablePath(),
+};
+
 /** Server-side SyncSqlDriver over node:sqlite (Node >= 22.13). */
 export class NodeSqliteDriver implements SyncSqlDriver {
   #db: DatabaseSyncT;
@@ -21,7 +26,8 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   constructor(path = ":memory:", opts: { exclusive?: boolean } = {}) {
     this.#path = path;
     this.#exclusive = !!opts.exclusive;
-    this.#db = new DatabaseSync(path);
+    this.#db = new DatabaseSync(path, { allowExtension: true });
+    this.#db.enableLoadExtension(false); // only loadExtension() below may load, by name
     // EXCLUSIVE locking: the first write takes an OS lock on the file that is
     // kept until close (or process death) — a second process can neither read
     // nor write the cell. Storage-level fencing on one host, no lease needed.
@@ -52,6 +58,18 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   }
   close(): void {
     this.#db.close();
+  }
+
+  /** Known extensions only: "sqlite_vec" → the sqlite-vec npm package's loadable library. */
+  loadExtension(name: string): void {
+    const path = KNOWN_EXTENSIONS[name]?.();
+    if (!path) throw new Error(`Unknown SQLite extension "${name}"`);
+    this.#db.enableLoadExtension(true);
+    try {
+      this.#db.loadExtension(path);
+    } finally {
+      this.#db.enableLoadExtension(false);
+    }
   }
 
   /** `VACUUM INTO` a temp file: a consistent, compact image (no open transaction allowed). */

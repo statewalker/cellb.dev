@@ -33,6 +33,8 @@ export interface CellRuntimeOptions {
   route?: (cellKey: string, id: DurableObjectId) => Send | undefined;
   /** Periodic backup of cell databases to a separate store (e.g. a FilesApi); restore on open. */
   backup?: CellBackup;
+  /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
+  sqlExtensions?: string[];
   /** Timers of the runtime (backups); injectable for tests. */
   clock?: Clock;
 }
@@ -148,6 +150,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           backup: opts.backup,
           onAlarmChange: (at) => alarms.set({ cellKey, className, idHex: id.toString() }, at),
           exports: exportsObj,
+          sqlExtensions: opts.sqlExtensions,
         });
         hosts.set(cellKey, h);
       }

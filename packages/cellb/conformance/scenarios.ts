@@ -140,6 +140,18 @@ export const scenarios: Record<string, Scenario> = {
     wsServer: true,
     mask: ["id"],
   },
+  vectordb: {
+    steps: [
+      { path: "/255,0,0" },
+      { method: "PUT", path: "/red", body: "[255,0,0]" },
+      { method: "PUT", path: "/navy", body: "[0,0,128]" },
+      { method: "PUT", path: "/light%20green", body: "[144,238,144]" },
+      { path: "/250,10,5" },
+      { path: "/10,10,120" },
+      { path: "/150,230,150" },
+      { path: "/300,0,0" },
+    ],
+  },
   wsclient: {
     steps: [
       { path: "/" },
