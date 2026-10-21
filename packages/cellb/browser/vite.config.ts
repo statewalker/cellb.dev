@@ -41,6 +41,8 @@ export default defineConfig({
       "backup/index.html",
       "miniflare/index.html",
       "projects/index.html",
+      "site-projects/index.html",
+      "site-projects/site-worker.ts",
       "projects/project-worker.ts",
       "miniflare/mf-worker.ts",
       "cell-worker.ts",

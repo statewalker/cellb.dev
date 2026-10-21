@@ -15,7 +15,11 @@ export function classHandle(resolve: ClassHandle["resolve"]): ClassHandle {
 }
 
 export function isClassHandle(v: unknown): v is ClassHandle {
-  return !!v && typeof v === "object" && (v as ClassHandle).__cellsClassHandle === true;
+  return (
+    !!v &&
+    (typeof v === "object" || typeof v === "function") &&
+    (v as ClassHandle).__cellsClassHandle === true
+  );
 }
 
 const clone = <T>(v: T): T => (v === undefined ? v : structuredClone(v));

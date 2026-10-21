@@ -99,6 +99,7 @@ export class ObjectHost {
         }),
     );
     const construct = () => (this.#instance = new opts.cls(state, opts.env));
+    this.#construct = construct;
     const load = opts.backup?.load;
     if (!load) {
       construct();
@@ -205,6 +206,12 @@ export class ObjectHost {
   close(): void {
     this.#driver.close();
   }
+
+  #construct?: () => unknown;
+  /** Replaces the instance with a fresh one on the SAME database (facet abort/delete). */
+  restart(): void {
+    this.#construct?.();
+  }
 }
 
 /**
@@ -217,9 +224,10 @@ function createFacets(
   spawn: (name: string, cls: DurableObjectClass, env: unknown, id: DurableObjectId) => ObjectHost,
 ) {
   const running = new Map<string, Promise<ObjectHost>>();
-  const stopped = new Map<string, unknown>();
+  // abort() stops the stubs handed out so far (their calls throw the reason); a later
+  // get() starts the facet again on the same database — as celld does.
+  const generation = new Map<string, { n: number; reason?: unknown }>();
   const hostOf = (name: string, start?: () => unknown): Promise<ObjectHost> => {
-    if (stopped.has(name)) return Promise.reject(stopped.get(name));
     let p = running.get(name);
     if (!p) {
       if (!start) return Promise.reject(new Error(`Facet "${name}" is not running`));
@@ -241,30 +249,39 @@ function createFacets(
     get(name: string, start: () => unknown) {
       if (new TextEncoder().encode(name).byteLength > 256)
         throw new Error("A facet name has a limit of 256 bytes");
+      const gen = generation.get(name)?.n ?? 0;
+      const live = () => {
+        const g = generation.get(name);
+        if (g && g.n !== gen) throw g.reason;
+      };
       return asyncStub(
         async (method, args) =>
-          (await hostOf(name, start)).deliver((obj) => {
+          (live(), await hostOf(name, start)).deliver((obj) => {
             const fn = obj[method];
             if (typeof fn !== "function")
               throw new TypeError(`The RPC receiver does not implement the method "${method}".`);
             return fn.apply(obj, args);
           }),
-        async (req) => (await hostOf(name, start)).deliver((obj) => obj.fetch(req)),
+        async (req) => (live(), await hostOf(name, start)).deliver((obj) => obj.fetch(req)),
       );
     },
     abort(name: string, reason?: unknown) {
-      stopped.set(name, reason ?? new Error(`Facet "${name}" was aborted`));
-      void running.get(name)?.then((h) => h.close());
-      running.delete(name);
+      const n = (generation.get(name)?.n ?? 0) + 1;
+      generation.set(name, { n, reason: reason ?? new Error(`Facet "${name}" was aborted`) });
+      // The database stays: the next call on a new stub gets a fresh instance over it.
+      void running.get(name)?.then((h) => h.restart());
     },
     async delete(name: string) {
       const p = running.get(name);
-      running.delete(name);
-      stopped.delete(name);
+      generation.set(name, {
+        n: (generation.get(name)?.n ?? 0) + 1,
+        reason: new Error(`Facet "${name}" was deleted`),
+      });
       if (p) {
         const h = await p;
         await h.deliver((_o, state) => state.storage.deleteAll());
-        h.close();
+        h.restart();
+        running.set(name, p);
       }
     },
   };

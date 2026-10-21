@@ -62,3 +62,24 @@ export async function bundleProjectForBrowser(name: string): Promise<BrowserProj
   void readFileSync;
   return { name, config, code, assets };
 }
+
+/** All files of a project (sources, config, assets) as [path, base64] — what a site serves. */
+export function readProjectFiles(name: string): [string, string][] {
+  return [...readAssetDirectory(projectDir(name))].map(([p, bytes]) => [
+    p,
+    Buffer.from(bytes).toString("base64"),
+  ]);
+}
+
+/** What the in-browser HTTP server needs: config, all files (served as-is), assets. */
+export function projectForSite(name: string) {
+  const dir = projectDir(name);
+  const config = readWranglerConfig(dir);
+  const assets: [string, string][] = config.assets?.directory
+    ? [...readAssetDirectory(resolve(dir, config.assets.directory))].map(([p, b]) => [
+        p,
+        Buffer.from(b).toString("base64"),
+      ])
+    : [];
+  return { name, config, files: readProjectFiles(name), assets };
+}

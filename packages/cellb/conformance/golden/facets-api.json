@@ -1,0 +1,91 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /a",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "a": 1
+      }
+    },
+    {
+      "request": "GET /a",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "a": 2
+      }
+    },
+    {
+      "request": "GET /a-fetch",
+      "status": 200,
+      "contentType": null,
+      "body": "counter 3"
+    },
+    {
+      "request": "GET /b",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "b": 1
+      }
+    },
+    {
+      "request": "GET /abort-a",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "aborted": true
+      }
+    },
+    {
+      "request": "GET /a",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "a": 4
+      }
+    },
+    {
+      "request": "GET /delete-b",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "deleted": true
+      }
+    },
+    {
+      "request": "GET /b",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "b": 1
+      }
+    },
+    {
+      "request": "GET /local",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "local": "local none"
+      }
+    },
+    {
+      "request": "GET /calc",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "sum": 5
+      }
+    },
+    {
+      "request": "GET /greet",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "greeting": "hi, ada"
+      }
+    }
+  ]
+}

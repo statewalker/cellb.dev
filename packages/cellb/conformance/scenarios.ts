@@ -249,6 +249,23 @@ export const scenarios: Record<string, Scenario> = {
       { path: "/status?id=l1" },
     ],
   },
+  "facets-api": {
+    steps: [
+      "a",
+      "a",
+      "a-fetch",
+      "b",
+      "abort-a",
+      "a",
+      "delete-b",
+      "b",
+      "local",
+      "calc",
+      "greet",
+    ].map((op) => ({
+      path: `/${op}`,
+    })),
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

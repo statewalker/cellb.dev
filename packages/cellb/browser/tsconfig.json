@@ -8,6 +8,7 @@
     "./backup/*.ts",
     "./miniflare/*.ts",
     "./projects/*.ts",
+    "./site-projects/*.ts",
     "../src",
     "../test/fixtures.ts"
   ]
