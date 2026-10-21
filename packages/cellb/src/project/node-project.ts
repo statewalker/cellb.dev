@@ -34,10 +34,9 @@ export async function bundleWorker(
   // Loaded code gets a bundle-local `console` that also feeds its Tail Workers.
   const consoleKey = logs ? `c${Math.random().toString(36).slice(2)}` : "";
   if (logs) {
-    const registry = ((globalThis as Record<string, unknown>).__cellsConsoles ??= {}) as Record<
-      string,
-      unknown
-    >;
+    const g = globalThis as Record<string, unknown>;
+    g.__cellsConsoles ??= {};
+    const registry = g.__cellsConsoles as Record<string, unknown>;
     const real = globalThis.console;
     const wrap =
       (level: "log" | "info" | "warn" | "error" | "debug") =>

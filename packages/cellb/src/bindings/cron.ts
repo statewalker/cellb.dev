@@ -64,16 +64,18 @@ function parseDom(text: string): { any: boolean; match: DayRule } {
   const rules: DayRule[] = [];
   for (const part of text.split(",")) {
     const up = part.toUpperCase();
-    let m: RegExpExecArray | null;
-    if ((m = /^L(?:-(\d+))?(W?)$/.exec(up))) {
+    const last = /^L(?:-(\d+))?(W?)$/.exec(up);
+    const weekdayOf = /^(\d+)W$/.exec(up);
+    if (last) {
+      const m = last;
       const back = Number(m[1] ?? 0);
       const weekday = m[2] === "W";
       rules.push((y, mo, d) => {
         const target = daysInMonth(y, mo) - back;
         return d === (weekday ? nearestWeekday(y, mo, target) : target);
       });
-    } else if ((m = /^(\d+)W$/.exec(up))) {
-      const day = Number(m[1]);
+    } else if (weekdayOf) {
+      const day = Number(weekdayOf[1]);
       rules.push((y, mo, d) => d === nearestWeekday(y, mo, Math.min(day, daysInMonth(y, mo))));
     } else {
       const f = parseSimple(part, 1, 31);
@@ -100,16 +102,17 @@ function parseDow(text: string): { any: boolean; match: DayRule } {
     return n - 1; // JS getUTCDay(): 0 = Sunday
   };
   for (const part of text.split(",")) {
-    let m: RegExpExecArray | null;
-    if ((m = /^(\w+)L$/i.exec(part)) && !/^\d+$/.test(part)) {
-      const dow = dowOf(m[1]);
+    const lastOf = /^(\w+)L$/i.exec(part);
+    const nthOf = /^(\w+)#(\d)$/.exec(part);
+    if (lastOf && !/^\d+$/.test(part)) {
+      const dow = dowOf(lastOf[1]);
       rules.push(
         (y, mo, d) =>
           new Date(Date.UTC(y, mo, d)).getUTCDay() === dow && d + 7 > daysInMonth(y, mo),
       );
-    } else if ((m = /^(\w+)#(\d)$/.exec(part))) {
-      const dow = dowOf(m[1]);
-      const nth = Number(m[2]);
+    } else if (nthOf) {
+      const dow = dowOf(nthOf[1]);
+      const nth = Number(nthOf[2]);
       rules.push(
         (y, mo, d) => new Date(Date.UTC(y, mo, d)).getUTCDay() === dow && Math.ceil(d / 7) === nth,
       );
@@ -223,7 +226,9 @@ export function startCronTriggers(
         cron: s.text,
         scheduledTime,
         type: "scheduled",
-        noRetry: () => void (retry = false),
+        noRetry: () => {
+          retry = false;
+        },
       };
       try {
         await handler(controller, {

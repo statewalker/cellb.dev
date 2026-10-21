@@ -33,7 +33,8 @@ async function target(name: string): Promise<Target & { unsupported: string[] }>
     // the in-process runtime has no wire, so the test adds it the same way.
     fetch: async (req) => {
       const res = await runtime.fetch(req);
-      if (res.headers.has("content-length") || res.status === 101 || res.status === 304) return res;
+      if (res.headers.has("content-length") || [101, 204, 205, 304].includes(res.status))
+        return res;
       const body = await res.arrayBuffer();
       const headers = new Headers(res.headers);
       headers.set("content-length", String(body.byteLength));
@@ -109,7 +110,7 @@ describe("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.2", ()
             expect(normalizeLogs(logs, scenario)).toEqual(expected.logs);
           }
         } finally {
-          methods.forEach((m, i) => (console[m] = originals[i]));
+          for (const [i, m] of methods.entries()) console[m] = originals[i];
           await ref?.close();
         }
       },

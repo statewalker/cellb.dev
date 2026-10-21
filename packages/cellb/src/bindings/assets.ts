@@ -108,7 +108,10 @@ export function createAssets(files: AssetFiles, config: AssetsConfig, hasWorker:
   const etags = new Map<string, string>();
   const etagOf = (path: string) => {
     let e = etags.get(path);
-    if (!e) etags.set(path, (e = `"${bytesToHex(sha256(files.get(path)!))}"`));
+    if (!e) {
+      e = `"${bytesToHex(sha256(files.get(path)!))}"`;
+      etags.set(path, e);
+    }
     return e;
   };
   const exists = (p: string) => files.has(p) && p !== "/_headers" && p !== "/_redirects";
@@ -200,7 +203,7 @@ export function createAssets(files: AssetFiles, config: AssetsConfig, hasWorker:
       const m = r.from.exec(path);
       if (!m) continue;
       let to = r.to;
-      r.names.forEach((n, i) => (to = to.replace(`:${n}`, m[i + 1])));
+      for (const [i, n] of r.names.entries()) to = to.replace(`:${n}`, m[i + 1]);
       if (r.status === 200) {
         path = to;
         break;

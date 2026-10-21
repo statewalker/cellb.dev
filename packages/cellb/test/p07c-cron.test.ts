@@ -8,7 +8,10 @@ const occurrences = (expr: string, from: string, n: number) => {
   const s = parseCron(expr);
   const out: string[] = [];
   let t = at(from);
-  for (let i = 0; i < n; i++) out.push(iso((t = s.next(t))));
+  for (let i = 0; i < n; i++) {
+    t = s.next(t);
+    out.push(iso(t));
+  }
   return out;
 };
 
