@@ -74,8 +74,11 @@ export class ObjectHost {
         throw new Error(`SQLite extension "${ext}" is not available on this host`);
       this.#driver.loadExtension(ext);
     }
-    this.#sql = new SqlStorage(this.#driver, () =>
-      this.#out.track(opts.durability.committed(this.cellKey, { seq: ++this.#seq })),
+    this.#sql = new SqlStorage(
+      this.#driver,
+      (changes) =>
+        this.#out.track(opts.durability.committed(this.cellKey, { seq: ++this.#seq, changes })),
+      { capture: !!opts.durability.captureChanges },
     );
     const kv = new SyncKvStorage(this.#sql, opts.codec);
     const storage = new DurableObjectStorage(this.#sql, kv, this.#gate, () => this.#barrier());
@@ -101,7 +104,8 @@ export class ObjectHost {
     const construct = () => (this.#instance = new opts.cls(state, opts.env));
     this.#construct = construct;
     const load = opts.backup?.load;
-    if (!load) {
+    const replay = opts.backup?.replay;
+    if (!load && !replay) {
       construct();
       return;
     }
@@ -111,12 +115,14 @@ export class ObjectHost {
         const empty =
           Number(this.#driver.exec("SELECT count(*) FROM sqlite_master", []).rows[0][0]) === 0;
         if (empty) {
-          const image = await load(this.cellKey);
+          const image = await load?.(this.cellKey);
           if (image) {
             if (!this.#driver.restore)
               throw new Error("SyncSqlDriver has no restore(): cannot restore a backup");
             this.#driver.restore(image);
           }
+          // Then every logged transaction the image does not contain, in order.
+          if (replay) await this.#replayLog(replay);
         }
         construct();
       })
@@ -137,9 +143,18 @@ export class ObjectHost {
     if (this.#sql.held) return Promise.resolve(); // mid-transaction: next round
     this.#sql.commit();
     const seq = this.#seq;
+    let logSeq = 0;
+    try {
+      logSeq = Number(
+        this.#driver.exec("SELECT value FROM _cf_METADATA WHERE key = 'log_seq'", [])
+          .rows[0]?.[0] ?? 0,
+      );
+    } catch {
+      // no _cf_METADATA yet
+    }
     const image = this.#driver.snapshot();
     this.#saving = b
-      .save(this.cellKey, image, { seq, takenAt: now, reason })
+      .save(this.cellKey, image, { seq, takenAt: now, reason, logSeq })
       .then(
         () => {
           this.#backedUpSeq = Math.max(this.#backedUpSeq, seq);
@@ -205,6 +220,31 @@ export class ObjectHost {
 
   close(): void {
     this.#driver.close();
+  }
+
+  /** Applies log segments newer than the database's own log sequence (restore path). */
+  async #replayLog(replay: NonNullable<CellBackup["replay"]>): Promise<void> {
+    const d = this.#driver;
+    d.exec("CREATE TABLE IF NOT EXISTS _cf_METADATA (key TEXT PRIMARY KEY, value)", []);
+    const row = d.exec("SELECT value FROM _cf_METADATA WHERE key = 'log_seq'", []).rows[0];
+    const after = Number(row?.[0] ?? 0);
+    for await (const seg of replay(this.cellKey, after)) {
+      if (!d.applyChangeset)
+        throw new Error("SyncSqlDriver cannot apply changesets: cannot replay a log");
+      d.exec("BEGIN", []);
+      try {
+        for (const ddl of seg.ddl) d.exec(ddl, []);
+        d.applyChangeset(seg.changeset);
+        for (const [sql, params] of seg.statements) d.exec(sql, params);
+        d.exec("INSERT OR REPLACE INTO _cf_METADATA (key, value) VALUES ('log_seq', ?)", [
+          seg.logSeq,
+        ]);
+        d.exec("COMMIT", []);
+      } catch (e) {
+        d.exec("ROLLBACK", []);
+        throw e;
+      }
+    }
   }
 
   #construct?: () => unknown;

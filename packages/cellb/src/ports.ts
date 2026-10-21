@@ -23,6 +23,17 @@ export interface SyncSqlDriver {
   close(): void;
   /** Loads a named SQLite extension (e.g. "sqlite_vec" for celld's `sqlite_vec` flag). */
   loadExtension?(name: string): void;
+  /**
+   * Change capture for transaction logs (SQLite session extension): `captureStart()` at
+   * BEGIN, `captureTake()` after COMMIT returns the transaction's changeset (empty if none),
+   * `applyChangeset()` replays one. `captureCoversRowidTables` is false when tables without
+   * a PRIMARY KEY are invisible to the session (node:sqlite has no ROWID session option).
+   */
+  captureStart?(): void;
+  captureTake?(): Uint8Array;
+  captureDiscard?(): void;
+  applyChangeset?(changeset: Uint8Array): void;
+  readonly captureCoversRowidTables?: boolean;
   /** Consistent image of the whole database (no transaction may be open). Needed for backups. */
   snapshot?(): Uint8Array;
   /** Replaces the whole database with an image produced by `snapshot()`. Needed for restores. */
@@ -38,7 +49,22 @@ export type OpenCellSql = (cellKey: string) => SyncSqlDriver;
  * replication to a FilesApi (OPFS / S3) here; the default resolves at once.
  */
 export interface CellDurability {
-  committed(cellKey: string, info: { seq: number }): Promise<void>;
+  committed(cellKey: string, info: { seq: number; changes?: CommitChanges }): Promise<void>;
+  /** Asks the runtime to capture each transaction's changes (transaction-log durability). */
+  readonly captureChanges?: boolean;
+}
+
+/**
+ * One committed transaction, as a log segment: schema statements, the row changes (a
+ * SQLite changeset), and — only for drivers whose capture misses tables without a PRIMARY
+ * KEY — the write statements on such tables. `logSeq` is stored in the database itself
+ * (`_cf_METADATA`), so a snapshot knows which segments it already contains.
+ */
+export interface CommitChanges {
+  logSeq: number;
+  ddl: string[];
+  changeset: Uint8Array;
+  statements: [string, unknown[]][];
 }
 
 /** Serialization of KV values (CF uses V8 serialization; swap for webrun-msgpack later). */
@@ -52,6 +78,8 @@ export interface BackupInfo {
   seq: number;
   takenAt: number;
   reason: "interval" | "manual" | "close";
+  /** Last transaction-log segment contained in the image (0 when no log is kept). */
+  logSeq?: number;
 }
 
 /**
@@ -64,6 +92,8 @@ export interface BackupInfo {
 export interface CellBackup {
   save(cellKey: string, image: Uint8Array, info: BackupInfo): Promise<void>;
   load?(cellKey: string): Promise<Uint8Array | undefined>;
+  /** Transaction-log segments after `afterLogSeq`, in order (replayed after `load`). */
+  replay?(cellKey: string, afterLogSeq: number): AsyncIterable<CommitChanges>;
   intervalMs?: number;
   onError?(cellKey: string, error: unknown): void;
 }

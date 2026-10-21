@@ -1,5 +1,6 @@
 import { splitSqlStatements } from "../core/sql-split.js";
 import type { OpenCellSql, SqlResult, SyncSqlDriver } from "../ports.js";
+import { type WasmSqlite3, wasmSessionCapture } from "./wasm-session.js";
 
 /** Minimal slice of the @sqlite.org/sqlite-wasm `oo1.DB` API we rely on. */
 export interface Oo1Db {
@@ -28,11 +29,23 @@ export interface WasmImageHooks {
 }
 
 export class WasmSqliteDriver implements SyncSqlDriver {
+  captureStart?: () => void;
+  captureTake?: () => Uint8Array;
+  captureDiscard?: () => void;
+  applyChangeset?: (changeset: Uint8Array) => void;
+  captureCoversRowidTables?: boolean;
   #db: Oo1Db;
   readonly #hooks?: WasmImageHooks;
-  constructor(db: Oo1Db, hooks?: WasmImageHooks) {
+  constructor(db: Oo1Db, hooks?: WasmImageHooks, sqlite3?: WasmSqlite3) {
     this.#db = db;
     this.#hooks = hooks;
+    if (sqlite3?.capi?.sqlite3session_create) {
+      // Transaction-log capture (session extension), following the current DB handle.
+      Object.assign(
+        this,
+        wasmSessionCapture(sqlite3, () => (this.#db as unknown as { pointer: number }).pointer),
+      );
+    }
     if (!hooks) {
       // No image support for this driver: hide the optional port methods.
       (this as { snapshot?: unknown }).snapshot = undefined;
@@ -121,7 +134,12 @@ export function memoryImageHooks(sqlite3: any): WasmImageHooks {
 export function wasmMemoryOpener(sqlite3: {
   oo1: { DB: new (path: string, mode?: string) => Oo1Db };
 }): OpenCellSql {
-  return () => new WasmSqliteDriver(new sqlite3.oo1.DB(":memory:", "c"), memoryImageHooks(sqlite3));
+  return () =>
+    new WasmSqliteDriver(
+      new sqlite3.oo1.DB(":memory:", "c"),
+      memoryImageHooks(sqlite3),
+      sqlite3 as never,
+    );
 }
 
 /**
@@ -144,15 +162,19 @@ export async function sahpoolOpener(
   });
   const open: OpenCellSql = (cellKey) => {
     const path = `/${cellKey.replace(/[^\w.-]/g, "_")}.sqlite`;
-    return new WasmSqliteDriver(new pool.OpfsSAHPoolDb(path), {
-      snapshot: (db) => (sqlite3 as any).capi.sqlite3_js_db_export(db),
-      // Replace the file inside the pool, then reopen it.
-      restore(db, image) {
-        db.close();
-        (pool as any).importDb(path, image);
-        return new pool.OpfsSAHPoolDb(path);
+    return new WasmSqliteDriver(
+      new pool.OpfsSAHPoolDb(path),
+      {
+        snapshot: (db) => (sqlite3 as any).capi.sqlite3_js_db_export(db),
+        // Replace the file inside the pool, then reopen it.
+        restore(db, image) {
+          db.close();
+          (pool as any).importDb(path, image);
+          return new pool.OpfsSAHPoolDb(path);
+        },
       },
-    });
+      sqlite3 as never,
+    );
   };
   // Each open DB holds ~2-3 pool slots (db + journal); grow before opening many cells.
   return Object.assign(open, { reserve: (n: number) => pool.reserveMinimumCapacity(n) });

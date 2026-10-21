@@ -1,4 +1,4 @@
-import type { SqlResult, SyncSqlDriver } from "../ports.js";
+import type { CommitChanges, SqlResult, SyncSqlDriver } from "../ports.js";
 
 const FORBIDDEN_TXN = /^\s*(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
 const FORBIDDEN_INTERNAL = /\b_cf_\w*/i;
@@ -50,16 +50,66 @@ export class SqlStorageCursor<T = Record<string, unknown>> implements Iterable<T
  * handler yields). Sync writes therefore coalesce atomically, and the
  * output gate only has to await durability of the commit.
  */
+const DDL = /^\s*(CREATE|ALTER|DROP)\b/i;
+const WRITE_TARGET =
+  /^\s*(?:INSERT|REPLACE)(?:\s+OR\s+\w+)?\s+INTO\s+["`[]?([\w$]+)|^\s*UPDATE(?:\s+OR\s+\w+)?\s+["`[]?([\w$]+)|^\s*DELETE\s+FROM\s+["`[]?([\w$]+)/i;
+
 export class SqlStorage {
   #driver: SyncSqlDriver;
-  #onCommit: () => void;
+  #onCommit: (changes?: CommitChanges) => void;
   #inTxn = false;
   #holds = 0;
   #depth = 0;
+  // Transaction-log capture (only when the durability port asks for it).
+  readonly #capture: boolean;
+  #ddl: string[] = [];
+  #statements: [string, unknown[]][] = [];
+  readonly #noPk = new Map<string, boolean>();
+  #changesAtBegin = 0;
+  #schemaAtBegin = 0;
+  #schemaVersion(): number {
+    return Number(this.#driver.exec("PRAGMA schema_version", []).rows[0]?.[0] ?? 0);
+  }
+  #totalChanges(): number {
+    return Number(this.#driver.exec("SELECT total_changes()", []).rows[0]?.[0] ?? 0);
+  }
 
-  constructor(driver: SyncSqlDriver, onCommit: () => void) {
+  constructor(
+    driver: SyncSqlDriver,
+    onCommit: (changes?: CommitChanges) => void,
+    opts: { capture?: boolean } = {},
+  ) {
     this.#driver = driver;
     this.#onCommit = onCommit;
+    this.#capture = !!opts.capture;
+    if (this.#capture && !driver.captureStart)
+      throw new Error("This SyncSqlDriver cannot capture changes: no transaction-log durability");
+  }
+
+  /** Records what the changeset cannot carry: schema changes, and writes to PK-less tables. */
+  #record(query: string, bindings: unknown[]): void {
+    if (!this.#capture) return;
+    if (DDL.test(query)) {
+      this.#ddl.push(query);
+      this.#noPk.clear();
+      return;
+    }
+    if (this.#driver.captureCoversRowidTables !== false) return;
+    const m = WRITE_TARGET.exec(query);
+    const table = m?.[1] ?? m?.[2] ?? m?.[3];
+    if (table && this.#tableHasNoPk(table)) this.#statements.push([query, bindings]);
+  }
+
+  #tableHasNoPk(table: string): boolean {
+    let v = this.#noPk.get(table);
+    if (v === undefined) {
+      const info = this.#driver.exec(`SELECT count(*) FROM pragma_table_info(?) WHERE pk > 0`, [
+        table,
+      ]);
+      v = Number(info.rows[0]?.[0] ?? 0) === 0;
+      this.#noPk.set(table, v);
+    }
+    return v;
   }
 
   exec<T = Record<string, unknown>>(query: string, ...bindings: unknown[]): SqlStorageCursor<T> {
@@ -89,19 +139,24 @@ export class SqlStorage {
   /** Unguarded path for the runtime's own tables (_cf_KV, _cf_METADATA). */
   internalExec(query: string, bindings: unknown[] = []): SqlResult {
     this.#ensureTxn();
-    return this.#driver.exec(query, bindings);
+    const r = this.#driver.exec(query, bindings);
+    this.#record(query, bindings);
+    return r;
   }
 
   transactionSync<T>(fn: () => T): T {
     this.#ensureTxn();
     const sp = `_cf_sp${++this.#depth}`;
     this.#driver.exec(`SAVEPOINT ${sp}`, []);
+    const marks = [this.#ddl.length, this.#statements.length] as const;
     try {
       const r = fn();
       this.#driver.exec(`RELEASE ${sp}`, []);
       return r;
     } catch (e) {
       this.#driver.exec(`ROLLBACK TO ${sp}`, []);
+      this.#ddl.length = marks[0];
+      this.#statements.length = marks[1];
       this.#driver.exec(`RELEASE ${sp}`, []);
       throw e;
     } finally {
@@ -128,20 +183,60 @@ export class SqlStorage {
   /** Commits the implicit transaction now (no-op if none, or if held). */
   commit(): void {
     if (!this.#inTxn || this.#holds > 0) return;
+    let changes: CommitChanges | undefined;
+    // Read-only transactions produce no log segment ("IF NOT EXISTS" DDL that changed
+    // nothing included: the schema version tells).
+    if (this.#capture && this.#ddl.length && this.#schemaVersion() === this.#schemaAtBegin)
+      this.#ddl = [];
+    if (this.#capture && (this.#ddl.length || this.#totalChanges() !== this.#changesAtBegin)) {
+      // The log sequence number lives in the database, inside the same transaction.
+      this.#driver.exec(
+        "CREATE TABLE IF NOT EXISTS _cf_METADATA (key TEXT PRIMARY KEY, value)",
+        [],
+      );
+      const row = this.#driver.exec("SELECT value FROM _cf_METADATA WHERE key = 'log_seq'", [])
+        .rows[0];
+      const logSeq = Number(row?.[0] ?? 0) + 1;
+      this.#driver.exec("INSERT OR REPLACE INTO _cf_METADATA (key, value) VALUES ('log_seq', ?)", [
+        logSeq,
+      ]);
+      changes = {
+        logSeq,
+        ddl: this.#ddl,
+        changeset: new Uint8Array(),
+        statements: this.#statements,
+      };
+    }
     this.#inTxn = false;
     this.#driver.exec("COMMIT", []);
-    this.#onCommit();
+    if (this.#capture) {
+      const changeset = this.#driver.captureTake!();
+      if (changes) changes.changeset = changeset;
+      this.#ddl = [];
+      this.#statements = [];
+    }
+    this.#onCommit(changes);
   }
 
   rollback(): void {
     if (!this.#inTxn) return;
     this.#inTxn = false;
     this.#driver.exec("ROLLBACK", []);
+    if (this.#capture) {
+      this.#driver.captureDiscard?.();
+      this.#ddl = [];
+      this.#statements = [];
+    }
   }
 
   #ensureTxn(): void {
     if (this.#inTxn) return;
     this.#driver.exec("BEGIN", []);
+    if (this.#capture) {
+      this.#driver.captureStart!();
+      this.#changesAtBegin = this.#totalChanges();
+      this.#schemaAtBegin = this.#schemaVersion();
+    }
     this.#inTxn = true;
     queueMicrotask(() => this.commit());
   }

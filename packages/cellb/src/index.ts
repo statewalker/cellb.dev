@@ -1,4 +1,10 @@
 export {
+  type ChangeLogOptions,
+  decodeSegment,
+  encodeSegment,
+  filesApiChangeLog,
+} from "./adapters/files-changelog.js";
+export {
   type R2HTTPMetadata,
   type R2ListOptions,
   R2Object,

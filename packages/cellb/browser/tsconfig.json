@@ -9,6 +9,7 @@
     "./miniflare/*.ts",
     "./projects/*.ts",
     "./site-projects/*.ts",
+    "./changelog/*.ts",
     "../src",
     "../test/fixtures.ts"
   ]

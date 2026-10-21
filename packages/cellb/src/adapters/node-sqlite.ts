@@ -60,6 +60,41 @@ export class NodeSqliteDriver implements SyncSqlDriver {
     this.#db.close();
   }
 
+  // ---- change capture (session extension) for transaction logs -------------------------
+  #session: { changeset(): Uint8Array; close(): void } | undefined;
+  /** node:sqlite exposes no ROWID session option: PK-less tables are logged as statements. */
+  readonly captureCoversRowidTables = false;
+  captureStart(): void {
+    this.#session?.close();
+    this.#session = (
+      this.#db as unknown as { createSession(): { changeset(): Uint8Array; close(): void } }
+    ).createSession();
+  }
+  captureTake(): Uint8Array {
+    const s = this.#session;
+    this.#session = undefined;
+    if (!s) return new Uint8Array();
+    try {
+      return s.changeset();
+    } finally {
+      s.close();
+    }
+  }
+  captureDiscard(): void {
+    this.#session?.close();
+    this.#session = undefined;
+  }
+  applyChangeset(changeset: Uint8Array): void {
+    if (!changeset.byteLength) return;
+    const SQLITE_CHANGESET_REPLACE = 1;
+    (this.#db as unknown as { applyChangeset(c: Uint8Array, o: unknown): boolean }).applyChangeset(
+      changeset,
+      {
+        onConflict: () => SQLITE_CHANGESET_REPLACE,
+      },
+    );
+  }
+
   /** Known extensions only: "sqlite_vec" → the sqlite-vec npm package's loadable library. */
   loadExtension(name: string): void {
     const path = KNOWN_EXTENSIONS[name]?.();
