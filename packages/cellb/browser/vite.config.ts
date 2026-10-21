@@ -39,6 +39,8 @@ export default defineConfig({
       "index.html",
       "sharded/index.html",
       "backup/index.html",
+      "miniflare/index.html",
+      "miniflare/mf-worker.ts",
       "cell-worker.ts",
       "sharded/shard-worker.ts",
       "backup/backup-worker.ts",

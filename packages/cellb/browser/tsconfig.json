@@ -6,6 +6,7 @@
     "./*.ts",
     "./sharded/*.ts",
     "./backup/*.ts",
+    "./miniflare/*.ts",
     "../src",
     "../test/fixtures.ts"
   ]

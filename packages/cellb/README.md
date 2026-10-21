@@ -14,8 +14,8 @@ explains what was learned. `docs/plan.md` is the plan; `docs/notes/NN-*.md` the 
 
 ## Status
 
-151 unit tests + 2 documented skips (Node, incl. worker threads and child processes),
-55 Chromium end-to-end tests (incl. 2 × 19 WebSocket conformance cases), mutation harnesses:
+160 unit tests + 2 documented skips (Node, incl. worker threads and child processes),
+56 Chromium end-to-end tests (incl. 2 × 19 WebSocket conformance cases), mutation harnesses:
 36/36 Node mutants and 9/9 browser mutants killed — each run preceded by a passing
 baseline of the unmutated copy.
 
@@ -34,6 +34,7 @@ baseline of the unmutated copy.
 | Durability: periodic backup callback, FilesApi, restore on open | `src/core/object-host.ts`, `src/adapters/files-backup.ts` | `test/p06a-backup.test.ts`, `browser/e2e/backup.spec.ts` | 11, 14 |
 | WebSockets over MessagePorts, injected via webrun-modules `~deps` | `src/ws/{client,server,frames}.ts` | `test/p07w-websocket.test.ts` | 12 |
 | WebSocket routing (SW ⇄ shards, cross-shard), heartbeat, webrun-modules in the SW | `src/ws/{control,sw-connector,upgrade}.ts`, `browser/sharded/modules.ts` | `test/p07x-websocket-routing.test.ts`, `browser/e2e/websocket.spec.ts` | 13 |
+| Reuse of Miniflare 4 simulators (KV, D1) and workerd's D1 client, unchanged | `scripts/vendor-miniflare.mjs`, `src/miniflare-compat/*`, `vendor/miniflare/*` | `test/p08a-miniflare-kv.test.ts`, `test/p08b-miniflare-d1.test.ts`, `browser/e2e/miniflare.spec.ts` | 16 |
 | WebSocket conformance: 19 WHATWG cases, native vs webrun-cells, Node and Chromium | `test/ws-conformance.ts`, `test/ws-reference-server.ts` | `test/p07y-ws-conformance.test.ts`, `browser/e2e/ws-conformance.spec.ts` | 15 |
 
 Gaps that remain (alarms, hibernation, RPC richness, Worker Loader and isolation,
