@@ -12,17 +12,48 @@ export interface WorkerCode {
   >;
   env?: Record<string, unknown>;
   globalOutbound?: unknown;
+  /** Tail Workers: stubs whose `tail(events)` receives each invocation's logs and exceptions. */
+  tails?: { tail(events: TailEvent[]): unknown }[];
 }
 
+export interface TailLog {
+  message: unknown[];
+  level: string;
+  timestamp: number;
+}
+
+export interface TailEvent {
+  scriptName: string;
+  outcome: "ok" | "exception";
+  eventTimestamp: number;
+  event: { request?: { url: string; method: string } } | null;
+  logs: TailLog[];
+  exceptions: { name: string; message: string; timestamp: number }[];
+  diagnosticsChannelEvents: unknown[];
+}
+
+/** Where the `console` of loaded code writes (the host forwards to the real console too). */
+export type LogSink = (level: string, args: unknown[]) => void;
+
 /** Compiles a WorkerCode into a module namespace (host specific: esbuild on Node, webrun-modules in browsers). */
-export type ModuleLoader = (id: string, code: WorkerCode) => Promise<Record<string, unknown>>;
+export type ModuleLoader = (
+  id: string,
+  code: WorkerCode,
+  logs?: LogSink,
+) => Promise<Record<string, unknown>>;
 
 /**
  * The Worker Loader binding (`worker_loaders` in wrangler config): runtime-loaded code,
  * cached by id; the callback runs only when the id is not loaded yet.
  */
 export function workerLoader(load: ModuleLoader) {
-  const cache = new Map<string, Promise<{ module: Record<string, unknown>; env: unknown }>>();
+  type Loaded = {
+    module: Record<string, unknown>;
+    env: unknown;
+    code: WorkerCode;
+    logs: TailLog[];
+  };
+  const cache = new Map<string, Promise<Loaded>>();
   return {
     get(id: string, getCode: () => WorkerCode | Promise<WorkerCode>) {
       const loaded = () => {
@@ -30,12 +61,48 @@ export function workerLoader(load: ModuleLoader) {
         if (!p) {
           p = (async () => {
             const code = await getCode();
-            return { module: await load(id, code), env: code.env ?? {} };
+            const logs: TailLog[] = [];
+            const sink: LogSink = (level, message) =>
+              logs.push({ level, message, timestamp: Date.now() });
+            return { module: await load(id, code, sink), env: code.env ?? {}, code, logs };
           })();
           p.catch(() => cache.delete(id));
           cache.set(id, p);
         }
         return p;
+      };
+      /** Runs one invocation of loaded code, then hands its logs/exceptions to the Tail Workers. */
+      const traced = async <T>(
+        l: Loaded,
+        request: Request | undefined,
+        run: () => Promise<T>,
+      ): Promise<T> => {
+        const from = l.logs.length;
+        const t0 = Date.now();
+        const exceptions: TailEvent["exceptions"] = [];
+        let outcome: TailEvent["outcome"] = "ok";
+        try {
+          return await run();
+        } catch (e) {
+          outcome = "exception";
+          exceptions.push({
+            name: (e as Error)?.name ?? "Error",
+            message: String((e as Error)?.message ?? e),
+            timestamp: Date.now(),
+          });
+          throw e;
+        } finally {
+          const event: TailEvent = {
+            scriptName: id,
+            outcome,
+            eventTimestamp: t0,
+            event: request ? { request: { url: request.url, method: request.method } } : null,
+            logs: l.logs.splice(from),
+            exceptions,
+            diagnosticsChannelEvents: [],
+          };
+          for (const t of l.code.tails ?? []) void Promise.resolve(t.tail([event])).catch(() => {});
+        }
       };
       return {
         getDurableObjectClass(name: string) {
@@ -48,19 +115,22 @@ export function workerLoader(load: ModuleLoader) {
           });
         },
         getEntrypoint(name = "default", options: { props?: unknown } = {}) {
-          let stub: Record<string, any> | undefined;
-          const resolve = async () => {
-            if (stub) return stub;
-            const { module, env } = await loaded();
-            stub = entrypointStub(module[name], env, options.props);
-            return stub;
-          };
           return new Proxy(
             {},
             {
               get(_t, prop) {
                 if (prop === "then" || typeof prop === "symbol") return undefined;
-                return async (...args: unknown[]) => (await resolve())[prop as string](...args);
+                return async (...args: unknown[]) => {
+                  const l = await loaded();
+                  const stub = entrypointStub(l.module[name], l.env, options.props);
+                  const request =
+                    prop === "fetch"
+                      ? new Request(args[0] as RequestInfo, args[1] as RequestInit)
+                      : undefined;
+                  return traced(l, request, () =>
+                    stub[prop as string](...(request ? [request] : args)),
+                  );
+                };
               },
             },
           );

@@ -1,0 +1,23 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": null,
+      "body": "Hello from a Dynamic Worker!\n"
+    },
+    {
+      "request": "GET /again",
+      "status": 200,
+      "contentType": null,
+      "body": "Hello from a Dynamic Worker!\n"
+    }
+  ],
+  "logs": [
+    "dynamic-worker-tail: hello from loaded code {\"workerId\":\"hello-v1\",\"level\":\"log\"}",
+    "dynamic-worker-tail: hello from loaded code {\"workerId\":\"hello-v1\",\"level\":\"log\"}",
+    "hello from loaded code",
+    "hello from loaded code"
+  ]
+}

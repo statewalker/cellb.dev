@@ -11,6 +11,24 @@
           "createdAt": "<string>"
         }
       }
+    },
+    {
+      "request": "GET /job-2/fail",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "queued": {
+          "path": "/job-2/fail",
+          "createdAt": "<string>"
+        }
+      }
     }
+  ],
+  "logs": [
+    "dead job {\"path\":\"/job-2/fail\",\"createdAt\":\"<date>\"}",
+    "processing job {\"path\":\"/job-1\",\"createdAt\":\"<date>\"}",
+    "retrying job {\"path\":\"/job-2/fail\",\"createdAt\":\"<date>\"} 1",
+    "retrying job {\"path\":\"/job-2/fail\",\"createdAt\":\"<date>\"} 2",
+    "retrying job {\"path\":\"/job-2/fail\",\"createdAt\":\"<date>\"} 3"
   ]
 }

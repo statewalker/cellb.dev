@@ -1,4 +1,5 @@
 import type { FilesApi } from "@statewalker/webrun-files";
+import { startCronTriggers } from "../bindings/cron.js";
 import {
   makeQueueCell,
   type QueueConsumerConfig,
@@ -15,6 +16,7 @@ import {
   type WorkerModule,
 } from "../core/runtime.js";
 import { splitSqlStatements } from "../core/sql-split.js";
+import { systemClock } from "../lease/lease.js";
 import { filesApiBlobService } from "../miniflare-compat/blob-service.js";
 import { kvNamespaceBinding } from "../miniflare-compat/kv-binding.js";
 import { simulatorFetcher } from "../miniflare-compat/simulator-fetcher.js";
@@ -118,7 +120,6 @@ export function createProjectRuntime(
   for (const key of ["workflows", "assets", "services"] as const)
     if (config[key] && (!Array.isArray(config[key]) || (config[key] as unknown[]).length))
       unsupported.push(key);
-  if (config.triggers?.crons?.length) unsupported.push("triggers.crons");
   for (const f of config.compatibility_flags ?? []) unsupported.push(`compatibility_flags: ${f}`);
 
   const runtime = createCellRuntime({
@@ -159,6 +160,27 @@ export function createProjectRuntime(
     if (!host.loadModules)
       unsupported.push(`worker_loaders[${l.binding}] (the host provides no module loader)`);
     else env[l.binding] = workerLoader(host.loadModules);
+  }
+  // Cron Triggers (validated at load time like `celld deploy` does).
+  const crons = config.triggers?.crons ?? [];
+  if (crons.length) {
+    const scheduled = (
+      module.default as { scheduled?: (c: unknown, e: unknown, x: unknown) => unknown }
+    ).scheduled;
+    if (typeof scheduled !== "function")
+      unsupported.push("triggers.crons without a scheduled() handler");
+    else {
+      const stop = startCronTriggers(
+        crons,
+        (c, x) => scheduled.call(module.default, c, env, x),
+        host.clock ?? systemClock,
+      );
+      const close = runtime.close.bind(runtime);
+      runtime.close = async () => {
+        stop();
+        await close();
+      };
+    }
   }
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
   for (const r2 of config.r2_buckets ?? [])

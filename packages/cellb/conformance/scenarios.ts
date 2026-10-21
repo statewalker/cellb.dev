@@ -14,6 +14,31 @@ export type Step =
 export interface Scenario {
   steps: Step[];
   mask?: string[];
+  /** Compare what user code logs (celld: `cell_console:` lines of `celld dev --logs`). */
+  logs?: boolean;
+  /** Regex → replacement applied to each log line (volatile values). */
+  logMask?: [string, string][];
+  /** Time to wait after the last step before collecting logs (default 1500 ms). */
+  settleMs?: number;
+  /** Start a reference WebSocket server; `{wsserver}` in paths becomes its ws:// origin. */
+  wsServer?: boolean;
+  /** Keep each distinct log line once (periodic events whose count depends on timing). */
+  uniqueLogs?: boolean;
+}
+
+/** Formats console arguments as celld prints them: strings raw, other values as JSON. */
+export function formatLog(args: unknown[]): string {
+  return args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+}
+
+/** Masks, then sorts log lines (celld gives no ordering guarantee across events). */
+export function normalizeLogs(lines: string[], s: Scenario): string[] {
+  return lines
+    .map((l) =>
+      (s.logMask ?? []).reduce((acc, [re, by]) => acc.replace(new RegExp(re, "g"), by), l),
+    )
+    .filter((l, i, all) => !s.uniqueLogs || all.indexOf(l) === i)
+    .sort();
 }
 
 const json = { "content-type": "application/json" };
@@ -90,7 +115,29 @@ export const scenarios: Record<string, Scenario> = {
       { ws: "/", send: ["three"], receive: 1 },
     ],
   },
-  queues: { steps: [{ path: "/job-1" }], mask: ["createdAt"] },
+  queues: {
+    steps: [{ path: "/job-1" }, { path: "/job-2/fail" }],
+    mask: ["createdAt"],
+    logs: true,
+    settleMs: 25_000,
+    logMask: [['"createdAt":"[^"]+"', '"createdAt":"<date>"']],
+  },
+  "dynamic-worker-tails": { steps: [{ path: "/" }, { path: "/again" }], logs: true },
+  wsclient: {
+    steps: [
+      { path: "/" },
+      { path: "/connect?url={wsserver}/room/c1" },
+      { waitMs: 1500 },
+      { path: "/" },
+    ],
+    wsServer: true,
+  },
+  cron: {
+    steps: [{ path: "/" }, { waitMs: 65_000 }],
+    logs: true,
+    uniqueLogs: true,
+    logMask: [["cron \\d+", "cron <scheduledTime>"]],
+  },
   r2: {
     steps: [
       { path: "/notes.txt" },
@@ -152,6 +199,8 @@ export function normalize(text: string, origin: string, mask: string[] = []): un
 
 export interface Target {
   origin: string;
+  /** ws:// origin of the reference WebSocket server, when the scenario asks for one. */
+  wsServer?: string;
   fetch(req: Request): Promise<Response>;
   /** Opens a WebSocket to `url` and returns a minimal client. */
   websocket(
@@ -178,8 +227,9 @@ export async function runScenario(target: Target, s: Scenario): Promise<Exchange
       continue;
     }
     const method = step.method ?? "GET";
+    const path = step.path.replace("{wsserver}", encodeURIComponent(target.wsServer ?? ""));
     const res = await target.fetch(
-      new Request(`${target.origin}${step.path}`, {
+      new Request(`${target.origin}${path}`, {
         method,
         body: step.body,
         headers: step.headers,

@@ -7,7 +7,8 @@ import { spawn } from "node:child_process";
 import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { projectDir, runScenario, scenarios, type Target } from "./scenarios.ts";
+import { startReferenceServer } from "../test/ws-reference-server.ts";
+import { normalizeLogs, projectDir, runScenario, scenarios, type Target } from "./scenarios.ts";
 
 const celld = process.env.CELLD_BIN ?? "celld";
 const here = import.meta.dirname;
@@ -19,7 +20,8 @@ for (const name of names) {
   cpSync(projectDir(name), dir, { recursive: true });
   const p = ++port;
   const env = { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` };
-  const proc = spawn(celld, ["dev", ".", "--port", String(p)], {
+  const ref = scenarios[name].wsServer ? await startReferenceServer() : undefined;
+  const proc = spawn(celld, ["dev", ".", "--port", String(p), "--logs"], {
     cwd: dir,
     env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -40,6 +42,7 @@ for (const name of names) {
   }
   const target: Target = {
     origin,
+    wsServer: ref ? `ws://127.0.0.1:${ref.port}` : undefined,
     fetch: (req) => fetch(req),
     websocket: (url) =>
       new Promise((resolveWs, reject) => {
@@ -58,16 +61,29 @@ for (const name of names) {
       }),
   };
   try {
-    const transcript = await runScenario(target, scenarios[name]);
+    const scenario = scenarios[name];
+    const from = log.length;
+    const transcript = await runScenario(target, scenario);
+    let logs: string[] | undefined;
+    if (scenario.logs) {
+      await new Promise((r) => setTimeout(r, scenario.settleMs ?? 1500));
+      logs = normalizeLogs(
+        [...log.slice(from).matchAll(/cell_console: (.*)$/gm)].map((m) => m[1]),
+        scenario,
+      );
+    }
     writeFileSync(
       resolve(here, "golden", `${name}.json`),
-      `${JSON.stringify({ celld: "0.6.2", transcript }, null, 2)}\n`,
+      `${JSON.stringify({ celld: "0.6.2", transcript, ...(logs ? { logs } : {}) }, null, 2)}\n`,
     );
-    console.log(`✓ ${name}: ${transcript.length} exchanges`);
+    console.log(
+      `✓ ${name}: ${transcript.length} exchanges${logs ? `, ${logs.length} log lines` : ""}`,
+    );
   } catch (e) {
     console.log(`✗ ${name}: ${(e as Error).message}`);
   } finally {
     proc.kill();
+    await ref?.close();
   }
 }
 process.exit(0);
