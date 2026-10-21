@@ -26,6 +26,13 @@ const TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 export interface CellsWebSocketOptions {
   /** Liveness ping period (ms); 0 disables. The peer is declared dead after 2 missed periods. */
   heartbeatMs?: number;
+  /**
+   * Interval timers for the heartbeat. On a page's main thread pass worker-timers'
+   * `setInterval`/`clearInterval`: background-tab throttling of main-thread timers would
+   * otherwise delay pings and make the server drop a live socket. Workers and Node do not
+   * throttle, so the built-in timers are the default.
+   */
+  timers?: { setInterval(fn: () => void, ms: number): unknown; clearInterval(id: unknown): void };
 }
 
 export function createWebSocketClass(
@@ -33,6 +40,10 @@ export function createWebSocketClass(
   options: CellsWebSocketOptions = {},
 ) {
   const heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
+  const timers = options.timers ?? {
+    setInterval: (fn: () => void, ms: number) => setInterval(fn, ms),
+    clearInterval: (id: unknown) => clearInterval(id as ReturnType<typeof setInterval>),
+  };
   return class CellsWebSocket extends EventTarget {
     static readonly CONNECTING = 0;
     static readonly OPEN = 1;
@@ -55,13 +66,13 @@ export function createWebSocketClass(
     onerror: Handler = null;
     #port: MessagePort | undefined;
     #pendingClose: { code?: number; reason?: string } | undefined;
-    #beat: ReturnType<typeof setInterval> | undefined;
+    #beat: unknown;
     #lastPong = 0;
 
     #startHeartbeat(): void {
       if (!heartbeatMs) return;
       this.#lastPong = Date.now();
-      this.#beat = setInterval(() => {
+      this.#beat = timers.setInterval(() => {
         if (this.readyState >= 3) return this.#stopHeartbeat();
         if (Date.now() - this.#lastPong > 2 * heartbeatMs) return this.#fail(); // peer gone
         this.#port?.postMessage({ t: "p", hb: heartbeatMs } satisfies Frame);
@@ -69,7 +80,7 @@ export function createWebSocketClass(
       this.#port?.postMessage({ t: "p", hb: heartbeatMs } satisfies Frame);
     }
     #stopHeartbeat(): void {
-      clearInterval(this.#beat);
+      if (this.#beat !== undefined) timers.clearInterval(this.#beat);
       this.#beat = undefined;
     }
 

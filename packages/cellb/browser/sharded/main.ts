@@ -1,12 +1,17 @@
 // P05b — page side: competes for shard ownership with Web Locks; the tab holding
 // the lock of shard i runs its worker and attaches it to the ServiceWorker router.
+import * as workerTimers from "worker-timers";
 import { createWebSocketClass, serviceWorkerConnector } from "../../src/index.js";
 import { SHARDS } from "./config.js";
 
 // Host registry of THIS realm: what webrun-modules' ~deps proxies of page code resolve to.
 // WebSocket = a WebSocket-compatible class whose transport is a MessagePort from the SW.
 (globalThis as any).__webrunHostRegistry = new Map<string, unknown>([
-  ["WebSocket", createWebSocketClass(serviceWorkerConnector(), { heartbeatMs: 1_000 })],
+  // Page main thread: worker-timers keeps the heartbeat on schedule in background tabs.
+  [
+    "WebSocket",
+    createWebSocketClass(serviceWorkerConnector(), { heartbeatMs: 1_000, timers: workerTimers }),
+  ],
   ["WebSocketPair", undefined],
   ["Response", Response],
 ]);

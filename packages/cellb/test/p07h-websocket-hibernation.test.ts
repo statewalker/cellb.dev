@@ -80,4 +80,30 @@ describe("P07h WebSocket hibernation API (ctx.acceptWebSocket)", () => {
     await until(() => b.inbox.length > 0);
     expect(b.inbox).toEqual(["1"]);
   });
+
+  it("the client heartbeat runs on injected timers (e.g. worker-timers on a page's main thread)", async () => {
+    const rt = createCellRuntime({
+      worker: {
+        Hub,
+        default: { fetch: (req: Request, env: any) => env.HUB.getByName("hub").fetch(req) },
+      },
+      durableObjects: { HUB: { className: "Hub" } },
+      openSql: nodeSqliteOpener(),
+    });
+    const calls: string[] = [];
+    const timers = {
+      setInterval: (fn: () => void, ms: number) => (calls.push(`set:${ms}`), setInterval(fn, ms)),
+      clearInterval: (id: unknown) => (calls.push("clear"), clearInterval(id as NodeJS.Timeout)),
+    };
+    const WS = createWebSocketClass((url, p) => rt.connectWebSocket(url, p), {
+      heartbeatMs: 50,
+      timers,
+    });
+    const ws = new WS("ws://h/?tag=t");
+    await new Promise((r) => ws.addEventListener("open", r, { once: true }));
+    const closed = new Promise((r) => ws.addEventListener("close", r, { once: true }));
+    ws.close();
+    await closed;
+    expect(calls).toEqual(["set:50", "clear"]);
+  });
 });

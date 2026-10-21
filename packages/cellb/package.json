@@ -23,7 +23,8 @@
     "@statewalker/webrun-files": "^0.10.0",
     "@statewalker/webrun-http-streams": "^0.2.2",
     "@statewalker/webrun-rpc": "^0.4.0",
-    "@statewalker/webrun-streams": "^0.2.0"
+    "@statewalker/webrun-streams": "^0.2.0",
+    "worker-timers": "^8.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
