@@ -56,6 +56,14 @@ export class CfWebSocket extends EventTarget {
     this.dispatchEvent(new CellsCloseEvent("close", { code: 1006, reason: "", wasClean: false }));
   }
 
+  /** The other end of the WebSocketPair (the runtime checks how the server end was accepted). */
+  peer?: CfWebSocket;
+  /** Accepted through ctx.acceptWebSocket() (hibernatable) rather than accept(). */
+  hibernatable = false;
+  get accepted(): boolean {
+    return this.#accepted;
+  }
+
   accept(): void {
     if (this.#accepted) return;
     if (!this[kPort])
@@ -113,6 +121,8 @@ export class WebSocketPair {
     const { port1, port2 } = new MessageChannel();
     this[0] = new CfWebSocket(port1);
     this[1] = new CfWebSocket(port2);
+    this[0].peer = this[1];
+    this[1].peer = this[0];
   }
 }
 

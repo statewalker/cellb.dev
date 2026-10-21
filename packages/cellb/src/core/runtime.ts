@@ -33,6 +33,8 @@ export interface CellRuntimeOptions {
   route?: (cellKey: string, id: DurableObjectId) => Send | undefined;
   /** Periodic backup of cell databases to a separate store (e.g. a FilesApi); restore on open. */
   backup?: CellBackup;
+  /** Hibernate objects idle this long (ms); swept every max(1 s, half of it). Off by default. */
+  hibernateAfterMs?: number;
   /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
   sqlExtensions?: string[];
   /** Timers of the runtime (backups); injectable for tests. */
@@ -61,6 +63,11 @@ export interface CellRuntime {
   ): Promise<{ port: MessagePort; protocol?: string }>;
   /** Backs up every live cell that changed since its last successful save. */
   backupNow(): Promise<void>;
+  /**
+   * Hibernates every object idle for at least `idleMs` (default: `hibernateAfterMs`):
+   * instances are dropped, storage and hibernatable WebSockets stay. Returns how many slept.
+   */
+  hibernateIdle(idleMs?: number): number;
   /** Final backup of changed cells, then stops timers and closes every database. */
   close(): Promise<void>;
 }
@@ -167,6 +174,16 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   }
 
   alarms.restore();
+  // Idle sweep for hibernation (opt-in).
+  let hibernationTimer: unknown;
+  if (opts.hibernateAfterMs !== undefined) {
+    const every = Math.max(1_000, opts.hibernateAfterMs / 2);
+    const sweep = () => {
+      runtime.hibernateIdle();
+      hibernationTimer = clock.setTimeout(sweep, every);
+    };
+    hibernationTimer = clock.setTimeout(sweep, every);
+  }
   const backupAll = (reason: "interval" | "manual" | "close") =>
     Promise.all([...hosts.values()].map((h) => h.backupIfDirty(reason, clock.now()))).then(
       () => {},
@@ -181,7 +198,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   };
   schedule();
 
-  return {
+  const runtime: CellRuntime = {
     env,
     durableObjectBindings: bindingClasses,
     backupNow: () => backupAll("manual"),
@@ -206,7 +223,14 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
         protocol: res.headers.get("Sec-WebSocket-Protocol") ?? undefined,
       };
     },
+    hibernateIdle(idleMs = opts.hibernateAfterMs ?? 0) {
+      const now = Date.now();
+      let n = 0;
+      for (const h of hosts.values()) if (now - h.lastActive >= idleMs && h.hibernate()) n++;
+      return n;
+    },
     async close() {
+      if (hibernationTimer !== undefined) clock.clearTimeout(hibernationTimer);
       closed = true;
       alarms.stop();
       clock.clearTimeout(timer);
@@ -237,4 +261,5 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       while (background.size) await Promise.all([...background]);
     },
   };
+  return runtime;
 }

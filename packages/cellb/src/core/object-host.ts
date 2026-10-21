@@ -180,14 +180,22 @@ export class ObjectHost {
         if (this.broken)
           return reject(new BrokenObjectError(this.#brokenCause, "its initialization failed"));
         let started: Promise<T>;
+        this.#active++;
         try {
           started = Promise.resolve(fn(this.#instance, this.state));
         } catch (e) {
           started = Promise.reject(e);
         }
+        const done = () => {
+          this.#active--;
+          this.lastActive = Date.now();
+        };
         started.then(
-          (r) => this.#barrier().then(() => resolve(r), reject),
-          (e) => this.#barrier().then(() => reject(e), reject),
+          (r) => {
+            this.#pinIfStandardWebSocket(r);
+            this.#barrier().then(() => (done(), resolve(r)), (e) => (done(), reject(e)));
+          },
+          (e) => this.#barrier().then(() => (done(), reject(e)), (e2) => (done(), reject(e2))),
         );
       });
       this.#pump();
@@ -198,7 +206,16 @@ export class ObjectHost {
   #pumpWaiting = false;
   #pump = (): void => {
     this.#pumpWaiting = false;
-    while (this.#queue.length && this.#gate.isOpen) this.#queue.shift()!();
+    while (this.#queue.length && this.#gate.isOpen) {
+      // Waking from hibernation: the constructor runs again before the event (and may
+      // close the gate with blockConcurrencyWhile, which the loop then respects).
+      if (this.#hibernated) {
+        this.#hibernated = false;
+        this.#construct?.();
+        continue;
+      }
+      this.#queue.shift()!();
+    }
     if (this.#queue.length && !this.#pumpWaiting) {
       this.#pumpWaiting = true;
       this.#gate.onOpen(this.#pump);
@@ -248,6 +265,45 @@ export class ObjectHost {
   }
 
   #construct?: () => unknown;
+
+  // ---- hibernation ---------------------------------------------------------------------
+  #active = 0;
+  #hibernated = false;
+  #pinned = 0;
+  /** Time of the last event's completion (the runtime's idle sweep reads it). */
+  lastActive = Date.now();
+
+  get hibernated(): boolean {
+    return this.#hibernated;
+  }
+
+  /**
+   * A 101 response whose server end was accepted with `accept()` (not acceptWebSocket)
+   * holds a standard WebSocket: the object cannot hibernate until that socket closes —
+   * as on Cloudflare, only the hibernation API lets an object sleep with open sockets.
+   */
+  #pinIfStandardWebSocket(r: unknown): void {
+    const server = (r as { webSocket?: { peer?: { accepted: boolean; hibernatable: boolean } & EventTarget } })
+      ?.webSocket?.peer;
+    if (!server || server.hibernatable || !server.accepted) return;
+    this.#pinned++;
+    server.addEventListener("close", () => this.#pinned--, { once: true });
+  }
+
+  /**
+   * Drops the instance when nothing runs: no event in flight or queued, no open async
+   * transaction, no standard WebSocket. Storage, alarms and hibernatable sockets stay; the
+   * next event constructs the class again. Returns whether it hibernated.
+   */
+  hibernate(): boolean {
+    if (this.#hibernated || this.broken || this.#active || this.#queue.length || this.#sql.held || this.#pinned)
+      return false;
+    if (!this.#gate.isOpen) return false;
+    this.#sql.commit();
+    this.#instance = undefined;
+    this.#hibernated = true;
+    return true;
+  }
   /** Replaces the instance with a fresh one on the SAME database (facet abort/delete). */
   restart(): void {
     this.#construct?.();
