@@ -1,0 +1,70 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "headers": {
+        "x-served-by": "celld",
+        "location": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-length": "261",
+        "etag": "<sha256-etag>"
+      },
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "body": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>celld static assets</title>\n  </head>\n  <body>\n    <h1>This file is served by celld.</h1>\n  </body>\n</html>\n"
+    },
+    {
+      "request": "GET /home",
+      "headers": {
+        "x-served-by": null,
+        "location": "/",
+        "cache-control": null,
+        "content-length": "0",
+        "etag": null
+      },
+      "status": 301,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /index.html",
+      "headers": {
+        "x-served-by": null,
+        "location": "/",
+        "cache-control": null,
+        "content-length": "0",
+        "etag": null
+      },
+      "status": 307,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /nope",
+      "headers": {
+        "x-served-by": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": "9",
+        "etag": null
+      },
+      "status": 404,
+      "contentType": "application/json",
+      "body": "Not found"
+    },
+    {
+      "request": "HEAD /",
+      "headers": {
+        "x-served-by": "celld",
+        "location": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-length": "261",
+        "etag": "<sha256-etag>"
+      },
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "body": ""
+    }
+  ]
+}

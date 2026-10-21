@@ -1,0 +1,277 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "headers": {
+        "x-served-by": "assets-api",
+        "x-docs": null,
+        "location": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-length": "39",
+        "content-range": null,
+        "etag": "<sha256-etag>"
+      },
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "body": "<!doctype html><title>home</title>home\n"
+    },
+    {
+      "request": "GET /",
+      "headers": {
+        "x-served-by": "assets-api",
+        "x-docs": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": null,
+        "content-range": null,
+        "etag": "<sha256-etag>"
+      },
+      "status": 304,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /about",
+      "headers": {
+        "x-served-by": "assets-api",
+        "x-docs": null,
+        "location": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-length": "11",
+        "content-range": null,
+        "etag": "<sha256-etag>"
+      },
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "body": "about page\n"
+    },
+    {
+      "request": "GET /about.html",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": "/about",
+        "cache-control": null,
+        "content-length": "0",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 307,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /about/",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": "27",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 299,
+      "contentType": null,
+      "body": "worker fallback GET /about/"
+    },
+    {
+      "request": "GET /docs",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": "/docs/",
+        "cache-control": null,
+        "content-length": "0",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 307,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /style.css",
+      "headers": {
+        "x-served-by": "assets-api",
+        "x-docs": null,
+        "location": null,
+        "cache-control": "public, max-age=31536000, immutable",
+        "content-length": "20",
+        "content-range": null,
+        "etag": "<sha256-etag>"
+      },
+      "status": 200,
+      "contentType": "text/css; charset=utf-8",
+      "body": "body { color: red }\n"
+    },
+    {
+      "request": "GET /data.unknownext",
+      "headers": {
+        "x-served-by": "assets-api",
+        "x-docs": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": "4",
+        "content-range": "bytes 2-5/10",
+        "etag": "<sha256-etag>"
+      },
+      "status": 206,
+      "contentType": null,
+      "body": 2345
+    },
+    {
+      "request": "GET /data.unknownext",
+      "headers": {
+        "x-served-by": "assets-api",
+        "x-docs": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": "0",
+        "content-range": "bytes */10",
+        "etag": "<sha256-etag>"
+      },
+      "status": 416,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /old-about",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": "/about",
+        "cache-control": null,
+        "content-length": "0",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 301,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /temp",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": "/docs/",
+        "cache-control": null,
+        "content-length": "0",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 302,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /alias",
+      "headers": {
+        "x-served-by": "assets-api",
+        "x-docs": null,
+        "location": null,
+        "cache-control": "public, max-age=0, must-revalidate",
+        "content-length": "11",
+        "content-range": null,
+        "etag": "<sha256-etag>"
+      },
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "body": "about page\n"
+    },
+    {
+      "request": "GET /blog/x",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": "/docs/x",
+        "cache-control": null,
+        "content-length": "0",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 307,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /api/items",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": "23",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "worker": "/api/items"
+      }
+    },
+    {
+      "request": "GET /via-binding",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": "22",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 200,
+      "contentType": null,
+      "body": "binding:200:about page"
+    },
+    {
+      "request": "GET /missing",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": "28",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 299,
+      "contentType": null,
+      "body": "worker fallback GET /missing"
+    },
+    {
+      "request": "GET /missing.json",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": "33",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 299,
+      "contentType": null,
+      "body": "worker fallback GET /missing.json"
+    },
+    {
+      "request": "POST /about",
+      "headers": {
+        "x-served-by": null,
+        "x-docs": null,
+        "location": null,
+        "cache-control": null,
+        "content-length": "27",
+        "content-range": null,
+        "etag": null
+      },
+      "status": 299,
+      "contentType": null,
+      "body": "worker fallback POST /about"
+    }
+  ]
+}

@@ -7,7 +7,13 @@ import { existsSync } from "node:fs";
  * their type, because they hold times or generated ids that differ between runs.
  */
 export type Step =
-  | { method?: string; path: string; body?: string; headers?: Record<string, string> }
+  | {
+      method?: string;
+      path: string;
+      body?: string;
+      headers?: Record<string, string>;
+      ifNoneMatchPrevious?: boolean;
+    }
   | { waitMs: number }
   | { ws: string; send: string[]; receive: number };
 
@@ -22,6 +28,8 @@ export interface Scenario {
   settleMs?: number;
   /** Start a reference WebSocket server; `{wsserver}` in paths becomes its ws:// origin. */
   wsServer?: boolean;
+  /** Response headers to record (lower case), besides content-type. */
+  headers?: string[];
   /** Keep each distinct log line once (periodic events whose count depends on timing). */
   uniqueLogs?: boolean;
 }
@@ -157,6 +165,48 @@ export const scenarios: Record<string, Scenario> = {
   "queues-api": {
     steps: [{ path: "/errors" }, { path: "/send" }, { waitMs: 8000 }, { path: "/log" }],
   },
+  "static-assets": {
+    steps: [
+      { path: "/" },
+      { path: "/home" },
+      { path: "/index.html" },
+      { path: "/nope" },
+      { method: "HEAD", path: "/" },
+    ],
+    headers: ["x-served-by", "location", "cache-control", "content-length", "etag"],
+  },
+  "assets-api": {
+    steps: [
+      { path: "/" },
+      { path: "/", ifNoneMatchPrevious: true },
+      { path: "/about" },
+      { path: "/about.html" },
+      { path: "/about/" },
+      { path: "/docs" },
+      // "/docs/" omitted: celld 0.6.2 does not serve nested index files (bug; see note 18).
+      { path: "/style.css" },
+      { path: "/data.unknownext", headers: { range: "bytes=2-5" } },
+      { path: "/data.unknownext", headers: { range: "bytes=50-60" } },
+      { path: "/old-about" },
+      { path: "/temp" },
+      { path: "/alias" },
+      { path: "/blog/x" },
+      { path: "/api/items" },
+      { path: "/via-binding" },
+      { path: "/missing", headers: { accept: "text/html" } },
+      { path: "/missing.json" },
+      { method: "POST", path: "/about" },
+    ],
+    headers: [
+      "x-served-by",
+      "x-docs",
+      "location",
+      "cache-control",
+      "content-length",
+      "content-range",
+      "etag",
+    ],
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,
@@ -168,6 +218,7 @@ export const scenarios: Record<string, Scenario> = {
 
 export interface Exchange {
   request: string;
+  headers?: Record<string, string | null>;
   status?: number;
   contentType?: string | null;
   body?: unknown;
@@ -211,6 +262,7 @@ export interface Target {
 /** Runs one scenario against a target and returns the normalized transcript. */
 export async function runScenario(target: Target, s: Scenario): Promise<Exchange[]> {
   const out: Exchange[] = [];
+  let lastEtag: string | undefined;
   for (const step of s.steps) {
     if ("waitMs" in step) {
       await new Promise((r) => setTimeout(r, step.waitMs));
@@ -228,15 +280,26 @@ export async function runScenario(target: Target, s: Scenario): Promise<Exchange
     }
     const method = step.method ?? "GET";
     const path = step.path.replace("{wsserver}", encodeURIComponent(target.wsServer ?? ""));
+    const reqHeaders = new Headers(step.headers);
+    if (step.ifNoneMatchPrevious && lastEtag) reqHeaders.set("if-none-match", lastEtag);
     const res = await target.fetch(
       new Request(`${target.origin}${path}`, {
+        redirect: "manual",
         method,
         body: step.body,
-        headers: step.headers,
+        headers: reqHeaders,
       }),
     );
+    lastEtag = res.headers.get("etag") ?? lastEtag;
     out.push({
       request: `${method} ${step.path}`,
+      ...(s.headers
+        ? {
+            headers: Object.fromEntries(
+              s.headers.map((h) => [h, normalizeHeader(h, res.headers.get(h), target.origin)]),
+            ),
+          }
+        : {}),
       status: res.status,
       contentType: res.headers.get("content-type"),
       body: normalize(await res.text(), target.origin, s.mask),
@@ -250,4 +313,12 @@ export function projectDir(name: string): string {
   const base = new URL(".", import.meta.url).pathname;
   const own = `${base}projects/${name}`;
   return existsSync(own) ? own : `${base}celld-examples/${name}`;
+}
+
+/** Volatile header values (ETag digests, absolute Location) normalized like bodies. */
+function normalizeHeader(name: string, value: string | null, origin: string): string | null {
+  if (value === null) return null;
+  if (name === "etag")
+    return /^(W\/)?"[0-9a-f]{64}"$/.test(value) ? "<sha256-etag>" : `<etag:${value}>`;
+  return value.split(origin).join("{origin}");
 }

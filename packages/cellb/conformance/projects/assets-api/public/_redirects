@@ -1,0 +1,4 @@
+/old-about /about 301
+/temp /docs/ 302
+/alias /about 200
+/blog/* /docs/:splat 307

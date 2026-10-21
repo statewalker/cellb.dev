@@ -29,7 +29,20 @@ async function target(name: string): Promise<Target & { unsupported: string[] }>
   return {
     unsupported,
     origin: "http://127.0.0.1:18701",
-    fetch: (req) => runtime.fetch(req),
+    // celld answers through an HTTP server, which sets Content-Length on buffered bodies;
+    // the in-process runtime has no wire, so the test adds it the same way.
+    fetch: async (req) => {
+      const res = await runtime.fetch(req);
+      if (res.headers.has("content-length") || res.status === 101 || res.status === 304) return res;
+      const body = await res.arrayBuffer();
+      const headers = new Headers(res.headers);
+      headers.set("content-length", String(body.byteLength));
+      return new Response(req.method === "HEAD" ? null : body, {
+        status: res.status,
+        statusText: res.statusText,
+        headers,
+      });
+    },
     websocket: (url) =>
       new Promise((resolve, reject) => {
         const ws = new WS(url);

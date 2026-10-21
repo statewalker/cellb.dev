@@ -1,4 +1,5 @@
 import type { FilesApi } from "@statewalker/webrun-files";
+import { type AssetFiles, type AssetsConfig, createAssets } from "../bindings/assets.js";
 import { startCronTriggers } from "../bindings/cron.js";
 import {
   makeQueueCell,
@@ -50,13 +51,15 @@ export interface WranglerConfig {
   };
   workflows?: { binding: string; name: string; class_name: string }[];
   triggers?: { crons?: string[] };
-  assets?: unknown;
+  assets?: AssetsConfig;
   services?: unknown[];
   worker_loaders?: { binding: string }[];
 }
 
 export interface ProjectHost
   extends Pick<CellRuntimeOptions, "openSql" | "durability" | "backup" | "clock"> {
+  /** Files of `assets.directory` (path "/a/b.html" → bytes), loaded by the host. */
+  assetFiles?: AssetFiles;
   /** Compiles code given to a Worker Loader binding (esbuild on Node, webrun-modules in browsers). */
   loadModules?: ModuleLoader;
   /** Blob store of the KV simulator (large values): OPFS in a browser, a directory or S3 on a server. */
@@ -117,7 +120,7 @@ export function createProjectRuntime(
     );
     durableObjects[QUEUE_OBJECTS] = { className: "__CellsQueue" };
   }
-  for (const key of ["workflows", "assets", "services"] as const)
+  for (const key of ["workflows", "services"] as const)
     if (config[key] && (!Array.isArray(config[key]) || (config[key] as unknown[]).length))
       unsupported.push(key);
   for (const f of config.compatibility_flags ?? []) unsupported.push(`compatibility_flags: ${f}`);
@@ -181,6 +184,16 @@ export function createProjectRuntime(
         await close();
       };
     }
+  }
+  // Static assets: routed before the Worker; `assets.binding` exposes env.ASSETS.
+  if (config.assets) {
+    const hasWorker = typeof (module.default as { fetch?: unknown })?.fetch === "function";
+    const assets = createAssets(host.assetFiles ?? new Map(), config.assets, hasWorker);
+    if (config.assets.binding) env[config.assets.binding] = assets.binding;
+    const workerFetch = runtime.fetch.bind(runtime);
+    runtime.fetch = async (req) =>
+      assets.route(req) ??
+      (hasWorker ? workerFetch(req) : new Response("Not found", { status: 404 }));
   }
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
   for (const r2 of config.r2_buckets ?? [])

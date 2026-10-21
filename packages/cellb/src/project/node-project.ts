@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "esbuild";
@@ -130,10 +130,30 @@ export async function loadNodeProject(
   host: Omit<ProjectHost, "loadModules"> & Partial<Pick<ProjectHost, "loadModules">>,
 ): Promise<ProjectRuntime & { config: WranglerConfig }> {
   const config = readWranglerConfig(dir);
-  if (!config.main) throw new Error("wrangler config has no `main`");
-  const module = await bundleWorker({ path: resolve(dir, config.main) });
+  if (!config.main && !config.assets)
+    throw new Error("wrangler config has neither `main` nor `assets`");
+  const module = config.main
+    ? await bundleWorker({ path: resolve(dir, config.main) })
+    : ({ default: {} } as WorkerModule);
+  const assetFiles = config.assets?.directory
+    ? readAssetDirectory(resolve(dir, config.assets.directory))
+    : undefined;
   return {
-    ...createProjectRuntime(config, module, { loadModules: nodeModuleLoader, ...host }),
+    ...createProjectRuntime(config, module, { loadModules: nodeModuleLoader, assetFiles, ...host }),
     config,
   };
+}
+
+/** Reads an assets directory into "/path" → bytes (what `celld deploy` uploads). */
+export function readAssetDirectory(root: string): Map<string, Uint8Array> {
+  const files = new Map<string, Uint8Array>();
+  const walk = (dir: string, prefix: string) => {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full, `${prefix}${name}/`);
+      else files.set(`${prefix}${name}`, new Uint8Array(readFileSync(full)));
+    }
+  };
+  walk(root, "/");
+  return files;
 }

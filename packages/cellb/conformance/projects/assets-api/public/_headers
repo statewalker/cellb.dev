@@ -1,0 +1,6 @@
+/*
+  X-Served-By: assets-api
+/style.css
+  Cache-Control: public, max-age=31536000, immutable
+/docs/*
+  X-Docs: yes
