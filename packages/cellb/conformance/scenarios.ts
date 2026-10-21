@@ -289,8 +289,6 @@ export const scenarios: Record<string, Scenario> = {
   "html-rewriter-async": {
     project: "html-rewriter",
     steps: [{ path: "/async" }],
-    knownGap:
-      "async HTMLRewriter handlers: the WASM build (htmlrewriter 0.0.13) fails with asyncify",
   },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({

@@ -47,7 +47,7 @@
     "zod": "^3.25.0",
     "buffer": "^6.0.3",
     "sqlite-vec-wasm-demo": "0.1.6",
-    "htmlrewriter": "^0.0.13"
+    "html-rewriter-wasm": "^0.4.1"
   },
   "private": true
 }
