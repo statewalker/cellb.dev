@@ -1,0 +1,6 @@
+{
+  "name": "workflow-api",
+  "main": "index.js",
+  "compatibility_date": "2026-08-18",
+  "workflows": [{ "binding": "FLOW", "name": "flow-api", "class_name": "Flow" }]
+}

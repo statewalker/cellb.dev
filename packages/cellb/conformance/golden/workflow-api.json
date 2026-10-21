@@ -1,0 +1,173 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /create?id=s1&kind=steps",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "id": "s1"
+      }
+    },
+    {
+      "request": "GET /create?id=e1&kind=event",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "id": "e1"
+      }
+    },
+    {
+      "request": "GET /create?id=r1&kind=retry",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "id": "r1"
+      }
+    },
+    {
+      "request": "GET /create?id=r2&kind=retry2",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "id": "r2"
+      }
+    },
+    {
+      "request": "GET /create?id=f1&kind=fail",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "id": "f1"
+      }
+    },
+    {
+      "request": "GET /create?id=l1&kind=long",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "id": "l1"
+      }
+    },
+    {
+      "request": "GET /status?id=s1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "waiting",
+        "rollback": null
+      }
+    },
+    {
+      "request": "GET /status?id=e1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "waiting",
+        "rollback": null
+      }
+    },
+    {
+      "request": "GET /status?id=l1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "waiting",
+        "rollback": null
+      }
+    },
+    {
+      "request": "GET /event?id=e1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "sent": true
+      }
+    },
+    {
+      "request": "GET /terminate?id=l1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "op": "terminate",
+        "status": "terminated"
+      }
+    },
+    {
+      "request": "GET /status?id=s1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "complete",
+        "rollback": null,
+        "output": {
+          "a": 1,
+          "b": 2
+        }
+      }
+    },
+    {
+      "request": "GET /status?id=e1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "complete",
+        "rollback": null,
+        "output": {
+          "approved": {
+            "by": "ada"
+          },
+          "type": "approve"
+        }
+      }
+    },
+    {
+      "request": "GET /status?id=r1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "errored",
+        "rollback": null,
+        "error": {
+          "name": "Error",
+          "message": "WORKFLOW_ERROR: invalid duration for the retries config delay of step \"flaky\": \"500 milliseconds\"; use milliseconds or \"<n> <second|minute|hour|day|week|month|year>[s]\""
+        }
+      }
+    },
+    {
+      "request": "GET /status?id=r2",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "errored",
+        "rollback": null,
+        "error": {
+          "name": "Error",
+          "message": "always fails"
+        }
+      }
+    },
+    {
+      "request": "GET /status?id=f1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "errored",
+        "rollback": null,
+        "error": {
+          "name": "TypeError",
+          "message": "bad input"
+        }
+      }
+    },
+    {
+      "request": "GET /status?id=l1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "terminated",
+        "rollback": null
+      }
+    }
+  ]
+}

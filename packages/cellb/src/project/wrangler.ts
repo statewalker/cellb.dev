@@ -9,6 +9,7 @@ import {
 } from "../bindings/queues.js";
 import { r2Bucket } from "../bindings/r2.js";
 import { type ModuleLoader, workerLoader } from "../bindings/worker-loader.js";
+import { makeWorkflowCell, type WorkflowConfig, workflowBinding } from "../bindings/workflows.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
   type CellRuntime,
@@ -49,7 +50,7 @@ export interface WranglerConfig {
     producers?: { binding: string; queue: string; delivery_delay?: number }[];
     consumers?: QueueConsumerConfig[];
   };
-  workflows?: { binding: string; name: string; class_name: string }[];
+  workflows?: WorkflowConfig[];
   triggers?: { crons?: string[] };
   assets?: AssetsConfig;
   services?: unknown[];
@@ -76,6 +77,7 @@ export interface ProjectRuntime {
 const KV_OBJECTS = "__CELLS_KV_OBJECTS";
 const D1_OBJECTS = "__CELLS_D1_OBJECTS";
 const QUEUE_OBJECTS = "__CELLS_QUEUE_OBJECTS";
+const WORKFLOW_OBJECTS = "__CELLS_WORKFLOW_OBJECTS";
 
 /**
  * Builds a runtime from a wrangler config and the Worker's module namespace — the same
@@ -120,7 +122,16 @@ export function createProjectRuntime(
     );
     durableObjects[QUEUE_OBJECTS] = { className: "__CellsQueue" };
   }
-  for (const key of ["workflows", "services"] as const)
+  // Workflows: every instance is a cell of a runtime-supplied class (as on celld).
+  if (config.workflows?.length) {
+    worker.__CellsWorkflow = makeWorkflowCell(
+      (name) => module[name] as never,
+      () => runtime.env,
+      host.clock ? () => host.clock!.now() : undefined,
+    );
+    durableObjects[WORKFLOW_OBJECTS] = { className: "__CellsWorkflow" };
+  }
+  for (const key of ["services"] as const)
     if (config[key] && (!Array.isArray(config[key]) || (config[key] as unknown[]).length))
       unsupported.push(key);
   for (const f of config.compatibility_flags ?? []) unsupported.push(`compatibility_flags: ${f}`);
@@ -195,6 +206,8 @@ export function createProjectRuntime(
       assets.route(req) ??
       (hasWorker ? workerFetch(req) : new Response("Not found", { status: 404 }));
   }
+  for (const w of config.workflows ?? [])
+    env[w.binding] = workflowBinding(env[WORKFLOW_OBJECTS] as DurableObjectNamespace, w);
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
   for (const r2 of config.r2_buckets ?? [])
     env[r2.binding] = r2Bucket(host.files, `/r2/${r2.bucket_name}`);

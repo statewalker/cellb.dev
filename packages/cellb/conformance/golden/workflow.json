@@ -1,0 +1,26 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /create?url={httpserver}/text/3",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "id": "<string>"
+      }
+    },
+    {
+      "request": "GET /status?id={prev.id}",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "status": "complete",
+        "rollback": null,
+        "output": {
+          "bytes": 20,
+          "lines": 3
+        }
+      }
+    }
+  ]
+}

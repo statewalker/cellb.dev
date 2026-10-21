@@ -131,6 +131,15 @@ export const scenarios: Record<string, Scenario> = {
     logMask: [['"createdAt":"[^"]+"', '"createdAt":"<date>"']],
   },
   "dynamic-worker-tails": { steps: [{ path: "/" }, { path: "/again" }], logs: true },
+  workflow: {
+    steps: [
+      { path: "/create?url={httpserver}/text/3" },
+      { waitMs: 3000 },
+      { path: "/status?id={prev.id}" },
+    ],
+    wsServer: true,
+    mask: ["id"],
+  },
   wsclient: {
     steps: [
       { path: "/" },
@@ -207,6 +216,29 @@ export const scenarios: Record<string, Scenario> = {
       "etag",
     ],
   },
+  "workflow-api": {
+    steps: [
+      { path: "/create?id=s1&kind=steps" },
+      { path: "/create?id=e1&kind=event" },
+      { path: "/create?id=r1&kind=retry" },
+      { path: "/create?id=r2&kind=retry2" },
+      { path: "/create?id=f1&kind=fail" },
+      { path: "/create?id=l1&kind=long" },
+      { waitMs: 300 },
+      { path: "/status?id=s1" },
+      { path: "/status?id=e1" },
+      { path: "/status?id=l1" },
+      { path: "/event?id=e1" },
+      { path: "/terminate?id=l1" },
+      { waitMs: 3000 },
+      { path: "/status?id=s1" },
+      { path: "/status?id=e1" },
+      { path: "/status?id=r1" },
+      { path: "/status?id=r2" },
+      { path: "/status?id=f1" },
+      { path: "/status?id=l1" },
+    ],
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,
@@ -263,6 +295,7 @@ export interface Target {
 export async function runScenario(target: Target, s: Scenario): Promise<Exchange[]> {
   const out: Exchange[] = [];
   let lastEtag: string | undefined;
+  let lastJson: unknown;
   for (const step of s.steps) {
     if ("waitMs" in step) {
       await new Promise((r) => setTimeout(r, step.waitMs));
@@ -279,7 +312,12 @@ export async function runScenario(target: Target, s: Scenario): Promise<Exchange
       continue;
     }
     const method = step.method ?? "GET";
-    const path = step.path.replace("{wsserver}", encodeURIComponent(target.wsServer ?? ""));
+    const path = step.path
+      .replace("{wsserver}", encodeURIComponent(target.wsServer ?? ""))
+      .replace("{httpserver}", encodeURIComponent((target.wsServer ?? "").replace(/^ws/, "http")))
+      .replace(/\{prev\.(\w+)\}/g, (_, k) =>
+        encodeURIComponent(String((lastJson as Record<string, unknown>)?.[k] ?? "")),
+      );
     const reqHeaders = new Headers(step.headers);
     if (step.ifNoneMatchPrevious && lastEtag) reqHeaders.set("if-none-match", lastEtag);
     const res = await target.fetch(
@@ -291,6 +329,12 @@ export async function runScenario(target: Target, s: Scenario): Promise<Exchange
       }),
     );
     lastEtag = res.headers.get("etag") ?? lastEtag;
+    const text = await res.clone().text();
+    try {
+      lastJson = JSON.parse(text);
+    } catch {
+      lastJson = undefined;
+    }
     out.push({
       request: `${method} ${step.path}`,
       ...(s.headers

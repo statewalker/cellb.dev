@@ -11,7 +11,13 @@ export async function startReferenceServer(
   port = 0,
 ): Promise<{ port: number; close(): Promise<void>; server: Server }> {
   const rooms = new Map<string, Set<WebSocket>>();
-  const server = createServer((_req, res) => res.writeHead(404).end());
+  // Plain HTTP too: GET /text/<n> answers n numbered lines (a fetch target for Workers).
+  const server = createServer((req, res) => {
+    const m = /^\/text\/(\d+)$/.exec(req.url ?? "");
+    if (!m) return void res.writeHead(404).end();
+    res.writeHead(200, { "content-type": "text/plain" });
+    res.end(Array.from({ length: Number(m[1]) }, (_, i) => `line ${i + 1}`).join("\n"));
+  });
   const wss = new WebSocketServer({
     noServer: true,
     handleProtocols: (protocols) => [...protocols][0] ?? false,
