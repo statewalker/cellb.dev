@@ -111,3 +111,26 @@ describe("P07c cron execution", () => {
     ]);
   });
 });
+
+describe("P07c cron catch-up after downtime", () => {
+  it("runs ONE missed occurrence (the latest) and skips the rest", async () => {
+    const saved = new Map<string, number>();
+    const state = {
+      get: (e: string) => saved.get(e),
+      set: (e: string, t: number) => void saved.set(e, t),
+    };
+    const clock = new FakeClock(at("2026-01-01T00:00:30Z"));
+    const runs: string[] = [];
+    const handler = async (c: any) => void runs.push(iso(c.scheduledTime));
+    let stop = startCronTriggers(["* * * * *"], handler, clock, state);
+    await clock.advance(60_000); // 00:01 runs
+    stop(); // down from 00:01:30 …
+    clock.t = at("2026-01-01T00:10:30Z"); // … until 00:10:30: 9 occurrences missed
+    stop = startCronTriggers(["* * * * *"], handler, clock, state);
+    await clock.advance(0);
+    await new Promise((r) => setTimeout(r, 10));
+    await clock.advance(30_000); // the next regular occurrence, 00:11
+    stop();
+    expect(runs).toEqual(["2026-01-01T00:01", "2026-01-01T00:10", "2026-01-01T00:11"]);
+  });
+});

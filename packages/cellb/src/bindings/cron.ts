@@ -191,6 +191,12 @@ export interface CronClock {
  * handler retries after 4 s, doubling, until six failures, `controller.noRetry()` or the next
  * occurrence; `scheduledTime` names the occurrence, not the attempt.
  */
+/** Where the last fired occurrence of each expression is kept (for the downtime catch-up). */
+export interface CronStateStore {
+  get(expression: string): number | undefined;
+  set(expression: string, scheduledTime: number): void;
+}
+
 export function startCronTriggers(
   expressions: string[],
   handler: (
@@ -198,6 +204,7 @@ export function startCronTriggers(
     ctx: { waitUntil(p: Promise<unknown>): void; passThroughOnException(): void },
   ) => unknown,
   clock: CronClock,
+  state?: CronStateStore,
 ): () => void {
   const schedules = expressions.map(parseCron);
   const timers = new Set<unknown>();
@@ -247,10 +254,23 @@ export function startCronTriggers(
   const arm = (s: CronSchedule, from: number) => {
     const t = s.next(from);
     at(t, () => {
+      state?.set(s.text, t);
       run(s, t, 0, s.next(t));
       arm(s, t);
     });
   };
+  // After downtime: run ONE missed occurrence (the latest) and skip the rest, as celld does.
+  for (const s of schedules) {
+    const last = state?.get(s.text);
+    if (last === undefined) continue;
+    let missed: number | undefined;
+    const now = clock.now();
+    for (let t = s.next(last), n = 0; t <= now && n < 600_000; t = s.next(t), n++) missed = t;
+    if (missed !== undefined) {
+      state?.set(s.text, missed);
+      run(s, missed, 0, s.next(missed));
+    }
+  }
   for (const s of schedules) arm(s, clock.now());
   return () => {
     stopped = true;

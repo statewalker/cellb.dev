@@ -199,6 +199,7 @@ export function createProjectRuntime(
         crons,
         (c, x) => scheduled.call(module.default, c, env, x),
         host.clock ?? systemClock,
+        cronState(host.openSql("__webrun-cells/cron")),
       );
       const close = runtime.close.bind(runtime);
       runtime.close = async () => {
@@ -270,4 +271,24 @@ function celldExec<T extends D1Like>(db: T): T {
     return { count: statements.length, duration: Date.now() - t0 };
   };
   return new Proxy(db, { get: (t, p, r) => (p === "exec" ? exec : Reflect.get(t, p, r)) });
+}
+
+/** Last fired occurrence per cron expression, in a small SQLite database of the host. */
+function cronState(db: ReturnType<ProjectHost["openSql"]>) {
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS cron_state (expression TEXT PRIMARY KEY, scheduled_time INTEGER)",
+    [],
+  );
+  return {
+    get: (e: string) => {
+      const row = db.exec("SELECT scheduled_time FROM cron_state WHERE expression = ?", [e])
+        .rows[0];
+      return row ? Number(row[0]) : undefined;
+    },
+    set: (e: string, t: number) =>
+      void db.exec("INSERT OR REPLACE INTO cron_state (expression, scheduled_time) VALUES (?, ?)", [
+        e,
+        t,
+      ]),
+  };
 }

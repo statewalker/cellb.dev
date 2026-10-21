@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "no
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "esbuild";
+import { applyD1Migrations } from "../bindings/d1-migrations.js";
 import { type LogSink, type ModuleLoader, outboundFetch } from "../bindings/worker-loader.js";
 import type { WorkerModule } from "../core/runtime.js";
 import { parseJsonc } from "./jsonc.js";
@@ -181,4 +182,29 @@ export function readAssetDirectory(root: string): Map<string, Uint8Array> {
   };
   walk(root, "/");
   return files;
+}
+
+/**
+ * `celld d1 migrations apply DATABASE` for a Node-hosted project: reads
+ * `migrations_dir` (default "migrations") of the `d1_databases` entry and applies what is new.
+ */
+export async function applyNodeD1Migrations(
+  dir: string,
+  runtime: { env: Record<string, unknown> },
+  database: string,
+) {
+  const config = readWranglerConfig(dir);
+  const d1 = config.d1_databases?.find(
+    (d) => d.database_name === database || d.binding === database,
+  );
+  if (!d1) throw new Error(`no d1_databases entry named ${database}`);
+  const mdir = resolve(dir, (d1 as { migrations_dir?: string }).migrations_dir ?? "migrations");
+  const files: [string, string][] = existsSync(mdir)
+    ? readdirSync(mdir).map((f) => [f, readFileSync(join(mdir, f), "utf8")])
+    : [];
+  return applyD1Migrations(
+    runtime.env[d1.binding] as never,
+    files,
+    (d1 as { migrations_table?: string }).migrations_table ?? "d1_migrations",
+  );
 }
