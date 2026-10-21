@@ -58,6 +58,8 @@ export class ObjectHost {
     codec: ValueCodec;
     waitUntil: (p: Promise<unknown>) => void;
     backup?: CellBackup;
+    /** The stored alarm changed (null = cleared). */
+    onAlarmChange?: (at: number | null) => void;
   }) {
     this.#backup = opts.backup;
     this.cellKey = opts.cellKey;
@@ -67,6 +69,7 @@ export class ObjectHost {
     );
     const kv = new SyncKvStorage(this.#sql, opts.codec);
     const storage = new DurableObjectStorage(this.#sql, kv, this.#gate, () => this.#barrier());
+    if (opts.onAlarmChange) storage.onAlarmChange = opts.onAlarmChange;
     const state = new DurableObjectState(opts.id, storage, this.#gate, opts.waitUntil, (e) =>
       this.#breakOn(e),
     );

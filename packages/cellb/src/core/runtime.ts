@@ -5,7 +5,8 @@ import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { jsonCodec } from "./codec.js";
 import type { ExecutionContext } from "./durable-object.js";
-import type { DurableObjectId } from "./id.js";
+import { DurableObjectId } from "./id.js";
+import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
 import { DurableObjectNamespace, localEndpoint } from "./namespace.js";
 import { type DurableObjectClass, ObjectHost } from "./object-host.js";
 
@@ -72,6 +73,37 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   };
   const env: Record<string, unknown> = { ...opts.vars };
   const bindingClasses: Record<string, string> = {};
+  const clock = opts.clock ?? systemClock;
+  // Hosts by class name: the alarm scheduler wakes objects that nobody is calling.
+  const hostsByClass = new Map<string, (id: DurableObjectId) => ObjectHost>();
+  const alarms = new AlarmScheduler({
+    clock,
+    index: opts.openSql("__webrun-cells/alarms"),
+    fire: (e) => fireAlarm(e, 0),
+  });
+  const MAX_ALARM_RETRIES = 6; // as Cloudflare: exponential backoff from 2 s, then give up
+  async function fireAlarm(e: AlarmEntry, retryCount: number): Promise<void> {
+    const hostFor = hostsByClass.get(e.className);
+    if (!hostFor) return;
+    const host = hostFor(new DurableObjectId(e.idHex));
+    let failed = false;
+    try {
+      await host.deliver(async (obj, state) => {
+        // The alarm is consumed when its handler starts: getAlarm() inside it returns null
+        // unless the handler sets a new one.
+        if (state.storage.alarmSync() === e.at) state.storage.clearAlarmSync();
+        if (typeof obj.alarm === "function") await obj.alarm({ retryCount, isRetry: retryCount > 0 });
+      });
+    } catch {
+      failed = true;
+    }
+    if (!failed || retryCount >= MAX_ALARM_RETRIES) return;
+    // Retry unless the handler armed a different alarm meanwhile.
+    const current = host.state.storage.alarmSync();
+    if (current !== null) return;
+    const retryAt = clock.now() + 2 ** (retryCount + 1) * 1000;
+    clock.setTimeout(() => void fireAlarm({ ...e, at: retryAt }, retryCount + 1), retryAt - clock.now());
+  }
 
   for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {
     const cls = opts.worker[className] as DurableObjectClass | undefined;
@@ -92,11 +124,13 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           codec,
           waitUntil,
           backup: opts.backup,
+          onAlarmChange: (at) => alarms.set({ cellKey, className, idHex: id.toString() }, at),
         });
         hosts.set(cellKey, h);
       }
       return h;
     };
+    hostsByClass.set(className, hostFor);
     env[binding] = new DurableObjectNamespace(className, (id) => {
       const remote = opts.route?.(`${className}/${id.toString()}`, id);
       return remote
@@ -106,7 +140,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     bindingClasses[binding] = className;
   }
 
-  const clock = opts.clock ?? systemClock;
+  alarms.restore();
   const backupAll = (reason: "interval" | "manual" | "close") =>
     Promise.all([...hosts.values()].map((h) => h.backupIfDirty(reason, clock.now()))).then(
       () => {},
@@ -148,6 +182,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     },
     async close() {
       closed = true;
+      alarms.stop();
       clock.clearTimeout(timer);
       timer = undefined;
       await backupAll("close");

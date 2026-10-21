@@ -149,6 +149,7 @@ export class DurableObjectStorage extends AsyncKvApi {
   deleteAll(): Promise<void> {
     return this.op(() => {
       this.kv.deleteAll();
+      this.clearAlarmSync(); // deleteAll() also deletes the alarm, as on Cloudflare
       const tables = this.sql.internalExec(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'",
       ).rows;
@@ -203,13 +204,40 @@ export class DurableObjectStorage extends AsyncKvApi {
   sync(): Promise<void> {
     return this.#sync();
   }
-  getAlarm(): Promise<number | null> {
-    return Promise.reject(new Error("Alarms are not implemented yet (prototype P07)"));
+  /** Called whenever the stored alarm changes (the runtime schedules it). */
+  onAlarmChange: (at: number | null) => void = () => {};
+
+  #metaReady = false;
+  #meta(): void {
+    if (this.#metaReady) return;
+    this.sql.internalExec("CREATE TABLE IF NOT EXISTS _cf_METADATA (key TEXT PRIMARY KEY, value)");
+    this.#metaReady = true;
   }
-  setAlarm(_t: number | Date): Promise<void> {
-    return Promise.reject(new Error("Alarms are not implemented yet (prototype P07)"));
+  /** Synchronous read of the stored alarm (ms since epoch) or null. */
+  alarmSync(): number | null {
+    this.#meta();
+    const row = this.sql.internalExec("SELECT value FROM _cf_METADATA WHERE key = 'alarm'").rows[0];
+    return row ? Number(row[0]) : null;
   }
-  deleteAlarm(): Promise<void> {
-    return Promise.reject(new Error("Alarms are not implemented yet (prototype P07)"));
+  /** One alarm per object, stored in _cf_METADATA (same transaction as the event's writes). */
+  getAlarm(_opts?: unknown): Promise<number | null> {
+    return this.op(() => this.alarmSync());
+  }
+  setAlarm(scheduledTime: number | Date, _opts?: unknown): Promise<void> {
+    const at = scheduledTime instanceof Date ? scheduledTime.getTime() : Number(scheduledTime);
+    if (!Number.isFinite(at)) return Promise.reject(new TypeError("setAlarm() requires a finite time"));
+    return this.op(() => {
+      this.#meta();
+      this.sql.internalExec("INSERT OR REPLACE INTO _cf_METADATA (key, value) VALUES ('alarm', ?)", [at]);
+      this.onAlarmChange(at);
+    });
+  }
+  deleteAlarm(_opts?: unknown): Promise<void> {
+    return this.op(() => this.clearAlarmSync());
+  }
+  clearAlarmSync(): void {
+    this.#meta();
+    this.sql.internalExec("DELETE FROM _cf_METADATA WHERE key = 'alarm'");
+    this.onAlarmChange(null);
   }
 }

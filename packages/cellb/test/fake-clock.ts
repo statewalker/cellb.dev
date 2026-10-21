@@ -2,7 +2,10 @@ import type { Clock } from "../src/index.js";
 
 /** Deterministic clock: timers fire only on advance(); async continuations are flushed between timers. */
 export class FakeClock implements Clock {
-  t = 0;
+  t: number;
+  constructor(start = 0) {
+    this.t = start;
+  }
   #timers = new Map<number, { at: number; fn: () => void }>();
   #id = 0;
   now() {
