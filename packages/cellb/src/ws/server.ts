@@ -164,3 +164,6 @@ export class CellsResponse extends Response {
 
 /** Workers `caches` (always-miss, as celld) — exported here so user bundles get it with Response. */
 export { cellsCaches as caches } from "../bindings/cache.js";
+
+/** Workers `HTMLRewriter` (lol-html in WASM; Node and browsers). */
+export { HTMLRewriter } from "../bindings/html-rewriter.js";

@@ -28,6 +28,10 @@ export interface Scenario {
   wsServer?: boolean;
   /** Response headers to record (lower case), besides content-type. */
   headers?: string[];
+  /** Project directory name when it differs from the scenario name. */
+  project?: string;
+  /** A recorded celld behaviour webrun-cells does not reproduce yet (tests expect a mismatch). */
+  knownGap?: string;
   /** Keep each distinct log line once (periodic events whose count depends on timing). */
   uniqueLogs?: boolean;
 }
@@ -281,6 +285,13 @@ export const scenarios: Record<string, Scenario> = {
     ],
   },
   "r2-advanced": { steps: [{ path: "/conditional" }, { path: "/multipart" }] },
+  "html-rewriter": { steps: [{ path: "/" }] },
+  "html-rewriter-async": {
+    project: "html-rewriter",
+    steps: [{ path: "/async" }],
+    knownGap:
+      "async HTMLRewriter handlers: the WASM build (htmlrewriter 0.0.13) fails with asyncify",
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

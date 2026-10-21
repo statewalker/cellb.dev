@@ -46,7 +46,8 @@
     "@types/ws": "catalog:",
     "zod": "^3.25.0",
     "buffer": "^6.0.3",
-    "sqlite-vec-wasm-demo": "0.1.6"
+    "sqlite-vec-wasm-demo": "0.1.6",
+    "htmlrewriter": "^0.0.13"
   },
   "private": true
 }

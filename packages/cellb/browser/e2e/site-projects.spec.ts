@@ -20,6 +20,7 @@ for (const name of Object.keys(scenarios)) {
   const wait =
     (s.settleMs ?? 1500) + s.steps.reduce((n, st) => n + ("waitMs" in st ? st.waitMs : 0), 0);
   test(name, async ({ page }) => {
+    test.skip(!!s.knownGap, `known gap: ${s.knownGap}`);
     test.setTimeout(wait + 60_000);
     const ref = s.wsServer ? await startReferenceServer() : undefined;
     try {

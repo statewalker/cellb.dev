@@ -6,4 +6,4 @@
  * also replace the `Response` that CellsResponse itself extends.
  */
 // @ts-expect-error — virtual specifier resolved by the bundler plugin
-export { CellsResponse as Response, caches, WebSocketPair } from "webrun-cells:ws";
+export { CellsResponse as Response, caches, HTMLRewriter, WebSocketPair } from "webrun-cells:ws";

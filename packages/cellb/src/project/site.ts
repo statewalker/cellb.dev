@@ -33,6 +33,7 @@ export function createProjectSite(opts: { projectFiles: FilesApi }): SiteHandler
     Response: `${host}("Response")`,
     WebSocketPair: `${host}("WebSocketPair")`,
     caches: `${host}("caches")`,
+    HTMLRewriter: `${host}("HTMLRewriter")`,
   };
   const modules = newModuleServer({
     cache: new MemFilesApi(),
@@ -89,12 +90,14 @@ export function workersHostRegistry(entries: {
   Response: unknown;
   WebSocketPair: unknown;
   caches: unknown;
+  HTMLRewriter: unknown;
 }): void {
   const map = new Map<string, unknown>([
     ["cloudflare:workers", entries.workersModule],
     ["Response", entries.Response],
     ["WebSocketPair", entries.WebSocketPair],
     ["caches", entries.caches],
+    ["HTMLRewriter", entries.HTMLRewriter],
   ]);
   (globalThis as Record<string, unknown>).__webrunHostRegistry = {
     get: (k: string) => map.get(k),

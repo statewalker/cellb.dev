@@ -57,8 +57,8 @@ describe("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.2", ()
     const wait =
       (scenario.settleMs ?? 1500) +
       scenario.steps.reduce((n, s) => n + ("waitMs" in s ? s.waitMs : 0), 0);
-    it(
-      name,
+    (scenario.knownGap ? it.fails : it)(
+      scenario.knownGap ? `${name} — known gap: ${scenario.knownGap}` : name,
       async () => {
         const expected = golden(name);
         const ref = scenario.wsServer ? await startReferenceServer() : undefined;

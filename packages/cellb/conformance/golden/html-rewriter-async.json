@@ -1,0 +1,11 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /async",
+      "status": 200,
+      "contentType": null,
+      "body": "<p><a href=\"/async\">x</a></p>"
+    }
+  ]
+}
