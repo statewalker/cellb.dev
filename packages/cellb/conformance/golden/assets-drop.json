@@ -1,0 +1,86 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "headers": {
+        "location": null
+      },
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "body": "home\n"
+    },
+    {
+      "request": "GET /index.html",
+      "headers": {
+        "location": "/"
+      },
+      "status": 307,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /about",
+      "headers": {
+        "location": null
+      },
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "body": "about\n"
+    },
+    {
+      "request": "GET /about.html",
+      "headers": {
+        "location": "/about"
+      },
+      "status": 307,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /docs",
+      "headers": {
+        "location": null
+      },
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "body": "docs\n"
+    },
+    {
+      "request": "GET /docs/index.html",
+      "headers": {
+        "location": "/docs"
+      },
+      "status": 307,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /secret.txt",
+      "headers": {
+        "location": null
+      },
+      "status": 200,
+      "contentType": "text/plain; charset=utf-8",
+      "body": "secret\n"
+    },
+    {
+      "request": "GET /notes.md",
+      "headers": {
+        "location": null
+      },
+      "status": 200,
+      "contentType": null,
+      "body": "notes\n"
+    },
+    {
+      "request": "GET /nope",
+      "headers": {
+        "location": null
+      },
+      "status": 404,
+      "contentType": "text/html; charset=utf-8",
+      "body": "missing\n"
+    }
+  ]
+}

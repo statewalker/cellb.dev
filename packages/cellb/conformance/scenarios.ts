@@ -291,6 +291,38 @@ export const scenarios: Record<string, Scenario> = {
     steps: [{ path: "/async" }],
   },
   "node-compat": { steps: [{ path: "/" }] },
+  "assets-force": {
+    steps: // "/about/" and "/docs/" omitted: celld 0.6.2 answers 404 for every path ending in "/"
+      // except the root (bug; see note 18) — unit-tested against Cloudflare's behaviour instead.
+      [
+        "/",
+        "/index.html",
+        "/about",
+        "/about.html",
+        "/docs",
+        "/docs/index.html",
+        "/secret.txt",
+        "/notes.md",
+        "/nope",
+      ].map((path) => ({ path })),
+    headers: ["location"],
+  },
+  "assets-drop": {
+    steps: // "/about/" and "/docs/" omitted: celld 0.6.2 answers 404 for every path ending in "/"
+      // except the root (bug; see note 18) — unit-tested against Cloudflare's behaviour instead.
+      [
+        "/",
+        "/index.html",
+        "/about",
+        "/about.html",
+        "/docs",
+        "/docs/index.html",
+        "/secret.txt",
+        "/notes.md",
+        "/nope",
+      ].map((path) => ({ path })),
+    headers: ["location"],
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

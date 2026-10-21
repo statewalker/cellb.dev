@@ -132,6 +132,8 @@ export function createAssets(files: AssetFiles, config: AssetsConfig, hasWorker:
   const lookup = (path: string): { file: string } | { redirect: string } | undefined => {
     const mode = config.html_handling ?? "auto-trailing-slash";
     if (mode === "none") return exists(path) ? { file: path } : undefined;
+    if (mode === "force-trailing-slash" || mode === "drop-trailing-slash")
+      return lookupSlash(path, mode);
     if (path.endsWith("/index.html")) {
       if (exists(path)) return { redirect: path.slice(0, -"index.html".length) };
     } else if (path.endsWith(".html")) {
@@ -146,6 +148,38 @@ export function createAssets(files: AssetFiles, config: AssetsConfig, hasWorker:
     if (exists(`${path}.html`)) return { file: `${path}.html` };
     if (exists(`${path}/index.html`)) return { redirect: `${path}/` };
     return undefined;
+  };
+
+  /**
+   * force-trailing-slash: HTML pages live at `/x/` (x.html or x/index.html); `/x`, `/x.html`
+   * and `/x/index.html` redirect there. drop-trailing-slash: they live at `/x`; `/x/`,
+   * `/x.html` and `/x/index.html` redirect there. The root is `/` in both.
+   * (celld 0.6.2 answers 404 for any path ending in "/" other than the root, so in force
+   * mode it redirects to pages it then refuses — a celld bug; we follow Cloudflare.)
+   */
+  const lookupSlash = (path: string, mode: "force-trailing-slash" | "drop-trailing-slash") => {
+    if (path === "/") return exists("/index.html") ? { file: "/index.html" } : undefined;
+    const page = (base: string) =>
+      exists(`${base}.html`)
+        ? `${base}.html`
+        : exists(`${base}/index.html`)
+          ? `${base}/index.html`
+          : undefined;
+    let base: string | undefined;
+    if (path.endsWith("/index.html")) base = path.slice(0, -"/index.html".length);
+    else if (path.endsWith(".html")) base = path.slice(0, -".html".length);
+    else if (path.endsWith("/")) base = path.slice(0, -1);
+    if (base === "") return exists(path) ? { redirect: "/" } : undefined;
+    const canonical = (b: string) => (mode === "force-trailing-slash" ? `${b}/` : b);
+    if (base !== undefined) {
+      const file = page(base);
+      if (!file) return undefined;
+      return path === canonical(base) ? { file } : { redirect: canonical(base) };
+    }
+    if (exists(path)) return { file: path }; // non-HTML file
+    const file = page(path);
+    if (!file) return undefined;
+    return mode === "drop-trailing-slash" ? { file } : { redirect: `${path}/` };
   };
 
   const serve = (req: Request, file: string, status = 200): Response => {

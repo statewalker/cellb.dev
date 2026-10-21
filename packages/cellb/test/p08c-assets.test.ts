@@ -38,4 +38,22 @@ describe("P08c static assets", () => {
   it("run_worker_first: true sends every request to the Worker", () => {
     expect(createAssets(files, { run_worker_first: true }, true).route(get("/"))).toBeUndefined();
   });
+
+  it("force-trailing-slash: pages live at /x/ (celld 0.6.2 404s there — bug)", async () => {
+    const f = new Map([...files, ["/about.html", enc("about")]]);
+    const a = createAssets(f, { html_handling: "force-trailing-slash" }, false);
+    const about = a.route(get("/about/"))!;
+    expect([about.status, await about.text()]).toEqual([200, "about"]);
+    const docs = a.route(get("/docs/"))!;
+    expect([docs.status, await docs.text()]).toEqual([200, "docs"]);
+    expect(a.route(get("/about"))!.headers.get("location")).toBe("/about/");
+  });
+
+  it("drop-trailing-slash: /x/ redirects to /x (celld 0.6.2 404s — bug)", () => {
+    const f = new Map([...files, ["/about.html", enc("about")]]);
+    const a = createAssets(f, { html_handling: "drop-trailing-slash" }, false);
+    const r = a.route(get("/about/"))!;
+    expect([r.status, r.headers.get("location")]).toEqual([307, "/about"]);
+    expect(a.route(get("/docs/"))!.headers.get("location")).toBe("/docs");
+  });
 });

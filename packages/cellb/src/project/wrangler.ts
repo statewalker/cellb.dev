@@ -210,6 +210,10 @@ export function createProjectRuntime(
   // Static assets: routed before the Worker; `assets.binding` exposes env.ASSETS.
   if (config.assets) {
     const hasWorker = typeof (module.default as { fetch?: unknown })?.fetch === "function";
+    if (host.assetFiles?.has("/.assetsignore"))
+      throw new Error(
+        `${config.assets.directory ?? "assets"}/.assetsignore is not supported by celld; remove it`,
+      );
     const assets = createAssets(host.assetFiles ?? new Map(), config.assets, hasWorker);
     if (config.assets.binding) env[config.assets.binding] = assets.binding;
     const workerFetch = runtime.fetch.bind(runtime);
