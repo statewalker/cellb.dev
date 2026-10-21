@@ -266,6 +266,16 @@ export const scenarios: Record<string, Scenario> = {
       path: `/${op}`,
     })),
   },
+  "runtime-api": {
+    steps: [
+      { path: "/cache" },
+      { path: "/self" },
+      { path: "/math" },
+      { path: "/kv" },
+      { path: "/load" },
+      { ws: "/room?name=ada", send: ["one", "two"], receive: 2 },
+    ],
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

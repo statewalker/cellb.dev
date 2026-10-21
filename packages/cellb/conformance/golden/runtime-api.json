@@ -1,0 +1,71 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /cache",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "put": true,
+        "match": true,
+        "deleted": false,
+        "namedMatch": true
+      }
+    },
+    {
+      "request": "GET /self",
+      "status": 200,
+      "contentType": null,
+      "body": "self says: echo"
+    },
+    {
+      "request": "GET /math",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "sum": 42,
+        "viaFetch": "math via fetch /x"
+      }
+    },
+    {
+      "request": "GET /kv",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "texts": [["a", "1"], ["b", "{\"b\":2}"], ["missing", null]],
+        "json": [
+          [
+            "b",
+            {
+              "b": 2
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "request": "GET /load",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "load": "loaded once",
+        "sealed": "blocked: Error"
+      }
+    },
+    {
+      "request": "WS /room?name=ada [\"one\",\"two\"]",
+      "messages": [
+        {
+          "from": "ada",
+          "message": "one",
+          "seen": 1
+        },
+        {
+          "from": "ada",
+          "message": "two",
+          "seen": 2
+        }
+      ]
+    }
+  ]
+}

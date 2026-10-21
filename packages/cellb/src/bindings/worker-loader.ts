@@ -32,6 +32,25 @@ export interface TailEvent {
   diagnosticsChannelEvents: unknown[];
 }
 
+/**
+ * The `fetch` loaded code sees, from `WorkerCode.globalOutbound`: omitted → the loader's own
+ * (undefined: no override); `null` → every fetch throws; a Fetcher → each fetch goes through it.
+ */
+export function outboundFetch(code: WorkerCode): typeof fetch | undefined {
+  const o = code.globalOutbound as { fetch?: typeof fetch } | null | undefined;
+  if (o === undefined) return undefined;
+  if (o === null)
+    return (async () => {
+      throw new Error(
+        "This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world.",
+      );
+    }) as typeof fetch;
+  if (typeof o.fetch === "function")
+    return ((input: RequestInfo | URL, init?: RequestInit) =>
+      o.fetch!(input, init)) as typeof fetch;
+  throw new TypeError("globalOutbound must be null or a Fetcher");
+}
+
 /** Where the `console` of loaded code writes (the host forwards to the real console too). */
 export type LogSink = (level: string, args: unknown[]) => void;
 
@@ -54,10 +73,20 @@ export function workerLoader(load: ModuleLoader) {
     logs: TailLog[];
   };
   const cache = new Map<string, Promise<Loaded>>();
-  return {
-    get(id: string, getCode: () => WorkerCode | Promise<WorkerCode>) {
+  let anonymous = 0;
+  const loader = {
+    /** Compiles and runs code without the id cache (a fresh Worker per call). */
+    load(code: WorkerCode) {
+      return loader.get(
+        `__load-${++anonymous}-${Math.random().toString(36).slice(2)}`,
+        () => code,
+        false,
+      );
+    },
+    get(id: string, getCode: () => WorkerCode | Promise<WorkerCode>, cached = true) {
+      let own: Promise<Loaded> | undefined; // load(): memoized per handle, not in the id cache
       const loaded = () => {
-        let p = cache.get(id);
+        let p = cached ? cache.get(id) : own;
         if (!p) {
           p = (async () => {
             const code = await getCode();
@@ -67,7 +96,8 @@ export function workerLoader(load: ModuleLoader) {
             return { module: await load(id, code, sink), env: code.env ?? {}, code, logs };
           })();
           p.catch(() => cache.delete(id));
-          cache.set(id, p);
+          if (cached) cache.set(id, p);
+          else own = p;
         }
         return p;
       };
@@ -114,6 +144,10 @@ export function workerLoader(load: ModuleLoader) {
             return { cls: cls as DurableObjectClass, env };
           });
         },
+        /** Releases the loaded Worker: the id leaves the cache; a later get() loads again. */
+        dispose() {
+          cache.delete(id);
+        },
         getEntrypoint(name = "default", options: { props?: unknown } = {}) {
           return new Proxy(
             {},
@@ -138,4 +172,5 @@ export function workerLoader(load: ModuleLoader) {
       };
     },
   };
+  return loader;
 }

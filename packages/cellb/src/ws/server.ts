@@ -14,6 +14,7 @@ export class CfWebSocket extends EventTarget {
   static readonly READY_STATE_CLOSED = 3;
   readyState = 1;
   url: string | null = null;
+
   protocol: string | null = null;
   extensions: string | null = null;
   [kPort]: MessagePort | undefined;
@@ -150,3 +151,6 @@ export class CellsResponse extends Response {
     return #status in this ? this.#status : super.status;
   }
 }
+
+/** Workers `caches` (always-miss, as celld) — exported here so user bundles get it with Response. */
+export { cellsCaches as caches } from "../bindings/cache.js";

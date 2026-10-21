@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "no
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "esbuild";
-import type { LogSink, ModuleLoader } from "../bindings/worker-loader.js";
+import { type LogSink, type ModuleLoader, outboundFetch } from "../bindings/worker-loader.js";
 import type { WorkerModule } from "../core/runtime.js";
 import { parseJsonc } from "./jsonc.js";
 import {
@@ -30,8 +30,16 @@ export function readWranglerConfig(dir: string): WranglerConfig {
 export async function bundleWorker(
   entry: { path: string } | { modules: Record<string, string>; main: string },
   logs?: LogSink,
+  outbound?: typeof fetch,
 ): Promise<WorkerModule> {
-  // Loaded code gets a bundle-local `console` that also feeds its Tail Workers.
+  // Loaded code gets a bundle-local `fetch` (globalOutbound policy)…
+  const outboundKey = outbound ? `o${Math.random().toString(36).slice(2)}` : "";
+  if (outbound) {
+    const g = globalThis as Record<string, unknown>;
+    g.__cellsOutbound ??= {};
+    (g.__cellsOutbound as Record<string, unknown>)[outboundKey] = outbound;
+  }
+  // …and a bundle-local `console` that also feeds its Tail Workers.
   const consoleKey = logs ? `c${Math.random().toString(36).slice(2)}` : "";
   if (logs) {
     const g = globalThis as Record<string, unknown>;
@@ -68,6 +76,7 @@ export async function bundleWorker(
     inject: [
       resolve(import.meta.dirname, "workers-globals.ts"),
       ...(logs ? ["webrun-cells:console"] : []),
+      ...(outbound ? ["webrun-cells:fetch"] : []),
     ],
     plugins: [
       {
@@ -76,6 +85,14 @@ export async function bundleWorker(
           b.onResolve({ filter: /^webrun-cells:console$/ }, () => ({
             path: "console",
             namespace: "cells-console",
+          }));
+          b.onResolve({ filter: /^webrun-cells:fetch$/ }, () => ({
+            path: "fetch",
+            namespace: "cells-fetch",
+          }));
+          b.onLoad({ filter: /.*/, namespace: "cells-fetch" }, () => ({
+            contents: `export const fetch = globalThis.__cellsOutbound[${JSON.stringify(outboundKey)}];`,
+            loader: "js",
           }));
           b.onLoad({ filter: /.*/, namespace: "cells-console" }, () => ({
             contents: `export const console = globalThis.__cellsConsoles[${JSON.stringify(consoleKey)}];`,
@@ -115,13 +132,17 @@ export async function bundleWorker(
 
 /** Worker Loader on Node: compiles `WorkerCode.modules` with esbuild (as celld compiles loaded code). */
 export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
+  const outbound = outboundFetch(code);
   const modules: Record<string, string> = {};
   for (const [name, m] of Object.entries(code.modules))
     modules[name] =
       typeof m === "string"
         ? m
         : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
-  return (await bundleWorker({ modules, main: code.mainModule }, logs)) as Record<string, unknown>;
+  return (await bundleWorker({ modules, main: code.mainModule }, logs, outbound)) as Record<
+    string,
+    unknown
+  >;
 };
 
 export async function loadNodeProject(

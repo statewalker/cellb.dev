@@ -44,7 +44,21 @@ export function kvNamespaceBinding(objects: DurableObjectNamespace, namespaceId:
     (typeof opt === "string" ? opt : opt?.type) ?? "text";
 
   return {
-    async get(key: string, opt?: KVGetType | { type?: KVGetType; cacheTtl?: number }) {
+    async get(
+      key: string | string[],
+      opt?: KVGetType | { type?: KVGetType; cacheTtl?: number },
+    ): Promise<unknown> {
+      // Bulk get: up to 100 keys → Map(key → value | null), types "text" or "json" only.
+      if (Array.isArray(key)) {
+        if (key.length > 100)
+          throw new Error("KV GET_BULK_ERROR: You can request a maximum of 100 keys");
+        const type = typeOf(opt);
+        if (type !== "text" && type !== "json")
+          throw new Error("KV GET_BULK_ERROR: type must be text or json");
+        const out = new Map<string, unknown>();
+        for (const k of key) out.set(k, await this.get(k, type));
+        return out;
+      }
       const res = await call(keyPath(key), {
         urlencoded: "true",
         cache_ttl: typeof opt === "object" ? opt.cacheTtl : undefined,

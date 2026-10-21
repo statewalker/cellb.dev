@@ -2,7 +2,12 @@ import type { FilesApi } from "@statewalker/webrun-files";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { newModuleServer } from "@statewalker/webrun-modules";
 import { SiteBuilder, type SiteHandler } from "@statewalker/webrun-site-builder";
-import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
+import {
+  type LogSink,
+  type ModuleLoader,
+  outboundFetch,
+  type WorkerCode,
+} from "../bindings/worker-loader.js";
 
 /**
  * A project served by an in-browser "HTTP server" (webrun-site-builder handler, hosted in a
@@ -24,7 +29,11 @@ export const LOADED_CONSOLES = "__cellsLoadedConsoles";
 export function createProjectSite(opts: { projectFiles: FilesApi }): SiteHandler {
   const host = "globalThis.__webrunHostRegistry.get";
   const provided = { "cloudflare:workers": {} };
-  const globals = { Response: `${host}("Response")`, WebSocketPair: `${host}("WebSocketPair")` };
+  const globals = {
+    Response: `${host}("Response")`,
+    WebSocketPair: `${host}("WebSocketPair")`,
+    caches: `${host}("caches")`,
+  };
   const modules = newModuleServer({
     cache: new MemFilesApi(),
     project: opts.projectFiles,
@@ -49,6 +58,7 @@ export function createProjectSite(opts: { projectFiles: FilesApi }): SiteHandler
         globals: {
           ...globals,
           console: `(globalThis.${LOADED_CONSOLES}?.[${JSON.stringify(id)}] ?? globalThis.console)`,
+          fetch: `(globalThis.__cellsLoadedOutbound?.[${JSON.stringify(id)}] ?? globalThis.fetch)`,
         },
       });
       l = { files, server };
@@ -78,11 +88,13 @@ export function workersHostRegistry(entries: {
   workersModule: unknown;
   Response: unknown;
   WebSocketPair: unknown;
+  caches: unknown;
 }): void {
   const map = new Map<string, unknown>([
     ["cloudflare:workers", entries.workersModule],
     ["Response", entries.Response],
     ["WebSocketPair", entries.WebSocketPair],
+    ["caches", entries.caches],
   ]);
   (globalThis as Record<string, unknown>).__webrunHostRegistry = {
     get: (k: string) => map.get(k),
@@ -107,6 +119,12 @@ export function siteModuleLoader(baseUrl: string): ModuleLoader {
           : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
       const res = await fetch(`${base}loaded-src/${dir}/${name}`, { method: "PUT", body: text });
       if (!res.ok) throw new Error(`Worker Loader: cannot store ${id}/${name}: ${res.status}`);
+    }
+    const outbound = outboundFetch(code);
+    if (outbound) {
+      const g = globalThis as Record<string, unknown>;
+      g.__cellsLoadedOutbound ??= {};
+      (g.__cellsLoadedOutbound as Record<string, unknown>)[id] = outbound;
     }
     if (logs) {
       const g = globalThis as Record<string, unknown>;

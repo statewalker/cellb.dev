@@ -1,4 +1,9 @@
-import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
+import {
+  type LogSink,
+  type ModuleLoader,
+  outboundFetch,
+  type WorkerCode,
+} from "../bindings/worker-loader.js";
 
 /**
  * Worker Loader in a browser realm: each module of a WorkerCode becomes a Blob-URL ES
@@ -29,6 +34,14 @@ export function browserModuleLoader(workersModuleShim: string): ModuleLoader {
         debug: wrap("debug"),
       });
       consolePrelude = `const console = globalThis.__cellsConsoles[${JSON.stringify(key)}];\n`;
+    }
+    const outbound = outboundFetch(code);
+    if (outbound) {
+      const key = `o${Math.random().toString(36).slice(2)}`;
+      const g = globalThis as Record<string, unknown>;
+      g.__cellsOutbound ??= {};
+      (g.__cellsOutbound as Record<string, unknown>)[key] = outbound;
+      consolePrelude += `const fetch = globalThis.__cellsOutbound[${JSON.stringify(key)}];\n`;
     }
     const urls = new Map<string, string>();
     const source = (name: string) => {

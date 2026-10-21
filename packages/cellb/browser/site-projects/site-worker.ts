@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
 // Runs one project whose code comes from the in-browser HTTP server (webrun-site-host +
 // webrun-site-builder + webrun-modules): `import()` of real URLs; Worker Loader over the site.
+
+import { cellsCaches } from "../../src/bindings/cache.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "../../src/project/site.js";
 import type { WranglerConfig } from "../../src/project/wrangler.js";
@@ -21,7 +23,12 @@ scope.onmessage = async (e) => {
   };
   const logs = captureLogs();
   try {
-    workersHostRegistry({ workersModule, Response: CellsResponse, WebSocketPair });
+    workersHostRegistry({
+      workersModule,
+      Response: CellsResponse,
+      WebSocketPair,
+      caches: cellsCaches,
+    });
     const module = job.config.main
       ? await import(/* @vite-ignore */ `${job.baseUrl}modules/~/${job.config.main}`)
       : { default: {} };

@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
 // Runs one project bundled on the Node side (conformance/browser-bundle.ts); the bundle and
 // Worker-Loader code are Blob-URL modules.
+
+import { cellsCaches } from "../../src/bindings/cache.js";
 import { browserModuleLoader } from "../../src/project/browser-modules.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import type { WranglerConfig } from "../../src/project/wrangler.js";
@@ -27,7 +29,7 @@ scope.onmessage = async (e) => {
   try {
     const g = globalThis as Record<string, unknown>;
     g.__cellsWorkersModule = workersModule;
-    g.__cellsGlobals = { Response: CellsResponse, WebSocketPair };
+    g.__cellsGlobals = { Response: CellsResponse, WebSocketPair, caches: cellsCaches };
     const module = project.code
       ? await import(
           /* @vite-ignore */ URL.createObjectURL(

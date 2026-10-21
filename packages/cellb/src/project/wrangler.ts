@@ -10,6 +10,7 @@ import {
 import { r2Bucket } from "../bindings/r2.js";
 import { type ModuleLoader, workerLoader } from "../bindings/worker-loader.js";
 import { makeWorkflowCell, type WorkflowConfig, workflowBinding } from "../bindings/workflows.js";
+import { entrypointStub } from "../core/handles.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
   type CellRuntime,
@@ -53,7 +54,7 @@ export interface WranglerConfig {
   workflows?: WorkflowConfig[];
   triggers?: { crons?: string[] };
   assets?: AssetsConfig;
-  services?: unknown[];
+  services?: { binding: string; service: string; entrypoint?: string; props?: unknown }[];
   worker_loaders?: { binding: string }[];
 }
 
@@ -131,9 +132,11 @@ export function createProjectRuntime(
     );
     durableObjects[WORKFLOW_OBJECTS] = { className: "__CellsWorkflow" };
   }
-  for (const key of ["services"] as const)
-    if (config[key] && (!Array.isArray(config[key]) || (config[key] as unknown[]).length))
-      unsupported.push(key);
+  for (const s of config.services ?? [])
+    if (s.service !== config.name)
+      unsupported.push(
+        `services[${s.binding}] → "${s.service}" (only this script's own entrypoints)`,
+      );
   const sqlExtensions: string[] = [];
   for (const f of config.compatibility_flags ?? []) {
     if (f === "sqlite_vec")
@@ -214,6 +217,15 @@ export function createProjectRuntime(
   }
   for (const w of config.workflows ?? [])
     env[w.binding] = workflowBinding(env[WORKFLOW_OBJECTS] as DurableObjectNamespace, w);
+  // Service bindings to this script's own entrypoints (a celld fleet runs one application):
+  // default export or a named WorkerEntrypoint, with fetch() and JS RPC.
+  for (const s of config.services ?? []) {
+    if (s.service !== config.name) continue;
+    const target = s.entrypoint ? module[s.entrypoint] : module.default;
+    if (!target)
+      unsupported.push(`services[${s.binding}].entrypoint "${s.entrypoint}" is not exported`);
+    else env[s.binding] = entrypointStub(target, env, s.props);
+  }
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
   for (const r2 of config.r2_buckets ?? [])
     env[r2.binding] = r2Bucket(host.files, `/r2/${r2.bucket_name}`);
