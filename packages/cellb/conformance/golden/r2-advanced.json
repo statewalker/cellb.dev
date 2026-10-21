@@ -1,0 +1,41 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /conditional",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "getMatch": {
+          "key": "c.txt",
+          "size": 3,
+          "hasBody": true
+        },
+        "getMissIsObjectWithoutBody": true,
+        "getNoneMatch": true,
+        "putRefused": null,
+        "putAccepted": {
+          "key": "c.txt",
+          "size": 5,
+          "hasBody": false
+        },
+        "text": "three",
+        "uploadedBefore": true
+      }
+    },
+    {
+      "request": "GET /multipart",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "key": "big.bin",
+        "size": 5242882,
+        "type": "application/x-test",
+        "tail": "aabc",
+        "length": 5242882,
+        "partNumbers": [1, 2],
+        "abortedGone": true
+      }
+    }
+  ]
+}

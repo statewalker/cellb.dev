@@ -1,0 +1,6 @@
+{
+  "name": "r2-advanced",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "r2_buckets": [{ "binding": "B", "bucket_name": "r2-advanced" }]
+}

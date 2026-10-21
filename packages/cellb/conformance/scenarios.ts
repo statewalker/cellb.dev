@@ -247,6 +247,10 @@ export const scenarios: Record<string, Scenario> = {
       { path: "/status?id=r2" },
       { path: "/status?id=f1" },
       { path: "/status?id=l1" },
+      { path: "/delete?id=s1" },
+      { path: "/create?id=d1&kind=long" },
+      { path: "/create?id=d2&kind=long" },
+      { path: "/delete-batch?ids=d1,d2" },
     ],
   },
   "facets-api": {
@@ -276,6 +280,7 @@ export const scenarios: Record<string, Scenario> = {
       { ws: "/room?name=ada", send: ["one", "two"], receive: 2 },
     ],
   },
+  "r2-advanced": { steps: [{ path: "/conditional" }, { path: "/multipart" }] },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

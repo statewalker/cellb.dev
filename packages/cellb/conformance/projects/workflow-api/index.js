@@ -48,7 +48,18 @@ export default {
       const i = await env.FLOW.create({ id, params: { kind: url.searchParams.get("kind") } });
       return Response.json({ id: i.id });
     }
+    if (op === "delete-batch") {
+      const ids = url.searchParams.get("ids").split(",");
+      const r = await env.FLOW.deleteBatch(ids);
+      const left = [];
+      for (const x of ids) left.push(await env.FLOW.get(x).then(() => "exists", (e) => e.message));
+      return Response.json({ result: r ?? null, left });
+    }
     const i = await env.FLOW.get(id);
+    if (op === "delete") {
+      await i.delete();
+      return Response.json({ after: await env.FLOW.get(id).then(() => "exists", (e) => e.message) });
+    }
     if (op === "status") return Response.json(await i.status());
     if (op === "event") {
       await i.sendEvent({ type: "approve", payload: { by: "ada" } });

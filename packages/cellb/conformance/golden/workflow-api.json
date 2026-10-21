@@ -168,6 +168,52 @@
         "status": "terminated",
         "rollback": null
       }
+    },
+    {
+      "request": "GET /delete?id=s1",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "after": "WORKFLOW_ERROR: instance does not exist"
+      }
+    },
+    {
+      "request": "GET /create?id=d1&kind=long",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "id": "d1"
+      }
+    },
+    {
+      "request": "GET /create?id=d2&kind=long",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "id": "d2"
+      }
+    },
+    {
+      "request": "GET /delete-batch?ids=d1,d2",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "result": {
+          "deleted": [
+            {
+              "id": "d1"
+            },
+            {
+              "id": "d2"
+            }
+          ],
+          "errors": []
+        },
+        "left": [
+          "WORKFLOW_ERROR: instance does not exist",
+          "WORKFLOW_ERROR: instance does not exist"
+        ]
+      }
     }
   ]
 }

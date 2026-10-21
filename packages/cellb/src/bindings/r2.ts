@@ -167,6 +167,52 @@ function httpMetadataOf(input: R2HTTPMetadata | Headers | undefined): R2HTTPMeta
   return { ...input };
 }
 
+/** R2 conditional request: an object or the equivalent HTTP headers. */
+export interface R2Conditional {
+  etagMatches?: string;
+  etagDoesNotMatch?: string;
+  uploadedBefore?: Date;
+  uploadedAfter?: Date;
+  secondsGranularity?: boolean;
+}
+
+function conditionOf(onlyIf: R2Conditional | Headers | undefined): R2Conditional | undefined {
+  if (!(onlyIf instanceof Headers)) return onlyIf;
+  const unquote = (v: string | null) =>
+    v?.replace(/^W\//, "").replace(/^"(.*)"$/, "$1") ?? undefined;
+  const date = (v: string | null) => (v ? new Date(v) : undefined);
+  return {
+    etagMatches: unquote(onlyIf.get("if-match")),
+    etagDoesNotMatch: unquote(onlyIf.get("if-none-match")),
+    uploadedBefore: date(onlyIf.get("if-unmodified-since")),
+    uploadedAfter: date(onlyIf.get("if-modified-since")),
+    secondsGranularity: true,
+  };
+}
+
+/** Evaluates a conditional against a stored object (no object: only etagMatches fails). */
+function conditionHolds(c: R2Conditional | undefined, m: StoredMeta | undefined): boolean {
+  if (!c) return true;
+  const etagIn = (list: string) => list.split(",").map((e) => e.trim().replace(/^"(.*)"$/, "$1"));
+  if (
+    c.etagMatches !== undefined &&
+    (!m || !(c.etagMatches === "*" || etagIn(c.etagMatches).includes(m.etag)))
+  )
+    return false;
+  if (
+    c.etagDoesNotMatch !== undefined &&
+    m &&
+    (c.etagDoesNotMatch === "*" || etagIn(c.etagDoesNotMatch).includes(m.etag))
+  )
+    return false;
+  if (m) {
+    const t = c.secondsGranularity ? Math.floor(m.uploaded / 1000) * 1000 : m.uploaded;
+    if (c.uploadedBefore && !(t < new Date(c.uploadedBefore).getTime())) return false;
+    if (c.uploadedAfter && !(t > new Date(c.uploadedAfter).getTime())) return false;
+  }
+  return true;
+}
+
 export function r2Bucket(files: FilesApi, root: string) {
   const objectPath = (key: string) => `${root}/objects/${enc(key)}`;
   const metaPath = (key: string) => `${root}/meta/${enc(key)}.json`;
@@ -190,11 +236,16 @@ export function r2Bucket(files: FilesApi, root: string) {
 
     async get(
       key: string,
-      options: { range?: { offset?: number; length?: number; suffix?: number } | Headers } = {},
-    ): Promise<R2ObjectBody | null> {
+      options: {
+        range?: { offset?: number; length?: number; suffix?: number } | Headers;
+        onlyIf?: R2Conditional | Headers;
+      } = {},
+    ): Promise<R2ObjectBody | R2Object | null> {
       checkKey(key);
       const m = await readMeta(key);
       if (!m) return null;
+      // A failed condition returns the object's metadata without a body.
+      if (!conditionHolds(conditionOf(options.onlyIf), m)) return new R2Object(m);
       const bytes = (await readAll(files, objectPath(key))) ?? new Uint8Array();
       let r = options.range;
       if (r instanceof Headers) {
@@ -226,9 +277,13 @@ export function r2Bucket(files: FilesApi, root: string) {
         httpMetadata?: R2HTTPMetadata | Headers;
         customMetadata?: Record<string, string>;
         md5?: string | ArrayBuffer;
+        onlyIf?: R2Conditional | Headers;
       } = {},
-    ): Promise<R2Object> {
+    ): Promise<R2Object | null> {
       checkKey(key);
+      // A refused condition stores nothing and returns null.
+      if (options.onlyIf && !conditionHolds(conditionOf(options.onlyIf), await readMeta(key)))
+        return null;
       const bytes = await toBytes(value);
       const etag = bytesToHex(md5(bytes));
       if (options.md5 !== undefined) {
@@ -249,6 +304,88 @@ export function r2Bucket(files: FilesApi, root: string) {
       await files.write(objectPath(key), [bytes]);
       await files.write(metaPath(key), [new TextEncoder().encode(JSON.stringify(meta))]);
       return new R2Object(meta);
+    },
+
+    async createMultipartUpload(
+      key: string,
+      options: {
+        httpMetadata?: R2HTTPMetadata | Headers;
+        customMetadata?: Record<string, string>;
+      } = {},
+    ) {
+      checkKey(key);
+      const uploadId = crypto.randomUUID().replace(/-/g, "");
+      await files.write(`${root}/multipart/${uploadId}/upload.json`, [
+        new TextEncoder().encode(
+          JSON.stringify({
+            key,
+            httpMetadata: httpMetadataOf(options.httpMetadata),
+            customMetadata: options.customMetadata ?? {},
+          }),
+        ),
+      ]);
+      return this.resumeMultipartUpload(key, uploadId);
+    },
+
+    /** A handle on an open upload; parts live under {root}/multipart/{uploadId}/ until complete or abort. */
+    resumeMultipartUpload(key: string, uploadId: string) {
+      const dir = `${root}/multipart/${uploadId}`;
+      const bucket = this;
+      const info = async () => {
+        const raw = await readAll(files, `${dir}/upload.json`);
+        if (!raw)
+          throw new Error(
+            "completeMultipartUpload: The specified multipart upload does not exist. (10024)",
+          );
+        return JSON.parse(new TextDecoder().decode(raw)) as {
+          key: string;
+          httpMetadata: R2HTTPMetadata;
+          customMetadata: Record<string, string>;
+        };
+      };
+      return {
+        key,
+        uploadId,
+        async uploadPart(partNumber: number, value: R2PutValue) {
+          if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10_000)
+            throw new Error("uploadPart: part number must be between 1 and 10000");
+          await info();
+          const bytes = await toBytes(value);
+          const etag = bytesToHex(md5(bytes));
+          await files.write(`${dir}/${String(partNumber).padStart(5, "0")}.part`, [bytes]);
+          return { partNumber, etag };
+        },
+        async abort() {
+          await files.remove(dir);
+        },
+        async complete(parts: { partNumber: number; etag: string }[]) {
+          const u = await info();
+          const chunks: Uint8Array[] = [];
+          for (const p of parts) {
+            const bytes = await readAll(
+              files,
+              `${dir}/${String(p.partNumber).padStart(5, "0")}.part`,
+            );
+            if (!bytes || bytesToHex(md5(bytes)) !== p.etag)
+              throw new Error(
+                `completeMultipartUpload: There was a problem with the multipart upload. (10025)`,
+              );
+            chunks.push(bytes);
+          }
+          const total = new Uint8Array(chunks.reduce((n, c) => n + c.byteLength, 0));
+          let o = 0;
+          for (const c of chunks) {
+            total.set(c, o);
+            o += c.byteLength;
+          }
+          const obj = (await bucket.put(u.key, total, {
+            httpMetadata: u.httpMetadata,
+            customMetadata: u.customMetadata,
+          })) as R2Object;
+          await files.remove(dir);
+          return obj;
+        },
+      };
     },
 
     async delete(keys: string | string[]): Promise<void> {

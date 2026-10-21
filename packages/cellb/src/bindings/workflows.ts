@@ -93,6 +93,12 @@ export function makeWorkflowCell(
       return out;
     }
 
+    /** Removes the instance: its state, steps, events and pending alarm. */
+    async __delete(): Promise<void> {
+      if (!(await this.#meta())) throw new Error("WORKFLOW_ERROR: instance does not exist");
+      await this.ctx.storage.deleteAll();
+    }
+
     async __control(
       op: "pause" | "resume" | "terminate" | "restart" | "event",
       arg?: unknown,
@@ -283,6 +289,7 @@ export function workflowBinding(cells: DurableObjectNamespace, config: WorkflowC
     terminate: () => cell(id).__control("terminate"),
     restart: () => cell(id).__control("restart"),
     sendEvent: (e: { type: string; payload?: unknown }) => cell(id).__control("event", e),
+    delete: () => cell(id).__delete(),
   });
   return {
     async create(options: { id?: string; params?: unknown } = {}) {
@@ -294,6 +301,19 @@ export function workflowBinding(cells: DurableObjectNamespace, config: WorkflowC
       const out = [];
       for (const o of list) out.push(await this.create(o));
       return out;
+    },
+    /** Deletes several instances; reports each deletion and each failure (celld's shape). */
+    async deleteBatch(ids: string[]) {
+      const deleted: { id: string }[] = [];
+      const errors: { id: string; error: string }[] = [];
+      for (const id of ids)
+        await cell(id)
+          .__delete()
+          .then(
+            () => deleted.push({ id }),
+            (e: Error) => errors.push({ id, error: e.message }),
+          );
+      return { deleted, errors };
     },
     async get(id: string) {
       await cell(id).__status(); // throws "WORKFLOW_ERROR: instance does not exist"
