@@ -1,0 +1,114 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /throw",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 500,
+      "contentType": "application/json",
+      "body": "Worker failed: rejected: TypeError: handler failed"
+    },
+    {
+      "request": "GET /not-response",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 200,
+      "contentType": null,
+      "body": "a string"
+    },
+    {
+      "request": "GET /rpc",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "boom": {
+          "name": "RangeError",
+          "message": "out of range",
+          "code": "E_RANGE"
+        },
+        "values": {
+          "date": true,
+          "map": true,
+          "bytes": [1, 2],
+          "big": "bigint",
+          "undef": true
+        },
+        "fn": "function",
+        "target": {
+          "name": "Error",
+          "message": "RPC stubs cannot cross isolate boundaries yet.",
+          "code": null
+        },
+        "missing": {
+          "name": "TypeError",
+          "message": "nope is not a function",
+          "code": null
+        },
+        "objectThrow": {
+          "name": "Error",
+          "message": "rejected: Error: object fetch failed",
+          "code": null
+        }
+      }
+    },
+    {
+      "request": "GET /cf",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "hasCf": "object",
+        "keys": []
+      }
+    },
+    {
+      "request": "GET /headers",
+      "headers": {
+        "location": null,
+        "set-cookie": "a=1, b=2",
+        "x-multi": "1, 2"
+      },
+      "status": 200,
+      "contentType": null,
+      "body": "h"
+    },
+    {
+      "request": "GET /redirect",
+      "headers": {
+        "location": "https://example.com/target",
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 301,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /passthrough",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 500,
+      "contentType": "application/json",
+      "body": "Worker failed: rejected: Error: after passThroughOnException"
+    }
+  ]
+}

@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { projectForSite } from "../../conformance/browser-bundle.ts";
-import { alignDocumentedDifferences, scenarios } from "../../conformance/scenarios.ts";
+import {
+  alignBrowserDifferences,
+  alignDocumentedDifferences,
+  scenarios,
+} from "../../conformance/scenarios.ts";
 import { startReferenceServer } from "../../test/ws-reference-server.ts";
 
 // The celld projects served by an IN-BROWSER HTTP SERVER: the page mounts a
@@ -35,9 +39,8 @@ for (const name of Object.keys(scenarios)) {
       if (r.moduleUrl)
         expect(r.moduleUrl).toMatch(/^http:\/\/localhost:\d+\/site-[^/]+\/modules\/~\//);
       const expected = golden(name);
-      expect(alignDocumentedDifferences(r.transcript, expected.transcript)).toEqual(
-        expected.transcript,
-      );
+      const aligned = alignDocumentedDifferences(r.transcript, expected.transcript);
+      expect(alignBrowserDifferences(aligned, expected.transcript)).toEqual(expected.transcript);
       if (expected.logs) expect(r.logs).toEqual(expected.logs);
     } finally {
       await ref?.close();

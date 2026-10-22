@@ -1,10 +1,27 @@
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
+import { RpcTarget } from "./durable-object.js";
 import { type DurableObjectId, idFromName, newUniqueId, validateId } from "./id.js";
 import type { ObjectHost } from "./object-host.js";
 import type { DurableObjectState } from "./state.js";
 
 /** Structured-clone boundary: what crosses a stub is copied, as between isolates. */
-const cross = <T>(v: T): T => (v === undefined ? v : structuredClone(v));
+/**
+ * What crosses a stub call, as celld does in one isolate: values are structured-cloned,
+ * functions pass by reference, and an RpcTarget is refused ("cannot cross isolate
+ * boundaries yet" — celld has no RPC stubs across isolates).
+ */
+const cross = <T>(v: T): T => {
+  if (v === undefined || v === null) return v;
+  if (typeof v === "function") return v;
+  if (v instanceof RpcTarget) throw new Error("RPC stubs cannot cross isolate boundaries yet.");
+  if (Array.isArray(v)) return v.map(cross) as T;
+  if (Object.getPrototypeOf(v) === Object.prototype) {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = cross(x);
+    return out as T;
+  }
+  return structuredClone(v);
+};
 
 /** What a stub talks to: a local ObjectHost or a remote cell host behind a port. */
 export interface ObjectEndpoint {
@@ -23,14 +40,21 @@ export function localEndpoint(host: () => ObjectHost): () => ObjectEndpoint {
         h.deliver(async (obj) => {
           if (typeof obj.fetch !== "function")
             throw new Error("Handler does not export a fetch() function.");
-          return (await obj.fetch(req)) as Response;
+          try {
+            return (await obj.fetch(req)) as Response;
+          } catch (e) {
+            // celld: the stub's fetch() rejects with "rejected: <name>: <message> [at …]".
+            const err = e as Error;
+            throw new Error(`rejected: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`, {
+              cause: e,
+            });
+          }
         }),
       call: async (method, args) => {
         const copied = cross(args);
         const r = await h.deliver((obj) => {
           const m = obj[method];
-          if (typeof m !== "function")
-            throw new TypeError(`The RPC receiver does not implement the method "${method}".`);
+          if (typeof m !== "function") throw new TypeError(`${method} is not a function`); // celld's wording
           return m.apply(obj, copied);
         });
         return cross(r);

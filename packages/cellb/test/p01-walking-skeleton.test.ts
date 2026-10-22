@@ -38,7 +38,7 @@ describe("P01 walking skeleton: Request → Worker → DO stub → SQLite → Re
     });
     const ns: any = rt.env.COUNTER;
     expect(await ns.getByName("r").value()).toBe(5);
-    await expect(ns.getByName("r").nope()).rejects.toThrow(/does not implement/);
+    await expect(ns.getByName("r").nope()).rejects.toThrow(/nope is not a function/); // celld's wording
     // stubs must not look like thenables
     expect(typeof ns.getByName("r").then).toBe("undefined");
   });

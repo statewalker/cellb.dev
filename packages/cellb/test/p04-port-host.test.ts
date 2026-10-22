@@ -127,7 +127,9 @@ describe("P04b cells behind a MessagePort (webrun-rpc + webrun-http-streams)", (
 
   it("errors cross the port with their message", async () => {
     const { remote, close } = await setup();
-    await expect(remote.env.COUNTER.getByName("e").nope()).rejects.toThrow(/does not implement/);
+    await expect(remote.env.COUNTER.getByName("e").nope()).rejects.toThrow(
+      /nope is not a function/,
+    ); // celld's wording
     close();
   });
 

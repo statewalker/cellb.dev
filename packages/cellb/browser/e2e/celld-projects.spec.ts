@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { bundleProjectForBrowser } from "../../conformance/browser-bundle.ts";
-import { alignDocumentedDifferences, scenarios } from "../../conformance/scenarios.ts";
+import {
+  alignBrowserDifferences,
+  alignDocumentedDifferences,
+  scenarios,
+} from "../../conformance/scenarios.ts";
 import { startReferenceServer } from "../../test/ws-reference-server.ts";
 
 // The same 25 projects as test/p09 (celld's examples and ours), run on webrun-cells INSIDE
@@ -36,9 +40,8 @@ for (const name of Object.keys(scenarios)) {
       });
       expect(r.ok, r.error).toBe(true);
       const expected = golden(name);
-      expect(alignDocumentedDifferences(r.transcript, expected.transcript)).toEqual(
-        expected.transcript,
-      );
+      const aligned = alignDocumentedDifferences(r.transcript, expected.transcript);
+      expect(alignBrowserDifferences(aligned, expected.transcript)).toEqual(expected.transcript);
       if (expected.logs) expect(r.logs).toEqual(expected.logs);
     } finally {
       await ref?.close();

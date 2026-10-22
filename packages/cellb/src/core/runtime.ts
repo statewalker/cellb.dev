@@ -321,10 +321,22 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
         passThroughOnException() {},
         exports: exportsObj,
       } as ExecutionContext;
+      // celld's ingress: an inbound request has a `cf` object (no edge fields).
+      if ((req as { cf?: unknown }).cf === undefined)
+        Object.defineProperty(req, "cf", { value: {}, enumerable: true });
       try {
-        return await handler.call(opts.worker.default, req, env, ctx);
+        const r = await handler.call(opts.worker.default, req, env, ctx);
+        // A non-Response is sent as text (celld), not a failure.
+        return r instanceof Response ? r : new Response(String(r));
       } catch (e) {
-        return new Response(String((e as Error)?.stack ?? e), { status: 500 });
+        const err = e as Error;
+        return new Response(
+          `Worker failed: rejected: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`,
+          {
+            status: 500,
+            headers: { "content-type": "application/json" },
+          },
+        );
       }
     },
     evictAll() {

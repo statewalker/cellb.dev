@@ -14,5 +14,4 @@ export class WorkflowEntrypoint<Env = unknown> {
   }
 }
 
-/** Marker base class for JS-RPC targets returned by value. */
-export class RpcTarget {}
+export { RpcTarget } from "../core/durable-object.js";

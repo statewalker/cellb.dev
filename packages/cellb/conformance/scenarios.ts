@@ -28,6 +28,8 @@ export interface Scenario {
   wsServer?: boolean;
   /** Response headers to record (lower case), besides content-type. */
   headers?: string[];
+  /** Regex → replacement applied to every response text before parsing (e.g. stack frames). */
+  textMask?: [string, string][];
   /** Project directory name when it differs from the scenario name. */
   project?: string;
   /** A recorded celld behaviour webrun-cells does not reproduce yet (tests expect a mismatch). */
@@ -337,6 +339,14 @@ export const scenarios: Record<string, Scenario> = {
   },
   // etag/version are celld dev-mode store generations; uploaded is a clock reading
   "r2-details": { steps: [{ path: "/" }], mask: ["etag", "httpEtag", "version", "uploaded"] },
+  "worker-details": {
+    steps: ["/throw", "/not-response", "/rpc", "/cf", "/headers", "/redirect", "/passthrough"].map(
+      (path) => ({ path }),
+    ),
+    headers: ["location", "set-cookie", "x-multi"],
+    // stack frames point into each engine's own bundle
+    textMask: [[" \\[at [^\\]]*\\]", ""]],
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,
@@ -356,8 +366,16 @@ export interface Exchange {
 }
 
 /** Replaces masked JSON fields by their type, and the origin by a placeholder. */
-export function normalize(text: string, origin: string, mask: string[] = []): unknown {
-  const t = text.split(origin).join("{origin}").split(new URL(origin).host).join("{host}");
+export function normalize(
+  text: string,
+  origin: string,
+  mask: string[] = [],
+  textMask: [string, string][] = [],
+): unknown {
+  const t = textMask.reduce(
+    (acc, [re, by]) => acc.replace(new RegExp(re, "g"), by),
+    text.split(origin).join("{origin}").split(new URL(origin).host).join("{host}"),
+  );
   let value: unknown;
   try {
     value = JSON.parse(t);
@@ -444,7 +462,7 @@ export async function runScenario(target: Target, s: Scenario): Promise<Exchange
         : {}),
       status: res.status,
       contentType: res.headers.get("content-type"),
-      body: normalize(await res.text(), target.origin, s.mask),
+      body: normalize(await res.text(), target.origin, s.mask, s.textMask),
     });
   }
   return out;
@@ -484,5 +502,18 @@ export async function withContentLength(req: Request, res: Response): Promise<Re
     status: res.status,
     statusText: res.statusText,
     headers,
+  });
+}
+
+/**
+ * Documented browser limitation, not hidden: a Response built in a browser drops Set-Cookie
+ * (a forbidden response header), and a ServiceWorker cannot deliver it to a page anyway.
+ * Only that header, and only when celld sent one and the browser run has none.
+ */
+export function alignBrowserDifferences(ours: Exchange[], theirs: Exchange[]): Exchange[] {
+  return ours.map((e, i) => {
+    const want = theirs[i]?.headers?.["set-cookie"];
+    if (!e.headers || want == null || e.headers["set-cookie"] !== null) return e;
+    return { ...e, headers: { ...e.headers, "set-cookie": want } };
   });
 }

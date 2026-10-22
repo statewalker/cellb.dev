@@ -23,3 +23,6 @@ export interface ExecutionContext {
   waitUntil(p: Promise<unknown>): void;
   passThroughOnException(): void;
 }
+
+/** Marker base class for JS-RPC targets returned by reference (`cloudflare:workers`). */
+export class RpcTarget {}

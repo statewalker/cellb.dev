@@ -58,7 +58,7 @@ in-browser server serves them under aliases — an upstream change would remove 
 
 ## Test totals
 
-Unit: 239 passed, 2 skipped. Chromium: 57 runtime tests + 37 projects × 2 browser paths, all
+Unit: 240 passed, 2 skipped. Chromium: 57 runtime tests + 37 projects × 2 browser paths, all
 passed (the 2-second Workflow sleep in `workflow-api` keeps it deterministic under load).
 
 ## Ids identical to celld's
@@ -116,6 +116,22 @@ Node and Chromium.
 - **r2-details** — `R2 <op> (binding <NAME>): a key is 1 to 1024 bytes, not <n>`, at most 1000
   keys per delete, list limits clamped (0 means 1000), celld's md5 mismatch message, no
   customMetadata size limit, and the R2Object JSON form (checksums as hex).
+
+## Worker and RPC details (`worker-details`)
+
+- An uncaught error answers 500, `content-type: application/json`, body
+  `Worker failed: rejected: <name>: <message>` (celld appends stack frames of its own bundle;
+  the comparison masks `[at …]`). A handler returning something else than a Response is sent
+  as its text (status 200), as celld does.
+- An inbound request has `request.cf` = `{}` (celld has no edge fields).
+- A Durable Object `stub.fetch()` whose handler throws rejects with
+  `rejected: <name>: <message>`; RPC errors keep name, message and own properties (`code`).
+- Values crossing a stub are structured-cloned; functions pass by reference (same isolate);
+  an `RpcTarget` is refused: "RPC stubs cannot cross isolate boundaries yet." A missing
+  method is `TypeError: <name> is not a function` (celld's wording, not workerd's).
+- **Browser limitation:** a Response built in a browser drops `Set-Cookie`, and a
+  ServiceWorker cannot hand one to a page. The browser comparisons align exactly that header
+  (Node matches celld fully).
 
 ## Mutation testing
 
