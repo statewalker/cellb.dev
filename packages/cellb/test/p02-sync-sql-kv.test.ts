@@ -64,10 +64,15 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
     it("rejects SQL-level transactions and access to internal _cf_ tables", async () => {
       const { inObject } = probeRuntime();
       await inObject("g", (ctx) => {
-        expect(() => ctx.storage.sql.exec("BEGIN")).toThrow(/transactionSync/);
-        expect(() => ctx.storage.sql.exec("SAVEPOINT x")).toThrow(/transactionSync/);
+        // celld's wording (conformance/projects/storage-details)
+        expect(() => ctx.storage.sql.exec("BEGIN")).toThrow(
+          "SQL error: prepare SQL cursor: not authorized",
+        );
+        expect(() => ctx.storage.sql.exec("SAVEPOINT x")).toThrow(/not authorized/);
         ctx.storage.kv.put("k", 1);
-        expect(() => ctx.storage.sql.exec("SELECT * FROM _cf_KV")).toThrow(/not authorized/);
+        expect(() => ctx.storage.sql.exec("SELECT * FROM _cf_KV")).toThrow(
+          /access to _cf_KV\.scope is prohibited/,
+        );
       });
     });
 
@@ -148,7 +153,7 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
       expect(back).toEqual(v);
     });
 
-    it("async API: multi-key get/put/delete, list → Map, 128-key limit", async () => {
+    it("async API: multi-key get/put/delete, list → Map, no key-count limit (as celld)", async () => {
       const { inObject } = probeRuntime();
       const r = await inObject("a", async (ctx) => {
         await ctx.storage.put({ x: 1, y: 2, z: 3 });
@@ -167,7 +172,7 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
       ]);
       expect(r.deleted).toBe(2);
       expect(r.listed).toEqual([["z", 3]]);
-      expect(r.limitErr).toMatch(/128/);
+      expect(r.limitErr).toBe(""); // Cloudflare caps at 128 keys; celld does not
     });
 
     it("async transaction(): commits, explicit rollback(), rollback on throw", async () => {

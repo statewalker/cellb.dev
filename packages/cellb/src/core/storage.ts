@@ -11,8 +11,6 @@ export interface ListOptions {
   limit?: number;
 }
 
-const MAX_KEYS = 128;
-
 /** Synchronous KV API of SQLite-backed objects (`ctx.storage.kv`), stored in `_cf_KV`. */
 export class SyncKvStorage {
   #sql: SqlStorage;
@@ -22,6 +20,9 @@ export class SyncKvStorage {
   constructor(sql: SqlStorage, codec: ValueCodec) {
     this.#sql = sql;
     this.#codec = codec;
+    sql.rolledBack.add(() => {
+      this.#ready = false; // the table may have been created inside the rolled-back transaction
+    });
   }
   #init(): void {
     if (this.#ready) return;
@@ -38,7 +39,12 @@ export class SyncKvStorage {
   }
   put(key: string, value: unknown): void {
     this.#init();
-    if (value === undefined) throw new TypeError("Cannot store undefined; use delete()");
+    // As celld: `undefined` is a storable value; what structured clone refuses is a TypeError.
+    try {
+      structuredClone(value);
+    } catch (e) {
+      throw new TypeError((e as Error).message);
+    }
     this.#sql.internalExec("INSERT OR REPLACE INTO _cf_KV (key, value) VALUES (?, ?)", [
       key,
       this.#codec.encode(value),
@@ -123,9 +129,8 @@ export class AsyncKvApi {
   }
 }
 
-function checkKeys(keys: string[]): void {
-  if (keys.length > MAX_KEYS) throw new RangeError(`Maximum number of keys is ${MAX_KEYS}`);
-}
+// celld sets no limit on the number of keys of one get/put/delete (storage-details).
+function checkKeys(_keys: string[]): void {}
 
 export class DurableObjectTransaction extends AsyncKvApi {
   rolledBack = false;
@@ -143,6 +148,9 @@ export class DurableObjectStorage extends AsyncKvApi {
   constructor(sql: SqlStorage, kv: SyncKvStorage, gate: InputGate, sync: () => Promise<void>) {
     super(kv, gate);
     this.sql = sql;
+    sql.rolledBack.add(() => {
+      this.#metaReady = false;
+    });
     this.kv = kv;
     this.#sync = sync;
   }
@@ -172,17 +180,21 @@ export class DurableObjectStorage extends AsyncKvApi {
       const txn = new DurableObjectTransaction(this.kv, this.gate);
       try {
         const r = await closure(txn);
-        this.sql.internalExec(txn.rolledBack ? `ROLLBACK TO ${sp}` : `RELEASE ${sp}`);
-        if (txn.rolledBack) this.sql.internalExec(`RELEASE ${sp}`);
+        if (txn.rolledBack) this.#rollbackTo(sp);
+        else this.sql.internalExec(`RELEASE ${sp}`);
         return r;
       } catch (e) {
-        this.sql.internalExec(`ROLLBACK TO ${sp}`);
-        this.sql.internalExec(`RELEASE ${sp}`);
+        this.#rollbackTo(sp);
         throw e;
       } finally {
         release();
       }
     });
+  }
+  #rollbackTo(sp: string): void {
+    this.sql.internalExec(`ROLLBACK TO ${sp}`);
+    this.sql.internalExec(`RELEASE ${sp}`);
+    for (const f of this.sql.rolledBack) f(); // tables created inside may be gone
   }
   /** Resolves once all writes so far are durable (the output gate barrier). */
   sync(): Promise<void> {
@@ -208,9 +220,9 @@ export class DurableObjectStorage extends AsyncKvApi {
     return this.op(() => this.alarmSync());
   }
   setAlarm(scheduledTime: number | Date, _opts?: unknown): Promise<void> {
-    const at = scheduledTime instanceof Date ? scheduledTime.getTime() : Number(scheduledTime);
-    if (!Number.isFinite(at))
-      return Promise.reject(new TypeError("setAlarm() requires a finite time"));
+    // As celld: the time is coerced to a number and a non-number becomes 0 (due at once).
+    const n = scheduledTime instanceof Date ? scheduledTime.getTime() : Number(scheduledTime);
+    const at = Number.isNaN(n) ? 0 : n;
     return this.op(() => {
       this.#meta();
       this.sql.internalExec(

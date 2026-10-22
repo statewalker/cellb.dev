@@ -1,0 +1,90 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /kv",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "getMany": [
+          ["a", 1],
+          [
+            "b",
+            {
+              "n": 2
+            }
+          ]
+        ],
+        "date": true,
+        "map": true,
+        "list": ["a", "b", "c", "d", "e", "p/1", "p/2", "p/3", "q"],
+        "prefix": ["p/1", "p/2", "p/3"],
+        "range": ["b", "c", "d", "e", "p/1"],
+        "startAfter": ["p/2", "p/3"],
+        "reverse": ["q", "p/3", "p/2"],
+        "deleteMany": 2,
+        "deleteOne": true,
+        "deleteMissing": false,
+        "syncGet": 4,
+        "syncList": ["p/1", "p/2", "p/3"],
+        "undefinedValue": "ok",
+        "fnValue": "TypeError: () => 1 could not be cloned.",
+        "bigKey": "ok",
+        "okKey": "ok",
+        "tooManyKeys": 0,
+        "undefinedBack": "undefined",
+        "emptyGet": []
+      }
+    },
+    {
+      "request": "GET /sql",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "rowsWritten": 2,
+        "columnNames": ["id", "v", "b"],
+        "first": {
+          "done": false,
+          "v": "x",
+          "b": [1, 2]
+        },
+        "rest": ["y"],
+        "raw": [["x"], ["y"]],
+        "one": "Error: Expected exactly one result from SQL query, but got multiple results",
+        "oneOk": 2,
+        "begin": "Error: SQL error: prepare SQL cursor: not authorized",
+        "cfTable": "Error: SQL error: prepare SQL cursor: access to _cf_KV.scope is prohibited",
+        "multi": 2,
+        "dbSize": "number",
+        "bindingCount": "Error: SQL error: Wrong number of parameter bindings for SQL query."
+      }
+    },
+    {
+      "request": "GET /txn",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "innerError": "inner fails",
+        "rows": ["outer"],
+        "asyncTxn": "ok",
+        "afterRollback": null,
+        "argCount": 0
+      }
+    },
+    {
+      "request": "GET /alarms",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "past": "ok",
+        "nan": "ok",
+        "afterNan": "0",
+        "string": "ok",
+        "afterString": "0",
+        "date": "ok",
+        "afterDateIsNumber": "number",
+        "deleteNone": "ok"
+      }
+    }
+  ]
+}

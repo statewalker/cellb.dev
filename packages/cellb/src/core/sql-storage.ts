@@ -30,7 +30,7 @@ export class SqlStorageCursor<T = Record<string, unknown>> implements Iterable<T
     const rest = this.toArray();
     if (rest.length !== 1)
       throw new Error(
-        `Expected exactly one result from SQL query, but got ${rest.length === 0 ? "no" : "multiple"} results.`,
+        `Expected exactly one result from SQL query, but got ${rest.length === 0 ? "no" : "multiple"} results`,
       );
     return rest[0];
   }
@@ -113,12 +113,18 @@ export class SqlStorage {
   }
 
   exec<T = Record<string, unknown>>(query: string, ...bindings: unknown[]): SqlStorageCursor<T> {
-    if (FORBIDDEN_TXN.test(query))
-      throw new Error(
-        "To execute a transaction, please use the state.storage.transaction() or state.storage.transactionSync() APIs instead of SQL BEGIN/COMMIT/SAVEPOINT.",
-      );
-    if (FORBIDDEN_INTERNAL.test(query))
-      throw new Error("SQLITE_AUTH: access to _cf_ tables is not authorized");
+    // Messages as celld words them (storage-details project): its authorizer refuses
+    // transaction statements and reads of internal tables at prepare time.
+    if (FORBIDDEN_TXN.test(query)) throw new Error("SQL error: prepare SQL cursor: not authorized");
+    const internal = FORBIDDEN_INTERNAL.exec(query);
+    if (internal) {
+      const table = internal[0];
+      // celld names the first column of its own internal schema (_cf_KV starts with `scope`).
+      const column = table.toLowerCase() === "_cf_kv" ? "scope" : "key";
+      throw new Error(`SQL error: prepare SQL cursor: access to ${table}.${column} is prohibited`);
+    }
+    if (bindings.length && countParameters(query) !== bindings.length)
+      throw new Error("SQL error: Wrong number of parameter bindings for SQL query.");
     return new SqlStorageCursor<T>(this.internalExec(query, bindings));
   }
 
@@ -155,6 +161,7 @@ export class SqlStorage {
       return r;
     } catch (e) {
       this.#driver.exec(`ROLLBACK TO ${sp}`, []);
+      for (const f of this.rolledBack) f();
       this.#ddl.length = marks[0];
       this.#statements.length = marks[1];
       this.#driver.exec(`RELEASE ${sp}`, []);
@@ -218,10 +225,14 @@ export class SqlStorage {
     this.#onCommit(changes);
   }
 
+  /** Called after a rollback (lazily created internal tables may be gone). */
+  readonly rolledBack = new Set<() => void>();
+
   rollback(): void {
     if (!this.#inTxn) return;
     this.#inTxn = false;
     this.#driver.exec("ROLLBACK", []);
+    for (const f of this.rolledBack) f();
     if (this.#capture) {
       this.#driver.captureDiscard?.();
       this.#ddl = [];
@@ -240,4 +251,20 @@ export class SqlStorage {
     this.#inTxn = true;
     queueMicrotask(() => this.commit());
   }
+}
+
+/** Parameters a statement expects: anonymous `?` count, highest `?NNN`, distinct named ones. */
+export function countParameters(sql: string): number {
+  let anon = 0;
+  let maxNumbered = 0;
+  const named = new Set<string>();
+  const re = /'(?:[^']|'')*'|"(?:[^"]|"")*"|--[^\n]*|\/\*[\s\S]*?\*\/|\?(\d*)|([:@$][A-Za-z_]\w*)/g;
+  for (let m = re.exec(sql); m; m = re.exec(sql)) {
+    if (m[1] !== undefined) {
+      if (m[1] === "") anon++;
+      else maxNumbered = Math.max(maxNumbered, Number(m[1]));
+    } else if (m[2]) named.add(m[2]);
+  }
+  const positional = maxNumbered ? Math.max(maxNumbered, anon) : anon;
+  return positional + named.size;
 }

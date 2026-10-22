@@ -73,9 +73,14 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   }
   exec(sql: string, params: unknown[]): SqlResult {
     const statements = params.length === 0 ? splitSqlStatements(sql) : [sql];
+    // Several statements: the result of the last one, with the rows written by all of them.
     let last: SqlResult = { columnNames: [], rows: [], rowsWritten: 0 };
-    for (const text of statements) last = this.#one(text, params);
-    return last;
+    let written = 0;
+    for (const text of statements) {
+      last = this.#one(text, params);
+      written += last.rowsWritten;
+    }
+    return { ...last, rowsWritten: written };
   }
   #one(sql: string, params: unknown[]): SqlResult {
     const st = this.#db.prepare(sql);

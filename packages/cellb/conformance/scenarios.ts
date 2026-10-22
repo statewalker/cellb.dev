@@ -328,6 +328,9 @@ export const scenarios: Record<string, Scenario> = {
   "d1-details": { steps: [{ path: "/session" }, { path: "/refused" }, { path: "/pitr" }] },
   "do-ids": { steps: [{ path: "/" }], mask: ["uniqueId"] },
   "kv-details": { steps: [{ path: "/" }] },
+  "storage-details": {
+    steps: [{ path: "/kv" }, { path: "/sql" }, { path: "/txn" }, { path: "/alarms" }],
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,
