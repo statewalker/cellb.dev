@@ -58,7 +58,7 @@ in-browser server serves them under aliases — an upstream change would remove 
 
 ## Test totals
 
-Unit: 233 passed, 2 skipped. Chromium: 57 runtime tests + 37 projects × 2 browser paths, all
+Unit: 236 passed, 2 skipped. Chromium: 57 runtime tests + 37 projects × 2 browser paths, all
 passed (the 2-second Workflow sleep in `workflow-api` keeps it deterministic under load).
 
 ## Ids identical to celld's
@@ -82,7 +82,34 @@ ATTACH/DETACH and TEMP objects are "not authorized", VACUUM "authorization denie
 (`getCurrentBookmark` etc. are not functions) — webrun-cells now matches, keeping the methods
 only on its D1 simulator, which needs them. Point-in-time recovery is therefore not a gap.
 
+## KV is celld's own code
+
+`kv-details` (limits and validation recorded on celld) showed celld's KV is not Miniflare's:
+`KV_ERROR: …` messages, list limits clamped, `cacheTtl` ignored, `"."` allowed as a key,
+`cacheStatus` in results. celld's KV is JavaScript written for two engines
+(`crates/celld/js/services/kv.js`, `function kvService(host)`), so webrun-cells now runs it
+**unchanged** as a third host (`scripts/vendor-celld.mjs`, `src/bindings/celld-kv.ts`): the
+limits are celld_logic::kv's constants, values above 1 MiB go to a FilesApi through celld's
+prepare/put/get/sweep blob protocol, and the cells use celld's fleet-wide KV namespace key.
+`kv`, `kv-details`, `runtime-api` match; Miniflare's KV simulator is no longer used by
+projects. celld's Queues code also lives in JavaScript (`harness.js`), but it calls into
+Rust (`celld_logic::queue` through host ops) for every transition, so it is not portable the
+same way; ours stays, matching on the recorded projects.
+
+## Mutation testing
+
+`npm run mutate`: 57 mutants, each with the tests that must catch it (the baseline runs those
+same selections in the repo copy first). All 57 killed — the 36 earlier ones on the new
+toolchain, and 21 for this work (transaction log, fencing, ownership, routing, alarm
+serialization, hibernation, ids, queues, cron, R2, assets, workflows, D1, isolation, facets).
+They exposed three weak spots, now fixed: no test showed that read-only transactions write
+no log segment; `workflow-api` could not see a finished step run twice (it now counts runs —
+celld runs it once); a queue-message lease had become redundant after alarms were serialized
+and was removed. The exclusive-cells test now kills its child processes after each test (an
+owner left alive used to hang the harness).
+
 ## Still missing
 
-Python Workers, isolation for Durable Object classes, real LTX segments (a VFS hook in
+Python Workers (cannot be recorded here: preparing celld's Python example needs
+index.pyodide.org), isolation for Durable Object classes, real LTX segments (a VFS hook in
 SQLite WASM), webrun-modules' provided-before-builtin order.

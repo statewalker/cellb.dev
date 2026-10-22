@@ -148,13 +148,7 @@ export function makeQueueCell(
           cfg.max_batch_size * cfg.max_concurrency,
         )
         .toArray();
-      // Leased while in delivery: no other alarm may pick them up (settlement rewrites visible_at).
-      for (const r of rows)
-        this.ctx.storage.sql.exec(
-          "UPDATE messages SET visible_at = ? WHERE id = ?",
-          t + 12 * 3_600_000,
-          r.id,
-        );
+      // No lease needed while delivering: alarm() runs one at a time per object (runtime).
       // Up to max_concurrency batches are delivered at once; each is settled on its own.
       const batches: (typeof rows)[] = [];
       for (let i = 0; i < rows.length; i += cfg.max_batch_size)

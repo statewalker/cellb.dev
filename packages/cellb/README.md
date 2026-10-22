@@ -14,9 +14,9 @@ explains what was learned. `docs/plan.md` is the plan; `docs/notes/NN-*.md` the 
 
 ## Status
 
-233 unit tests + 2 documented skips (Node, incl. worker threads and child processes),
+236 unit tests + 2 documented skips (Node, incl. worker threads and child processes),
 131 Chromium end-to-end tests (incl. 2 × 19 WebSocket conformance cases), mutation harnesses:
-36/36 Node mutants and 9/9 browser mutants killed — each run preceded by a passing
+57/57 Node mutants and 9/9 browser mutants killed — each run preceded by a passing
 baseline of the unmutated copy.
 
 ## Aspects, code, tests, notes
@@ -35,7 +35,7 @@ baseline of the unmutated copy.
 | WebSockets over MessagePorts, injected via webrun-modules `~deps` | `src/ws/{client,server,frames}.ts` | `test/p07w-websocket.test.ts` | 12 |
 | WebSocket routing (SW ⇄ shards, cross-shard), heartbeat, webrun-modules in the SW | `src/ws/{control,sw-connector,upgrade}.ts`, `browser/sharded/modules.ts` | `test/p07x-websocket-routing.test.ts`, `browser/e2e/websocket.spec.ts` | 13 |
 | Reuse of Miniflare 4 simulators (KV, D1) and workerd's D1 client, unchanged | `scripts/vendor-miniflare.mjs`, `src/miniflare-compat/*`, `vendor/miniflare/*` | `test/p08a-miniflare-kv.test.ts`, `test/p08b-miniflare-d1.test.ts`, `browser/e2e/miniflare.spec.ts` | 16 |
-| Parity with celld: wrangler projects, differential tests against the real celld 0.6.2 (37 projects, all match in Node and in Chromium) | `src/project/*`, `src/bindings/{r2,queues,worker-loader}.ts`, `src/core/{alarms,handles}.ts`, `conformance/*` | `test/p09-celld-conformance.test.ts`, `test/p07a-alarms.test.ts`, `test/p07h-websocket-hibernation.test.ts` | 17 |
+| Parity with celld: wrangler projects, differential tests against the real celld 0.6.2 (38 projects, all match in Node and in Chromium) | `src/project/*`, `src/bindings/{r2,queues,worker-loader}.ts`, `src/core/{alarms,handles}.ts`, `conformance/*` | `test/p09-celld-conformance.test.ts`, `test/p07a-alarms.test.ts`, `test/p07h-websocket-hibernation.test.ts` | 17 |
 | The celld projects in Chromium (Dedicated Worker, OPFS, browser Worker Loader, sqlite-vec WASM) | `conformance/browser-bundle.ts`, `browser/projects/*`, `src/project/browser-modules.ts` | `browser/e2e/celld-projects.spec.ts` | 18 |
 | Projects served by an in-browser HTTP server (webrun-site-builder + webrun-site-host + webrun-modules), Worker Loader and facets over it | `src/project/site.ts`, `browser/site-projects/*` | `browser/e2e/site-projects.spec.ts` | 19 |
 | Transaction log (SQLite changesets on a FilesApi, RPO 0, snapshot + replay, epoch fencing), per-cell ownership, hibernation, more runtime APIs | `src/adapters/{files-changelog,wasm-session}.ts`, `src/bindings/{cache,html-rewriter}.ts`, `src/core/{sql-storage,object-host}.ts` | `test/p10-change-log.test.ts`, `test/p10b-ownership.test.ts`, `test/p07i-hibernation.test.ts`, `browser/e2e/changelog.spec.ts` | 20 |

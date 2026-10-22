@@ -3,16 +3,20 @@
 import { WorkflowEntrypoint } from "cloudflare:workers";
 
 let replays = 0;
+let stepARuns = 0; // a finished step must not run again when run() is replayed
 
 export class Flow extends WorkflowEntrypoint {
   async run(event, step) {
     replays++;
     const kind = event.payload.kind;
     if (kind === "steps") {
-      const a = await step.do("a", async () => 1);
+      const a = await step.do("a", async () => {
+        stepARuns++;
+        return 1;
+      });
       await step.sleep("nap", "2 seconds"); // long enough to be observed mid-sleep even on a loaded machine
       const b = await step.do("b", async () => a + 1);
-      return { a, b };
+      return { a, b, stepARuns };
     }
     if (kind === "event") {
       const e = await step.waitForEvent("approval", { type: "approve", timeout: "1 minute" });

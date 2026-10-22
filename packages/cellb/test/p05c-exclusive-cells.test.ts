@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "esbuild";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 // Hypothesis: on one host, opening cell databases in SQLite EXCLUSIVE locking mode
 // fences storage itself — a second process cannot touch a cell another process serves,
@@ -26,8 +26,16 @@ describe("P05c storage-level fencing: cell SQLite files in EXCLUSIVE locking mod
       },
     });
   });
+  // Every child is killed after the test, also when an assertion fails first: a "hold"
+  // owner left alive kept vitest from exiting (seen under the mutation harness).
+  const children = new Set<ReturnType<typeof fork>>();
+  afterEach(() => {
+    for (const c of children) c.kill("SIGKILL");
+    children.clear();
+  });
   const run = (name: string, mode: "hold" | "once") => {
     const p = fork(bundle, [dir, name, mode], { execArgv: ["--no-warnings"] });
+    children.add(p);
     return { p, msg: new Promise<any>((r) => p.once("message", r)) };
   };
 

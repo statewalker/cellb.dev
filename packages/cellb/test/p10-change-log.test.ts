@@ -107,6 +107,28 @@ for (const [driverName, makeOpener] of [
 }
 
 describe("P10 durability and fencing", () => {
+  it("read-only transactions and no-op schema statements write no segment", async () => {
+    const files = new MemFilesApi();
+    const rt = runtime(nodeSqliteOpener(), filesApiChangeLog(files));
+    const stub = (rt.env.LEDGER as any).getByName("r");
+    await runInDurableObject(stub, (o: Ledger) => o.fill(2));
+    const count = async () => {
+      let n = 0;
+      for await (const f of files.list("/cells", { recursive: true }))
+        if (f.path.endsWith(".seg")) n++;
+      return n;
+    };
+    const before = await count();
+    await runInDurableObject(stub, (o: Ledger) => o.dump());
+    await runInDurableObject(stub, async (_o, ctx) => {
+      ctx.storage.sql.exec(
+        "CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, label TEXT)",
+      );
+      await ctx.storage.get("k0");
+    });
+    expect(await count()).toBe(before);
+  });
+
   it("a reply is released only after its segment is stored (output gate, RPO = 0)", async () => {
     const files = new MemFilesApi();
     let release!: () => void;
