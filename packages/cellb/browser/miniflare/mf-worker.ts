@@ -8,10 +8,9 @@ import { createCellRuntime } from "../../src/index.js";
 import { filesApiBlobService } from "../../src/miniflare-compat/blob-service.js";
 import { kvNamespaceBinding } from "../../src/miniflare-compat/kv-binding.js";
 import { simulatorFetcher } from "../../src/miniflare-compat/simulator-fetcher.js";
+import { D1DatabaseObject } from "../../src/miniflare-compat/vendored.js";
 // @ts-expect-error — generated bundles (scripts/vendor-miniflare.mjs)
 import makeD1Binding from "../../vendor/miniflare/d1-api.js";
-// @ts-expect-error — generated bundle
-import { D1DatabaseObject } from "../../vendor/miniflare/d1-database.js";
 // @ts-expect-error — generated bundle
 import { KVNamespaceObject } from "../../vendor/miniflare/kv-namespace.js";
 

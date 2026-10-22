@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createCellRuntime } from "../src/index.js";
 import { simulatorFetcher } from "../src/miniflare-compat/simulator-fetcher.js";
+import { D1DatabaseObject } from "../src/miniflare-compat/vendored.js";
 // @ts-expect-error — generated JS bundles (scripts/vendor-miniflare.mjs), no .d.ts
 import makeD1Binding from "../vendor/miniflare/d1-api.js";
-// @ts-expect-error — generated JS bundle
-import { D1DatabaseObject } from "../vendor/miniflare/d1-database.js";
 
 // Hypothesis: a complete D1 binding needs NO new code — workerd's own TypeScript client
 // (src/cloudflare/internal/d1-api.ts) talks to Miniflare's D1 simulator object, both

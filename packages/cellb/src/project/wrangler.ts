@@ -272,10 +272,80 @@ function celldExec<T extends D1Like>(db: T): T {
   const exec = async (sql: string) => {
     const t0 = Date.now();
     const statements = splitSqlStatements(sql).filter((s) => s.trim());
-    for (const statement of statements) await db.prepare(statement).run();
+    for (const statement of statements) {
+      if (/^\s*BEGIN\b/i.test(statement))
+        throw new Error(
+          "D1_EXEC_ERROR: the SQL ends in an incomplete statement, which did not run: terminate the last statement with a semicolon",
+        );
+      guard(statement);
+      await db.prepare(statement).run();
+    }
     return { count: statements.length, duration: Date.now() - t0 };
   };
-  return new Proxy(db, { get: (t, p, r) => (p === "exec" ? exec : Reflect.get(t, p, r)) });
+  return celldD1(db, exec) as T;
+}
+
+/**
+ * celld's D1 rules on top of workerd's client (celld docs/services/d1.md, checked by the
+ * d1-details project): ATTACH/DETACH and TEMP objects are "not authorized", VACUUM is
+ * "authorization denied"; there is one primary and no replica, so sessions return the
+ * bookmark "celld:primary" and every result reports served_by_primary/served_by_region
+ * "local"; a read-only statement reports last_row_id and changes as 0.
+ */
+function guard(sql: string): void {
+  if (/^\s*(ATTACH|DETACH)\b/i.test(sql) || /^\s*CREATE\s+(TEMP|TEMPORARY)\b/i.test(sql))
+    throw new Error("D1_ERROR: not authorized");
+  if (/^\s*VACUUM\b/i.test(sql)) throw new Error("D1_ERROR: authorization denied");
+}
+
+function celldMeta(r: any): any {
+  if (!r?.meta) return r;
+  r.meta.served_by_primary = true;
+  r.meta.served_by_region = "local";
+  if (r.meta.changed_db === false) {
+    r.meta.last_row_id = 0;
+    r.meta.changes = 0;
+  }
+  return r;
+}
+
+function celldStatement(stmt: any): any {
+  return new Proxy(stmt, {
+    get(t, p, r) {
+      const v = Reflect.get(t, p, r);
+      if (p === "bind") return (...a: unknown[]) => celldStatement(v.apply(t, a));
+      if (p === "run" || p === "all")
+        return async (...a: unknown[]) => celldMeta(await v.apply(t, a));
+      return typeof v === "function" ? v.bind(t) : v;
+    },
+  });
+}
+
+function celldD1(db: any, exec?: (sql: string) => Promise<unknown>): any {
+  return new Proxy(db, {
+    get(t, p, r) {
+      if (p === "exec" && exec) return exec;
+      const v = Reflect.get(t, p, r);
+      if (p === "prepare")
+        return (sql: string) => {
+          guard(sql);
+          return celldStatement(v.call(t, sql));
+        };
+      if (p === "batch")
+        return async (stmts: unknown[], ...a: unknown[]) =>
+          ((await v.call(t, stmts, ...a)) as unknown[]).map(celldMeta);
+      if (p === "withSession")
+        return () => {
+          const session = celldD1(t);
+          return new Proxy(session, {
+            get: (s, q, rr) =>
+              q === "getBookmark" ? () => "celld:primary" : Reflect.get(s, q, rr),
+          });
+        };
+      if (p === "getBookmark") return () => "celld:primary";
+      return typeof v === "function" ? v.bind(t) : v;
+    },
+  });
 }
 
 /** Last fired occurrence per cron expression, in a small SQLite database of the host. */

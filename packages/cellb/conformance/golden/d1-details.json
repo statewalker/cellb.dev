@@ -1,0 +1,45 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /session",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "bookmark": "celld:primary",
+        "writeMeta": {
+          "changes": 1,
+          "primary": true,
+          "region": "local"
+        },
+        "readCount": 1,
+        "readOnlyMeta": {
+          "last_row_id": 0,
+          "changes": 0
+        }
+      }
+    },
+    {
+      "request": "GET /refused",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "begin": "D1_EXEC_ERROR: the SQL ends in an incomplete statement, which did not run: terminate the last statement with a semicolon",
+        "attach": "D1_ERROR: not authorized",
+        "temp": "D1_ERROR: not authorized",
+        "vacuum": "D1_ERROR: authorization denied",
+        "fts5": "ok"
+      }
+    },
+    {
+      "request": "GET /pitr",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "current": "TypeError: s.getCurrentBookmark is not a function",
+        "forTime": "TypeError: s.getBookmarkForTime is not a function",
+        "restore": "TypeError: s.getCurrentBookmark is not a function"
+      }
+    }
+  ]
+}

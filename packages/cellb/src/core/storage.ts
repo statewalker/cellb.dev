@@ -185,22 +185,6 @@ export class DurableObjectStorage extends AsyncKvApi {
     });
   }
   /** Resolves once all writes so far are durable (the output gate barrier). */
-  #bookmarks = 0;
-  /**
-   * Point-in-time-recovery bookmarks (workerd API). Bookmarks are opaque, ordered
-   * strings; webrun-cells has no PITR yet, so they only identify "now" — enough for
-   * D1 sessions (Miniflare's D1 simulator returns them as commit tokens).
-   */
-  async getCurrentBookmark(): Promise<string> {
-    return `${Date.now().toString(16).padStart(12, "0")}-${(++this.#bookmarks).toString(16).padStart(8, "0")}`;
-  }
-  async getBookmarkForTime(time: number | Date): Promise<string> {
-    return `${new Date(time).getTime().toString(16).padStart(12, "0")}-00000000`;
-  }
-  async onNextSessionRestoreBookmark(_bookmark: string): Promise<string> {
-    throw new Error("Point-in-time recovery is not supported by webrun-cells yet");
-  }
-
   sync(): Promise<void> {
     return this.#sync();
   }
