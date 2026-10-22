@@ -1,10 +1,13 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { Worker as NodeWorker } from "node:worker_threads";
 import { build } from "esbuild";
 import { applyD1Migrations } from "../bindings/d1-migrations.js";
 import { type LogSink, type ModuleLoader, outboundFetch } from "../bindings/worker-loader.js";
 import type { WorkerModule } from "../core/runtime.js";
+import { isolatedModuleLoader } from "../isolate/host.js";
+import type { PortLike } from "../isolate/protocol.js";
 import { parseJsonc } from "./jsonc.js";
 import {
   createProjectRuntime,
@@ -165,7 +168,12 @@ export async function loadNodeProject(
     ? readAssetDirectory(resolve(dir, config.assets.directory))
     : undefined;
   return {
-    ...createProjectRuntime(config, module, { loadModules: nodeModuleLoader, assetFiles, ...host }),
+    ...createProjectRuntime(config, module, {
+      loadModules: nodeModuleLoader,
+      isolatedModules: nodeIsolatedLoader(), // loaded Workers in their own realm, as celld
+      assetFiles,
+      ...host,
+    }),
     config,
   };
 }
@@ -207,4 +215,84 @@ export async function applyNodeD1Migrations(
     files,
     (d1 as { migrations_table?: string }).migrations_table ?? "d1_migrations",
   );
+}
+
+/**
+ * Loaded Workers in worker threads (one realm each), like celld's isolates. The code is
+ * bundled with esbuild (cloudflare:workers bundled in) and imported in the thread from a
+ * data: URL; Durable Object classes for facets still load in this realm.
+ */
+let isolateEntry: Promise<string> | undefined;
+export function nodeIsolatedLoader(): ModuleLoader {
+  return isolatedModuleLoader({
+    spawn: () => {
+      const port = new NodeWorker(new URL(`file://${isolateEntryPathSync()}`));
+      port.unref(); // an idle isolate never keeps the process alive
+      return { port: port as unknown as PortLike, terminate: () => void port.terminate() };
+    },
+    prepare: async (_id, code) => {
+      await (isolateEntry ??= buildIsolateEntry());
+      const modules: Record<string, string> = {};
+      for (const [name, m] of Object.entries(code.modules))
+        modules[name] =
+          typeof m === "string"
+            ? m
+            : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
+      const out = await build({
+        entryPoints: [`memory:${code.mainModule}`],
+        write: false,
+        bundle: true,
+        format: "esm",
+        platform: "neutral",
+        target: "es2022",
+        logLevel: "silent",
+        plugins: [
+          {
+            name: "isolate-modules",
+            setup(b) {
+              b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({
+                path: resolve(import.meta.dirname, "cloudflare-workers.ts"),
+              }));
+              b.onResolve({ filter: /^memory:/ }, (a) => ({
+                path: a.path.slice(7),
+                namespace: "memory",
+              }));
+              b.onResolve({ filter: /^\.{1,2}\// }, (a) =>
+                a.namespace === "memory"
+                  ? {
+                      path: new URL(a.path, `file:///${a.importer}`).pathname.slice(1),
+                      namespace: "memory",
+                    }
+                  : undefined,
+              );
+              b.onLoad({ filter: /.*/, namespace: "memory" }, (a) => ({
+                contents: modules[a.path],
+                loader: "js",
+              }));
+            },
+          },
+        ],
+      });
+      return { source: out.outputFiles[0].text };
+    },
+  });
+}
+
+let isolateEntryFile = "";
+function isolateEntryPathSync(): string {
+  if (!isolateEntryFile) throw new Error("isolate entry not built yet");
+  return isolateEntryFile;
+}
+async function buildIsolateEntry(): Promise<string> {
+  isolateEntryFile = join(mkdtempSync(join(tmpdir(), "cells-isolate-")), "isolate.mjs");
+  await build({
+    entryPoints: [resolve(import.meta.dirname, "../isolate/node-entry.ts")],
+    outfile: isolateEntryFile,
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node22",
+    logLevel: "silent",
+  });
+  return isolateEntryFile;
 }

@@ -323,6 +323,7 @@ export const scenarios: Record<string, Scenario> = {
       ].map((path) => ({ path })),
     headers: ["location"],
   },
+  "isolation-api": { steps: [{ path: "/" }] },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

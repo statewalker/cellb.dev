@@ -37,6 +37,7 @@ export async function runProject(job: {
   assets: [string, string][];
   wsServer?: string;
   loadModules: ModuleLoader;
+  isolatedModules?: ModuleLoader;
   logs: string[];
 }) {
   const vec = job.config.compatibility_flags?.includes("sqlite_vec");
@@ -58,6 +59,7 @@ export async function runProject(job: {
     files,
     assetFiles,
     loadModules: job.loadModules,
+    isolatedModules: job.isolatedModules,
   });
   const WS = createWebSocketClass((url, p) => runtime.connectWebSocket(url, p));
   const target: Target = {

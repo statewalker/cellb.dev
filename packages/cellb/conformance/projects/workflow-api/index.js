@@ -10,7 +10,7 @@ export class Flow extends WorkflowEntrypoint {
     const kind = event.payload.kind;
     if (kind === "steps") {
       const a = await step.do("a", async () => 1);
-      await step.sleep("nap", "1 second");
+      await step.sleep("nap", "2 seconds"); // long enough to be observed mid-sleep even on a loaded machine
       const b = await step.do("b", async () => a + 1);
       return { a, b };
     }

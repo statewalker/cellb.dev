@@ -3,6 +3,7 @@
 // Worker-Loader code are Blob-URL modules.
 
 import { cellsCaches } from "../../src/bindings/cache.js";
+import { browserIsolatedLoader } from "../../src/isolate/browser.js";
 import { installNodeGlobals } from "../../src/node-compat/install.js";
 import { browserModuleLoader } from "../../src/project/browser-modules.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
@@ -54,6 +55,9 @@ scope.onmessage = async (e) => {
       assets: project.assets,
       wsServer,
       loadModules: browserModuleLoader(WORKERS_MODULE_SHIM),
+      isolatedModules: browserIsolatedLoader({
+        isolateScript: new URL("../isolate/isolate-worker.ts", import.meta.url),
+      }),
       logs,
     });
     reply({ ok: true, ...r });

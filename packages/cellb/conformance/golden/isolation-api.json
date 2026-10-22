@@ -1,0 +1,23 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "inner": {
+          "sawHostGlobal": "undefined",
+          "envKeys": ["GREETER", "PLAIN"],
+          "plain": {
+            "n": 1,
+            "list": ["a"]
+          },
+          "viaStub": "hello loaded from the host",
+          "hostSecretInEnv": null
+        },
+        "leakedIntoHost": "undefined"
+      }
+    }
+  ]
+}

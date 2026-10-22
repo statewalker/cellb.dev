@@ -10,6 +10,7 @@
     "./projects/*.ts",
     "./site-projects/*.ts",
     "./changelog/*.ts",
+    "./isolate/*.ts",
     "../src",
     "../test/fixtures.ts"
   ]

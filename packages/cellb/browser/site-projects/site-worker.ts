@@ -3,6 +3,7 @@
 // webrun-site-builder + webrun-modules): `import()` of real URLs; Worker Loader over the site.
 
 import { cellsCaches } from "../../src/bindings/cache.js";
+import { browserIsolatedLoader } from "../../src/isolate/browser.js";
 import { installNodeGlobals } from "../../src/node-compat/install.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "../../src/project/site.js";
@@ -50,6 +51,11 @@ scope.onmessage = async (e) => {
       assets: job.assets,
       wsServer: job.wsServer,
       loadModules: siteModuleLoader(job.baseUrl),
+      // Loaded Workers run isolated, each in its own Dedicated Worker (as celld's isolates).
+      isolatedModules: browserIsolatedLoader({
+        isolateScript: new URL("../isolate/isolate-worker.ts", import.meta.url),
+        siteBaseUrl: job.baseUrl,
+      }),
       logs,
     });
     reply({ ok: true, moduleUrl: `${job.baseUrl}modules/~/${job.config.main}`, ...r });

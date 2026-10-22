@@ -1,0 +1,7 @@
+{
+  "name": "isolation-api",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "vars": { "HOST_SECRET": "host-only" }
+}

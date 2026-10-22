@@ -62,6 +62,8 @@ export interface ProjectHost
   extends Pick<CellRuntimeOptions, "openSql" | "durability" | "backup" | "clock"> {
   /** Files of `assets.directory` (path "/a/b.html" → bytes), loaded by the host. */
   assetFiles?: AssetFiles;
+  /** Runs each loaded Worker in its own realm (celld isolates); classes still use `loadModules`. */
+  isolatedModules?: ModuleLoader;
   /** Compiles code given to a Worker Loader binding (esbuild on Node, webrun-modules in browsers). */
   loadModules?: ModuleLoader;
   /** Blob store of the KV simulator (large values): OPFS in a browser, a directory or S3 on a server. */
@@ -184,7 +186,10 @@ export function createProjectRuntime(
   for (const l of config.worker_loaders ?? []) {
     if (!host.loadModules)
       unsupported.push(`worker_loaders[${l.binding}] (the host provides no module loader)`);
-    else env[l.binding] = workerLoader(host.loadModules);
+    else
+      env[l.binding] = host.isolatedModules
+        ? workerLoader(host.isolatedModules, { classes: host.loadModules })
+        : workerLoader(host.loadModules);
   }
   // Cron Triggers (validated at load time like `celld deploy` does).
   const crons = config.triggers?.crons ?? [];

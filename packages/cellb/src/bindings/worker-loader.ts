@@ -65,7 +65,9 @@ export type ModuleLoader = (
  * The Worker Loader binding (`worker_loaders` in wrangler config): runtime-loaded code,
  * cached by id; the callback runs only when the id is not loaded yet.
  */
-export function workerLoader(load: ModuleLoader) {
+export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader } = {}) {
+  // With isolated loading, Durable Object classes (facets) still load in this realm.
+  const classCache = new Map<string, Promise<{ module: Record<string, unknown>; env: unknown }>>();
   type Loaded = {
     module: Record<string, unknown>;
     env: unknown;
@@ -136,8 +138,19 @@ export function workerLoader(load: ModuleLoader) {
       };
       return {
         getDurableObjectClass(name: string) {
+          const classesLoaded = () => {
+            let p = classCache.get(id);
+            if (!p) {
+              p = (async () => {
+                const code = await getCode();
+                return { module: await opts.classes!(id, code), env: code.env ?? {} };
+              })();
+              classCache.set(id, p);
+            }
+            return p;
+          };
           return classHandle(async () => {
-            const { module, env } = await loaded();
+            const { module, env } = opts.classes ? await classesLoaded() : await loaded();
             const cls = module[name];
             if (typeof cls !== "function")
               throw new Error(`Loaded worker "${id}" does not export class "${name}"`);
