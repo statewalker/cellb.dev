@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
 // One loaded Worker in its own realm (a Dedicated Worker), served over its port.
 
+import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
+import { sahpoolOpener } from "../../src/adapters/wasm-sqlite.js";
 import { cellsCaches } from "../../src/bindings/cache.js";
 import { serveIsolate } from "../../src/isolate/isolate.js";
 import type { PortLike } from "../../src/isolate/protocol.js";
@@ -52,5 +54,12 @@ serveIsolate(
       (level, args) => logs(level, args),
     );
   },
-  { patchConsole: false },
+  {
+    patchConsole: false,
+    // Facets of the loaded code: SQLite on OPFS, one sahpool per loaded Worker.
+    openSql: async (load: any) => {
+      const sqlite3 = await (sqlite3InitModule as any)({ print() {}, printErr() {} });
+      return sahpoolOpener(sqlite3, { name: load?.storageName ?? "isolate" });
+    },
+  },
 );

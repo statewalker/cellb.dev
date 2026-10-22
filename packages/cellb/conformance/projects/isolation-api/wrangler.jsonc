@@ -3,5 +3,7 @@
   "main": "index.js",
   "compatibility_date": "2026-01-01",
   "worker_loaders": [{ "binding": "LOADER" }],
-  "vars": { "HOST_SECRET": "host-only" }
+  "vars": { "HOST_SECRET": "host-only" },
+  "durable_objects": { "bindings": [{ "name": "HOLDER", "class_name": "Holder" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Holder"] }]
 }

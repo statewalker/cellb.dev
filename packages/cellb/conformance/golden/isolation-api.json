@@ -18,6 +18,22 @@
         },
         "leakedIntoHost": "undefined"
       }
+    },
+    {
+      "request": "GET /facet",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "a": {
+          "sawHost": "undefined",
+          "n": 1
+        },
+        "b": {
+          "sawHost": "undefined",
+          "n": 2
+        },
+        "leakedIntoHost": "undefined"
+      }
     }
   ]
 }

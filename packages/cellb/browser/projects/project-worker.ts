@@ -63,6 +63,7 @@ scope.onmessage = async (e) => {
       loadModules: browserModuleLoader(WORKERS_MODULE_SHIM),
       isolatedModules: browserIsolatedLoader({
         isolateScript: new URL("../isolate/isolate-worker.ts", import.meta.url),
+        storagePrefix: `iso-${project.name}-${Date.now().toString(36)}`,
       }),
       logs,
     });

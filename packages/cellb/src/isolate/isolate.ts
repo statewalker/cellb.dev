@@ -3,6 +3,9 @@
  * `importCode` is realm specific (data: URL of a bundle on Node, a site URL in browsers).
  */
 import { entrypointStub } from "../core/handles.js";
+import { runInDurableObject } from "../core/namespace.js";
+import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
+import type { OpenCellSql } from "../ports.js";
 import { deserializeRequest, type PortLike, rpcPort, serializeResponse } from "./protocol.js";
 
 export function serveIsolate(
@@ -11,12 +14,43 @@ export function serveIsolate(
     load: any,
     logs: (level: string, args: unknown[]) => void,
   ) => Promise<Record<string, unknown>>,
-  opts: { patchConsole?: boolean } = {},
+  opts: {
+    patchConsole?: boolean;
+    /**
+     * Storage for Durable Object classes run INSIDE this isolate (facets of loaded code):
+     * each facet is a cell of an isolate-local runtime, with its own SQLite.
+     */
+    openSql?: (load: any) => OpenCellSql | Promise<OpenCellSql>;
+  } = {},
 ) {
   let module: Record<string, unknown> = {};
+  const runtimes = new Map<string, CellRuntime>();
+  let loadMsg: any;
+  let sql: Promise<OpenCellSql> | undefined;
+  const objectRuntime = async (className: string) => {
+    let rt = runtimes.get(className);
+    if (!rt) {
+      if (!opts.openSql)
+        throw new Error("this isolate cannot host Durable Object classes (no storage)");
+      sql ??= Promise.resolve(opts.openSql(loadMsg));
+      const openSql = await sql;
+      if (runtimes.has(className)) return runtimes.get(className)!;
+      if (typeof module[className] !== "function")
+        throw new Error(`Loaded worker does not export class "${className}"`);
+      rt = createCellRuntime({
+        worker: { ...(module as WorkerModule), default: {} },
+        durableObjects: { [className]: { className } },
+        openSql,
+        vars: env, // the loaded Worker's env: plain values and host stubs
+      });
+      runtimes.set(className, rt);
+    }
+    return rt;
+  };
   let env: Record<string, unknown> = {};
   const rpc = rpcPort(port, async (m) => {
     if (m.type === "load") {
+      loadMsg = m;
       // Host bindings: every method call goes back to the host.
       const stubOf = (key: string) =>
         new Proxy(
@@ -48,6 +82,29 @@ export function serveIsolate(
         rpc.send({ type: "log", level, args: safe(args) }),
       );
       return Object.fromEntries(Object.entries(module).map(([k, v]) => [k, typeof v]));
+    }
+    if (m.type === "object") {
+      // A facet of loaded code: the object lives here, named by the parent's facet cell key.
+      const rt = await objectRuntime(m.className);
+      const ns = rt.env[m.className] as {
+        getByName(n: string): any;
+        idFromName(n: string): { toString(): string };
+      };
+      const stub = ns.getByName(m.cellKey);
+      const key = `${m.className}/${ns.idFromName(m.cellKey).toString()}`;
+      if (m.op === "fetch")
+        return serializeResponse(await stub.fetch(deserializeRequest(m.request)));
+      if (m.op === "call") return stub[m.method](...m.args);
+      if (m.op === "restart") return rt.restartObject(key);
+      if (m.op === "delete") {
+        await runInDurableObject(
+          stub,
+          (_o: unknown, ctx: { storage: { deleteAll(): Promise<void> } }) =>
+            ctx.storage.deleteAll(),
+        );
+        return rt.restartObject(key);
+      }
+      throw new Error(`unknown object op ${m.op}`);
     }
     const target = module[m.name];
     if (target === undefined) throw new Error(`Loaded worker does not export "${m.name}"`);

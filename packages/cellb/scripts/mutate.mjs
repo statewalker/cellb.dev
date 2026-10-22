@@ -402,6 +402,13 @@ const mutants = [
     "void running.get(name)?.then((h) => h.close()); running.delete(name);",
     "test/p09-celld-conformance.test.ts -t facets-api",
   ],
+  [
+    "isolation: facets of loaded code in the host realm",
+    "src/project/wrangler.ts",
+    "workerLoader(host.isolatedModules)",
+    "workerLoader(host.isolatedModules, { classes: host.loadModules })",
+    "test/p09-celld-conformance.test.ts -t isolation-api",
+  ],
 ];
 const cmd = "npx vitest run";
 const survived = runMutants(mutants, cmd);

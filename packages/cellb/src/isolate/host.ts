@@ -1,4 +1,9 @@
 import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
+import type { IsolatedClass } from "../core/handles.js";
+
+/** Key of the isolate's class factory on a module facade (see getDurableObjectClass). */
+export const ISOLATED = Symbol.for("webrun-cells.isolated-classes");
+
 import {
   deserializeResponse,
   type PortLike,
@@ -56,6 +61,26 @@ export function isolatedModuleLoader(opts: {
           },
         },
       );
-    return Object.fromEntries(Object.keys(exports).map((k) => [k, facade(k)]));
+    const module: Record<string | symbol, unknown> = Object.fromEntries(
+      Object.keys(exports).map((k) => [k, facade(k)]),
+    );
+    // Durable Object classes of the loaded code run in the isolate too (facets).
+    module[ISOLATED] = (className: string): IsolatedClass => ({
+      fetch: async (cellKey, req) =>
+        deserializeResponse(
+          await rpc.request({
+            type: "object",
+            op: "fetch",
+            className,
+            cellKey,
+            request: await serializeRequest(req),
+          }),
+        ),
+      call: (cellKey, method, args) =>
+        rpc.request({ type: "object", op: "call", className, cellKey, method, args }),
+      restart: (cellKey) => rpc.request({ type: "object", op: "restart", className, cellKey }),
+      delete: (cellKey) => rpc.request({ type: "object", op: "delete", className, cellKey }),
+    });
+    return module as Record<string, unknown>;
   };
 }

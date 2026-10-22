@@ -7,7 +7,17 @@ import type { DurableObjectClass } from "./object-host.js";
  */
 export interface ClassHandle {
   readonly __cellsClassHandle: true;
-  resolve(): Promise<{ cls: DurableObjectClass; env: unknown; props?: unknown }>;
+  resolve(): Promise<
+    { cls: DurableObjectClass; env: unknown; props?: unknown } | { isolated: IsolatedClass }
+  >;
+}
+
+/** A Durable Object class that runs in an isolate: its instances and storage live there. */
+export interface IsolatedClass {
+  fetch(cellKey: string, req: Request): Promise<Response>;
+  call(cellKey: string, method: string, args: unknown[]): Promise<unknown>;
+  restart(cellKey: string): Promise<void>;
+  delete(cellKey: string): Promise<void>;
 }
 
 export function classHandle(resolve: ClassHandle["resolve"]): ClassHandle {

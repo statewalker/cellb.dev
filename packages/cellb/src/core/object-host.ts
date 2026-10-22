@@ -7,7 +7,7 @@ import type {
   ValueCodec,
 } from "../ports.js";
 import { InputGate, OutputGate } from "./gates.js";
-import { asyncStub, isClassHandle } from "./handles.js";
+import { asyncStub, type IsolatedClass, isClassHandle } from "./handles.js";
 import { type DurableObjectId, DurableObjectId as DurableObjectIdClass } from "./id.js";
 import { SqlStorage } from "./sql-storage.js";
 import { DurableObjectState } from "./state.js";
@@ -361,15 +361,43 @@ export class ObjectHost {
  * SQLite database of their own (`<cellKey>/facets/<name>`), started on first call from a
  * class (or class handle) returned by the callback; the name alone selects the database.
  */
+interface FacetTarget {
+  call(method: string, args: unknown[]): Promise<unknown>;
+  fetch(req: Request): Promise<Response>;
+  restart(): void | Promise<void>;
+  delete(): Promise<void>;
+}
+
 function createFacets(
-  parent: { id: DurableObjectId; env: unknown },
+  parent: { id: DurableObjectId; env: unknown; cellKey: string },
   spawn: (name: string, cls: DurableObjectClass, env: unknown, id: DurableObjectId) => ObjectHost,
 ) {
-  const running = new Map<string, Promise<ObjectHost>>();
+  const running = new Map<string, Promise<FacetTarget>>();
   // abort() stops the stubs handed out so far (their calls throw the reason); a later
   // get() starts the facet again on the same database — as celld does.
   const generation = new Map<string, { n: number; reason?: unknown }>();
-  const hostOf = (name: string, start?: () => unknown): Promise<ObjectHost> => {
+  const local = (h: ObjectHost): FacetTarget => ({
+    call: (method, args) =>
+      h.deliver((obj) => {
+        const fn = obj[method];
+        if (typeof fn !== "function") throw new TypeError(`${method} is not a function`);
+        return fn.apply(obj, args);
+      }),
+    fetch: (req) => h.deliver((obj) => obj.fetch(req)),
+    restart: () => h.restart(),
+    delete: async () => {
+      await h.deliver((_o, state) => state.storage.deleteAll());
+      h.restart();
+    },
+  });
+  /** A class of isolated loaded code: the facet's instance and SQLite live in the isolate. */
+  const isolated = (iso: IsolatedClass, cellKey: string): FacetTarget => ({
+    call: (method, args) => iso.call(cellKey, method, args),
+    fetch: (req) => iso.fetch(cellKey, req),
+    restart: () => iso.restart(cellKey),
+    delete: () => iso.delete(cellKey),
+  });
+  const targetOf = (name: string, start?: () => unknown): Promise<FacetTarget> => {
     let p = running.get(name);
     if (!p) {
       if (!start) return Promise.reject(new Error(`Facet "${name}" is not running`));
@@ -377,10 +405,13 @@ function createFacets(
         const info = (await start()) as { class: unknown; id?: unknown };
         let cls: DurableObjectClass;
         let env = parent.env;
-        if (isClassHandle(info.class)) ({ cls, env } = await info.class.resolve());
-        else cls = info.class as DurableObjectClass;
+        if (isClassHandle(info.class)) {
+          const r = await info.class.resolve();
+          if ("isolated" in r) return isolated(r.isolated, `${parent.cellKey}/facets/${name}`);
+          ({ cls, env } = r);
+        } else cls = info.class as DurableObjectClass;
         const id = info.id instanceof DurableObjectIdClass ? info.id : parent.id;
-        return spawn(name, cls, env, id);
+        return local(spawn(name, cls, env, id));
       })();
       p.catch(() => running.delete(name));
       running.set(name, p);
@@ -397,21 +428,15 @@ function createFacets(
         if (g && g.n !== gen) throw g.reason;
       };
       return asyncStub(
-        async (method, args) =>
-          (live(), await hostOf(name, start)).deliver((obj) => {
-            const fn = obj[method];
-            if (typeof fn !== "function")
-              throw new TypeError(`The RPC receiver does not implement the method "${method}".`);
-            return fn.apply(obj, args);
-          }),
-        async (req) => (live(), await hostOf(name, start)).deliver((obj) => obj.fetch(req)),
+        async (method, args) => (live(), await targetOf(name, start)).call(method, args),
+        async (req) => (live(), await targetOf(name, start)).fetch(req),
       );
     },
     abort(name: string, reason?: unknown) {
       const n = (generation.get(name)?.n ?? 0) + 1;
       generation.set(name, { n, reason: reason ?? new Error(`Facet "${name}" was aborted`) });
       // The database stays: the next call on a new stub gets a fresh instance over it.
-      void running.get(name)?.then((h) => h.restart());
+      void running.get(name)?.then((t) => t.restart());
     },
     async delete(name: string) {
       const p = running.get(name);
@@ -419,12 +444,7 @@ function createFacets(
         n: (generation.get(name)?.n ?? 0) + 1,
         reason: new Error(`Facet "${name}" was deleted`),
       });
-      if (p) {
-        const h = await p;
-        await h.deliver((_o, state) => state.storage.deleteAll());
-        h.restart();
-        running.set(name, p);
-      }
+      if (p) await (await p).delete();
     },
   };
 }

@@ -82,6 +82,8 @@ export interface CellRuntime {
    * instances are dropped, storage and hibernatable WebSockets stay. Returns how many slept.
    */
   hibernateIdle(idleMs?: number): number;
+  /** Replaces one object's instance with a fresh one on the same storage (facet abort). */
+  restartObject(cellKey: string): void;
   /** Final backup of changed cells, then stops timers and closes every database. */
   close(): Promise<void>;
 }
@@ -296,6 +298,9 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
         port: takeClientPort(res.webSocket),
         protocol: res.headers.get("Sec-WebSocket-Protocol") ?? undefined,
       };
+    },
+    restartObject(cellKey: string) {
+      hosts.get(cellKey)?.restart();
     },
     hibernateIdle(idleMs = opts.hibernateAfterMs ?? 0) {
       const now = Date.now();

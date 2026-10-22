@@ -1,5 +1,6 @@
-import { classHandle, entrypointStub } from "../core/handles.js";
+import { classHandle, entrypointStub, type IsolatedClass } from "../core/handles.js";
 import type { DurableObjectClass } from "../core/object-host.js";
+import { ISOLATED } from "../isolate/host.js";
 
 /** What `env.LOADER.get(id, () => code)` returns from its callback (workerd's WorkerCode). */
 export interface WorkerCode {
@@ -150,6 +151,12 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             return p;
           };
           return classHandle(async () => {
+            if (!opts.classes) {
+              const iso = (await loaded()).module[ISOLATED as unknown as string] as
+                | ((name: string) => IsolatedClass)
+                | undefined;
+              if (iso) return { isolated: iso(name) };
+            }
             const { module, env } = opts.classes ? await classesLoaded() : await loaded();
             const cls = module[name];
             if (typeof cls !== "function")

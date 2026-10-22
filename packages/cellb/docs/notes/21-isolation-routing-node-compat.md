@@ -20,9 +20,13 @@ in browsers — behind one MessagePort (`src/isolate/`):
 | fetch / RPC | serialized requests/responses and structured-cloned arguments over the port |
 | Logs | sent to the host, which prints them and feeds Tail Workers. In browsers loaded modules get their own console — the realm's global one is left alone (the dev server logs there) |
 | `globalOutbound: null` | the isolate's global `fetch` throws |
-| Durable Object classes (facets) | still loaded in the host's realm: their storage API is synchronous and cannot cross a port |
+| Durable Object classes (facets) | run **in the isolate** too: the isolate hosts them in its own runtime with its own SQLite (Node: in memory or a data dir; browsers: an OPFS sahpool per loaded Worker); the parent's facet stub forwards fetch/RPC, `abort` (fresh instance, same database) and `delete` (cleared database) |
 
-`isolation-api`, `facets`, `dynamic-worker-tails`, `runtime-api` match celld everywhere.
+`isolation-api` (now also a facet of loaded code: it does not see host globals, its writes
+do not leak back, its storage persists across calls), `facets`, `facets-api`,
+`dynamic-worker-tails`, `runtime-api` match celld everywhere. The synchronous storage API is
+no obstacle: the whole object — instance and SQLite — lives in the isolate; only its
+fetch/RPC calls cross the port.
 
 ## Routing between nodes
 
@@ -156,5 +160,5 @@ owner left alive used to hang the harness).
 ## Still missing
 
 Python Workers (cannot be recorded here: preparing celld's Python example needs
-index.pyodide.org), isolation for Durable Object classes, real LTX segments (a VFS hook in
+index.pyodide.org), real LTX segments (a VFS hook in
 SQLite WASM), webrun-modules' provided-before-builtin order.

@@ -326,7 +326,7 @@ export const scenarios: Record<string, Scenario> = {
       ].map((path) => ({ path })),
     headers: ["location"],
   },
-  "isolation-api": { steps: [{ path: "/" }] },
+  "isolation-api": { steps: [{ path: "/" }, { path: "/facet" }] },
   "d1-details": { steps: [{ path: "/session" }, { path: "/refused" }, { path: "/pitr" }] },
   "do-ids": { steps: [{ path: "/" }], mask: ["uniqueId"] },
   "kv-details": { steps: [{ path: "/" }] },

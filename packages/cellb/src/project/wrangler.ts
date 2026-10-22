@@ -194,7 +194,7 @@ export function createProjectRuntime(
       unsupported.push(`worker_loaders[${l.binding}] (the host provides no module loader)`);
     else
       env[l.binding] = host.isolatedModules
-        ? workerLoader(host.isolatedModules, { classes: host.loadModules })
+        ? workerLoader(host.isolatedModules) // facets of loaded code run in the isolate as well
         : workerLoader(host.loadModules);
   }
   // Cron Triggers (validated at load time like `celld deploy` does).
