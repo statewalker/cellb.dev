@@ -231,7 +231,8 @@ export function nodeIsolatedLoader(): ModuleLoader {
       return { port: port as unknown as PortLike, terminate: () => void port.terminate() };
     },
     prepare: async (_id, code) => {
-      await (isolateEntry ??= buildIsolateEntry());
+      isolateEntry ??= buildIsolateEntry();
+      await isolateEntry;
       const modules: Record<string, string> = {};
       for (const [name, m] of Object.entries(code.modules))
         modules[name] =
