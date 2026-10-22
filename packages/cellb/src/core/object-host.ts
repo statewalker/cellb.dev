@@ -70,7 +70,9 @@ export class ObjectHost {
      * elsewhere (the host refuses events). The lease epoch fences the cell's log segments;
      * losing the lease breaks the host so it stops serving.
      */
-    acquire?: (cellKey: string) => Promise<{ epoch: number; lost: AbortSignal } | undefined>;
+    acquire?: (
+      cellKey: string,
+    ) => Promise<{ epoch: number; lost: AbortSignal; release?: () => Promise<void> } | undefined>;
   }) {
     this.#backup = opts.backup;
     this.cellKey = opts.cellKey;
@@ -127,6 +129,7 @@ export class ObjectHost {
           const lease = await acquire(this.cellKey);
           if (!lease) throw new CellOwnedElsewhereError(this.cellKey);
           this.#epoch = lease.epoch;
+          this.#release = lease.release;
           lease.lost.addEventListener(
             "abort",
             () => this.#breakOn(new Error(`lease of ${this.cellKey} lost`)),
@@ -267,7 +270,11 @@ export class ObjectHost {
 
   close(): void {
     this.#driver.close();
+    // Hand the cell over at once instead of letting the lease expire.
+    void this.#release?.().catch(() => {});
+    this.#release = undefined;
   }
+  #release: (() => Promise<void>) | undefined;
 
   /** Applies log segments newer than the database's own log sequence (restore path). */
   async #replayLog(replay: NonNullable<CellBackup["replay"]>): Promise<void> {

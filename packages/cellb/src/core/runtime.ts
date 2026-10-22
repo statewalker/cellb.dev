@@ -9,7 +9,7 @@ import { type ExecutionContext, WorkerEntrypoint } from "./durable-object.js";
 import { classHandle, entrypointStub } from "./handles.js";
 import { DurableObjectId } from "./id.js";
 import { DurableObjectNamespace, localEndpoint } from "./namespace.js";
-import { type DurableObjectClass, ObjectHost } from "./object-host.js";
+import { CellOwnedElsewhereError, type DurableObjectClass, ObjectHost } from "./object-host.js";
 
 export interface WorkerModule {
   default: { fetch?(req: Request, env: any, ctx: ExecutionContext): Response | Promise<Response> };
@@ -37,6 +37,12 @@ export interface CellRuntimeOptions {
   ownership?: {
     tryAcquire(name: string): Promise<{ epoch: number; lost: AbortSignal } | undefined>;
   };
+  /**
+   * Routing between nodes (celld's peer routing): when this node cannot own a cell
+   * (`CellOwnedElsewhereError`), the call goes to the owner's node over an internal link
+   * (`cellsHttpHandler` on the far side). `ownerOf` reads the cell's lease holder.
+   */
+  peers?: { ownerOf(cellKey: string): Promise<string | undefined>; link(owner: string): Send };
   /** Hibernate objects idle this long (ms); swept every max(1 s, half of it). Off by default. */
   hibernateAfterMs?: number;
   /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
@@ -183,9 +189,54 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     hostsByClass.set(className, hostFor);
     env[binding] = new DurableObjectNamespace(className, (id) => {
       const remote = opts.route?.(`${className}/${id.toString()}`, id);
-      return remote
-        ? () => httpEndpoint(postVia(remote), codec, binding, className, id)
-        : localEndpoint(() => hostFor(id));
+      if (remote) return () => httpEndpoint(postVia(remote), codec, binding, className, id);
+      const local = localEndpoint(() => hostFor(id));
+      const peers = opts.peers;
+      if (!peers) return local;
+      const cellKey = `${className}/${id.toString()}`;
+      // Local first; a cell owned by another node is reached through that node.
+      const viaOwner = async () => {
+        const owner = await peers.ownerOf(cellKey);
+        if (!owner) throw new CellOwnedElsewhereError(cellKey);
+        return httpEndpoint(postVia(peers.link(owner)), codec, binding, className, id);
+      };
+      // The host reports a failed open as a broken object; the cause tells why.
+      const elsewhere = (e: unknown): boolean => {
+        for (
+          let x = e as { name?: string; cause?: unknown } | undefined, i = 0;
+          x && i < 5;
+          x = x.cause as never, i++
+        )
+          if (x.name === "CellOwnedElsewhereError") return true;
+        return false;
+      };
+      return () => {
+        const l = local();
+        return {
+          ...l,
+          fetch: async (req: Request) => {
+            const spare = req.body ? req.clone() : req;
+            try {
+              return await l.fetch(req);
+            } catch (e) {
+              if (!elsewhere(e)) throw e;
+              hosts.get(cellKey)?.close();
+              hosts.delete(cellKey);
+              return (await viaOwner()).fetch(spare);
+            }
+          },
+          call: async (method: string, args: unknown[]) => {
+            try {
+              return await l.call(method, args);
+            } catch (e) {
+              if (!elsewhere(e)) throw e;
+              hosts.get(cellKey)?.close();
+              hosts.delete(cellKey);
+              return (await viaOwner()).call(method, args);
+            }
+          },
+        };
+      };
     });
     bindingClasses[binding] = className;
   }

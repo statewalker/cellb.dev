@@ -45,6 +45,14 @@ export class CasLease implements Lease {
     };
   }
 
+  /** The current holder of `name` (undefined when free, released or expired). For routing. */
+  async holder(name: string): Promise<string | undefined> {
+    const cur = await this.#o.store.get(this.#o.prefix + name);
+    if (!cur) return undefined;
+    const rec = JSON.parse(cur.body) as Record_;
+    return !rec.released && this.#o.clock.now() <= rec.expiresAt ? rec.owner : undefined;
+  }
+
   async tryAcquire(name: string): Promise<LeaseHandle | undefined> {
     const { store, clock, ttlMs, skewMarginMs, owner } = this.#o;
     const key = this.#o.prefix + name;
