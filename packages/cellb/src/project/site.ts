@@ -45,6 +45,7 @@ export function createProjectSite(opts: {
     WebSocketPair: `${host}("WebSocketPair")`,
     caches: `${host}("caches")`,
     HTMLRewriter: `${host}("HTMLRewriter")`,
+    WebSocketRequestResponsePair: `${host}("WebSocketRequestResponsePair")`,
     ...(opts.nodeCompat ? { Buffer: `${host}("Buffer")`, process: `${host}("process")` } : {}),
   };
   const modules = newModuleServer({
@@ -105,6 +106,7 @@ export function workersHostRegistry(entries: {
   WebSocketPair: unknown;
   caches: unknown;
   HTMLRewriter: unknown;
+  WebSocketRequestResponsePair?: unknown;
 }): void {
   const map = new Map<string, unknown>([
     ["cloudflare:workers", entries.workersModule],
@@ -112,6 +114,7 @@ export function workersHostRegistry(entries: {
     ["WebSocketPair", entries.WebSocketPair],
     ["caches", entries.caches],
     ["HTMLRewriter", entries.HTMLRewriter],
+    ["WebSocketRequestResponsePair", entries.WebSocketRequestResponsePair],
     ...Object.entries(entries.node ?? {}),
   ]);
   (globalThis as Record<string, unknown>).__webrunHostRegistry = {

@@ -40,8 +40,9 @@ export function localEndpoint(host: () => ObjectHost): () => ObjectEndpoint {
         h.deliver(async (obj) => {
           if (typeof obj.fetch !== "function")
             throw new Error("Handler does not export a fetch() function.");
+          let res: Response;
           try {
-            return (await obj.fetch(req)) as Response;
+            res = (await obj.fetch(req)) as Response;
           } catch (e) {
             // celld: the stub's fetch() rejects with "rejected: <name>: <message> [at …]".
             const err = e as Error;
@@ -49,6 +50,14 @@ export function localEndpoint(host: () => ObjectHost): () => ObjectEndpoint {
               cause: e,
             });
           }
+          // A WebSocket answer to a request that did not ask for one fails (workerd, celld):
+          // the stub rejects and the server end sees an abnormal close.
+          const ws = (res as { webSocket?: unknown }).webSocket;
+          if (res.status === 101 && ws && req.headers.get("upgrade")?.toLowerCase() !== "websocket")
+            throw new Error(
+              "rejected: Error: a WebSocket response to a request without Upgrade: websocket",
+            );
+          return res;
         }),
       call: async (method, args) => {
         const copied = cross(args);

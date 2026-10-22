@@ -7,7 +7,12 @@ import type { PortLike } from "../../src/isolate/protocol.js";
 import { browserModuleLoader } from "../../src/project/browser-modules.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import { workersHostRegistry } from "../../src/project/site.js";
-import { CellsResponse, HTMLRewriter, WebSocketPair } from "../../src/ws/server.js";
+import {
+  CellsResponse,
+  HTMLRewriter,
+  WebSocketPair,
+  WebSocketRequestResponsePair,
+} from "../../src/ws/server.js";
 
 const WORKERS_MODULE_SHIM =
   "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
@@ -19,6 +24,7 @@ workersHostRegistry({
   WebSocketPair,
   caches: cellsCaches,
   HTMLRewriter,
+  WebSocketRequestResponsePair,
 });
 
 // The global console is left alone (the dev server's client logs here too): loaded modules

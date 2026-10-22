@@ -8,7 +8,12 @@ import { installNodeGlobals } from "../../src/node-compat/install.js";
 import { browserModuleLoader } from "../../src/project/browser-modules.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import type { WranglerConfig } from "../../src/project/wrangler.js";
-import { CellsResponse, HTMLRewriter, WebSocketPair } from "../../src/ws/server.js";
+import {
+  CellsResponse,
+  HTMLRewriter,
+  WebSocketPair,
+  WebSocketRequestResponsePair,
+} from "../../src/ws/server.js";
 import { captureLogs, runProject } from "./run-project.js";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
@@ -39,6 +44,7 @@ scope.onmessage = async (e) => {
       WebSocketPair,
       caches: cellsCaches,
       HTMLRewriter,
+      WebSocketRequestResponsePair,
     };
     const module = project.code
       ? await import(

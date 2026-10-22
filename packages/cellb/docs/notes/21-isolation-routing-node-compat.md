@@ -58,7 +58,7 @@ in-browser server serves them under aliases — an upstream change would remove 
 
 ## Test totals
 
-Unit: 240 passed, 2 skipped. Chromium: 57 runtime tests + 37 projects × 2 browser paths, all
+Unit: 241 passed, 2 skipped. Chromium: 57 runtime tests + 37 projects × 2 browser paths, all
 passed (the 2-second Workflow sleep in `workflow-api` keeps it deterministic under load).
 
 ## Ids identical to celld's
@@ -132,6 +132,14 @@ Node and Chromium.
 - **Browser limitation:** a Response built in a browser drops `Set-Cookie`, and a
   ServiceWorker cannot hand one to a page. The browser comparisons align exactly that header
   (Node matches celld fully).
+
+## WebSocket details (`ws-details`)
+
+Tags, `getWebSockets(tag)`, attachments, `setWebSocketAutoResponse` /
+`WebSocketRequestResponsePair` (now a Workers global on every host), `readyState` — match.
+Aligned with celld: a 101 answer to a `stub.fetch()` without `Upgrade: websocket` rejects;
+either end of a `WebSocketPair` may `send()` before `accept()` (workerd refuses; celld
+queues the frame).
 
 ## Mutation testing
 

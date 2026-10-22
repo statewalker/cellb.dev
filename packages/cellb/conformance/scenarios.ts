@@ -347,6 +347,13 @@ export const scenarios: Record<string, Scenario> = {
     // stack frames point into each engine's own bundle
     textMask: [[" \\[at [^\\]]*\\]", ""]],
   },
+  "ws-details": {
+    steps: [
+      { ws: "/?tag=red", send: ["hello", "ping", "info"], receive: 3 },
+      { path: "/no-upgrade" },
+      { path: "/pair" },
+    ],
+  },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

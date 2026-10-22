@@ -5,5 +5,10 @@
  * EXTERNAL module (src/ws/server.ts): if it were bundled, the injected `Response` would
  * also replace the `Response` that CellsResponse itself extends.
  */
-// @ts-expect-error — virtual specifier resolved by the bundler plugin
-export { CellsResponse as Response, caches, HTMLRewriter, WebSocketPair } from "webrun-cells:ws";
+export {
+  CellsResponse as Response,
+  caches,
+  HTMLRewriter,
+  WebSocketPair,
+  WebSocketRequestResponsePair,
+} from "webrun-cells:ws";

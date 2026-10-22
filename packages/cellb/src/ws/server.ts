@@ -98,8 +98,8 @@ export class CfWebSocket extends EventTarget {
   }
 
   send(data: string | ArrayBuffer | ArrayBufferView): void {
-    if (!this.#accepted)
-      throw new TypeError("You must call accept() on this WebSocket before sending messages.");
+    // celld lets either end of a pair send before accept() (workerd refuses); frames wait in
+    // the port until the other end listens.
     if (this.readyState !== 1) throw new TypeError("Can't call WebSocket send() after close().");
     const d = toFrameData(data);
     this[kPort]!.postMessage({ t: "m", d } satisfies Frame, typeof d === "string" ? [] : [d]);
@@ -167,3 +167,13 @@ export { cellsCaches as caches } from "../bindings/cache.js";
 
 /** Workers `HTMLRewriter` (lol-html in WASM; Node and browsers). */
 export { HTMLRewriter } from "../bindings/html-rewriter.js";
+
+/** Workers `WebSocketRequestResponsePair` (ctx.setWebSocketAutoResponse). */
+export class WebSocketRequestResponsePair {
+  readonly request: string;
+  readonly response: string;
+  constructor(request: string, response: string) {
+    this.request = request;
+    this.response = response;
+  }
+}

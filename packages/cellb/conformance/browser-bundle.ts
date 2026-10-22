@@ -26,7 +26,7 @@ export interface BrowserProject {
 export const WORKERS_MODULE_SHIM =
   "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
 const GLOBALS_SHIM =
-  "export const Response = globalThis.__cellsGlobals.Response; export const WebSocketPair = globalThis.__cellsGlobals.WebSocketPair; export const caches = globalThis.__cellsGlobals.caches; export const HTMLRewriter = globalThis.__cellsGlobals.HTMLRewriter;";
+  "export const Response = globalThis.__cellsGlobals.Response; export const WebSocketPair = globalThis.__cellsGlobals.WebSocketPair; export const caches = globalThis.__cellsGlobals.caches; export const HTMLRewriter = globalThis.__cellsGlobals.HTMLRewriter; export const WebSocketRequestResponsePair = globalThis.__cellsGlobals.WebSocketRequestResponsePair;";
 
 export async function bundleProjectForBrowser(name: string): Promise<BrowserProject> {
   const dir = projectDir(name);
