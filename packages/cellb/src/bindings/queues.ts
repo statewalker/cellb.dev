@@ -15,6 +15,8 @@ export interface QueueConsumerConfig {
   max_batch_size?: number;
   max_batch_timeout?: number;
   max_retries?: number;
+  /** Batches delivered at the same time (celld: 250 at most). */
+  max_concurrency?: number;
   retry_delay?: number;
   dead_letter_queue?: string;
 }
@@ -82,6 +84,7 @@ export function makeQueueCell(
       return {
         queue: this.#name,
         max_batch_size: c?.max_batch_size ?? 10,
+        max_concurrency: Math.min(Math.max(c?.max_concurrency ?? 1, 1), 250),
         max_batch_timeout: c?.max_batch_timeout ?? 5,
         max_retries: c?.max_retries ?? 3,
         retry_delay: c?.retry_delay ?? 0,
@@ -142,10 +145,29 @@ export function makeQueueCell(
         .exec<{ id: string; body: ArrayBuffer; attempts: number; enqueued_at: number }>(
           "SELECT id, body, attempts, enqueued_at FROM messages WHERE visible_at <= ? ORDER BY visible_at, enqueued_at LIMIT ?",
           t,
-          cfg.max_batch_size,
+          cfg.max_batch_size * cfg.max_concurrency,
         )
         .toArray();
-      if (rows.length) {
+      // Leased while in delivery: no other alarm may pick them up (settlement rewrites visible_at).
+      for (const r of rows)
+        this.ctx.storage.sql.exec(
+          "UPDATE messages SET visible_at = ? WHERE id = ?",
+          t + 12 * 3_600_000,
+          r.id,
+        );
+      // Up to max_concurrency batches are delivered at once; each is settled on its own.
+      const batches: (typeof rows)[] = [];
+      for (let i = 0; i < rows.length; i += cfg.max_batch_size)
+        batches.push(rows.slice(i, i + cfg.max_batch_size));
+      await Promise.all(batches.map((b) => this.#deliverBatch(b, cfg)));
+      await this.#schedule();
+    }
+
+    async #deliverBatch(
+      rows: { id: string; body: ArrayBuffer; attempts: number; enqueued_at: number }[],
+      cfg: { queue: string; max_retries: number; retry_delay: number; dead_letter_queue?: string },
+    ): Promise<void> {
+      {
         const settled = new Map<string, { ack: boolean; delay?: number }>();
         const settle = (id: string, s: { ack: boolean; delay?: number }) => {
           if (!settled.has(id)) settled.set(id, s); // the first call for a message wins
@@ -200,7 +222,6 @@ export function makeQueueCell(
           );
         }
       }
-      await this.#schedule();
     }
 
     /** Diagnostics (RPC): messages still in the queue. */

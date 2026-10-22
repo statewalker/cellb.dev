@@ -113,7 +113,19 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     fire: (e) => fireAlarm(e, 0),
   });
   const MAX_ALARM_RETRIES = 6; // as Cloudflare: exponential backoff from 2 s, then give up
-  async function fireAlarm(e: AlarmEntry, retryCount: number): Promise<void> {
+  // One alarm() at a time per object (as on Cloudflare): a re-armed alarm that comes due
+  // while the previous handler still runs waits for it.
+  const alarmRuns = new Map<string, Promise<void>>();
+  function fireAlarm(e: AlarmEntry, retryCount: number): Promise<void> {
+    const prev = alarmRuns.get(e.cellKey) ?? Promise.resolve();
+    const next = prev.then(() => fireAlarmNow(e, retryCount));
+    alarmRuns.set(e.cellKey, next);
+    void next.finally(() => {
+      if (alarmRuns.get(e.cellKey) === next) alarmRuns.delete(e.cellKey);
+    });
+    return next;
+  }
+  async function fireAlarmNow(e: AlarmEntry, retryCount: number): Promise<void> {
     const hostFor = hostsByClass.get(e.className);
     if (!hostFor) return;
     const host = hostFor(new DurableObjectId(e.idHex));
