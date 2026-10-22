@@ -54,6 +54,25 @@ export class R2Object {
     this.checksums = { md5: new Uint8Array(bytes).buffer };
     if (range) this.range = range;
   }
+  /** The JSON form celld gives an R2Object (r2-details project): checksums as hex. */
+  toJSON() {
+    const md5 = this.checksums.md5
+      ? [...new Uint8Array(this.checksums.md5)].map((b) => b.toString(16).padStart(2, "0")).join("")
+      : undefined;
+    return {
+      key: this.key,
+      version: this.version,
+      size: this.size,
+      etag: this.etag,
+      httpEtag: this.httpEtag,
+      uploaded: this.uploaded.toISOString(),
+      httpMetadata: this.httpMetadata,
+      customMetadata: this.customMetadata,
+      ...(this.range ? { range: this.range } : {}),
+      checksums: md5 ? { md5 } : {},
+      storageClass: this.storageClass,
+    };
+  }
   writeHttpMetadata(headers: Headers): void {
     const h = this.httpMetadata;
     if (h.contentType) headers.set("content-type", h.contentType);
@@ -213,23 +232,23 @@ function conditionHolds(c: R2Conditional | undefined, m: StoredMeta | undefined)
   return true;
 }
 
-export function r2Bucket(files: FilesApi, root: string) {
+export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
   const objectPath = (key: string) => `${root}/objects/${enc(key)}`;
   const metaPath = (key: string) => `${root}/meta/${enc(key)}.json`;
   const readMeta = async (key: string): Promise<StoredMeta | undefined> => {
     const raw = await readAll(files, metaPath(key));
     return raw ? (JSON.parse(new TextDecoder().decode(raw)) as StoredMeta) : undefined;
   };
-  const checkKey = (key: string) => {
-    if (typeof key !== "string" || key.length === 0)
-      throw new TypeError("R2 key must be a non-empty string");
-    if (new TextEncoder().encode(key).byteLength > 1024)
-      throw new TypeError("R2 key is longer than 1024 bytes");
+  // celld's messages: "R2 <op> (binding <name>): a key is 1 to 1024 bytes, not <n>".
+  const checkKey = (key: string, op = "get") => {
+    const n = new TextEncoder().encode(String(key)).byteLength;
+    if (n < 1 || n > 1024)
+      throw new Error(`R2 ${op} (binding ${binding}): a key is 1 to 1024 bytes, not ${n}`);
   };
 
   return {
     async head(key: string): Promise<R2Object | null> {
-      checkKey(key);
+      checkKey(key, "head");
       const m = await readMeta(key);
       return m ? new R2Object(m) : null;
     },
@@ -241,7 +260,7 @@ export function r2Bucket(files: FilesApi, root: string) {
         onlyIf?: R2Conditional | Headers;
       } = {},
     ): Promise<R2ObjectBody | R2Object | null> {
-      checkKey(key);
+      checkKey(key, "get");
       const m = await readMeta(key);
       if (!m) return null;
       // A failed condition returns the object's metadata without a body.
@@ -280,7 +299,7 @@ export function r2Bucket(files: FilesApi, root: string) {
         onlyIf?: R2Conditional | Headers;
       } = {},
     ): Promise<R2Object | null> {
-      checkKey(key);
+      checkKey(key, "put");
       // A refused condition stores nothing and returns null.
       if (options.onlyIf && !conditionHolds(conditionOf(options.onlyIf), await readMeta(key)))
         return null;
@@ -290,7 +309,9 @@ export function r2Bucket(files: FilesApi, root: string) {
         const expected =
           typeof options.md5 === "string" ? options.md5 : bytesToHex(new Uint8Array(options.md5));
         if (expected.toLowerCase() !== etag)
-          throw new Error("put: The Content-MD5 you specified did not match what we received.");
+          throw new Error(
+            `R2 put: the md5 checksum of the body is ${etag}, not the ${expected} the caller asserted`,
+          );
       }
       const meta: StoredMeta = {
         key,
@@ -313,7 +334,7 @@ export function r2Bucket(files: FilesApi, root: string) {
         customMetadata?: Record<string, string>;
       } = {},
     ) {
-      checkKey(key);
+      checkKey(key, "createMultipartUpload");
       const uploadId = crypto.randomUUID().replace(/-/g, "");
       await files.write(`${root}/multipart/${uploadId}/upload.json`, [
         new TextEncoder().encode(
@@ -389,15 +410,21 @@ export function r2Bucket(files: FilesApi, root: string) {
     },
 
     async delete(keys: string | string[]): Promise<void> {
-      for (const key of Array.isArray(keys) ? keys : [keys]) {
-        checkKey(key);
+      const list = Array.isArray(keys) ? keys : [keys];
+      if (list.length > 1000)
+        throw new Error(
+          `R2 delete (binding ${binding}) takes at most 1000 keys, not ${list.length}`,
+        );
+      for (const key of list) {
+        checkKey(key, "delete");
         await files.remove(metaPath(key));
         await files.remove(objectPath(key));
       }
     },
 
     async list(options: R2ListOptions = {}) {
-      const limit = Math.min(Math.max(options.limit ?? 1000, 1), 1000);
+      // celld: a limit above 1000 is clamped, and 0 (or less) means the default 1000.
+      const limit = !options.limit || options.limit < 1 ? 1000 : Math.min(options.limit, 1000);
       const keys: string[] = [];
       if (await files.exists(`${root}/meta`))
         for await (const f of files.list(`${root}/meta`)) {

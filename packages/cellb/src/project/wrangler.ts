@@ -246,7 +246,7 @@ export function createProjectRuntime(
   }
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
   for (const r2 of config.r2_buckets ?? [])
-    env[r2.binding] = r2Bucket(host.files, `/r2/${r2.bucket_name}`);
+    env[r2.binding] = r2Bucket(host.files, `/r2/${r2.bucket_name}`, r2.binding);
   for (const d1 of config.d1_databases ?? [])
     env[d1.binding] = celldExec(
       makeD1Binding({

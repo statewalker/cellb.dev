@@ -58,7 +58,7 @@ in-browser server serves them under aliases — an upstream change would remove 
 
 ## Test totals
 
-Unit: 236 passed, 2 skipped. Chromium: 57 runtime tests + 37 projects × 2 browser paths, all
+Unit: 239 passed, 2 skipped. Chromium: 57 runtime tests + 37 projects × 2 browser paths, all
 passed (the 2-second Workflow sleep in `workflow-api` keeps it deterministic under load).
 
 ## Ids identical to celld's
@@ -95,6 +95,27 @@ prepare/put/get/sweep blob protocol, and the cells use celld's fleet-wide KV nam
 projects. celld's Queues code also lives in JavaScript (`harness.js`), but it calls into
 Rust (`celld_logic::queue` through host ops) for every transition, so it is not portable the
 same way; ours stays, matching on the recorded projects.
+
+## Detail projects: storage, Queues, R2
+
+Three more projects probe celld's documented and observed edge behaviour; all now match in
+Node and Chromium.
+
+- **storage-details** — fixed two real bugs: `sql.exec()` with several statements reported
+  only the last statement's `rowsWritten` (celld sums them); a table created lazily inside a
+  rolled-back (async or nested) transaction broke later KV calls. Aligned: `undefined` is a
+  storable value, clone failures are TypeErrors, no key-count limit on get/put/delete,
+  `setAlarm()` coerces its argument (NaN → 0), SQL refusals worded as celld's authorizer
+  ("not authorized", "access to _cf_KV.scope is prohibited", wrong parameter count),
+  `one()` wording.
+- **queues-details** — `QUEUE_ERROR: …` messages with celld's limits (message ≤ 128000 bytes of
+  its wire form, delay an integer 0–86400, batch 1–100 messages and ≤ 256000 bytes,
+  contentType one of four, JSON body not undefined); `send()`/`sendBatch()` return the
+  backlog metrics (count, bytes, oldest timestamp); message ids are UUIDv7; bodies keep their
+  type (Uint8Array for bytes, Date/Map for v8).
+- **r2-details** — `R2 <op> (binding <NAME>): a key is 1 to 1024 bytes, not <n>`, at most 1000
+  keys per delete, list limits clamped (0 means 1000), celld's md5 mismatch message, no
+  customMetadata size limit, and the R2Object JSON form (checksums as hex).
 
 ## Mutation testing
 

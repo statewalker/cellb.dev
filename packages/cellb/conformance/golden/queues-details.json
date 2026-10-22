@@ -1,0 +1,89 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /validate",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "bigMessage": "Error: QUEUE_ERROR: a message is at most 128000 bytes, got 130002",
+        "negativeDelay": "Error: QUEUE_ERROR: delaySeconds must be an integer from 0 to 86400",
+        "hugeDelay": {
+          "metadata": {
+            "metrics": {
+              "backlogCount": 1,
+              "backlogBytes": 1,
+              "oldestMessageTimestamp": "<string>"
+            }
+          }
+        },
+        "maxDelay": {
+          "metadata": {
+            "metrics": {
+              "backlogCount": 2,
+              "backlogBytes": 2,
+              "oldestMessageTimestamp": "<string>"
+            }
+          }
+        },
+        "badType": "Error: QUEUE_ERROR: contentType must be \"text\", \"bytes\", \"json\", or \"v8\", got \"yaml\"",
+        "fn": "Error: QUEUE_ERROR: the JSON message body cannot be undefined",
+        "jsonUndefined": "Error: QUEUE_ERROR: the JSON message body cannot be undefined",
+        "emptyBatch": "Error: QUEUE_ERROR: sendBatch() needs at least one message",
+        "batch101": "Error: QUEUE_ERROR: a batch has at most 100 messages",
+        "batchBytes": "Error: QUEUE_ERROR: a batch is at most 256000 bytes, got 300006",
+        "sendResult": "object"
+      }
+    },
+    {
+      "request": "GET /send",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "sent": 4
+      }
+    },
+    {
+      "request": "GET /log",
+      "status": 200,
+      "contentType": "application/json",
+      "body": [
+        {
+          "k": "json",
+          "shape": "{\"k\":\"json\",\"d\":\"1970-01-01T00:00:00.000Z\"}",
+          "idLooksLikeUuid": true,
+          "timestampIsDate": true,
+          "attempts": 1
+        },
+        {
+          "k": "r",
+          "shape": "\"r\"",
+          "idLooksLikeUuid": true,
+          "timestampIsDate": true,
+          "attempts": 1
+        },
+        {
+          "k": "text body",
+          "shape": "\"text body\"",
+          "idLooksLikeUuid": true,
+          "timestampIsDate": true,
+          "attempts": 1
+        },
+        {
+          "k": "Uint8Array:1,2,3",
+          "shape": "Uint8Array:1,2,3",
+          "idLooksLikeUuid": true,
+          "timestampIsDate": true,
+          "attempts": 1
+        },
+        {
+          "k": "v8",
+          "shape": "v8:1970-01-01T00:00:00.000Z:Map",
+          "idLooksLikeUuid": true,
+          "timestampIsDate": true,
+          "attempts": 1
+        }
+      ]
+    }
+  ]
+}

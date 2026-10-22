@@ -1,0 +1,11 @@
+{
+  "name": "queues-details",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": { "bindings": [{ "name": "LOG", "class_name": "Log" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Log"] }],
+  "queues": {
+    "producers": [{ "binding": "Q", "queue": "details" }],
+    "consumers": [{ "queue": "details", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 2 }]
+  }
+}

@@ -38,19 +38,58 @@ const LIMITS = {
 
 // Errors are plain `Error`s and a text body is converted with String(), as celld does
 // (verified by conformance/projects/queues-api against celld 0.6.2).
-function encode(e: Entry): Uint8Array {
+const queueError = (m: string) => new Error(`QUEUE_ERROR: ${m}`);
+
+/**
+ * Message ids as celld makes them: UUIDv7 (48-bit enqueue time, 12-bit sequence within the
+ * millisecond, random bits), so ids sort in enqueue order.
+ */
+let lastMs = 0;
+let seq = 0;
+export function uuidv7(now: number): string {
+  if (now > lastMs) {
+    lastMs = now;
+    seq = 0;
+  } else seq = (seq + 1) & 0xfff;
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  const ms = lastMs;
+  for (let i = 0; i < 6; i++) b[i] = Math.floor(ms / 2 ** (8 * (5 - i))) & 0xff;
+  b[6] = 0x70 | (seq >> 8);
+  b[7] = seq & 0xff;
+  b[8] = 0x80 | (b[8] & 0x3f);
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/** celld's message size: the bytes of its wire form (JSON text, UTF-8 text, raw bytes, clone). */
+function messageBytes(e: Entry, encoded: Uint8Array): number {
   const type = e.contentType ?? "json";
+  if (type === "json") return new TextEncoder().encode(JSON.stringify(e.body)).byteLength;
+  if (type === "text") return new TextEncoder().encode(String(e.body)).byteLength;
+  if (type === "bytes") return (e.body as ArrayBufferView | ArrayBuffer).byteLength;
+  return encoded.byteLength;
+}
+
+/** Validates and encodes one message with celld's rules and messages (queues-details project). */
+function encode(e: Entry): { bytes: Uint8Array; size: number } {
+  const type = e.contentType ?? "json";
+  if (!["text", "bytes", "json", "v8"].includes(type))
+    throw queueError(
+      `contentType must be "text", "bytes", "json", or "v8", got ${JSON.stringify(type)}`,
+    );
   if (type === "text") e.body = String(e.body);
   if (type === "bytes" && !(e.body instanceof ArrayBuffer || ArrayBuffer.isView(e.body)))
-    throw new Error("Queue: a bytes message body must be an ArrayBuffer or a view");
-  if (type === "json") JSON.stringify(e.body); // throws on non-serializable values, as Cloudflare does
-  const bytes = jsonCodec.encode(e.body);
-  if (bytes.byteLength > LIMITS.messageBytes)
-    throw new Error(`Queue: message larger than ${LIMITS.messageBytes} bytes`);
+    throw queueError("a bytes message body must be an ArrayBuffer or a typed array");
+  if (type === "json" && JSON.stringify(e.body) === undefined)
+    throw queueError("the JSON message body cannot be undefined");
+  const bytes = jsonCodec.encode(type === "json" ? JSON.parse(JSON.stringify(e.body)) : e.body);
+  const size = messageBytes(e, bytes);
+  if (size > LIMITS.messageBytes)
+    throw queueError(`a message is at most ${LIMITS.messageBytes} bytes, got ${size}`);
   const delay = e.delaySeconds ?? 0;
-  if (!(delay >= 0 && delay <= LIMITS.maxDelaySeconds))
-    throw new Error("Queue: delaySeconds must be within 0..86400");
-  return bytes;
+  if (!Number.isInteger(delay) || delay < 0 || delay > LIMITS.maxDelaySeconds)
+    throw queueError(`delaySeconds must be an integer from 0 to ${LIMITS.maxDelaySeconds}`);
+  return { bytes, size };
 }
 
 export interface QueueDispatcher {
@@ -71,7 +110,8 @@ export function makeQueueCell(
       if (this.#ready) return;
       this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY, body BLOB NOT NULL, content_type TEXT NOT NULL,
-        attempts INTEGER NOT NULL DEFAULT 0, visible_at INTEGER NOT NULL, enqueued_at INTEGER NOT NULL)`);
+        attempts INTEGER NOT NULL DEFAULT 0, visible_at INTEGER NOT NULL, enqueued_at INTEGER NOT NULL,
+        size INTEGER NOT NULL DEFAULT 0)`);
       this.#ready = true;
     }
     get #name(): string {
@@ -93,26 +133,44 @@ export function makeQueueCell(
     }
 
     /** Producer entry point (RPC): commits the messages, then (re)schedules delivery. */
-    async __send(entries: Entry[], raw = false): Promise<void> {
+    async __send(entries: Entry[], raw = false) {
       this.#init();
       const t = now();
       let bytes = 0;
       for (const e of entries) {
-        const body = raw ? (e.body as Uint8Array) : encode(e);
-        bytes += body.byteLength;
+        const enc = raw
+          ? { bytes: e.body as Uint8Array, size: (e as { size?: number }).size ?? 0 }
+          : encode(e);
+        const body = enc.bytes;
+        bytes += enc.size;
         this.ctx.storage.sql.exec(
-          "INSERT INTO messages (id, body, content_type, attempts, visible_at, enqueued_at) VALUES (?, ?, ?, ?, ?, ?)",
-          crypto.randomUUID().replace(/-/g, ""),
+          "INSERT INTO messages (id, body, content_type, attempts, visible_at, enqueued_at, size) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          uuidv7(t),
           body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength),
           e.contentType ?? "json",
           raw ? Number((e as Entry & { attempts?: number }).attempts ?? 0) : 0,
           t + (e.delaySeconds ?? 0) * 1000,
           t,
+          enc.size,
         );
       }
-      if (!raw && entries.length > 1 && bytes > LIMITS.batchBytes)
-        throw new Error(`Queue: batch larger than ${LIMITS.batchBytes} bytes`);
+      void bytes;
       await this.#schedule();
+      // The send response's metrics (Cloudflare's QueueSendResponse, as celld fills it).
+      const m = this.ctx.storage.sql
+        .exec<{ n: number; b: number | null; o: number | null }>(
+          "SELECT count(*) AS n, sum(size) AS b, min(enqueued_at) AS o FROM messages",
+        )
+        .one();
+      return {
+        metadata: {
+          metrics: {
+            backlogCount: Number(m.n),
+            backlogBytes: Number(m.b ?? 0),
+            oldestMessageTimestamp: m.o === null ? null : new Date(Number(m.o)).toISOString(),
+          },
+        },
+      };
     }
 
     async #schedule(): Promise<void> {
@@ -204,7 +262,17 @@ export function makeQueueCell(
             if (cfg.dead_letter_queue)
               await queues()
                 .getByName(cfg.dead_letter_queue)
-                .__send([{ body: new Uint8Array(r.body), contentType: "v8", attempts: 0 }], true);
+                .__send(
+                  [
+                    {
+                      body: new Uint8Array(r.body),
+                      contentType: "v8",
+                      attempts: 0,
+                      size: r.body.byteLength,
+                    },
+                  ],
+                  true,
+                );
             continue;
           }
           const delay = s.delay ?? cfg.retry_delay;
@@ -242,17 +310,21 @@ export function queueProducer(queues: DurableObjectNamespace, queue: string, def
         delaySeconds: options.delaySeconds ?? defaultDelay,
       };
       encode(e); // validate on the producer side, as Cloudflare does
-      await stub().__send([e]);
+      return stub().__send([e]);
     },
     async sendBatch(messages: Iterable<Entry>, options: { delaySeconds?: number } = {}) {
       const list = [...messages].map((m) => ({
         ...m,
         delaySeconds: m.delaySeconds ?? options.delaySeconds ?? defaultDelay,
       }));
+      if (list.length === 0) throw queueError("sendBatch() needs at least one message");
       if (list.length > LIMITS.batchMessages)
-        throw new Error("Queue: at most 100 messages per sendBatch()");
-      for (const m of list) encode(m);
-      await stub().__send(list);
+        throw queueError(`a batch has at most ${LIMITS.batchMessages} messages`);
+      let total = 0;
+      for (const m of list) total += encode(m).size;
+      if (total > LIMITS.batchBytes)
+        throw queueError(`a batch is at most ${LIMITS.batchBytes} bytes, got ${total}`);
+      return stub().__send(list);
     },
   };
 }

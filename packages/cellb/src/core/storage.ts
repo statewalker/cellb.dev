@@ -44,7 +44,9 @@ export class SyncKvStorage {
       structuredClone(value);
     } catch (e) {
       // Browsers prefix the engine message ("Failed to execute 'structuredClone' on …: ").
-      throw new TypeError((e as Error).message.replace(/^Failed to execute '[^']+' on '[^']+': /, ""));
+      throw new TypeError(
+        (e as Error).message.replace(/^Failed to execute '[^']+' on '[^']+': /, ""),
+      );
     }
     this.#sql.internalExec("INSERT OR REPLACE INTO _cf_KV (key, value) VALUES (?, ?)", [
       key,

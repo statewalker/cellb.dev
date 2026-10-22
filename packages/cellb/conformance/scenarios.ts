@@ -331,6 +331,12 @@ export const scenarios: Record<string, Scenario> = {
   "storage-details": {
     steps: [{ path: "/kv" }, { path: "/sql" }, { path: "/txn" }, { path: "/alarms" }],
   },
+  "queues-details": {
+    steps: [{ path: "/validate" }, { path: "/send" }, { waitMs: 3500 }, { path: "/log" }],
+    mask: ["oldestMessageTimestamp"],
+  },
+  // etag/version are celld dev-mode store generations; uploaded is a clock reading
+  "r2-details": { steps: [{ path: "/" }], mask: ["etag", "httpEtag", "version", "uploaded"] },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,
