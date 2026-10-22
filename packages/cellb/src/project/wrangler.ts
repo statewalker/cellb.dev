@@ -1,5 +1,6 @@
 import type { FilesApi } from "@statewalker/webrun-files";
 import { type AssetFiles, type AssetsConfig, createAssets } from "../bindings/assets.js";
+import { celldKv } from "../bindings/celld-kv.js";
 import { startCronTriggers } from "../bindings/cron.js";
 import {
   makeQueueCell,
@@ -21,13 +22,8 @@ import {
 import { splitSqlStatements } from "../core/sql-split.js";
 import { systemClock } from "../lease/lease.js";
 import { filesApiBlobService } from "../miniflare-compat/blob-service.js";
-import { kvNamespaceBinding } from "../miniflare-compat/kv-binding.js";
 import { simulatorFetcher } from "../miniflare-compat/simulator-fetcher.js";
-import {
-  D1DatabaseObject,
-  KVNamespaceObject,
-  makeD1Binding,
-} from "../miniflare-compat/vendored.js";
+import { D1DatabaseObject, makeD1Binding } from "../miniflare-compat/vendored.js";
 
 /** The subset of wrangler.json(c) that celld deploys (and webrun-cells reads). */
 export interface WranglerConfig {
@@ -105,8 +101,10 @@ export function createProjectRuntime(
     durableObjects[b.name] = { className: b.class_name };
   }
   const worker: WorkerModule = { ...module };
+  let kv: ReturnType<typeof celldKv> | undefined;
   if (config.kv_namespaces?.length) {
-    worker.__CellsKVNamespace = KVNamespaceObject;
+    kv = celldKv(host.files);
+    worker.__CellsKVNamespace = kv.KvNamespaceCell as never;
     durableObjects[KV_OBJECTS] = { className: "__CellsKVNamespace" };
   }
   if (config.d1_databases?.length) {
@@ -166,8 +164,9 @@ export function createProjectRuntime(
     clock: host.clock,
   });
   const env = runtime.env as Record<string, unknown>;
-  for (const kv of config.kv_namespaces ?? [])
-    env[kv.binding] = kvNamespaceBinding(env[KV_OBJECTS] as DurableObjectNamespace, kv.id);
+  // KV: celld's own client against celld's own namespace cell (cell name "<id>/<shard>").
+  for (const ns of config.kv_namespaces ?? [])
+    env[ns.binding] = new kv!.KvNamespace(() => env[KV_OBJECTS], `${ns.id}/0`);
   for (const p of config.queues?.producers ?? [])
     env[p.binding] = queueProducer(
       env[QUEUE_OBJECTS] as DurableObjectNamespace,

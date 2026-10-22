@@ -1,0 +1,29 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "emptyKey": "Error: KV_ERROR: a key must not be empty",
+        "dotKey": "ok",
+        "longKey": "Error: KV_ERROR: a key is at most 512 bytes, got 513",
+        "maxKey": "ok",
+        "bigMeta": "Error: KV_ERROR: metadata is at most 1024 bytes, got 1108",
+        "shortTtl": "Error: KV_ERROR: expirationTtl is at least 60 seconds",
+        "pastExpiration": "Error: KV_ERROR: expiration 1 is in the past",
+        "cacheTtl": null,
+        "listLimit": 2,
+        "bulkTooMany": "Error: KV_ERROR: a bulk get takes at most 100 keys, got 101",
+        "bulkBadType": {},
+        "getMissingWithMeta": {
+          "value": null,
+          "metadata": null,
+          "cacheStatus": null
+        },
+        "deleteMissing": "ok"
+      }
+    }
+  ]
+}
