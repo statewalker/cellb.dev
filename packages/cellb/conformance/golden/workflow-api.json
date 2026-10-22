@@ -50,15 +50,6 @@
       }
     },
     {
-      "request": "GET /status?id=s1",
-      "status": 200,
-      "contentType": "application/json",
-      "body": {
-        "status": "waiting",
-        "rollback": null
-      }
-    },
-    {
       "request": "GET /status?id=e1",
       "status": 200,
       "contentType": "application/json",

@@ -1,6 +1,6 @@
 import { deserializeError, serializeError } from "@statewalker/webrun-streams";
 import { jsonCodec } from "../core/codec.js";
-import { type DurableObjectId, idFromName } from "../core/id.js";
+import type { DurableObjectId } from "../core/id.js";
 import {
   DurableObjectNamespace,
   type DurableObjectStub,
@@ -62,7 +62,17 @@ export function cellsHttpHandler(
     const kind = req.headers.get(H.kind);
     if (!kind) return runtime.fetch(stripControl(req));
     try {
-      if (kind === "describe") return Response.json({ bindings: runtime.durableObjectBindings });
+      if (kind === "describe")
+        return Response.json({
+          bindings: runtime.durableObjectBindings,
+          // The far side derives the same ids only with the same namespace keys.
+          keys: Object.fromEntries(
+            Object.keys(runtime.durableObjectBindings).map((b) => [
+              b,
+              (runtime.env[b] as { namespaceKey?: string }).namespaceKey,
+            ]),
+          ),
+        });
       const stub = stubOf(
         runtime,
         req.headers.get(H.binding) ?? "",
@@ -134,11 +144,14 @@ export async function remoteRuntime(
   const codec = opts.codec ?? jsonCodec;
   const post = postVia(send);
   const described = await post(control("describe", {}));
-  const { bindings } = (await described.json()) as { bindings: Record<string, string> };
+  const { bindings, keys } = (await described.json()) as {
+    bindings: Record<string, string>;
+    keys?: Record<string, string>;
+  };
   const env: Record<string, DurableObjectNamespace> = {};
   for (const [binding, className] of Object.entries(bindings))
     env[binding] = new DurableObjectNamespace(
-      className,
+      keys?.[binding] ?? className,
       (id) => () => httpEndpoint(post, codec, binding, className, id),
     );
   return { env, fetch: (req) => send(withScheme(req)) };
@@ -161,11 +174,9 @@ export function httpEndpoint(
   className: string,
   id: DurableObjectId,
 ): ObjectEndpoint {
-  // By name when it reproduces the id: keeps ctx.id.name on the far side.
-  const target =
-    id.name !== undefined && idFromName(className, id.name).equals(id)
-      ? `name:${id.name}`
-      : `id:${id}`;
+  // By name when the id came from one (only idFromName() sets `name`): keeps ctx.id.name
+  // on the far side, which derives the same id with the same namespace key.
+  const target = id.name !== undefined ? `name:${id.name}` : `id:${id}`;
   const base = { [H.binding]: binding, [H.target]: target };
   return {
     fetch: (req) => post(addHeaders(req, { [H.kind]: "fetch", ...base })),

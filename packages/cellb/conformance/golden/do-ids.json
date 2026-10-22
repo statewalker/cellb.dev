@@ -1,0 +1,35 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "alpha": "327e084872201c0bbe8315abaf81b6a823657331ecea4d2bb8c5910a27690bdf",
+        "alphaInB": "6bb8f1d52df57328d0aa69e945af6b75c913a4d686f74b04f2f5b9eb69bb15ec",
+        "empty": "47993b623b791ecebdfbabb23b0388aa6dae5e18dcea486af647de8ab3b4e1a8",
+        "unicode": "887963cf146496251d3ba1edb76b81b1f4a1627d29094df25898a6b5ac69b457",
+        "equals": true,
+        "name": "alpha",
+        "fromString": true,
+        "fromStringName": null,
+        "otherNamespace": "TypeError: Durable Object ID is not valid for this namespace",
+        "garbage": "TypeError: Invalid Durable Object ID: must be 64 hex digits",
+        "uniqueLength": 64,
+        "uniqueValid": true,
+        "seen": {
+          "id": "327e084872201c0bbe8315abaf81b6a823657331ecea4d2bb8c5910a27690bdf",
+          "name": "alpha"
+        },
+        "seenByName": {
+          "id": "327e084872201c0bbe8315abaf81b6a823657331ecea4d2bb8c5910a27690bdf",
+          "name": "alpha"
+        },
+        "longName": {
+          "named": false
+        }
+      }
+    }
+  ]
+}

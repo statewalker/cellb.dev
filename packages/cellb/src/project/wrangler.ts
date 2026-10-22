@@ -154,6 +154,13 @@ export function createProjectRuntime(
     vars: { ...config.vars, MINIFLARE_BLOBS: filesApiBlobService(host.files) },
     openSql: host.openSql,
     sqlExtensions,
+    scriptName: config.name ?? "worker",
+    // celld's fleet-wide namespaces for the resources several scripts can share.
+    namespaceKeys: {
+      __CellsKVNamespace: "cells:v1:kv:__KvNamespace",
+      __CellsD1Database: "cells:v1:d1:__D1Database",
+      __CellsQueue: "cells:v1:queue:__Queue",
+    },
     durability: host.durability,
     backup: host.backup,
     clock: host.clock,

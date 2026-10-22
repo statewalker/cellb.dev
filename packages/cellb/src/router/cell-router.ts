@@ -1,4 +1,4 @@
-import { idFromName } from "../core/id.js";
+import { idFromName, namespaceKey } from "../core/id.js";
 import { shardOf } from "../core/shard.js";
 import { errorResponse, H, type Send, stripControl } from "../transport/cells-http.js";
 import {
@@ -10,8 +10,10 @@ import {
 
 export interface CellRouterOptions {
   shards: number;
-  /** Durable Object binding → class name (namespace key), as in wrangler config. */
+  /** Durable Object binding → class name, as in wrangler config. */
   bindings: Record<string, string>;
+  /** The Worker script's name: ids derive from it (default "worker", as the runtime's). */
+  scriptName?: string;
   /** Called when a request needs a shard that has no live link (e.g. ask pages to re-attach). */
   onMissingShard?: (shard: number) => void;
   /** How long a request waits for its shard to be attached (default 10 s). */
@@ -225,7 +227,10 @@ export class CellRouter {
     const className = this.#opts.bindings[binding];
     if (!className) throw new Error(`Unknown Durable Object binding "${binding}"`);
     const hex = target.startsWith("name:")
-      ? idFromName(className, target.slice(5)).toString()
+      ? idFromName(
+          namespaceKey(this.#opts.scriptName ?? "worker", className),
+          target.slice(5),
+        ).toString()
       : target.slice(3);
     return shardOf(hex, this.#opts.shards);
   }

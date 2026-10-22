@@ -7,7 +7,7 @@ import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
 import { jsonCodec } from "./codec.js";
 import { type ExecutionContext, WorkerEntrypoint } from "./durable-object.js";
 import { classHandle, entrypointStub } from "./handles.js";
-import { DurableObjectId } from "./id.js";
+import { DurableObjectId, namespaceKey } from "./id.js";
 import { DurableObjectNamespace, localEndpoint } from "./namespace.js";
 import { CellOwnedElsewhereError, type DurableObjectClass, ObjectHost } from "./object-host.js";
 
@@ -31,6 +31,10 @@ export interface CellRuntimeOptions {
    * worker, tab or peer); `undefined` means "host it here". Default: all local.
    */
   route?: (cellKey: string, id: DurableObjectId) => Send | undefined;
+  /** The Worker script's name (wrangler `name`): object ids derive from it, as on celld. */
+  scriptName?: string;
+  /** Namespace keys overriding the script-scoped default, per class (celld's fleet-wide ones). */
+  namespaceKeys?: Record<string, string>;
   /** Periodic backup of cell databases to a separate store (e.g. a FilesApi); restore on open. */
   backup?: CellBackup;
   /** Per-cell ownership: each object takes this lease before it opens (fencing epoch → log). */
@@ -187,7 +191,9 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       return h;
     };
     hostsByClass.set(className, hostFor);
-    env[binding] = new DurableObjectNamespace(className, (id) => {
+    const nsKey =
+      opts.namespaceKeys?.[className] ?? namespaceKey(opts.scriptName ?? "worker", className);
+    env[binding] = new DurableObjectNamespace(nsKey, (id) => {
       const remote = opts.route?.(`${className}/${id.toString()}`, id);
       if (remote) return () => httpEndpoint(postVia(remote), codec, binding, className, id);
       const local = localEndpoint(() => hostFor(id));

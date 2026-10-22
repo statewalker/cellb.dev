@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { idFromName } from "../src/core/id.js";
+import { idFromName, namespaceKey } from "../src/core/id.js";
 import {
   CellRouter,
   createWebSocketClass,
@@ -71,7 +71,10 @@ describe("P07x WebSocket routing: control ports carry socket ports between route
   }
   const roomIn = (shard: number, tag: string) => {
     for (let i = 0; ; i++)
-      if (shardOf(idFromName("Room", `${tag}${i}`).toString(), SHARDS) === shard)
+      if (
+        shardOf(idFromName(namespaceKey("worker", "Room"), `${tag}${i}`).toString(), SHARDS) ===
+        shard
+      )
         return `${tag}${i}`;
   };
   const next = (ws: any, type: string) =>

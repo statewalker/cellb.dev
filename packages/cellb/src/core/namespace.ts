@@ -1,5 +1,5 @@
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
-import { DurableObjectId, idFromName, newUniqueId } from "./id.js";
+import { type DurableObjectId, idFromName, newUniqueId, validateId } from "./id.js";
 import type { ObjectHost } from "./object-host.js";
 import type { DurableObjectState } from "./state.js";
 
@@ -50,11 +50,17 @@ export class DurableObjectNamespace {
   idFromName(name: string): DurableObjectId {
     return idFromName(this.#key, name);
   }
-  newUniqueId(_opts?: { jurisdiction?: string }): DurableObjectId {
-    return newUniqueId();
+  newUniqueId(opts?: { jurisdiction?: string }): DurableObjectId {
+    if (opts?.jurisdiction != null)
+      throw new Error("Jurisdiction restrictions are not implemented");
+    return newUniqueId(this.#key);
   }
   idFromString(hex: string): DurableObjectId {
-    return new DurableObjectId(hex);
+    return validateId(this.#key, hex);
+  }
+  /** The key ids of this namespace derive from (see id.ts). */
+  get namespaceKey(): string {
+    return this.#key;
   }
   get(id: DurableObjectId): DurableObjectStub {
     return createStub(id, this.#endpoint(id));

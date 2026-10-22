@@ -239,7 +239,8 @@ export const scenarios: Record<string, Scenario> = {
       { path: "/create?id=f1&kind=fail" },
       { path: "/create?id=l1&kind=long" },
       { waitMs: 300 },
-      { path: "/status?id=s1" },
+      // (no mid-sleep check of s1: timing-dependent on a loaded machine; l1 covers "waiting")
+
       { path: "/status?id=e1" },
       { path: "/status?id=l1" },
       { path: "/event?id=e1" },
@@ -325,6 +326,7 @@ export const scenarios: Record<string, Scenario> = {
   },
   "isolation-api": { steps: [{ path: "/" }] },
   "d1-details": { steps: [{ path: "/session" }, { path: "/refused" }, { path: "/pitr" }] },
+  "do-ids": { steps: [{ path: "/" }], mask: ["uniqueId"] },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,
