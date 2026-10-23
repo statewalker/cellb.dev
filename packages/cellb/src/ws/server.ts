@@ -124,6 +124,11 @@ export class WebSocketPair {
     this[0].peer = this[1];
     this[1].peer = this[0];
   }
+  /** `const [client, server] = new WebSocketPair()`, as in workerd. */
+  *[Symbol.iterator](): IterableIterator<CfWebSocket> {
+    yield this[0];
+    yield this[1];
+  }
 }
 
 /**
