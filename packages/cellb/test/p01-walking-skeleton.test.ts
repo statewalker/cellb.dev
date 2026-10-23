@@ -58,6 +58,25 @@ describe("P01 walking skeleton: Request → Worker → DO stub → SQLite → Re
     expect(await stub.kept()).toEqual([1, 99]);
   });
 
+  it("an object's fetch() returning a non-Response answers with it as text (celld)", async () => {
+    const rt = createCellRuntime({
+      worker: {
+        Plain: class {
+          fetch = () => ({ not: "a response" });
+        },
+        default: {},
+      },
+      durableObjects: { PLAIN: { className: "Plain" } },
+      openSql: nodeSqliteOpener(),
+    });
+    const res = await (rt.env.PLAIN as any).getByName("p").fetch("https://x/");
+    expect([res instanceof Response, res.status, await res.text()]).toEqual([
+      true,
+      200,
+      "[object Object]",
+    ]);
+  });
+
   it("idFromName is deterministic and namespaced; idFromString round-trips", () => {
     const ns: any = newRuntime().env.COUNTER;
     const a1 = ns.idFromName("a");

@@ -42,7 +42,8 @@ export function localEndpoint(host: () => ObjectHost): () => ObjectEndpoint {
             throw new Error("Handler does not export a fetch() function.");
           let res: Response;
           try {
-            res = (await obj.fetch(req)) as Response;
+            const r = await obj.fetch(req);
+            res = r instanceof Response ? r : new Response(String(r)); // a non-Response is sent as text (celld)
           } catch (e) {
             // celld: the stub's fetch() rejects with "rejected: <name>: <message> [at …]".
             const err = e as Error;
