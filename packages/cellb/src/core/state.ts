@@ -23,9 +23,15 @@ export class DurableObjectState {
     this.#gate = gate;
     this.#waitUntil = waitUntil;
   }
+  /** Open blockConcurrencyWhile() sections (nested ones are open together). */
+  #blockDepth = 0;
   /** No event is delivered to the object until `fn` settles. */
   blockConcurrencyWhile<T>(fn: () => Promise<T>): Promise<T> {
-    const p = this.#gate.runClosed(fn);
+    // As workerd (io-context.h) and celld: at most 64 nested sections; the next throws at once.
+    if (this.#blockDepth >= 64)
+      throw new Error("blockConcurrencyWhile() calls are nested too deeply.");
+    this.#blockDepth++;
+    const p = this.#gate.runClosed(fn).finally(() => this.#blockDepth--);
     // A failure resets the object even when the caller (typically the
     // constructor) does not await the promise; the rejection is then observed.
     p.catch((e) => this.#onBlockFailure(e));

@@ -56,6 +56,24 @@ describe("P03 input gate", () => {
       Probe.init = undefined;
     }
   });
+
+  it("blockConcurrencyWhile nests 64 deep; the 65th throws at once (as workerd and celld)", async () => {
+    const { ns } = probeRuntime();
+    const probe = (depth: number) =>
+      runInDurableObject(ns.getByName(`depth-${depth}`), (_o, ctx) => {
+        const enter = async (n: number): Promise<string> => {
+          if (n > 0) return ctx.blockConcurrencyWhile(() => enter(n - 1));
+          try {
+            return await ctx.blockConcurrencyWhile(async () => "ok");
+          } catch (e) {
+            return (e as Error).message;
+          }
+        };
+        return enter(depth);
+      });
+    expect(await probe(63)).toBe("ok");
+    expect(await probe(64)).toBe("blockConcurrencyWhile() calls are nested too deeply.");
+  });
 });
 
 describe("P03 failing blockConcurrencyWhile", () => {
