@@ -357,6 +357,7 @@ export const scenarios: Record<string, Scenario> = {
     ],
   },
   "kv-values": { steps: [{ path: "/write" }, { path: "/read" }] },
+  "alarm-retry": { steps: [{ path: "/arm?in=300" }, { waitMs: 9000 }, { path: "/" }] },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

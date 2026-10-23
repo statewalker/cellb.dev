@@ -249,13 +249,62 @@ export class DurableObjectStorage extends AsyncKvApi {
     for (const ddl of CELLD_SCHEMA) this.sql.internalExec(ddl);
     this.#metaReady = true;
   }
-  /** Synchronous read of the stored alarm (ms since epoch) or null. */
-  alarmSync(): number | null {
+  /**
+   * The alarm row as celld keeps it (storage.rs): due time, failure counters, and a random
+   * generation that changes with every setAlarm() — so a handler's own change is detected.
+   */
+  alarmRowSync(): { at: number; retry: number; counted: number; generation: string } | null {
     this.#meta();
-    const row = this.sql.internalExec("SELECT at_ms FROM _cf_ALARM WHERE scope = ?", [
-      this.kv.scope,
-    ]).rows[0];
-    return row ? Number(row[0]) : null;
+    const r = this.sql.internalExec(
+      // generation is a 64-bit random(): read as text (beyond JS's safe integers)
+      "SELECT at_ms, retry, counted_retry, CAST(generation AS TEXT) FROM _cf_ALARM WHERE scope = ?",
+      [this.kv.scope],
+    ).rows[0];
+    return r
+      ? { at: Number(r[0]), retry: Number(r[1]), counted: Number(r[2]), generation: String(r[3]) }
+      : null;
+  }
+  /** The alarm being handled: getAlarm() reads null until the handler changes the alarm. */
+  #active: { generation: string } | undefined;
+  beginAlarm(row: { generation: string }): void {
+    this.#active = { generation: row.generation };
+  }
+  /**
+   * After the handler (celld's finish_alarm_handler): unless the handler changed the alarm,
+   * success deletes it and failure reschedules it with backoff (2 s << min(retry, 6)) —
+   * abandoned after 6 counted failures. Returns the alarm now stored.
+   */
+  finishAlarm(
+    fired: { at: number; generation: string },
+    succeeded: boolean,
+    now: number,
+  ): number | null {
+    this.#active = undefined;
+    const cur = this.alarmRowSync();
+    if (!cur || cur.generation !== fired.generation) return cur?.at ?? null;
+    if (succeeded) {
+      this.sql.internalExec("DELETE FROM _cf_ALARM WHERE scope = ? AND at_ms = ?", [
+        this.kv.scope,
+        fired.at,
+      ]);
+    } else if (cur.counted >= 6) {
+      this.sql.internalExec("DELETE FROM _cf_ALARM WHERE scope = ?", [this.kv.scope]);
+    } else {
+      const at = now + 2_000 * 2 ** Math.min(Math.max(cur.retry, 0), 6);
+      this.sql.internalExec(
+        "UPDATE _cf_ALARM SET at_ms = ?, retry = retry + 1, counted_retry = counted_retry + 1 WHERE scope = ?",
+        [at, this.kv.scope],
+      );
+    }
+    const after = this.alarmRowSync()?.at ?? null;
+    this.onAlarmChange(after);
+    return after;
+  }
+  /** Synchronous read of the stored alarm (ms since epoch) or null (null while it is handled). */
+  alarmSync(): number | null {
+    const row = this.alarmRowSync();
+    if (row && this.#active && this.#active.generation === row.generation) return null;
+    return row ? row.at : null;
   }
   /** One alarm per object, in celld's `_cf_ALARM` (same transaction as the event's writes). */
   getAlarm(_opts?: unknown): Promise<number | null> {
@@ -268,7 +317,8 @@ export class DurableObjectStorage extends AsyncKvApi {
     return this.op(() => {
       this.#meta();
       this.sql.internalExec(
-        "INSERT INTO _cf_ALARM (scope, at_ms) VALUES (?, ?) ON CONFLICT(scope) DO UPDATE SET at_ms = excluded.at_ms, retry = 0",
+        // celld's statement: counters reset, a new random generation
+        "INSERT INTO _cf_ALARM(scope,at_ms,retry,counted_retry,generation) VALUES(?,?,0,0,random()) ON CONFLICT(scope) DO UPDATE SET at_ms=excluded.at_ms, retry=0, counted_retry=0, generation=random()",
         [this.kv.scope, at],
       );
       this.onAlarmChange(at);

@@ -255,5 +255,50 @@ describe.skipIf(!CELLD)(
         store.close();
       }
     }, 120_000);
+
+    it("a failing alarm's retries continue across runtimes (retry count in the alarm row)", async () => {
+      const dir = join(mkdtempSync(join(tmpdir(), "alarm-retry-")), "alarm-retry");
+      cpSync(join(ours, "alarm-retry"), dir, { recursive: true });
+      // celld: armed in 300 ms; the first attempt (retryCount 0) fails and is rescheduled
+      // 2 s later — celld stops before that retry.
+      const celld = await celldDev(dir);
+      await fetch(`${celld.base}/arm?in=300`);
+      await new Promise((r) => setTimeout(r, 1_200));
+      expect(await (await fetch(`${celld.base}/`)).json()).toEqual({
+        attempts: [0],
+        done: null,
+        pending: true,
+      });
+      await stop(celld.p);
+      // webrun-cells finds the retry in the wake index and continues the count.
+      const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+      const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
+      const { runtime } = await loadNodeProject(dir, {
+        openSql: nodeSqliteOpener(),
+        files: new MemFilesApi(),
+        ownership: bucket.ownership,
+        durability: bucket.durability,
+        backup: bucket.durability,
+      } as never);
+      try {
+        let got: any;
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          const text = await (await runtime.fetch(new Request("http://w/"))).text();
+          if (text.includes("owned by another")) continue;
+          got = JSON.parse(text);
+          if (got.done) break;
+        }
+        expect(got).toEqual({
+          attempts: [0, 1, 2],
+          done: { retryCount: 2, isRetry: true },
+          pending: false,
+        });
+      } finally {
+        await runtime.close();
+        await bucket.close();
+        store.close();
+      }
+    }, 120_000);
   },
 );
