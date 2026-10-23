@@ -107,12 +107,12 @@ export function createProjectRuntime(
   let kv: ReturnType<typeof celldKv> | undefined;
   if (config.kv_namespaces?.length) {
     kv = celldKv(host.files);
-    worker.__CellsKVNamespace = kv.KvNamespaceCell as never;
-    durableObjects[KV_OBJECTS] = { className: "__CellsKVNamespace" };
+    worker.__KvNamespace = kv.KvNamespaceCell as never;
+    durableObjects[KV_OBJECTS] = { className: "__KvNamespace" };
   }
   if (config.d1_databases?.length) {
-    worker.__CellsD1Database = D1DatabaseObject;
-    durableObjects[D1_OBJECTS] = { className: "__CellsD1Database" };
+    worker.__D1Database = D1DatabaseObject;
+    durableObjects[D1_OBJECTS] = { className: "__D1Database" };
   }
   // Queues: every queue is a cell of a runtime-supplied class (as on celld).
   const consumers = new Map((config.queues?.consumers ?? []).map((c) => [c.queue, c]));
@@ -163,8 +163,8 @@ export function createProjectRuntime(
     scriptName: config.name ?? "worker",
     // celld's fleet-wide namespaces for the resources several scripts can share.
     namespaceKeys: {
-      __CellsKVNamespace: "cells:v1:kv:__KvNamespace",
-      __CellsD1Database: "cells:v1:d1:__D1Database",
+      __KvNamespace: "cells:v1:kv:__KvNamespace",
+      __D1Database: "cells:v1:d1:__D1Database",
       __CellsQueue: "cells:v1:queue:__Queue",
     },
     durability: host.durability,

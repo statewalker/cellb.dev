@@ -55,8 +55,15 @@ async function roundTrip(
 ) {
   const dir = join(mkdtempSync(join(tmpdir(), "one-bucket-")), "p");
   cpSync(project, dir, { recursive: true });
-  const answer = async (fetcher: (path: string) => Promise<Response>, path: string) => {
-    const text = await (await fetcher(path)).text();
+  // A step is "/path" or "METHOD /path [body]".
+  const answer = async (
+    fetcher: (path: string, init?: RequestInit) => Promise<Response>,
+    step: string,
+  ) => {
+    const m = /^(GET|POST|PUT|DELETE) (\S+)(?: (.*))?$/s.exec(step);
+    const text = await (
+      await (m ? fetcher(m[2], { method: m[1], body: m[3] }) : fetcher(step))
+    ).text();
     try {
       return JSON.parse(text);
     } catch {
@@ -65,7 +72,7 @@ async function roundTrip(
   };
   let celld = await celldDev(dir);
   for (const [path, want] of steps.celld1)
-    expect(await answer((p) => fetch(celld.base + p), path)).toEqual(want);
+    expect(await answer((p, init) => fetch(celld.base + p, init), path)).toEqual(want);
   await stop(celld.p);
 
   const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
@@ -77,7 +84,8 @@ async function roundTrip(
     durability: bucket.durability,
     backup: bucket.durability,
   } as never);
-  const fetchW = (p: string) => runtime.fetch(new Request(`http://w${p}`));
+  const fetchW = (p: string, init?: RequestInit) =>
+    runtime.fetch(new Request(`http://w${p}`, init));
   // celld's node lease may still be live for a moment: a refused step ("owned by another
   // node", before any code ran) is retried until the hand-over.
   for (const [path, want] of steps.webrun) {
@@ -97,7 +105,7 @@ async function roundTrip(
   celld = await celldDev(dir);
   try {
     for (const [path, want] of steps.celld2) {
-      const got = await answer((p) => fetch(celld.base + p), path);
+      const got = await answer((p, init) => fetch(celld.base + p, init), path);
       expect(
         got,
         celld
@@ -300,5 +308,38 @@ describe.skipIf(!CELLD)(
         store.close();
       }
     }, 120_000);
+
+    for (const driver of ["node", "wasm"] as const) {
+      it(
+        `D1: a guestbook continues across runtimes (${driver})`,
+        () =>
+          roundTrip(join(examples, "d1"), driver, {
+            celld1: [['POST / {"name":"celld","message":"first"}', { id: 1, changes: 1 }]],
+            webrun: [
+              ["/count", { count: 1 }],
+              ['POST / {"name":"webrun","message":"second"}', { id: 2, changes: 1 }],
+            ],
+            celld2: [
+              ["/count", { count: 2 }],
+              ['POST / {"name":"celld","message":"third"}', { id: 3, changes: 1 }],
+            ],
+          }),
+        120_000,
+      );
+
+      it(
+        `KV: values continue across runtimes (${driver})`,
+        () =>
+          roundTrip(join(examples, "kv"), driver, {
+            celld1: [["PUT /greeting hello from celld", ""]],
+            webrun: [
+              ["/greeting", "hello from celld"],
+              ["PUT /greeting hello from webrun-cells", ""],
+            ],
+            celld2: [["/greeting", "hello from webrun-cells"]],
+          }),
+        120_000,
+      );
+    }
   },
 );
