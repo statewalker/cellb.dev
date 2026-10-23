@@ -141,8 +141,11 @@ export function createProjectRuntime(
         `services[${s.binding}] → "${s.service}" (only this script's own entrypoints)`,
       );
   const sqlExtensions: string[] = [];
+  let deleteAllPreservesAlarm = false;
   for (const f of config.compatibility_flags ?? []) {
-    if (f === "sqlite_vec")
+    if (f === "delete_all_preserves_alarm") deleteAllPreservesAlarm = true;
+    else if (f === "delete_all_deletes_alarm") continue; // the default
+    else if (f === "sqlite_vec")
       sqlExtensions.push("sqlite_vec"); // vec0 virtual tables, as on celld
     else if (f === "nodejs_compat" || f === "nodejs_compat_v2")
       continue; // the host's bundler maps node:*
@@ -155,6 +158,7 @@ export function createProjectRuntime(
     vars: { ...config.vars, MINIFLARE_BLOBS: filesApiBlobService(host.files) },
     openSql: host.openSql,
     sqlExtensions,
+    deleteAllPreservesAlarm,
     scriptName: config.name ?? "worker",
     // celld's fleet-wide namespaces for the resources several scripts can share.
     namespaceKeys: {

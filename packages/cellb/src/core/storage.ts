@@ -171,7 +171,8 @@ export class DurableObjectStorage extends AsyncKvApi {
   deleteAll(): Promise<void> {
     return this.op(() => {
       this.kv.deleteAll();
-      this.clearAlarmSync(); // deleteAll() also deletes the alarm, as on Cloudflare
+      // deleteAll() also deletes the alarm, as on Cloudflare, unless `delete_all_preserves_alarm`.
+      if (!this.deleteAllPreservesAlarm) this.clearAlarmSync();
       const tables = this.sql.internalExec(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'",
       ).rows;
@@ -214,6 +215,8 @@ export class DurableObjectStorage extends AsyncKvApi {
   sync(): Promise<void> {
     return this.#sync();
   }
+  /** `delete_all_preserves_alarm`: deleteAll() leaves the alarm in place. */
+  deleteAllPreservesAlarm = false;
   /** Called whenever the stored alarm changes (the runtime schedules it). */
   onAlarmChange: (at: number | null) => void = () => {};
 

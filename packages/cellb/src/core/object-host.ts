@@ -68,6 +68,8 @@ export class ObjectHost {
     exports?: Record<string, unknown>;
     /** SQLite extensions to load into every cell database (e.g. "sqlite_vec"). */
     sqlExtensions?: string[];
+    /** storage.deleteAll() keeps the alarm (`delete_all_preserves_alarm`). */
+    deleteAllPreservesAlarm?: boolean;
     /**
      * Ownership: acquire the cell's lease before restoring it. No lease → the cell is owned
      * elsewhere (the host refuses events). The lease epoch fences the cell's log segments;
@@ -118,6 +120,7 @@ export class ObjectHost {
     const kv = new SyncKvStorage(this.#sql, opts.codec, scopeOf(opts.cellKey));
     const storage = new DurableObjectStorage(this.#sql, kv, this.#gate, () => this.#barrier());
     if (opts.onAlarmChange) storage.onAlarmChange = opts.onAlarmChange;
+    storage.deleteAllPreservesAlarm = !!opts.deleteAllPreservesAlarm;
     const state = new DurableObjectState(opts.id, storage, this.#gate, opts.waitUntil, (e) =>
       this.#breakOn(e),
     );

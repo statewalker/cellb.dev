@@ -55,6 +55,8 @@ export interface CellRuntimeOptions {
   hibernateAfterMs?: number;
   /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
   sqlExtensions?: string[];
+  /** `delete_all_preserves_alarm`: storage.deleteAll() keeps the alarm (default: deletes it). */
+  deleteAllPreservesAlarm?: boolean;
   /** Timers of the runtime (backups); injectable for tests. */
   clock?: Clock;
 }
@@ -224,6 +226,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           facet: opts.facets,
           acquire: opts.ownership ? (key) => opts.ownership!.tryAcquire(key) : undefined,
           sqlExtensions: opts.sqlExtensions,
+          deleteAllPreservesAlarm: opts.deleteAllPreservesAlarm,
         });
         hosts.set(cellKey, h);
       }
