@@ -86,8 +86,18 @@ export class ObjectHost {
       this.#driver,
       (changes) => {
         if (changes && this.#epoch !== undefined) changes.epoch = this.#epoch;
+        // Page-level logs (LTX): the committed image, from which the store derives the pages.
+        const d = this.#driver;
+        const image = opts.durability.capturePages
+          ? (d.pageImage?.() ?? d.snapshot?.())
+          : undefined;
         return this.#out.track(
-          opts.durability.committed(this.cellKey, { seq: ++this.#seq, changes }),
+          opts.durability.committed(this.cellKey, {
+            seq: ++this.#seq,
+            changes,
+            image,
+            epoch: this.#epoch,
+          }),
         );
       },
       { capture: !!opts.durability.captureChanges },

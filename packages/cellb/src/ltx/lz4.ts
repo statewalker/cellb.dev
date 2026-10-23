@@ -45,7 +45,9 @@ export function lz4Compress(src: Uint8Array): Uint8Array {
   const out = new Uint8Array(n + Math.ceil(n / 255) + 16);
   const table = new Int32Array(1 << 14).fill(-1);
   const hash = (i: number) =>
-    (Math.imul(src[i] | (src[i + 1] << 8) | (src[i + 2] << 16) | (src[i + 3] << 24), 2654435761) >>> 18) & 0x3fff;
+    (Math.imul(src[i] | (src[i + 1] << 8) | (src[i + 2] << 16) | (src[i + 3] << 24), 2654435761) >>>
+      18) &
+    0x3fff;
   let si = 0;
   let di = 0;
   let anchor = 0;
@@ -124,7 +126,8 @@ export function lz4FrameDecompress(src: Uint8Array, outSize: number): Uint8Array
       di += part.length;
     }
   }
-  if (flg & 0x04 && v.getUint32(o, true) !== xxh32(out)) throw new Error("lz4: frame content checksum mismatch");
+  if (flg & 0x04 && v.getUint32(o, true) !== xxh32(out))
+    throw new Error("lz4: frame content checksum mismatch");
   return out;
 }
 

@@ -52,13 +52,19 @@ const uvarint = (n: number): number[] => {
 /** The SQLite lock page (never stored, excluded from checksums). */
 export const lockPgno = (pageSize: number) => Math.floor(0x40000000 / pageSize) + 1;
 
-export const checksumPage = (pgno: number, data: Uint8Array) => CHECKSUM_FLAG | crc64(be32(pgno), data);
+export const checksumPage = (pgno: number, data: Uint8Array) =>
+  CHECKSUM_FLAG | crc64(be32(pgno), data);
 
 /** Rolling database checksum over pages 1..n (lock page excluded). */
-export function databaseChecksum(pageSize: number, pageAt: (pgno: number) => Uint8Array, n: number): bigint {
+export function databaseChecksum(
+  pageSize: number,
+  pageAt: (pgno: number) => Uint8Array,
+  n: number,
+): bigint {
   const lock = lockPgno(pageSize);
   let sum = CHECKSUM_FLAG;
-  for (let p = 1; p <= n; p++) if (p !== lock) sum = CHECKSUM_FLAG | (sum ^ checksumPage(p, pageAt(p)));
+  for (let p = 1; p <= n; p++)
+    if (p !== lock) sum = CHECKSUM_FLAG | (sum ^ checksumPage(p, pageAt(p)));
   return sum;
 }
 
@@ -188,7 +194,9 @@ export function decodeLtx(bytes: Uint8Array): LtxFile {
       shift += 7;
     } while (b & 0x80);
     if (x === 0) break;
-    for (let k = 0; k < 2; k++) do b = bytes[o++]; while (b & 0x80);
+    for (let k = 0; k < 2; k++)
+      do b = bytes[o++];
+      while (b & 0x80);
   }
   feed.push(bytes.subarray(idxStart, o + 8));
   o += 8;

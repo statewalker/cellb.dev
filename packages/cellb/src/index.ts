@@ -4,6 +4,7 @@ export {
   encodeSegment,
   filesApiChangeLog,
 } from "./adapters/files-changelog.js";
+export { filesApiLtxLog, type LtxLogOptions } from "./adapters/files-ltx.js";
 export {
   applyD1Migrations,
   listAppliedMigrations,
@@ -50,6 +51,7 @@ export {
   type Versioned,
 } from "./lease/conditional-store.js";
 export { acquire, type Clock, type Lease, type LeaseHandle, systemClock } from "./lease/lease.js";
+export { decodeLtx, encodeLtx, type LtxFile, type LtxHeader, ltxFileName } from "./ltx/ltx.js";
 export type { BackupInfo, CellBackup } from "./ports.js";
 export * from "./ports.js";
 export { parseJsonc } from "./project/jsonc.js";

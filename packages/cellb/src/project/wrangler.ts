@@ -55,7 +55,10 @@ export interface WranglerConfig {
 }
 
 export interface ProjectHost
-  extends Pick<CellRuntimeOptions, "openSql" | "durability" | "backup" | "clock"> {
+  extends Pick<
+    CellRuntimeOptions,
+    "openSql" | "durability" | "backup" | "clock" | "ownership" | "peers"
+  > {
   /** Files of `assets.directory` (path "/a/b.html" → bytes), loaded by the host. */
   assetFiles?: AssetFiles;
   /** Runs each loaded Worker in its own realm (celld isolates); classes still use `loadModules`. */
@@ -162,6 +165,8 @@ export function createProjectRuntime(
     durability: host.durability,
     backup: host.backup,
     clock: host.clock,
+    ownership: host.ownership,
+    peers: host.peers,
   });
   const env = runtime.env as Record<string, unknown>;
   // KV: celld's own client against celld's own namespace cell (cell name "<id>/<shard>").

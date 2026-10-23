@@ -112,6 +112,15 @@ export class NodeSqliteDriver implements SyncSqlDriver {
     }
   }
 
+  /**
+   * The database file as SQLite wrote it (page for page), for page-level logs; an in-memory
+   * database falls back to snapshot(). Valid between transactions (rollback journal mode).
+   */
+  pageImage(): Uint8Array {
+    if (this.#path === ":memory:") return this.snapshot();
+    return new Uint8Array(readFileSync(this.#path));
+  }
+
   /** `VACUUM INTO` a temp file: a consistent, compact image (no open transaction allowed). */
   snapshot(): Uint8Array {
     const tmp = join(mkdtempSync(join(tmpdir(), "cell-snap-")), "db.sqlite");

@@ -34,6 +34,8 @@ export interface SyncSqlDriver {
   captureDiscard?(): void;
   applyChangeset?(changeset: Uint8Array): void;
   readonly captureCoversRowidTables?: boolean;
+  /** The database file page for page (page-level logs); defaults to snapshot(). */
+  pageImage?(): Uint8Array;
   /** Consistent image of the whole database (no transaction may be open). Needed for backups. */
   snapshot?(): Uint8Array;
   /** Replaces the whole database with an image produced by `snapshot()`. Needed for restores. */
@@ -49,7 +51,12 @@ export type OpenCellSql = (cellKey: string) => SyncSqlDriver;
  * replication to a FilesApi (OPFS / S3) here; the default resolves at once.
  */
 export interface CellDurability {
-  committed(cellKey: string, info: { seq: number; changes?: CommitChanges }): Promise<void>;
+  committed(
+    cellKey: string,
+    info: { seq: number; changes?: CommitChanges; image?: Uint8Array; epoch?: number },
+  ): Promise<void>;
+  /** Asks the runtime for the whole database image after each commit (page-level logs: LTX). */
+  readonly capturePages?: boolean;
   /** Asks the runtime to capture each transaction's changes (transaction-log durability). */
   readonly captureChanges?: boolean;
 }
