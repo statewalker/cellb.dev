@@ -98,6 +98,15 @@ export class WasmSqliteDriver implements SyncSqlDriver {
     }
   }
   restore(image: Uint8Array): void {
+    // celld's databases are in WAL mode (header bytes 18–19 = 2); the WASM VFSes (memdb,
+    // opfs-sahpool) have no shared memory for WAL and refuse to open such a file. The pages
+    // are the same in rollback-journal mode: switch the header to 1 (celld sets WAL again
+    // when it opens the database).
+    if (image.length > 19 && image[18] === 2 && image[19] === 2) {
+      image = image.slice();
+      image[18] = 1;
+      image[19] = 1;
+    }
     this.#db = this.#hooks!.restore(this.#db, image);
     this.#hookPages(); // a new database file behind the connection
   }

@@ -1,3 +1,5 @@
+import { sha256 } from "@noble/hashes/sha2";
+import { bytesToHex } from "@noble/hashes/utils";
 import type {
   BackupInfo,
   CellBackup,
@@ -71,6 +73,10 @@ export class ObjectHost {
      * elsewhere (the host refuses events). The lease epoch fences the cell's log segments;
      * losing the lease breaks the host so it stops serving.
      */
+    /** Owner epoch when no lease is taken (facets inherit their root's). */
+    epoch?: number;
+    /** A facet: on open its rows move to this run's scope, as celld does. */
+    facet?: boolean;
     acquire?: (
       cellKey: string,
     ) => Promise<{ epoch: number; lost: AbortSignal; release?: () => Promise<void> } | undefined>;
@@ -78,6 +84,7 @@ export class ObjectHost {
     this.#backup = opts.backup;
     this.cellKey = opts.cellKey;
     this.#driver = opts.openSql(opts.cellKey);
+    this.#epoch = opts.epoch;
     for (const ext of opts.sqlExtensions ?? []) {
       if (!this.#driver.loadExtension)
         throw new Error(`SQLite extension "${ext}" is not available on this host`);
@@ -121,11 +128,16 @@ export class ObjectHost {
       (name, cls, env, id) =>
         new ObjectHost({
           ...opts,
-          cellKey: `${opts.cellKey}/facets/${name}`,
+          // celld's facet stream: <parent>/facets/<SHA-256(name)[0..16] hex> (engine_api.rs)
+          cellKey: `${opts.cellKey}/facets/${facetSegment(name)}`,
           id,
           cls,
           env,
           onAlarmChange: undefined,
+          // A facet is part of its root's cell: no lease of its own, the root's epoch.
+          acquire: undefined,
+          epoch: this.#epoch,
+          facet: true,
         }),
     );
     const construct = () => (this.#instance = new opts.cls(state, opts.env));
@@ -165,6 +177,7 @@ export class ObjectHost {
           // Then every logged transaction the image does not contain, in order.
           if (replay) await this.#replayLog(replay);
         }
+        if (opts.facet) this.#rescope(scopeOf(opts.cellKey));
         construct();
       })
       .catch((e) => this.#breakOn(e));
@@ -313,6 +326,20 @@ export class ObjectHost {
 
   #construct?: () => unknown;
   #epoch: number | undefined;
+
+  /**
+   * celld gives each run of a facet its own scope and moves the facet database's rows to it
+   * on open (storage.rs open_embedded); doing the same here reads a facet database celld
+   * wrote, whatever scope it used.
+   */
+  #rescope(scope: string): void {
+    for (const table of ["_cf_KV", "_cf_ALARM", "_cf_METADATA"])
+      try {
+        this.#driver.exec(`UPDATE ${table} SET scope = ? WHERE scope <> ?`, [scope, scope]);
+      } catch {
+        // table not created yet
+      }
+  }
 
   // ---- hibernation ---------------------------------------------------------------------
   #active = 0;
@@ -465,4 +492,9 @@ export class CellOwnedElsewhereError extends Error {
     super(`Durable Object ${cellKey} is owned by another node`);
     this.name = "CellOwnedElsewhereError";
   }
+}
+
+/** celld's path segment for a facet name: the first 16 bytes of SHA-256(name), hex. */
+export function facetSegment(name: string): string {
+  return bytesToHex(sha256(new TextEncoder().encode(name)).subarray(0, 16));
 }

@@ -59,9 +59,28 @@ discard, re-hook after restore); `browser/e2e/ltx.spec.ts` (Chromium, OPFS sahpo
 2000-row database, each later commit writes only a few pages, an empty pool restores the
 cell from the LTX files).
 
+## Facets
+
+celld 0.6.2 gives each facet a database and an LTX stream of its own (`_cf_FACETS` images are
+only a legacy import path): `cells/<root>/facets/<SHA-256(name)[0..16] hex>/ltx/e<epoch>/…`,
+nested facets append further segments, the facet uses its root's epoch, and on open the
+facet's rows move to the current run's scope. webrun-cells now does the same (facet cell
+keys, no facet lease — the root's epoch — and the rescope on open). Test: a Durable Object
+whose state lives in a facet goes celld (2) → webrun-cells (3) → celld (4), parent and facet
+streams both restored on each side.
+
+## Two bugs found by these tests
+
+- **WAL images.** A database restored from celld's files is in WAL mode. node:sqlite then
+  commits into the `-wal` file, so reading the main file as the page image returned the state
+  before the commit: the LTX file carried stale pages. The Node driver now checkpoints before
+  reading. The WASM VFSes (memdb, opfs-sahpool) cannot open WAL files at all: the WASM driver
+  switches the header to rollback-journal mode on restore (same pages; celld turns WAL back on
+  when it opens the database). The Counter round trip runs on both drivers.
+
 ## Remaining differences
 
-- Facet databases (`_cf_FACETS`, stored inside the parent's database on celld) are not
-  carried yet; webrun-cells keeps facets in separate cell databases.
 - celld's `_cf_WAKE` rows (fleet wake-up bookkeeping) are created by celld on activation;
   webrun-cells creates the table and triggers but not the rows.
+- Isolated facets (classes from a Worker Loader, note 21) keep their database inside the
+  isolate and do not log it yet.

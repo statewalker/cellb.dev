@@ -118,6 +118,10 @@ export class NodeSqliteDriver implements SyncSqlDriver {
    */
   pageImage(): Uint8Array {
     if (this.#path === ":memory:") return this.snapshot();
+    // A database restored from celld's files is in WAL mode (litestream needs it): its last
+    // commits are in the -wal file until a checkpoint moves them into the main file.
+    const mode = String(this.#db.prepare("PRAGMA journal_mode").get()?.journal_mode ?? "");
+    if (mode.toLowerCase() === "wal") this.#db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     return new Uint8Array(readFileSync(this.#path));
   }
 

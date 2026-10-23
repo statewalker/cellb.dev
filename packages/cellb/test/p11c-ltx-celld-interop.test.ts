@@ -7,6 +7,7 @@ import v8 from "node:v8";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
+import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { filesApiLtxLog } from "../src/index.js";
 import { loadNodeProject } from "../src/project/node-project.js";
 
@@ -165,70 +166,80 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     }
   }, 120_000);
 
-  it("the same Counter cell continues across celld → webrun-cells → celld (the runtimes themselves)", async () => {
-    const dir = join(mkdtempSync(join(tmpdir(), "ltx-runtime-")), "counter");
-    cpSync(example, dir, { recursive: true });
-    let celld = await startCelld(dir, 18_785);
-    for (let i = 0; i < 3; i++) await inc("http://127.0.0.1:18785"); // n = 3 on celld
-    await stop(celld);
-    const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
-    const files = new MemFilesApi();
-    let epoch = 0;
-    for (const r of bucket
-      .prepare("SELECT key, body FROM objects WHERE key LIKE 'cells/Counter:%/ltx/%'")
-      .all() as {
-      key: string;
-      body: Uint8Array;
-    }[]) {
-      await files.write(`/${r.key}`, [new Uint8Array(r.body)]);
-      epoch = Math.max(epoch, Number(/\/ltx\/e(\d+)\//.exec(r.key)![1]));
-    }
-    // webrun-cells runs the same project, restores the cell from celld's LTX files (same ids,
-    // same tables, V8 values) and increments it, logging LTX under the next epoch.
-    const log = filesApiLtxLog(files, { epoch: epoch + 1 });
-    const { runtime } = await loadNodeProject(dir, {
-      openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "ltx-cells-"))),
-      files: new MemFilesApi(),
-      durability: log,
-      backup: log,
-    });
-    const res = await runtime.fetch(new Request("http://x/increment?name=alpha"));
-    const body = await res.text();
-    expect(res.status, body).toBe(200);
-    expect(JSON.parse(body).n).toBe(4);
-    await runtime.close();
-    // Back to celld: its bucket gets webrun-cells' files and the epoch; it continues at 5.
-    const put = bucket.prepare(
-      "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, (SELECT next_etag FROM store_sequence), ?, '[]')",
-    );
-    const bump = bucket.prepare("UPDATE store_sequence SET next_etag = next_etag + 1");
-    let cell = "";
-    for await (const e of files.list("/cells", { recursive: true })) {
-      if (e.kind !== "file" || !e.path.includes(`/ltx/e${epoch + 1}/`)) continue;
-      const chunks: Uint8Array[] = [];
-      for await (const c of files.read(e.path)) chunks.push(c);
-      put.run(e.path.slice(1), Buffer.concat(chunks), Date.now());
-      bump.run();
-      cell = e.path.split("/")[2];
-    }
-    put.run(
-      `cells/${cell}/own.json`,
-      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
-      Date.now(),
-    );
-    bump.run();
-    bucket.close();
-    rmSync(join(dir, ".celld/dev/runtime", cell), { recursive: true, force: true });
-    celld = await startCelld(dir, 18_786);
-    try {
-      const n = await inc("http://127.0.0.1:18786").catch((e) => {
-        throw new Error(`${e.message}\n--- celld log ---\n${(celld as any).log().slice(-2500)}`);
-      });
-      expect(n).toBe(5);
-    } finally {
+  for (const driver of ["node:sqlite", "SQLite WASM"] as const)
+    it(`the same Counter cell continues across celld → webrun-cells (${driver}) → celld`, async () => {
+      const dir = join(mkdtempSync(join(tmpdir(), "ltx-runtime-")), "counter");
+      cpSync(example, dir, { recursive: true });
+      const port = driver === "node:sqlite" ? 18_785 : 18_792;
+      let celld = await startCelld(dir, port);
+      for (let i = 0; i < 3; i++) await inc(`http://127.0.0.1:${port}`); // n = 3 on celld
       await stop(celld);
-    }
-  }, 120_000);
+      const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
+      const files = new MemFilesApi();
+      let epoch = 0;
+      for (const r of bucket
+        .prepare("SELECT key, body FROM objects WHERE key LIKE 'cells/Counter:%/ltx/%'")
+        .all() as {
+        key: string;
+        body: Uint8Array;
+      }[]) {
+        await files.write(`/${r.key}`, [new Uint8Array(r.body)]);
+        epoch = Math.max(epoch, Number(/\/ltx\/e(\d+)\//.exec(r.key)![1]));
+      }
+      // webrun-cells runs the same project, restores the cell from celld's LTX files (same ids,
+      // same tables, V8 values) and increments it, logging LTX under the next epoch.
+      const log = filesApiLtxLog(files, { epoch: epoch + 1 });
+      const { runtime } = await loadNodeProject(dir, {
+        openSql:
+          driver === "node:sqlite"
+            ? nodeSqliteOpener(mkdtempSync(join(tmpdir(), "ltx-cells-")))
+            : wasmMemoryOpener(
+                await ((await import("@sqlite.org/sqlite-wasm")).default as any)({
+                  print() {},
+                  printErr() {},
+                }),
+              ),
+        files: new MemFilesApi(),
+        durability: log,
+        backup: log,
+      });
+      const res = await runtime.fetch(new Request("http://x/increment?name=alpha"));
+      const body = await res.text();
+      expect(res.status, body).toBe(200);
+      expect(JSON.parse(body).n).toBe(4);
+      await runtime.close();
+      // Back to celld: its bucket gets webrun-cells' files and the epoch; it continues at 5.
+      const put = bucket.prepare(
+        "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, (SELECT next_etag FROM store_sequence), ?, '[]')",
+      );
+      const bump = bucket.prepare("UPDATE store_sequence SET next_etag = next_etag + 1");
+      let cell = "";
+      for await (const e of files.list("/cells", { recursive: true })) {
+        if (e.kind !== "file" || !e.path.includes(`/ltx/e${epoch + 1}/`)) continue;
+        const chunks: Uint8Array[] = [];
+        for await (const c of files.read(e.path)) chunks.push(c);
+        put.run(e.path.slice(1), Buffer.concat(chunks), Date.now());
+        bump.run();
+        cell = e.path.split("/")[2];
+      }
+      put.run(
+        `cells/${cell}/own.json`,
+        Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
+        Date.now(),
+      );
+      bump.run();
+      bucket.close();
+      rmSync(join(dir, ".celld/dev/runtime", cell), { recursive: true, force: true });
+      celld = await startCelld(dir, port + 1);
+      try {
+        const n = await inc(`http://127.0.0.1:${port + 1}`).catch((e) => {
+          throw new Error(`${e.message}\n--- celld log ---\n${(celld as any).log().slice(-2500)}`);
+        });
+        expect(n).toBe(5);
+      } finally {
+        await stop(celld);
+      }
+    }, 120_000);
 
   // ---- stored values (V8 serialization) both ways, with the kv-values project ----
   const valuesProject = join(__dirname, "../conformance/projects/kv-values");
@@ -305,6 +316,98 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     celld = await startCelld(dir, 18_789);
     try {
       expect(await get("http://127.0.0.1:18789", "/read")).toEqual(expectedRead());
+    } finally {
+      await stop(celld);
+    }
+  }, 120_000);
+
+  it("a Durable Object with a facet moves celld → webrun-cells → celld (facet streams too)", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "facet-store-")), "facet-store");
+    cpSync(join(__dirname, "../conformance/projects/facet-store"), dir, { recursive: true });
+    const visit = async (base: string) => (await fetch(`${base}/`)).json();
+    let celld = await startCelld(dir, 18_790);
+    await visit("http://127.0.0.1:18790");
+    expect(await visit("http://127.0.0.1:18790")).toEqual({ facet: 2, parent: 2 });
+    await stop(celld);
+    const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
+    const files = new MemFilesApi();
+    let epoch = 0;
+    for (const r of bucket
+      .prepare("SELECT key, body FROM objects WHERE key LIKE 'cells/Parent:%/ltx/%'")
+      .all() as {
+      key: string;
+      body: Uint8Array;
+    }[]) {
+      await files.write(`/${r.key}`, [new Uint8Array(r.body)]);
+      epoch = Math.max(epoch, Number(/\/ltx\/e(\d+)\//.exec(r.key)![1]));
+    }
+    // webrun-cells: the parent's stream AND the facet's stream (cells/<parent>/facets/<sha>/…).
+    const log = filesApiLtxLog(files, { epoch: epoch + 1 });
+    const { runtime } = await loadNodeProject(dir, {
+      openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "facet-cells-"))),
+      files: new MemFilesApi(),
+      durability: log,
+      backup: log,
+    });
+    const r = await runtime.fetch(new Request("http://x/"));
+    const text = await r.text();
+    expect(r.status, text).toBe(200);
+    expect(JSON.parse(text)).toEqual({ facet: 3, parent: 3 });
+    await runtime.close();
+    const put = bucket.prepare(
+      "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, (SELECT next_etag FROM store_sequence), ?, '[]')",
+    );
+    const bump = bucket.prepare("UPDATE store_sequence SET next_etag = next_etag + 1");
+    let root = "";
+    const written: string[] = [];
+    for await (const e of files.list("/cells", { recursive: true })) {
+      if (e.kind !== "file" || !e.path.includes(`/ltx/e${epoch + 1}/`)) continue;
+      const chunks: Uint8Array[] = [];
+      for await (const c of files.read(e.path)) chunks.push(c);
+      put.run(e.path.slice(1), Buffer.concat(chunks), Date.now());
+      bump.run();
+      written.push(e.path);
+      root = e.path.split("/")[2];
+    }
+    expect(written.some((p) => p.includes("/facets/"))).toBe(true);
+    if (process.env.DEBUG_FACET) {
+      const fkey = written
+        .find((p) => p.includes("/facets/"))!
+        .split("/")
+        .slice(2, 5)
+        .join("/")
+        .replace(":", "/");
+      const img = await log.load!(fkey);
+      const f = join(mkdtempSync(join(tmpdir(), "dbg-")), "f.sqlite");
+      writeFileSync(f, img!);
+      const d = new DatabaseSync(f);
+      process.stdout.write(
+        `FACETROWS ${JSON.stringify(d.prepare("SELECT scope, k, hex(v) v FROM _cf_KV").all())} ${written.join(" ")}\n`,
+      );
+      d.close();
+    }
+    put.run(
+      `cells/${root}/own.json`,
+      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
+      Date.now(),
+    );
+    bump.run();
+    bucket.close();
+    rmSync(join(dir, ".celld/dev/runtime"), { recursive: true, force: true });
+    celld = await startCelld(dir, 18_791);
+    try {
+      const v = await visit("http://127.0.0.1:18791").catch((e) => {
+        throw new Error(`${e.message}\n--- celld log ---\n${(celld as any).log().slice(-2500)}`);
+      });
+      expect(
+        v,
+        (celld as any)
+          .log()
+          .split("\n")
+          .filter((l: string) => /facet|restore|ltx_repl/i.test(l))
+          .join("\n")
+          .slice(-3000),
+      ).toEqual({ facet: 4, parent: 4 });
     } finally {
       await stop(celld);
     }
