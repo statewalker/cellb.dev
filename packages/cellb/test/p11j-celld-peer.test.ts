@@ -181,4 +181,50 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
       await stop(celld.p);
     }
   }, 120_000);
+
+  it("a WebSocket opened at celld to a cell webrun-cells owns crosses the tunnel", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "peer-ws-")), "wsecho");
+    cpSync(join(examples, "wsecho"), dir, { recursive: true });
+    const c0 = await celldDev(dir, 18_878);
+    await stop(c0.p);
+    const w = await webrunPeer(dir);
+    const celld = await celldDev(dir, 18_879);
+    try {
+      // webrun-cells takes the cell (one plain request makes it the owner)
+      expect(await w.get("/")).toBe("websocket upgrade required");
+      const { WebSocket } = await import("ws");
+      const ws = new WebSocket(`ws://127.0.0.1:18879/`);
+      const got: string[] = [];
+      await new Promise<void>((resolve, reject) => {
+        ws.on("open", () => (ws.send("hello"), ws.send("again")));
+        ws.on("message", (d) => {
+          got.push(d.toString());
+          if (got.length === 2) resolve();
+        });
+        ws.on("error", reject);
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `timeout; got ${got}; ${celld
+                  .log()
+                  .split("\n")
+                  .filter((l) => /tunnel|peer|websocket/i.test(l))
+                  .slice(-6)
+                  .join("\n")}`,
+              ),
+            ),
+          15_000,
+        );
+      });
+      ws.close();
+      expect(got.map((g) => JSON.parse(g))).toEqual([
+        { echo: "hello", count: 1 },
+        { echo: "again", count: 2 },
+      ]);
+    } finally {
+      await stop(celld.p);
+      await w.close();
+    }
+  }, 120_000);
 });

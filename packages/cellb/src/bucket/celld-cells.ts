@@ -51,9 +51,24 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
   // address celld routes a request for our cell to it; a node that does not accept celld's
   // peer protocol (a browser) gets an unroutable placeholder, so the request fails instead.
   let addr = opts.addr || `${opts.node}.webrun-cells.invalid:9`;
-  const generation = [...crypto.getRandomValues(new Uint8Array(32))]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  // celld's per-process generation is its signed-probe public key (Ed25519, peer_probe.rs):
+  // `probe_public_key` = `ownership_index_generation`. A real key lets `celld diagnose --peer`
+  // verify that a probe reached this node.
+  const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  let generation = hex(crypto.getRandomValues(new Uint8Array(32)));
+  let probeKey: CryptoKey | undefined;
+  const probeKeyReady = (async () => {
+    try {
+      const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
+        "sign",
+        "verify",
+      ])) as CryptoKeyPair;
+      probeKey = pair.privateKey;
+      generation = hex(new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey)));
+    } catch {
+      // no Ed25519 in this WebCrypto: the record keeps a random generation (probes then fail)
+    }
+  })();
   let validUntil = 0;
   const writeLease = async () => {
     const t = now();
@@ -93,7 +108,7 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
   };
   const owned = new Set<string>();
   const ensureLease = () => {
-    leaseWritten ??= writeLease().then(() => {
+    leaseWritten ??= probeKeyReady.then(writeLease).then(() => {
       const tick = () => {
         renew = setTimeout(() => {
           writeLease().then(tick, (e) => lost.abort(e));
@@ -230,6 +245,20 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
      * The address celld nodes reach this node at (its celld peer server): published in the
      * node record now, so celld routes requests for our cells here instead of refusing them.
      */
+    /**
+     * Answers celld's signed peer probe (peer_probe.rs): an Ed25519 signature over
+     * "cells-peer-probe-v1\n<node>\n<advertised addr>\n<challenge>" by this node's probe key.
+     */
+    async probe(challenge: string) {
+      await probeKeyReady;
+      if (!probeKey || !/^[0-9a-f]{64}$/.test(challenge))
+        throw new Error("cannot answer the probe");
+      const payload = `cells-peer-probe-v1\n${opts.node}\n${addr}\n${challenge}`;
+      const signature = new Uint8Array(
+        await crypto.subtle.sign("Ed25519", probeKey, new TextEncoder().encode(payload)),
+      );
+      return { version: 1, node: opts.node, advertise: addr, challenge, signature: hex(signature) };
+    },
     async advertise(address: string) {
       addr = address;
       if (leaseWritten) await writeLease();

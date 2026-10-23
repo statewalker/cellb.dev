@@ -8,6 +8,7 @@ import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { celldBucket } from "../src/bucket/celld-cells.js";
 import { s3ObjectStore } from "../src/bucket/s3-object-store.js";
+import { startCelldPeerServer } from "../src/peer/celld-peer.js";
 import { loadNodeProject } from "../src/project/node-project.js";
 
 // A real celld fleet node and webrun-cells on ONE S3 bucket served by a local RustFS: cells
@@ -274,6 +275,76 @@ describe.skipIf(!CELLD)(
         }
       },
       180_000,
+    );
+
+    it.skipIf(!up)(
+      "celld diagnose --peer verifies a webrun-cells node's signed probe",
+      async () => {
+        const prefix = `t${Date.now().toString(36)}p`;
+        const dir = join(mkdtempSync(join(tmpdir(), "rustfs-")), "counter");
+        cpSync(join(examples, "counter"), dir, { recursive: true });
+        await run(["deploy", ".", "--bucket", bucketUrl(prefix), "--endpoint", ENDPOINT], dir);
+        const node0 = await celldNode(prefix); // creates the fleet's peer secret
+        await stop(node0.p);
+        const store = s3ObjectStore({
+          endpoint: ENDPOINT,
+          bucket: "cells",
+          prefix,
+          region: "us-east-1",
+          ...KEYS,
+        });
+        const name = "webrun-probed";
+        const bucket = celldBucket(store, { node: name, leaseTtlMs: 10_000 });
+        const { runtime } = await loadNodeProject(dir, {
+          openSql: nodeSqliteOpener(),
+          files: new MemFilesApi(),
+          ownership: bucket.ownership,
+          durability: bucket.durability,
+          backup: bucket.durability,
+          bucketStore: store,
+        } as never);
+        const peer = await startCelldPeerServer({
+          runtime,
+          store,
+          node: name,
+          probe: (c) => bucket.probe(c),
+        });
+        try {
+          await runtime.fetch(new Request("http://w/increment?name=a")); // writes the node record
+          await bucket.advertise(peer.addr);
+          const out = await run(
+            [
+              "diagnose",
+              "--bucket",
+              bucketUrl(prefix),
+              "--endpoint",
+              ENDPOINT,
+              "--read-only",
+              "--json",
+              "--peer",
+              name,
+            ],
+            dir,
+          ).catch((e) => String(e.message));
+          const checks = out
+            .split("\n")
+            .filter((l) => l.startsWith("{"))
+            .map((l) => JSON.parse(l));
+          const probe = checks.filter((c) => JSON.stringify(c).includes(name));
+          if (process.env.SHOW_PROBE) process.stdout.write(`PROBE ${JSON.stringify(probe)}\n`);
+          expect(probe.length, out).toBeGreaterThan(0);
+          // celld: "(signed direct probe) protocol=5 …", verdict ok
+          expect(
+            probe.map((c) => [c.verdict, /signed direct probe/.test(c.detail)]),
+            out,
+          ).toEqual([["ok", true]]);
+        } finally {
+          await peer.close();
+          await runtime.close();
+          await bucket.close();
+        }
+      },
+      120_000,
     );
   },
 );

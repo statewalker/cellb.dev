@@ -354,8 +354,22 @@ RPC; webrun-cells' Worker reaches a celld-owned cell by fetch and by RPC — one
 runtimes, each cell served by its owner. (One detail: celld's inner RPC requests carry no
 Host header, which Node's HTTP server rejects by default.)
 
-Not implemented: `/peer/probe` (celld's operator diagnostics need an Ed25519 probe key),
-WebSocket upgrades through the tunnel, celld's fleet log tier (followers), adoption handoffs.
+Also implemented since:
+
+- **Signed probes.** The node record's `probe_public_key` / `ownership_index_generation` is now a
+  real Ed25519 public key (WebCrypto), and `/peer/probe` answers celld's challenge with an
+  Ed25519 signature over `cells-peer-probe-v1 / node / advertised addr / challenge`.
+  `celld diagnose --peer <node>` reports the webrun-cells node "(signed direct probe)
+  protocol=5 …" with verdict ok (test on S3/RustFS).
+- **WebSockets through the tunnel.** A client's WebSocket handshake that celld forwards to a
+  webrun-cells owner is answered there: the cell's `101` + `webSocket` is bridged to the raw
+  tunnel connection (framed by `ws`). Test: a WebSocket opened at celld to celld's `wsecho`
+  example, whose cell webrun-cells owns, echoes with the count kept in webrun-cells.
+
+Not implemented, by design: celld's fleet log tier (a webrun-cells node is never a log
+follower: it acknowledges writes only once they are in the bucket) and capacity adoption
+(`/peer/handoff`): the node record reports pressure and placement weight 0, so celld never
+offers it cells — a webrun-cells node owns the cells requested through it.
 
 ## Running the interop suite anywhere
 

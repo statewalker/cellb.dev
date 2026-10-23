@@ -4,6 +4,9 @@ import type { Duplex } from "node:stream";
 import type { ObjectStore } from "../bucket/object-store.js";
 import type { CellRuntime } from "../core/runtime.js";
 import { deserialize, serialize } from "../v8/serialize.js";
+import { createWebSocketClass } from "../ws/client.js";
+import { type CfWebSocket, takeClientPort } from "../ws/server.js";
+import { withUpgrade } from "../ws/upgrade.js";
 
 /**
  * celld's peer protocol (peer_auth.rs, main/peer_tunnel.rs, protocol 5) for a webrun-cells node
@@ -207,6 +210,8 @@ export async function startCelldPeerServer(opts: {
   node: string;
   host?: string;
   port?: number;
+  /** Answers celld's signed probe (celldBucket(...).probe): `celld diagnose --peer` reaches us. */
+  probe?: (challenge: string) => Promise<unknown>;
 }): Promise<CelldPeerServer> {
   const key = await loadPeerKey(opts.store);
   const seen = new Map<string, number>();
@@ -282,8 +287,111 @@ export async function startCelldPeerServer(opts: {
     rpc: createServer({ requireHostHeader: false }, (q, s) => void serveRpc(q, s)),
   };
   for (const s of Object.values(inner)) s.keepAliveTimeout = 0;
+  // A tunneled WebSocket (celld: the client's own handshake crosses the tunnel and the owner
+  // answers it): the cell's 101 + webSocket is bridged to the raw connection, framed by `ws`.
+  const { WebSocketServer } = await import("ws");
+  const wss = new WebSocketServer({ noServer: true });
+  inner.do.on("upgrade", async (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    const fail = (status: number, body: string, extra: Record<string, string> = {}) => {
+      const lines = [
+        `HTTP/1.1 ${status} ${status === 409 ? "Conflict" : "Error"}`,
+        `${H.version}: ${PROTOCOL}`,
+        `content-length: ${Buffer.byteLength(body)}`,
+        "connection: close",
+      ];
+      for (const [k, v] of Object.entries(extra)) lines.push(`${k}: ${v}`);
+      socket.end(`${lines.join("\r\n")}\r\n\r\n${body}`);
+    };
+    const stub = stubFor(
+      opts.runtime,
+      String(req.headers["x-cells-scope"] ?? ""),
+      req.headers["x-cells-do-name"] as string | undefined,
+    );
+    if (!stub) return fail(400, "malformed cell scope");
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(req.headers))
+      if (typeof v === "string" && !CONTROL.includes(k)) headers.set(k, v);
+    const url = /^https?:\/\//.test(req.url ?? "")
+      ? (req.url as string)
+      : `http://${req.headers.host ?? "cell"}${req.url ?? "/"}`;
+    const protocols = req.headers["sec-websocket-protocol"] as string | undefined;
+    let res: Response & { webSocket?: CfWebSocket | null };
+    try {
+      res = await stub.fetch(
+        withUpgrade(
+          new Request(url, { headers }),
+          "websocket",
+          protocols ? { "Sec-WebSocket-Protocol": protocols } : undefined,
+        ),
+      );
+    } catch (e) {
+      return notOwner(e)
+        ? fail(409, "stale route", { "x-cells-route-error": "stale-owner" })
+        : fail(500, String((e as Error)?.message ?? e));
+    }
+    if (res.status !== 101 || !res.webSocket) return fail(res.status, await res.text());
+    const port = takeClientPort(res.webSocket);
+    const WS = createWebSocketClass(async () => ({
+      port,
+      protocol: res.headers.get("Sec-WebSocket-Protocol") ?? undefined,
+    }));
+    const cell = new WS("ws://cell/") as WebSocket;
+    cell.binaryType = "arraybuffer";
+    const pending: (string | ArrayBuffer)[] = [];
+    let open = false;
+    wss.handleUpgrade(req, socket, head, (client) => {
+      cell.onopen = () => {
+        open = true;
+        for (const m of pending.splice(0)) cell.send(m);
+      };
+      client.on("message", (data: Buffer, isBinary: boolean) => {
+        const m = isBinary ? (new Uint8Array(data).buffer as ArrayBuffer) : data.toString();
+        if (open) cell.send(m);
+        else pending.push(m);
+      });
+      cell.onmessage = (ev: MessageEvent) =>
+        client.send(ev.data instanceof ArrayBuffer ? Buffer.from(ev.data) : ev.data);
+      client.on("close", (code: number, reason: Buffer) =>
+        cell.close(
+          code >= 1000 && code < 5000 && code !== 1005 && code !== 1006 ? code : 1000,
+          reason.toString(),
+        ),
+      );
+      cell.onclose = (ev: CloseEvent) =>
+        client.close(
+          ev.code >= 1000 && ev.code !== 1005 && ev.code !== 1006 ? ev.code : 1000,
+          ev.reason,
+        );
+    });
+  });
 
-  const server: Server = createServer((req, res) => reply(res, 404, {}, "not found"));
+  const server: Server = createServer(async (req, res) => {
+    if (req.url === "/peer/probe" && req.method === "GET" && opts.probe) {
+      const denied = verifyPeerRequest(
+        key,
+        opts.node,
+        "GET",
+        "/peer/probe",
+        req.headers,
+        new Uint8Array(),
+        seen,
+      );
+      if (denied)
+        return reply(res, denied.status, { "content-type": "text/plain" }, denied.message);
+      try {
+        const answer = await opts.probe(String(req.headers["x-cells-probe-challenge"] ?? ""));
+        return reply(res, 200, { "content-type": "application/json" }, JSON.stringify(answer));
+      } catch (e) {
+        return reply(
+          res,
+          400,
+          { "content-type": "text/plain" },
+          String((e as Error)?.message ?? e),
+        );
+      }
+    }
+    reply(res, 404, {}, "not found");
+  });
   server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     const path = req.url ?? "/";
     const refuse = (status: number, message: string, extra: Record<string, string> = {}) => {
