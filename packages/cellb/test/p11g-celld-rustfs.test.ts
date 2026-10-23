@@ -28,7 +28,7 @@ const env = {
   AWS_SECRET_ACCESS_KEY: KEYS.secretAccessKey,
   AWS_REGION: "us-east-1",
 };
-let port = 18_860;
+let port = 18_880; // p11i runs celld on 18860+ in parallel
 
 async function rustfsUp(): Promise<boolean> {
   try {
@@ -312,9 +312,16 @@ describe.skipIf(!CELLD)(
         try {
           await runtime.fetch(new Request("http://w/increment?name=a")); // writes the node record
           await bucket.advertise(peer.addr);
+          const diag = port;
+          port += 2;
           const out = await run(
             [
               "diagnose",
+              // diagnose binds a listener too (default 127.0.0.1:8080, often taken)
+              "--listen",
+              `127.0.0.1:${diag}`,
+              "--internal-listen",
+              `127.0.0.1:${diag + 1}`,
               "--bucket",
               bucketUrl(prefix),
               "--endpoint",
