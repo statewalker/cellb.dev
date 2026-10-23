@@ -126,7 +126,27 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
       .put("wake/format.json", enc.encode(JSON.stringify({ format: 2 })), { ifNoneMatch: "*" })
       .catch(() => {}));
 
-  const durability: CellDurability & CellBackup = {
+  // Commits of one cell are logged one after the other, so TXIDs and the page mirror advance
+  // in commit order. (Without this, two quick commits both saw TXID 0 and raced to PUT the
+  // same snapshot key — the older image could land last; seen in Chromium against celld.)
+  const queues = new Map<string, Promise<void>>();
+  const inOrder = (cellKey: string, run: () => Promise<void>): Promise<void> => {
+    const next = (queues.get(cellKey) ?? Promise.resolve()).catch(() => {}).then(run);
+    queues.set(cellKey, next);
+    next.then(
+      () => queues.get(cellKey) === next && queues.delete(cellKey),
+      () => queues.get(cellKey) === next && queues.delete(cellKey),
+    );
+    return next;
+  };
+
+  const durability: CellDurability &
+    CellBackup & {
+      logCommit: CellDurability["committed"];
+    } = {
+    committed(cellKey, info) {
+      return inOrder(cellKey, () => durability.logCommit(cellKey, info));
+    },
     capturePages: true,
 
     async publishWake(cellKey, w) {
@@ -181,7 +201,7 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
       return out;
     },
 
-    async committed(cellKey, info) {
+    async logCommit(cellKey, info) {
       const cell = cells.get(cellKey) ?? { epoch: info.epoch ?? 1, txid: 0n, pages: undefined };
       cells.set(cellKey, cell);
       // The page hook (SQLite WASM) hands over exactly the changed pages: no image needed.

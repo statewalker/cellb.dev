@@ -66,7 +66,20 @@ export default defineConfig({
   },
   worker: { format: "es" },
   build: { target: "es2022", outDir: "dist", emptyOutDir: true },
-  server: { port: 5173, strictPort: true, fs: { allow: allowedRoots() } },
+  server: {
+    port: 5173,
+    strictPort: true,
+    fs: { allow: allowedRoots() },
+    // A local S3 (RustFS) reached from pages through the dev server: requests are signed for
+    // the real endpoint (s3ObjectStore's signAs), the proxy forwards them unchanged.
+    proxy: {
+      "/s3": {
+        target: process.env.RUSTFS_ENDPOINT ?? "http://127.0.0.1:9200",
+        changeOrigin: true,
+        rewrite: (p: string) => p.replace(/^\/s3/, ""),
+      },
+    },
+  },
   preview: { port: 5173, strictPort: true },
   // No COOP/COEP needed: opfs-sahpool works without SharedArrayBuffer.
 });

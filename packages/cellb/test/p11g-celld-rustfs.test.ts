@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
+import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { celldBucket } from "../src/bucket/celld-cells.js";
 import { s3ObjectStore } from "../src/bucket/s3-object-store.js";
 import { loadNodeProject } from "../src/project/node-project.js";
@@ -101,7 +102,16 @@ async function webrun(project: string, prefix: string) {
   });
   const bucket = celldBucket(store, { node: `webrun-${prefix}`, leaseTtlMs: 3_000 });
   const { runtime } = await loadNodeProject(project, {
-    openSql: nodeSqliteOpener(),
+    // P11G_DRIVER=wasm: the same with SQLite WASM (memdb + page hook), as in browsers
+    openSql:
+      process.env.P11G_DRIVER === "wasm"
+        ? wasmMemoryOpener(
+            await ((await import("@sqlite.org/sqlite-wasm")).default as any)({
+              print() {},
+              printErr() {},
+            }),
+          )
+        : nodeSqliteOpener(),
     files: new MemFilesApi(),
     ownership: bucket.ownership,
     durability: bucket.durability,
@@ -219,6 +229,49 @@ describe.skipIf(!CELLD)(
         }
         if (process.env.SHOW_CELLD_WARNINGS)
           process.stdout.write(`CELLD WARNINGS\n${complaints(node.log()).join("\n")}\n`);
+      },
+      180_000,
+    );
+
+    it.skipIf(!up)(
+      "a facet's state moves celld → webrun-cells → celld through S3",
+      async () => {
+        const prefix = `t${Date.now().toString(36)}f`;
+        const dir = join(mkdtempSync(join(tmpdir(), "rustfs-")), "facet-store");
+        cpSync(resolve(__dirname, "../conformance/projects/facet-store"), dir, { recursive: true });
+        await run(["deploy", ".", "--bucket", bucketUrl(prefix), "--endpoint", ENDPOINT], dir);
+        let node = await celldNode(prefix);
+        expect(await json(await fetch(`${node.base}/`))).toEqual({ facet: 1, parent: 1 });
+        await stop(node.p);
+        const w = await webrun(dir, prefix);
+        expect(await w.call("/")).toEqual({ facet: 2, parent: 2 });
+        await w.close();
+        const store = s3ObjectStore({
+          endpoint: ENDPOINT,
+          bucket: "cells",
+          prefix,
+          region: "us-east-1",
+          ...KEYS,
+        });
+        const keys = (await store.list("cells/")).filter(
+          (k) => k.includes("/ltx/") || k.endsWith("own.json"),
+        );
+        await new Promise((r) => setTimeout(r, 3_500));
+        node = await celldNode(prefix);
+        try {
+          const got = await json(await fetch(`${node.base}/`));
+          expect(
+            got,
+            `${keys.join("\n")}\n---\n${node
+              .log()
+              .split("\n")
+              .filter((l) => /restor|clone|resum|facet/i.test(l))
+              .slice(-12)
+              .join("\n")}`,
+          ).toEqual({ facet: 3, parent: 3 });
+        } finally {
+          await stop(node.p);
+        }
       },
       180_000,
     );
