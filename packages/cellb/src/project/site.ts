@@ -9,6 +9,7 @@ import {
   type WorkerCode,
 } from "../bindings/worker-loader.js";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
+import { SCHEDULER_EXPRESSION } from "./scheduler.js";
 
 /**
  * A project served by an in-browser "HTTP server" (webrun-site-builder handler, hosted in a
@@ -46,6 +47,7 @@ export function createProjectSite(opts: {
     caches: `${host}("caches")`,
     HTMLRewriter: `${host}("HTMLRewriter")`,
     WebSocketRequestResponsePair: `${host}("WebSocketRequestResponsePair")`,
+    scheduler: SCHEDULER_EXPRESSION,
     ...(opts.nodeCompat ? { Buffer: `${host}("Buffer")`, process: `${host}("process")` } : {}),
   };
   const modules = newModuleServer({
