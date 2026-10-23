@@ -1,0 +1,13 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /?skip=testCursorUaf,testMultiStatement,testRollbackKvInit,testSessionsAPIBookmark",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "default": "Error: rejected: Error: SQL error: prepare ingested SQL: near \"bunk\": syntax error [at SqlStorage.ingest (<anonymous>:1440:29) <- at worker.js:141:15 <- at Module.throws (<anonymous>:227:11)]"
+      }
+    }
+  ]
+}

@@ -93,6 +93,22 @@ const WD_TESTS = {
     workerLoaders: [],
     skip: [],
   },
+  // Also listed in the .wd-test, left out as defaults at our compatibility_date (2022-11-30):
+  // streams_enable_constructors, transformstream_enable_standard_constructor.
+  "wd-sql": {
+    upstream: "sql-test.js",
+    durableObjects: { ns: "DurableObjectExample" },
+    flags: ["experimental", "nodejs_compat", "disable_fast_jsg_struct"],
+    vars: {},
+    workerLoaders: [],
+    // They shrink the database with setMaxPageCountForTest, a workerd test hook celld refuses.
+    skip: [
+      "testAutoRollBackOnCriticalError",
+      "testCriticalErrorOnTransactionRollback",
+      "testCriticalErrorOnTransactionSyncCommit",
+      "testCriticalErrorOnTransactionSyncRollback",
+    ],
+  },
 };
 
 const runner = (

@@ -5,6 +5,7 @@
   "wd-actor-kv",
   "wd-delete-all-deletes-alarm-disabled",
   "wd-delete-all-deletes-alarm-enabled",
+  "wd-sql",
   "wd-sql-restrict-names",
   "wd-sync-kv"
 ]

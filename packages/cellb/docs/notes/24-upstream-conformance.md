@@ -43,6 +43,8 @@ fails p09 at once with the bundler's error, not by timing out.
 | `wd-actor-alarms` | `actor-alarms-test.js` | `test: ok` | same, after the fixes below |
 | `wd-actor-alarms-delete` | `actor-alarms-delete-test.js` | `default: ok` | same |
 | `wd-actor-alarms-in-memory` | `actor-alarms-in-memory-test.js` | `clearAfterAlarm: ok`, `updateDuringAlarm: ok` | same |
+| `wd-sql` (all but `default`) | `sql-test.js` | `testMultiStatement: ok`; `testRollbackKvInit` fails (the alarm set in a rolled-back `transactionSync()` survives); no `getCurrentBookmark()`, no `gc` | same, after the fixes below |
+| `wd-sql-default` (`default` only) | same file | stops at `sql.ingest()`'s syntax-error message | **known gap**: no `sql.ingest()` |
 
 Chromium answers the same on both paths (the esbuild bundle and the in-browser module server).
 On the module server, `import * as assert from "node:assert"` needed webrun-modules 0.3.4 and
@@ -63,6 +65,17 @@ What the upstream tests found in webrun-cells, each fixed in its own commit:
   alarm row being handled (for a retry, the time it was rescheduled to). p07a pins it too, so the
   two overlap; p07a stays, because it also covers the input gate and retry backoff with a fake
   clock, which the upstream test does not (it checks only a first run).
+- **`SELECT "foo"` was an error.** celld and workerd read a double-quoted name that is no column
+  as a string (SQLite's DQS); both SQLite drivers now do too.
+- **A cursor's last `next()` had a `value` key.** It is now `{ done: true }`, as in workerd.
+
+`sql-test.js` is split. Its four critical-error exports are not run: they shrink the database
+with `setMaxPageCountForTest`, a workerd test hook celld refuses, so they mean nothing outside
+workerd. `default`, which is most of the file, needs the experimental `sql.ingest()`, which
+webrun-cells lacks. It is a `knownGap` scenario of its own, so the other exports are still
+compared. Even with `ingest`, it would only agree with celld up to celld's failure at an ingest
+error message. A failed assertion is compared by its `AssertionError` name only, because Node's
+`assert` and celld's word the same failure differently.
 
 ## celld vs workerd
 
@@ -76,13 +89,14 @@ entry that no longer differs fails the run.
 
 | Result | Projects |
 |---|---|
-| agrees | all 8 `wd-*`, hello, webapi, counter, rpc, router, body, async, alarm, alarm-retry, wsecho, wsclient, html-rewriter, html-rewriter-async, node-compat, kv-values |
-| differs (`workerdDiffers`) | `do-ids` (per-deployment id keys; message punctuation), `storage-details` (celld stores `undefined`, coerces `setAlarm(non-date)`, needs no `alarm()` handler; SQL error texts), `worker-details` (celld's JSON "Worker failed" body, non-`Response` returns accepted, no cross-isolate RPC stubs), `ws-details` (`Error` vs `TypeError`; `send()` before `accept()`) |
+| agrees | the 8 storage and alarm `wd-*` projects, hello, webapi, counter, rpc, router, body, async, alarm, alarm-retry, wsecho, wsclient, html-rewriter, html-rewriter-async, node-compat, kv-values |
+| differs (`workerdDiffers`) | `do-ids` (per-deployment id keys; message punctuation), `storage-details` (celld stores `undefined`, coerces `setAlarm(non-date)`, needs no `alarm()` handler; SQL error texts), `worker-details` (celld's JSON "Worker failed" body, non-`Response` returns accepted, no cross-isolate RPC stubs), `ws-details` (`Error` vs `TypeError`; `send()` before `accept()`), `wd-sql` (workerd has `getCurrentBookmark()` and rolls the alarm back), `wd-sql-default` (workerd runs it up to `gc()`) |
 | skipped | 23 projects with non-DO bindings, and `vectordb` (`sqlite_vec`) |
 
 The vendored flags drop the ones workerd refuses to see listed at our `compatibility_date`
-(defaults by then): `rpc` and `enable_ctx_exports` in `wd-sync-kv`. celld answers the same
-without them.
+(defaults by then): `rpc` and `enable_ctx_exports` in `wd-sync-kv`, and
+`streams_enable_constructors` and `transformstream_enable_standard_constructor` in `wd-sql`.
+celld answers the same without them.
 
 ## Known differences from celld (not covered by an upstream test)
 
@@ -101,7 +115,8 @@ keeps out of `_cf_` names sees.
 
 ## Ported with changes
 
-None. Only the configuration is translated (see Method).
+None of the upstream files. Only the configuration is translated (see Method), and some
+exports are left out with a stated reason (`skip` in the script's `WD_TESTS` table).
 
 ## Not ported, and why
 
