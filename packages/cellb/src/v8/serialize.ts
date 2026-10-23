@@ -167,7 +167,7 @@ export function serialize(value: unknown): Uint8Array {
     return keys.length;
   };
 
-  const write = (v: unknown): void => {
+  const write = (v: unknown): unknown => {
     if (v === undefined) return w.byte(T.undef);
     if (v === null) return w.byte(T.nul);
     if (v === true) return w.byte(T.tru);
