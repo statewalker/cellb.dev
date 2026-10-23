@@ -1,6 +1,7 @@
 // nodejs_compat for the in-browser module server: the polyfill modules as registry entries
 // (imported here so the browser bundler includes them in the worker that runs Worker code).
 // The npm polyfills are CommonJS: each entry exposes the named exports Node has, plus default.
+import assert from "assert";
 import { Buffer } from "buffer";
 import EventEmitter from "events";
 import path from "path-browserify";
@@ -10,6 +11,7 @@ import * as crypto from "./crypto.js";
 import { process } from "./process.js";
 
 const modules: Record<string, unknown> = {
+  "node:assert": { ...assert, default: assert },
   "node:buffer": { Buffer, default: { Buffer } },
   "node:events": {
     EventEmitter,
