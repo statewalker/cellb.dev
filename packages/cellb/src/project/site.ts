@@ -9,6 +9,7 @@ import {
   type WorkerCode,
 } from "../bindings/worker-loader.js";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
+import { SCHEDULER_EXPRESSION } from "./scheduler.js";
 
 /**
  * A project served by an in-browser "HTTP server" (webrun-site-builder handler, hosted in a
@@ -30,6 +31,12 @@ export const LOADED_CONSOLES = "__cellsLoadedConsoles";
 export function createProjectSite(opts: {
   projectFiles: FilesApi;
   nodeCompat?: boolean;
+  /**
+   * The `node:*` registry entries of the realm that runs the code (`nodeRegistryEntries`): a
+   * namespace import (`import * as assert from "node:assert"`) exports the keys the server
+   * sees here, so without them its members are undefined.
+   */
+  nodeModules?: Record<string, unknown>;
 }): SiteHandler {
   const host = "globalThis.__webrunHostRegistry.get";
   // nodejs_compat: node:* and the Buffer/process globals come from the realm's registry too.
@@ -39,13 +46,14 @@ export function createProjectSite(opts: {
       ...Object.keys(NODE_POLYFILL_PACKAGES),
       ...Object.keys(NODE_POLYFILL_FILES),
     ])
-      provided[nodeAlias(name)] = {};
+      provided[nodeAlias(name)] = (opts.nodeModules?.[nodeAlias(name)] as object) ?? {};
   const globals = {
     Response: `${host}("Response")`,
     WebSocketPair: `${host}("WebSocketPair")`,
     caches: `${host}("caches")`,
     HTMLRewriter: `${host}("HTMLRewriter")`,
     WebSocketRequestResponsePair: `${host}("WebSocketRequestResponsePair")`,
+    scheduler: SCHEDULER_EXPRESSION,
     ...(opts.nodeCompat ? { Buffer: `${host}("Buffer")`, process: `${host}("process")` } : {}),
   };
   const modules = newModuleServer({

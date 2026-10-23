@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { build } from "esbuild";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../src/node-compat/modules.ts";
 import { readAssetDirectory, readWranglerConfig } from "../src/project/node-project.ts";
+import { SCHEDULER_EXPRESSION } from "../src/project/scheduler.ts";
 import type { WranglerConfig } from "../src/project/wrangler.ts";
 import { projectDir } from "./projects.ts";
 
@@ -25,8 +26,7 @@ export interface BrowserProject {
 
 export const WORKERS_MODULE_SHIM =
   "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
-const GLOBALS_SHIM =
-  "export const Response = globalThis.__cellsGlobals.Response; export const WebSocketPair = globalThis.__cellsGlobals.WebSocketPair; export const caches = globalThis.__cellsGlobals.caches; export const HTMLRewriter = globalThis.__cellsGlobals.HTMLRewriter; export const WebSocketRequestResponsePair = globalThis.__cellsGlobals.WebSocketRequestResponsePair;";
+const GLOBALS_SHIM = `export const Response = globalThis.__cellsGlobals.Response; export const WebSocketPair = globalThis.__cellsGlobals.WebSocketPair; export const caches = globalThis.__cellsGlobals.caches; export const HTMLRewriter = globalThis.__cellsGlobals.HTMLRewriter; export const WebSocketRequestResponsePair = globalThis.__cellsGlobals.WebSocketRequestResponsePair; export const scheduler = ${SCHEDULER_EXPRESSION};`;
 
 export async function bundleProjectForBrowser(name: string): Promise<BrowserProject> {
   const dir = projectDir(name);
@@ -41,6 +41,9 @@ export async function bundleProjectForBrowser(name: string): Promise<BrowserProj
       format: "esm",
       platform: "browser",
       target: "es2022",
+      // Function names are observable (the npm assert polyfill reports its caller's name as the
+      // operator); bundling must not rename them.
+      keepNames: true,
       logLevel: "silent",
       inject: [
         "cells:globals",

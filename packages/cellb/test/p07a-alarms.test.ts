@@ -8,14 +8,19 @@ import { FakeClock } from "./fake-clock.js";
 
 /** Records every alarm() call; fails while `failures` > 0; can re-arm itself. */
 class Sleeper extends DurableObject {
-  static calls: { name: string; retryCount: number; isRetry: boolean; seenAlarm: number | null }[] =
-    [];
+  static calls: {
+    name: string;
+    retryCount: number;
+    isRetry: boolean;
+    scheduledTime?: number;
+    seenAlarm: number | null;
+  }[] = [];
   static failures = 0;
   static rearmMs = 0;
   static lastAt = 0;
   /** Re-arm to this absolute time, then throw (celld: the handler's change wins over the retry). */
   static rearmThenThrowAt = 0;
-  async alarm(info: { retryCount: number; isRetry: boolean }) {
+  async alarm(info: { retryCount: number; isRetry: boolean; scheduledTime?: number }) {
     const name = (await this.ctx.storage.get<string>("name")) ?? "?";
     Sleeper.calls.push({ name, ...info, seenAlarm: await this.ctx.storage.getAlarm() });
     if (Sleeper.rearmThenThrowAt) {
@@ -83,7 +88,9 @@ describe("P07a Durable Object alarms", () => {
     expect(Sleeper.calls).toEqual([]);
     await clock.advance(1);
     await new Promise((r) => setTimeout(r, 20));
-    expect(Sleeper.calls).toEqual([{ name: "b", retryCount: 0, isRetry: false, seenAlarm: null }]);
+    expect(Sleeper.calls).toEqual([
+      { name: "b", retryCount: 0, isRetry: false, scheduledTime: clock.now(), seenAlarm: null },
+    ]);
     await clock.advance(60_000);
     expect(Sleeper.calls).toHaveLength(1);
   });

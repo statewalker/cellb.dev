@@ -1,0 +1,46 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "POST /x",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "echoed": {
+          "n": 2,
+          "tag": "two"
+        },
+        "sum": 2
+      }
+    },
+    {
+      "request": "PUT /x",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "echoed": {
+          "n": 3
+        },
+        "sum": 5
+      }
+    },
+    {
+      "request": "DELETE /x",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "method": "DELETE",
+        "bodyLen": 6
+      }
+    },
+    {
+      "request": "GET /y",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "method": "GET",
+        "bodyLen": 0
+      }
+    }
+  ]
+}

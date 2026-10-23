@@ -1,0 +1,20 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "out": "<!doctype html><html><head><title>New &amp; &lt;improved&gt;</title></head><body>\n<!-- replaced --><h1 class=\"t\" id=\"main\"><i>before</i>Hello <b>world</b> [end]</h1>\n<a href=\"/changed\">x</a><a href=\"/y\">y</a>\n<ul><li>1</li><li>two</li></ul>\n</body></html><!-- the end -->",
+        "seen": [
+          "doctype:html",
+          "comment: note ",
+          "h1:h1:t:false",
+          "text:Hello :false",
+          "text:world:false"
+        ]
+      }
+    }
+  ]
+}

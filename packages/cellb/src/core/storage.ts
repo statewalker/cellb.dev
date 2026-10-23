@@ -68,7 +68,30 @@ export class SyncKvStorage {
         .rowsWritten > 0
     );
   }
-  *list<T = unknown>(opts: ListOptions = {}): IterableIterator<[string, T]> {
+  /**
+   * Only one list() iterator is live at a time, as in workerd: a new call invalidates the
+   * previous one, which throws on its next step.
+   */
+  list<T = unknown>(opts: ListOptions = {}): IterableIterator<[string, T]> {
+    const generation = ++this.#listGeneration;
+    const live = () => {
+      if (generation !== this.#listGeneration)
+        throw new Error(
+          "kv.list() iterator was invalidated because a new call to kv.list() was started. " +
+            "Only one kv.list() iterator can exist at a time.",
+        );
+    };
+    const rows = this.#rows<T>(opts);
+    return (function* () {
+      live();
+      for (const row of rows) {
+        yield row;
+        live();
+      }
+    })();
+  }
+  #listGeneration = 0;
+  *#rows<T>(opts: ListOptions): IterableIterator<[string, T]> {
     this.#init();
     const where: string[] = ["scope = ?"];
     const params: unknown[] = [this.scope];
@@ -171,7 +194,8 @@ export class DurableObjectStorage extends AsyncKvApi {
   deleteAll(): Promise<void> {
     return this.op(() => {
       this.kv.deleteAll();
-      this.clearAlarmSync(); // deleteAll() also deletes the alarm, as on Cloudflare
+      // deleteAll() also deletes the alarm, as on Cloudflare, unless `delete_all_preserves_alarm`.
+      if (!this.deleteAllPreservesAlarm) this.clearAlarmSync();
       const tables = this.sql.internalExec(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '\\_cf\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'",
       ).rows;
@@ -214,6 +238,8 @@ export class DurableObjectStorage extends AsyncKvApi {
   sync(): Promise<void> {
     return this.#sync();
   }
+  /** `delete_all_preserves_alarm`: deleteAll() leaves the alarm in place. */
+  deleteAllPreservesAlarm = false;
   /** Called whenever the stored alarm changes (the runtime schedules it). */
   onAlarmChange: (at: number | null) => void = () => {};
 

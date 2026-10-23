@@ -35,6 +35,7 @@ export default defineConfig({
       "@statewalker/webrun-files-mem",
       "@statewalker/webrun-site-host",
       "@statewalker/webrun-site-builder",
+      "assert",
       "buffer",
       "events",
       "path-browserify",

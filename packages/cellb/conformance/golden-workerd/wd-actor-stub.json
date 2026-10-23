@@ -1,0 +1,13 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "default": "AssertionError: undefined throws {\"name\":\"RangeError\",\"message\":\"retry.maxRetries must be an integer between 0 and 10\"}"
+      }
+    }
+  ]
+}

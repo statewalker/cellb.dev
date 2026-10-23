@@ -1,0 +1,16 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /?skip=default",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "testCursorUaf": "ReferenceError: gc is not defined",
+        "testMultiStatement": "ok",
+        "testRollbackKvInit": "ok",
+        "testSessionsAPIBookmark": "ok"
+      }
+    }
+  ]
+}

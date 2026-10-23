@@ -1,0 +1,17 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "text/plain;charset=UTF-8",
+      "body": "Hello from cells! url={origin}/"
+    },
+    {
+      "request": "GET /a/b?x=1",
+      "status": 200,
+      "contentType": "text/plain;charset=UTF-8",
+      "body": "Hello from cells! url={origin}/a/b?x=1"
+    }
+  ]
+}

@@ -4,6 +4,7 @@
  * On Node hosts `node:*` stays the real Node.js module.
  */
 export const NODE_POLYFILL_PACKAGES: Record<string, string> = {
+  "node:assert": "assert",
   "node:buffer": "buffer",
   "node:events": "events",
   "node:path": "path-browserify",

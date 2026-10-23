@@ -1,0 +1,16 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /?skip=default",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "testCursorUaf": "ReferenceError: gc is not defined",
+        "testMultiStatement": "ok",
+        "testRollbackKvInit": "AssertionError: <ms> strictEqual null",
+        "testSessionsAPIBookmark": "TypeError: this.state.storage.getCurrentBookmark is not a function"
+      }
+    }
+  ]
+}

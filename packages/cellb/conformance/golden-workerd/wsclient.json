@@ -1,0 +1,27 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "message": null
+      }
+    },
+    {
+      "request": "GET /connect?url={wsserver}/room/c1",
+      "status": 202,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "message": "hello"
+      }
+    }
+  ]
+}

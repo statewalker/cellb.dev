@@ -59,7 +59,14 @@ export function createWebSocketClass(
     protocol = "";
     extensions = "";
     bufferedAmount = 0;
-    binaryType: "blob" | "arraybuffer" = "blob";
+    #binaryType: "blob" | "arraybuffer" = "blob";
+    get binaryType(): "blob" | "arraybuffer" {
+      return this.#binaryType;
+    }
+    /** Only "blob" and "arraybuffer" are taken; any other value is ignored (WHATWG). */
+    set binaryType(v: "blob" | "arraybuffer") {
+      if (v === "blob" || v === "arraybuffer") this.#binaryType = v;
+    }
     onopen: Handler = null;
     onmessage: Handler = null;
     onclose: Handler = null;

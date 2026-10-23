@@ -1,0 +1,37 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "WS /?tag=red [\"hello\",\"ping\",\"info\"]",
+      "messages": [
+        "echo:hello",
+        "pong",
+        {
+          "tags": ["red"],
+          "sockets": 1,
+          "tagged": 1,
+          "attachment": {
+            "joined": 1
+          },
+          "auto": "ping",
+          "readyState": 1
+        }
+      ]
+    },
+    {
+      "request": "GET /no-upgrade",
+      "status": 200,
+      "contentType": "text/plain;charset=UTF-8",
+      "body": "rejected TypeError"
+    },
+    {
+      "request": "GET /pair",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "readyState": 1,
+        "sendBeforeAccept": "TypeError"
+      }
+    }
+  ]
+}

@@ -8,8 +8,9 @@ import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { startReferenceServer } from "../test/ws-reference-server.ts";
+import { httpTarget } from "./http-target.ts";
 import { projectDir } from "./projects.ts";
-import { normalizeLogs, runScenario, scenarios, type Target } from "./scenarios.ts";
+import { normalizeLogs, runScenario, scenarios } from "./scenarios.ts";
 
 const celld = process.env.CELLD_BIN ?? "celld";
 const here = import.meta.dirname;
@@ -41,26 +42,7 @@ for (const name of names) {
     proc.kill();
     continue;
   }
-  const target: Target = {
-    origin,
-    wsServer: ref ? `ws://127.0.0.1:${ref.port}` : undefined,
-    fetch: (req) => fetch(req),
-    websocket: (url) =>
-      new Promise((resolveWs, reject) => {
-        const ws = new WebSocket(url);
-        const queue: unknown[] = [];
-        const waiters: ((v: unknown) => void)[] = [];
-        ws.onmessage = (e) => (waiters.length ? waiters.shift()!(e.data) : queue.push(e.data));
-        ws.onerror = () => reject(new Error("websocket error"));
-        ws.onopen = () =>
-          resolveWs({
-            send: (m) => ws.send(m),
-            next: () =>
-              queue.length ? Promise.resolve(queue.shift()) : new Promise((r) => waiters.push(r)),
-            close: () => ws.close(),
-          });
-      }),
-  };
+  const target = httpTarget(origin, ref ? `ws://127.0.0.1:${ref.port}` : undefined);
   try {
     const scenario = scenarios[name];
     const from = log.length;

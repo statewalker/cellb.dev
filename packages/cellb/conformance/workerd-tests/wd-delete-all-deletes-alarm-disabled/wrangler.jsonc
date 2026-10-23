@@ -1,0 +1,29 @@
+{
+  "name": "wd-delete-all-deletes-alarm-disabled",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": [
+    "experimental",
+    "nodejs_compat",
+    "delete_all_preserves_alarm"
+  ],
+  "vars": {
+    "EXPECT_ALARM_DELETED": "false"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ns",
+        "class_name": "DurableObjectExample"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "DurableObjectExample"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "handledRejection": "Error: rejected: Error: constructor failure [at worker.js:35:15 <- at DurableObjectState._runConcurrencyBlock (<anonymous>:2728:16) <- at <anonymous>:2686:29]",
+        "unhandledRejection": "timeout"
+      }
+    }
+  ]
+}

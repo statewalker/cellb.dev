@@ -18,16 +18,18 @@ interface Job {
   const projectFiles = new MemFilesApi();
   for (const [p, b64] of job.files)
     await projectFiles.write(p, [Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))]);
+  const nodeCompat = (
+    (job.config as { compatibility_flags?: string[] }).compatibility_flags ?? []
+  ).some((f) => f.startsWith("nodejs_compat"));
+  // The served proxies take their export names from the registry entries (the worker binds them
+  // to the same objects); the npm `util` polyfill reads `process` when it is imported.
+  if (nodeCompat) (await import("../../src/node-compat/install.js")).installNodeGlobals();
+  const nodeModules = nodeCompat
+    ? (await import("../../src/node-compat/browser-registry.js")).nodeRegistryEntries
+    : undefined;
   const site = await new HostedSiteBuilder()
     .setSiteKey(`site-${job.name}-${Math.random().toString(36).slice(2, 8)}`)
-    .setHandler(
-      createProjectSite({
-        projectFiles,
-        nodeCompat: (
-          (job.config as { compatibility_flags?: string[] }).compatibility_flags ?? []
-        ).some((f) => f.startsWith("nodejs_compat")),
-      }),
-    )
+    .setHandler(createProjectSite({ projectFiles, nodeCompat, nodeModules }))
     .build();
   const worker = new Worker(new URL("./site-worker.ts", import.meta.url), { type: "module" });
   try {

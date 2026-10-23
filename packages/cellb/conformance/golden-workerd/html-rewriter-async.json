@@ -1,0 +1,11 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /async",
+      "status": 200,
+      "contentType": "text/plain;charset=UTF-8",
+      "body": "<p><a href=\"/async\">x</a></p>"
+    }
+  ]
+}

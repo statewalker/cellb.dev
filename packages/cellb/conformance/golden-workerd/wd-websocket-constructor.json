@@ -1,0 +1,25 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /?skip=binaryMessageDeliveredAsBlob,binaryTypeSetterInvalid,binaryTypeSwitchMidStream,binaryTypeWebSocketPairDefault,closeReasonUSVString",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "binaryMessageDeliveredAsArrayBuffer": "ok",
+        "binaryTypeDefaultsToBlob": "ok",
+        "binaryTypeSetterValid": "ok",
+        "closeCode1000Succeeds": "ok",
+        "closeCode3000To4999Succeeds": "ok",
+        "closeCodeSpecInvalid": "ok",
+        "closeReasonExact123Bytes": "ok",
+        "closeReasonMultibyteExceeds": "ok",
+        "closeReasonTooLong": "ok",
+        "duplicateProtocols": "ok",
+        "emptyProtocolsArray": "ok",
+        "invalidProtocolToken": "ok",
+        "singleProtocolString": "ok"
+      }
+    }
+  ]
+}

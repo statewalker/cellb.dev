@@ -40,6 +40,7 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
           rows: c.toArray(),
           one: sql.exec("SELECT count(*) AS n FROM t").one(),
           raw: [...sql.exec("SELECT a FROM t ORDER BY a").raw()],
+          end: Object.keys(sql.exec("SELECT 1 WHERE 0").next()), // as workerd: no `value` key
         };
       });
       expect(r.written).toBe(2);
@@ -48,6 +49,7 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
       expect(new Uint8Array(r.rows[0].c as ArrayBuffer)).toEqual(new Uint8Array([1, 2]));
       expect(r.one).toEqual({ n: 2 });
       expect(r.raw).toEqual([[1], [2]]);
+      expect(r.end).toEqual(["done"]);
     });
 
     it("one() throws on zero or many rows; multi-statement scripts run without bindings", async () => {
@@ -59,6 +61,18 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
         expect(() => ctx.storage.sql.exec("SELECT * FROM b").one()).toThrow(/no results/);
         expect(() => ctx.storage.sql.exec("SELECT * FROM a").one()).toThrow(/multiple/);
       });
+    });
+
+    it('a double-quoted name that is no column is a string ("foo"), as on celld and workerd', async () => {
+      const { inObject } = probeRuntime();
+      const r = await inObject("q", (ctx) => {
+        ctx.storage.sql.exec("CREATE TABLE t (foo TEXT); INSERT INTO t VALUES ('column')");
+        return {
+          literal: ctx.storage.sql.exec('SELECT "bar" AS v').one(),
+          column: ctx.storage.sql.exec('SELECT "foo" AS v FROM t').one(),
+        };
+      });
+      expect(r).toEqual({ literal: { v: "bar" }, column: { v: "column" } });
     });
 
     it("rejects SQL-level transactions and access to internal _cf_ tables", async () => {

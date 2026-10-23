@@ -1,0 +1,37 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 0
+      }
+    },
+    {
+      "request": "POST /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 1
+      }
+    },
+    {
+      "request": "POST /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 2
+      }
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "count": 2
+      }
+    }
+  ]
+}

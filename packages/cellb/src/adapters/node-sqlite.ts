@@ -26,7 +26,11 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   constructor(path = ":memory:", opts: { exclusive?: boolean } = {}) {
     this.#path = path;
     this.#exclusive = !!opts.exclusive;
-    this.#db = new DatabaseSync(path, { allowExtension: true });
+    // As celld and workerd: a double-quoted name that is no column is a string literal.
+    this.#db = new DatabaseSync(path, {
+      allowExtension: true,
+      enableDoubleQuotedStringLiterals: true,
+    });
     this.#db.enableLoadExtension(false); // only loadExtension() below may load, by name
     // EXCLUSIVE locking: the first write takes an OS lock on the file that is
     // kept until close (or process death) — a second process can neither read
@@ -143,7 +147,7 @@ export class NodeSqliteDriver implements SyncSqlDriver {
       this.#path = join(mkdtempSync(join(tmpdir(), "cell-mem-")), "db.sqlite");
     for (const suffix of ["-wal", "-shm", "-journal"]) rmSync(this.#path + suffix, { force: true });
     writeFileSync(this.#path, image);
-    this.#db = new DatabaseSync(this.#path);
+    this.#db = new DatabaseSync(this.#path, { enableDoubleQuotedStringLiterals: true });
     if (this.#exclusive) this.#db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
   }
 }

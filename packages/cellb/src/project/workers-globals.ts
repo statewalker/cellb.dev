@@ -12,3 +12,8 @@ export {
   WebSocketPair,
   WebSocketRequestResponsePair,
 } from "webrun-cells:ws";
+
+/** workerd's `scheduler`: `await scheduler.wait(ms)` is a promise-based setTimeout. */
+export const scheduler = {
+  wait: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+};

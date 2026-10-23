@@ -120,6 +120,16 @@ describe("P07w WebSockets over MessagePorts (CF WebSocketPair on the DO side, WH
     expect(() => ws.send("x")).toThrow(/CONNECTING/);
     expect(() => ws.close(1001)).toThrow(/close code/);
     expect(() => new WS("ftp://x/")).toThrow(/scheme/);
+    // binaryType takes only "blob" and "arraybuffer" (case-sensitive); anything else is ignored
+    ws.binaryType = "arraybuffer";
+    (ws as { binaryType: string }).binaryType = "BLOB";
+    expect(ws.binaryType).toBe("arraybuffer");
+  });
+
+  it("a WebSocketPair destructures as [client, server], as in workerd", () => {
+    const pair = new WebSocketPair();
+    const [client, server] = pair as unknown as Iterable<unknown>;
+    expect([client, server]).toEqual([pair[0], pair[1]]);
   });
 });
 

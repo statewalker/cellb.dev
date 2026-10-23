@@ -1,0 +1,49 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "buffer": {
+          "hex": "68c3a96c6c6f2077c3b6726c64",
+          "base64": "aMOpbGxvIHfDtnJsZA==",
+          "len": 13,
+          "concat": "ab",
+          "isBuffer": true,
+          "readUInt16BE": 258,
+          "globalBuffer": "function"
+        },
+        "crypto": {
+          "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+          "md5": "kAFQmDzST7DWlj99KOF/cg==",
+          "hmac": "5031fe3d989c6d1537a013fa6e739da23463fdaec3b70137d828e36ace221bd0",
+          "uuid": true,
+          "tse": true
+        },
+        "events": {
+          "seen": [1, "once:1", 2],
+          "count": 1
+        },
+        "path": {
+          "join": "/a/c/d.txt",
+          "ext": ".gz",
+          "base": "file",
+          "resolve": "/root/y"
+        },
+        "util": {
+          "format": "n=42 {\"a\":1}",
+          "inspect": "{ a: [ 1, { b: 2 } ] }",
+          "promisified": 42,
+          "isDate": true
+        },
+        "als": 7,
+        "process": {
+          "env": "object",
+          "nextTick": "function"
+        }
+      }
+    }
+  ]
+}

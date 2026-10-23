@@ -1,0 +1,27 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /?skip=asyncCodeLoader,codeLoaderException,passEnv,passEnvCaps,startupException,suggestWorkerBundlerForTypeScriptModules",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "abortIsolateDynamic": "Error: worker loader: WorkerCode field `allowExperimental` is not supported",
+        "abortIsolateDynamicAnonymous": "Error: worker loader: WorkerCode field `allowExperimental` is not supported",
+        "basics": "DataCloneError: function () {} could not be cloned.",
+        "compatDateFlags": "AssertionError: true strictEqual false",
+        "ctxExports": "ok",
+        "doStubViaEnv": "DataCloneError: Worker Loader env supports only Service Binding capabilities.",
+        "doStubViaProps": "DataCloneError: #<Object> could not be cloned.",
+        "doStubViaRpcParam": "Error: worker loader: WorkerCode field `allowExperimental` is not supported",
+        "facetUafRegression": "ReferenceError: gc is not defined",
+        "facets": "TypeError: FacetStartupOptions.class must be a DurableObjectClass.",
+        "justLoad": "ok",
+        "moduleTypes": "Error: worker loader: module \"binary.dat\" must be a string or wasm bytes",
+        "nullGlobalOutbound": "Error: rejected: Error: This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world. [at <anonymou",
+        "regressionDeadIoContextGetCode": "ok",
+        "wasmModules": "ok"
+      }
+    }
+  ]
+}

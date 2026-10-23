@@ -1,6 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { describe, expect, it } from "vitest";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createCellRuntime } from "../src/index.js";
@@ -41,6 +42,10 @@ describe("P01 walking skeleton: Request → Worker → DO stub → SQLite → Re
     await expect(ns.getByName("r").nope()).rejects.toThrow(/nope is not a function/); // celld's wording
     // stubs must not look like thenables
     expect(typeof ns.getByName("r").then).toBe("undefined");
+    // own enumerable keys are id and name only, as in workerd and celld
+    expect(Object.keys(ns.getByName("r")).sort()).toEqual(["id", "name"]);
+    // two stubs of one object are deep-equal (actor-stub-test)
+    expect(isDeepStrictEqual(ns.getByName("r"), ns.get(ns.idFromName("r")))).toBe(true);
   });
 
   it("RPC arguments and results are copied (no shared references across the stub)", async () => {
@@ -51,6 +56,25 @@ describe("P01 walking skeleton: Request → Worker → DO stub → SQLite → Re
     expect(arg).toEqual([1]);
     res.push(7);
     expect(await stub.kept()).toEqual([1, 99]);
+  });
+
+  it("an object's fetch() returning a non-Response answers with it as text (celld)", async () => {
+    const rt = createCellRuntime({
+      worker: {
+        Plain: class {
+          fetch = () => ({ not: "a response" });
+        },
+        default: {},
+      },
+      durableObjects: { PLAIN: { className: "Plain" } },
+      openSql: nodeSqliteOpener(),
+    });
+    const res = await (rt.env.PLAIN as any).getByName("p").fetch("https://x/");
+    expect([res instanceof Response, res.status, await res.text()]).toEqual([
+      true,
+      200,
+      "[object Object]",
+    ]);
   });
 
   it("idFromName is deterministic and namespaced; idFromString round-trips", () => {

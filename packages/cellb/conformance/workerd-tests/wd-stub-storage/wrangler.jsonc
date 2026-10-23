@@ -1,0 +1,27 @@
+{
+  "name": "wd-stub-storage",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "allow_irrevocable_stub_storage",
+    "experimental",
+    "service_binding_extra_handlers"
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MyActor",
+        "class_name": "MyActor"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "MyActor"
+      ]
+    }
+  ]
+}

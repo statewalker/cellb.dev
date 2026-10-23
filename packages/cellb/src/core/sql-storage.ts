@@ -3,6 +3,8 @@ import { LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE } from "./celld-schema.js";
 
 const FORBIDDEN_TXN = /^\s*(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
 const FORBIDDEN_INTERNAL = /\b_cf_\w*/i;
+/** Creating or dropping an object with an internal name (any case): celld refuses it outright. */
+const FORBIDDEN_DDL = /^\s*(CREATE|DROP)\b[^(]*?\b_cf_/i;
 
 /** `ctx.storage.sql.exec()` cursor (iterable, one-shot like the CF one). */
 export class SqlStorageCursor<T = Record<string, unknown>> implements Iterable<T> {
@@ -18,7 +20,8 @@ export class SqlStorageCursor<T = Record<string, unknown>> implements Iterable<T
     this.rowsWritten = r.rowsWritten;
   }
   next(): IteratorResult<T> {
-    if (this.#pos >= this.#rows.length) return { done: true, value: undefined };
+    // As workerd: the final result has no `value` key ({ done: true }).
+    if (this.#pos >= this.#rows.length) return { done: true } as IteratorReturnResult<undefined>;
     return { done: false, value: this.#obj(this.#rows[this.#pos++]) };
   }
   [Symbol.iterator](): Iterator<T> {
@@ -116,7 +119,8 @@ export class SqlStorage {
   exec<T = Record<string, unknown>>(query: string, ...bindings: unknown[]): SqlStorageCursor<T> {
     // Messages as celld words them (storage-details project): its authorizer refuses
     // transaction statements and reads of internal tables at prepare time.
-    if (FORBIDDEN_TXN.test(query)) throw new Error("SQL error: prepare SQL cursor: not authorized");
+    if (FORBIDDEN_TXN.test(query) || FORBIDDEN_DDL.test(query))
+      throw new Error("SQL error: prepare SQL cursor: not authorized");
     const internal = FORBIDDEN_INTERNAL.exec(query);
     if (internal) {
       const table = internal[0];

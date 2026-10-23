@@ -1,0 +1,14 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "bindingsInProps": "TypeError: function () {} could not be cloned.",
+        "storeServiceBinding": "TypeError: function () {} could not be cloned."
+      }
+    }
+  ]
+}

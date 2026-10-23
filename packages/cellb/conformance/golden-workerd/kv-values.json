@@ -1,0 +1,40 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /write",
+      "status": 200,
+      "contentType": "application/json",
+      "body": "written"
+    },
+    {
+      "request": "GET /read",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "int": "number:42",
+        "neg": "number:-7",
+        "big": "number:1099511627776",
+        "float": "number:3.25",
+        "str": "string:héllo",
+        "wide": "string:日本 ✓ 😀",
+        "bool": "boolean:true",
+        "nul": "null",
+        "undef": "undefined",
+        "bigint": "bigint:12345678901234567890",
+        "date": "Date:2023-11-14T22:13:20.000Z",
+        "arr": "Array(3):[\"number:1\",\"string:two\",\"Array(1):[\\\"number:3\\\"]\"]",
+        "sparse": "Array(4):[null,null,null,\"string:x\"]",
+        "obj": "Object:{\"a\":\"number:1\",\"nested\":\"Object:{\\\"b\\\":\\\"Array(2):[\\\\\\\"boolean:true\\\\\\\",\\\\\\\"null\\\\\\\"]\\\"}\"}",
+        "map": "Map:[[\"k\",\"number:1\"],[2,\"string:v\"]]",
+        "set": "Set:[\"number:1\",\"string:s\"]",
+        "re": "RegExp:a+b/gi",
+        "ab": "ArrayBuffer:1,2,255",
+        "u8": "Uint8Array:10,20,30",
+        "i16": "Int16Array:-1,500",
+        "f64": "Float64Array:1.5,-2.25",
+        "dv": "DataView:2:7"
+      }
+    }
+  ]
+}

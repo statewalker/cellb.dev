@@ -1,0 +1,34 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /storage",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "getManyUndefinedKey": [["a", 1]],
+        "putManyUndefinedValue": "undefined",
+        "deleteManyMissing": 1,
+        "listStartAndStartAfter": "TypeError: list() cannot be called with both start and startAfter values.",
+        "listOptionsNotMutated": true,
+        "txnSeesUncommitted": "new",
+        "txnListIncludesNew": ["t", "t2"],
+        "txnDeleteReportsNew": true,
+        "txnReturnValue": {
+          "ok": [1, 2]
+        },
+        "putThenDeleteAllSameTurn": "undefined"
+      }
+    },
+    {
+      "request": "GET /stub",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "unknownProtocol": "TypeError: Fetch API cannot load: ftp://x/",
+        "nonResponse": "TypeError: Callback returned incorrect type; expected 'Promise'",
+        "immutableHeaders": "TypeError: Can't modify immutable headers."
+      }
+    }
+  ]
+}

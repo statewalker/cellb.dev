@@ -55,6 +55,8 @@ export interface CellRuntimeOptions {
   hibernateAfterMs?: number;
   /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
   sqlExtensions?: string[];
+  /** `delete_all_preserves_alarm`: storage.deleteAll() keeps the alarm (default: deletes it). */
+  deleteAllPreservesAlarm?: boolean;
   /** Timers of the runtime (backups); injectable for tests. */
   clock?: Clock;
 }
@@ -166,7 +168,11 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
         let ok = true;
         try {
           if (typeof obj.alarm === "function")
-            await obj.alarm({ retryCount: row.retry, isRetry: row.retry > 0 });
+            await obj.alarm({
+              retryCount: row.retry,
+              isRetry: row.retry > 0,
+              scheduledTime: row.at, // alarmInfo.scheduledTime, as in workerd
+            });
         } catch {
           ok = false;
         }
@@ -215,6 +221,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           facet: opts.facets,
           acquire: opts.ownership ? (key) => opts.ownership!.tryAcquire(key) : undefined,
           sqlExtensions: opts.sqlExtensions,
+          deleteAllPreservesAlarm: opts.deleteAllPreservesAlarm,
         });
         hosts.set(cellKey, h);
       }
@@ -275,6 +282,15 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       };
     });
     bindingClasses[binding] = className;
+    // ctx.exports.<Class> of a class with a namespace is also that namespace, as in workerd
+    // (`ctx.exports.MyActor.getByName("a")`); it stays usable as a facet class handle.
+    const ns = env[binding] as DurableObjectNamespace;
+    const exported = exportsObj[className] as Record<string, unknown> | undefined;
+    if (exported && !("getByName" in exported))
+      for (const [m, d] of Object.entries(
+        Object.getOwnPropertyDescriptors(DurableObjectNamespace.prototype),
+      ))
+        if (m !== "constructor" && typeof d.value === "function") exported[m] = d.value.bind(ns);
   }
 
   alarms.restore();

@@ -32,7 +32,8 @@
     "events": "^3.3.0",
     "path-browserify": "^1.0.1",
     "util": "^0.12.5",
-    "buffer": "^6.0.3"
+    "buffer": "^6.0.3",
+    "assert": "^2.1.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -50,7 +51,8 @@
     "@types/ws": "catalog:",
     "zod": "^3.25.0",
     "sqlite-vec-wasm-demo": "0.1.6",
-    "html-rewriter-wasm": "^0.4.1"
+    "html-rewriter-wasm": "^0.4.1",
+    "miniflare": "4.20260730.0"
   },
   "private": true
 }
