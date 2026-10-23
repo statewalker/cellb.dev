@@ -68,7 +68,30 @@ export class SyncKvStorage {
         .rowsWritten > 0
     );
   }
-  *list<T = unknown>(opts: ListOptions = {}): IterableIterator<[string, T]> {
+  /**
+   * Only one list() iterator is live at a time, as in workerd: a new call invalidates the
+   * previous one, which throws on its next step.
+   */
+  list<T = unknown>(opts: ListOptions = {}): IterableIterator<[string, T]> {
+    const generation = ++this.#listGeneration;
+    const live = () => {
+      if (generation !== this.#listGeneration)
+        throw new Error(
+          "kv.list() iterator was invalidated because a new call to kv.list() was started. " +
+            "Only one kv.list() iterator can exist at a time.",
+        );
+    };
+    const rows = this.#rows<T>(opts);
+    return (function* () {
+      live();
+      for (const row of rows) {
+        yield row;
+        live();
+      }
+    })();
+  }
+  #listGeneration = 0;
+  *#rows<T>(opts: ListOptions): IterableIterator<[string, T]> {
     this.#init();
     const where: string[] = ["scope = ?"];
     const params: unknown[] = [this.scope];
