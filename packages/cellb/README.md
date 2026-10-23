@@ -90,3 +90,11 @@ docs/           plan and findings notes
 scripts/        mutation harnesses, npm Chromium helper
 probes/         hypothesis probes
 ```
+
+## Interop with celld
+
+`pnpm run interop` (Node) and `pnpm run interop:browser` (Chromium) run the suites against the
+real celld: `scripts/interop-env.sh` downloads the pinned celld (0.6.2) and RustFS (1.0.3)
+releases into `~/.cache/webrun-cells-interop`, starts RustFS on 127.0.0.1:9200, and exports
+`CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT`. Without them those tests skip. CI:
+`.github/workflows/webrun-cells-interop.yml`.

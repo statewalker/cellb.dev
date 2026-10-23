@@ -1,0 +1,50 @@
+name: webrun-cells interop (celld)
+
+# webrun-cells against the real celld: storage format, LTX logs, ownership hand-over, alarms,
+# every binding, a celld fleet node on S3 (RustFS), and Chromium on the shared bucket.
+# scripts/interop-env.sh fetches the pinned celld and RustFS releases.
+on:
+  push:
+    branches: [webrun-cells]
+    paths: ["apps/webrun-cells/**", ".github/workflows/webrun-cells-interop.yml"]
+  pull_request:
+    paths: ["apps/webrun-cells/**", ".github/workflows/webrun-cells-interop.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  interop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/webrun-cells
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/webrun-cells-interop/bin
+          key: interop-bin-celld-0.6.2-rustfs-1.0.3
+      - run: pnpm run typecheck
+      - name: Node — celld conformance and interop
+        run: pnpm run interop
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Chromium — browser hosts on the shared bucket
+        run: pnpm run interop:browser
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interop-logs
+          path: |
+            ~/.cache/webrun-cells-interop/rustfs.log
+            apps/webrun-cells/test-results/

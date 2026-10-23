@@ -320,6 +320,14 @@ Self-fencing: besides stopping when a renewal fails, celldBucket now refuses to 
 a write once its lease could have lapsed (`expires_ms` minus a margin), and a deadline timer
 stops every cell when renewals stop arriving (a paused process, a frozen tab).
 
+## Running the interop suite anywhere
+
+`scripts/interop-env.sh` makes the environment reproducible: it fetches the pinned celld and
+RustFS releases (cached), starts RustFS detached with fresh data on port 9200, and runs a
+command with `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` set. `pnpm run interop` /
+`pnpm run interop:browser` use it, and the workflow `webrun-cells-interop.yml` runs both on
+pushes to the branch and on pull requests touching the app.
+
 ## Remaining differences
 
 - Workflows and R2: not yet compared at the storage level.

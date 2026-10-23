@@ -12,6 +12,8 @@
     "browser:dev": "pnpm run browser:prepare && vite browser --config browser/vite.config.ts",
     "browser:build": "pnpm run browser:prepare && vite build browser --config browser/vite.config.ts",
     "e2e": "playwright test",
+    "interop": "scripts/interop-env.sh vitest run test/p11c-ltx-celld-interop.test.ts test/p11c-celld-migration.test.ts test/p11f-celld-one-bucket.test.ts test/p11g-celld-rustfs.test.ts test/p11i-live-handover.test.ts test/p09-celld-conformance.test.ts",
+    "interop:browser": "scripts/interop-env.sh playwright test e2e/celld-bucket e2e/opfs-bucket",
     "e2e:npm-chromium": "PW_CHROMIUM=\"$(node scripts/npm-chromium.mjs)\" playwright test",
     "mutate:browser": "node scripts/mutate-browser.mjs",
     "probes:browser": "PW_CHROMIUM=\"${PW_CHROMIUM:-$(node scripts/npm-chromium.mjs)}\" playwright test --config playwright.probes.config.ts --reporter=line",
