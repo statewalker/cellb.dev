@@ -55,10 +55,10 @@ What the upstream tests found in webrun-cells, each fixed in its own commit:
   carries `idFromName`, `get`, `getByName` … of the bound namespace.
 - **More than one live `kv.list()` iterator.** A new `kv.list()` call now invalidates the
   previous iterator, with workerd's message.
-- **`alarm()` got no `scheduledTime`.** `alarmInfo.scheduledTime` is now the time the alarm was
-  set for, kept across retries. p07a pins it too, so the two now overlap on retry semantics;
-  p07a stays, because it also covers the input gate and retry backoff with a fake clock, which
-  the upstream test does not.
+- **`alarm()` got no `scheduledTime`.** `alarmInfo.scheduledTime` is now the time of the stored
+  alarm row being handled (for a retry, the time it was rescheduled to). p07a pins it too, so the
+  two overlap; p07a stays, because it also covers the input gate and retry backoff with a fake
+  clock, which the upstream test does not (it checks only a first run).
 
 ## celld vs workerd
 
