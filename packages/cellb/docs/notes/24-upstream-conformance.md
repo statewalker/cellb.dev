@@ -52,6 +52,8 @@ fails p09 at once with the bundler's error, not by timing out.
 | `wd-stub-storage` | `stub-storage-test.js` | both fail: celld cannot clone the stubs it is asked to store | **known gap**: no `ctx.exports.<Entrypoint>({ props })` stubs |
 | `wd-websocket-hibernation` | `websocket-hibernation.js` | fails (`Error: got `) | **known gap** the other way round: passes, as workerd does |
 | `wd-websocket-constructor` (13 of 18 exports) | `websocket-constructor-test.js` | all `ok` | same, after the fixes below |
+| `wd-worker-loader` (6 exports) | `worker-loader-test.js` | `asyncCodeLoader`, `codeLoaderException`, `passEnv`, `passEnvCaps`, `startupException: ok`; `suggestWorkerBundlerForTypeScriptModules` fails | same, after the fixes below |
+| `wd-worker-loader-gaps` (14 exports) | same file | mostly failing on celld too (no `allowExperimental`, no stub cloning) | **known gap**, see below |
 | `wd-websocket-constructor-gaps` (the other 5) | same file | all `ok` | **known gap**: `WebSocketPair` ends have no `binaryType` and always deliver ArrayBuffers; the host's `WebSocket` (Node) and `CloseEvent` (Chromium) deviate |
 
 Chromium answers the same on both paths (the esbuild bundle and the in-browser module server).
@@ -82,6 +84,20 @@ What the upstream tests found in webrun-cells, each fixed in its own commit:
   now `[id, name]`, and two stubs of one object are deep-equal.
 - **`const [client, server] = new WebSocketPair()` threw.** The pair is now iterable.
 - **The client's `binaryType` took any value.** Only `"blob"` and `"arraybuffer"` are taken now.
+- **On the module server, `import assert from "node:assert"` was not callable.** A `node:*`
+  registry entry is now the module's default export (`assert`, `EventEmitter`, `process`),
+  carrying the named exports as properties.
+
+**What `worker-loader-test.js` shows webrun-cells lacks** (`wd-worker-loader-gaps`):
+`ctx.exports.<Entrypoint>({ props })` stubs and plain-object exports in `ctx.exports`;
+`WorkerCode.compatibilityFlags` (loaded code always sees Node's `process`, and never sees one in
+Chromium); data and wasm module types; Durable Object stubs passed in `env` or `props`.
+**`WorkerCode.globalOutbound` is ignored**: a loaded worker that the caller meant to redirect
+reaches the real network instead. `overrideGlobalOutbound` is left out of the vendored runs for
+that reason, since it would really fetch https://example.com. Also left out: the shared/unique
+loader ids (wrangler's `worker_loaders` have no `id`), the test's own `globalOutbound`, and the
+Python and Tail exports. workerd is not recorded for this project: `record-workerd.ts` maps no
+`worker_loaders`.
 
 `binaryType` depends on a flag. With `websocket_standard_binary_type`, celld's pair and client
 sockets default to `"blob"` and deliver Blobs; without it, they default to `"arraybuffer"`

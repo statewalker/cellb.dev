@@ -1,0 +1,1450 @@
+// VENDORED from cloudflare/workerd@d7eca4b1dc979562244f707739b3c4d8ceaf303c src/workerd/api/tests/worker-loader-test.js (Apache-2.0). Do not edit.
+// Copyright (c) 2025 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+//     https://opensource.org/licenses/Apache-2.0
+import { WorkerEntrypoint, DurableObject } from 'cloudflare:workers';
+import assert from 'node:assert';
+
+export class GreeterLoopback extends WorkerEntrypoint {
+  async greet(name) {
+    return `${this.ctx.props.greeting}, ${name}!`;
+  }
+}
+
+export let basics = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('basics', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            import {WorkerEntrypoint} from "cloudflare:workers";
+            export default {
+              greet(name) { return "Hello, " + name; }
+            }
+            export let alternate = {
+              greet(name, env, ctx) { return \`\${ctx.props.greeting}, \${name}\`; }
+            }
+            export class FancyPropsEntrypoint extends WorkerEntrypoint {
+              async run() {
+                let greet1 = await this.ctx.props.greeter.greet("Dave");
+                let greet2 = await this.ctx.props.greeter2.greet("Eve");
+                return [greet1, greet2].join("\\n");
+              }
+            }
+          `,
+        },
+      };
+    });
+
+    {
+      let result = await worker.getEntrypoint().greet('Alice');
+      assert.strictEqual(result, 'Hello, Alice');
+    }
+
+    let greeter = worker.getEntrypoint('alternate', {
+      props: { greeting: 'Welcome' },
+    });
+    let greeter2 = worker.getEntrypoint('alternate', {
+      props: { greeting: 'Howdy' },
+    });
+
+    {
+      let result = await greeter.greet('Bob');
+      assert.strictEqual(result, 'Welcome, Bob');
+    }
+
+    {
+      let result = await greeter2.greet('Carol');
+      assert.strictEqual(result, 'Howdy, Carol');
+    }
+
+    let fancyProps = await worker.getEntrypoint('FancyPropsEntrypoint', {
+      props: {
+        greeter: ctx.exports.GreeterLoopback({ props: { greeting: "G'day" } }),
+        greeter2: ctx.exports.GreeterLoopback({ props: { greeting: 'Sup' } }),
+      },
+    });
+
+    {
+      let result = await fancyProps.run();
+      assert.strictEqual(result, "G'day, Dave!\nSup, Eve!");
+    }
+
+    // Note that we CANNOT transfer a dynamic worker entrypoint.
+    assert.rejects(
+      () =>
+        worker.getEntrypoint('FancyPropsEntrypoint', {
+          props: { greeter, greeter2 },
+        }),
+      {
+        name: 'DataCloneError',
+        message:
+          'Entrypoints to dynamically-loaded workers cannot be transferred to other Workers, ' +
+          'because the system does not know how to reload this Worker from scratch. Instead, ' +
+          'have the parent Worker expose an entrypoint which constructs the dynamic worker ' +
+          'and forwards to it.',
+      }
+    );
+
+    // Let's quickly verify that if we use ctx.exports.GreeterLoopback *without* invoking it, then
+    // we get an error that it isn't serializable. (This isn't really testing worker-loader, it's
+    // more testing LoopbackServiceStub and that serializability is not inherited.)
+    assert.rejects(
+      () =>
+        worker.getEntrypoint('FancyPropsEntrypoint', {
+          props: {
+            greeter: ctx.exports.GreeterLoopback,
+            greeter2: ctx.exports.GreeterLoopback,
+          },
+        }),
+      {
+        name: 'DataCloneError',
+        message:
+          'Could not serialize object of type "LoopbackServiceStub". This type does not support ' +
+          'serialization.',
+      }
+    );
+  },
+};
+
+export let pythonBasics = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('pythonBasics', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.py',
+        compatibilityFlags: ['python_workers', 'python_no_global_handlers'],
+        modules: {
+          'foo.py': `
+from workers import WorkerEntrypoint
+class Default(WorkerEntrypoint):
+  async def greet(self, name):
+    return "Hello, " + name
+class alternate(WorkerEntrypoint):
+  async def greet(self, name):
+    return "Welcome, " + name
+          `,
+        },
+      };
+    });
+
+    {
+      let result = await worker.getEntrypoint().greet('Stacey');
+      assert.strictEqual(result, 'Hello, Stacey');
+    }
+
+    {
+      let result = await worker.getEntrypoint('alternate').greet('Anthony');
+      assert.strictEqual(result, 'Welcome, Anthony');
+    }
+  },
+};
+
+export let pythonArbitraryModuleExtensions = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('pythonArbitraryModuleExtensions', () => {
+      return {
+        compatibilityDate: '2026-05-15',
+        mainModule: 'foo.py',
+        compatibilityFlags: ['python_workers'],
+        modules: {
+          'foo.py': `
+from workers import WorkerEntrypoint
+from pathlib import Path
+import submodule;
+from subdirectory import subsubmodule;
+class Default(WorkerEntrypoint):
+  async def greet(self, name):
+    with open(str(Path(__file__).parent) + "/python_modules/data.txt", 'r') as f:
+      return f.read() + name
+  async def bytes(self):
+    with open(str(Path(__file__).parent) + "/python_modules/data.mycoolextension", 'rb') as f:
+      return (f.read())
+  async def modules_in_main_directory(self):
+    return submodule.submodule_value + subsubmodule.subsubmodule_value;
+          `,
+          'submodule.py': `submodule_value = 10`,
+          'subdirectory/subsubmodule.py': `subsubmodule_value = 20`,
+          'python_modules/data.txt': 'Hello, ',
+          'python_modules/data.mycoolextension': {
+            data: new Uint8Array([1, 2, 3, 4]),
+          },
+        },
+      };
+    });
+
+    let result = await worker.getEntrypoint().greet('Stacey');
+    assert.strictEqual(result, 'Hello, Stacey');
+
+    assert.deepEqual(
+      await worker.getEntrypoint().bytes(),
+      new Uint8Array([1, 2, 3, 4])
+    );
+    assert.strictEqual(
+      await worker.getEntrypoint().modules_in_main_directory(),
+      30
+    );
+  },
+};
+
+// A dynamic Worker whose main module is Python gets `python_workers` enabled
+// automatically, so the caller never has to name it. That injection has to
+// happen *before* the compatibility flags are compiled because `python_workers`
+// gates a chain of `impliedByAfterDate` flags.
+export let pythonImplicitFlagsRespectCompatDate = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('pythonImplicitFlagsRespectCompatDate', () => {
+      return {
+        compatibilityDate: '2026-05-15',
+        mainModule: 'foo.py',
+        modules: {
+          'foo.py': `
+import sys
+from workers import WorkerEntrypoint
+class Default(WorkerEntrypoint):
+  async def python_version(self):
+    return "%d.%d" % sys.version_info[:2]
+          `,
+        },
+      };
+    });
+
+    // The Pyodide release gated on bare `python_workers` ships Python 3.12; the one implied by
+    // this compat date (via `python_workers_20250116`) ships 3.13.
+    assert.strictEqual(await worker.getEntrypoint().python_version(), '3.13');
+  },
+};
+
+// Test supplying a basic `env` object.
+export let passEnv = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('passEnv', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            export default {
+              fetch(req, env, ctx) {
+                return new Response("env.hello = " + env.hello);
+              },
+            }
+          `,
+        },
+        env: {
+          hello: 123,
+        },
+      };
+    });
+
+    let resp = await worker.getEntrypoint().fetch('https://example.com');
+    assert.strictEqual(await resp.text(), 'env.hello = 123');
+  },
+};
+
+export let passEnvCaps = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('passEnvCaps', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            export default {
+              async fetch(req, env, ctx) {
+                let greet1 = await env.greeter.greet("Alice");
+                let greet2 = await env.greeter2.greet("Bob");
+                return new Response([greet1, greet2].join("\\n"));
+              },
+            }
+          `,
+        },
+        env: {
+          greeter: ctx.exports.GreeterLoopback({
+            props: { greeting: 'Hello' },
+          }),
+          greeter2: ctx.exports.GreeterLoopback({
+            props: { greeting: 'Welcome' },
+          }),
+        },
+      };
+    });
+
+    let resp = await worker.getEntrypoint().fetch('https://example.com');
+    assert.strictEqual(await resp.text(), 'Hello, Alice!\nWelcome, Bob!');
+  },
+};
+
+export let testOutbound = {
+  async fetch(req, env, ctx) {
+    return new Response('hello from testOutbound');
+  },
+};
+
+// Test overriding globalOutbound
+export let overrideGlobalOutbound = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('overrideGlobalOutbound', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            export default {
+              fetch(req, env, ctx) {
+                return fetch(req);
+              },
+            }
+          `,
+        },
+
+        // Set globalOutbound to redirect to our own `testOutbound` entrypoint.
+        globalOutbound: ctx.exports.testOutbound,
+      };
+    });
+
+    let resp = await worker.getEntrypoint().fetch('https://example.com');
+    assert.strictEqual(await resp.text(), 'hello from testOutbound');
+  },
+};
+
+// This test's own `globalOutbound` is configured to loop back to this entrypoint.
+export let defaultOutbound = {
+  async fetch(req, env, ctx) {
+    return new Response('hello from defaultOutbound');
+  },
+};
+
+// Test that globalOutbound is inherited if not specified.
+export let inheritGlobalOutbound = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('inheritGlobalOutbound', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            export default {
+              fetch(req, env, ctx) {
+                return fetch(req);
+              },
+            }
+          `,
+        },
+
+        // Don't set `globalOutbound` at all.
+      };
+    });
+
+    let resp = await worker.getEntrypoint().fetch('https://example.com');
+    assert.strictEqual(await resp.text(), 'hello from defaultOutbound');
+  },
+};
+
+// Test setting `globalOutbound` to null.
+export let nullGlobalOutbound = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('nullGlobalOutbound', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            export default {
+              fetch(req, env, ctx) {
+                return fetch(req);
+              },
+            }
+          `,
+        },
+
+        globalOutbound: null,
+      };
+    });
+
+    await assert.rejects(worker.getEntrypoint().fetch('https://example.com'), {
+      name: 'Error',
+      message:
+        'This worker is not permitted to access the internet via global functions like fetch(). ' +
+        "It must use capabilities (such as bindings in 'env') to talk to the outside world.",
+    });
+  },
+};
+
+// We need to bounce the tail event through an actor to receive it back in the execution context
+// that set up the dynamic tail. `RendezvousActor` helps with that.
+export class RendezvousActor extends DurableObject {
+  promiseAndResolvers = Promise.withResolvers();
+
+  resolve(value) {
+    this.promiseAndResolvers.resolve(value);
+  }
+
+  wait() {
+    return this.promiseAndResolvers.promise;
+  }
+}
+
+export class TestTail extends WorkerEntrypoint {
+  async tail(event) {
+    // HACK: Currently, tail events are not serializable over RPC. :(
+    event = JSON.parse(JSON.stringify(event));
+
+    await this.ctx.exports.RendezvousActor.getByName('tails').resolve({
+      props: this.ctx.props,
+      event,
+    });
+  }
+}
+
+// Test tail worker on dynamically-loaded worker.
+export let tails = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('tails', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            export default {
+              fetch(req, env, ctx) {
+                console.log("hello, tail");
+                return new Response("OK");
+              },
+            }
+          `,
+        },
+
+        tails: [ctx.exports.TestTail({ props: { foo: 123 } })],
+      };
+    });
+
+    let resp = await worker.getEntrypoint().fetch('https://example.com');
+    assert.strictEqual(await resp.text(), 'OK');
+
+    let { props, event } =
+      await ctx.exports.RendezvousActor.getByName('tails').wait();
+    assert.deepEqual(props, { foo: 123 });
+    assert.strictEqual(event[0].logs[0].message[0], 'hello, tail');
+  },
+};
+
+// A simple Durable Object that maintains a counter, used to test passing DO stubs
+// into dynamic workers.
+export class StubCounter extends DurableObject {
+  async increment(amount) {
+    let value = (await this.ctx.storage.get('count')) || 0;
+    value += amount;
+    await this.ctx.storage.put('count', value);
+    return value;
+  }
+}
+
+// A Durable Object that receives tail events via its tail() handler.
+// The test retrieves the received event via wait().
+export class TailReceiver extends DurableObject {
+  #promiseAndResolvers = Promise.withResolvers();
+
+  tail(event) {
+    // HACK: Currently, tail events are not serializable over RPC. :(
+    this.#promiseAndResolvers.resolve(JSON.parse(JSON.stringify(event)));
+  }
+
+  wait() {
+    return this.#promiseAndResolvers.promise;
+  }
+}
+
+export class GreeterFacet extends DurableObject {
+  async greet(name) {
+    return `${this.ctx.props.greeting}, ${name}?`;
+  }
+}
+
+export class FacetTestActor extends DurableObject {
+  async doTest() {
+    let worker = this.env.loader.get('facets', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            import {DurableObject} from "cloudflare:workers";
+            export class MyActor extends DurableObject {
+              i = 0;
+
+              increment(j = 1) {
+                this.i += j;
+                return this.i;
+              }
+              myProps() {
+                let result = {...this.ctx.props};
+                delete result.propsGreeter;
+                return result;
+              }
+              async greets() {
+                let greeter1 = this.ctx.facets.get("greeter1", () => {
+                  return { class: this.env.envGreeter };
+                });
+                let greeter2 = this.ctx.facets.get("greeter2", () => {
+                  return { class: this.ctx.props.propsGreeter };
+                });
+                let greeter3 = this.ctx.facets.get("greeter3", () => {
+                  return { class: this.env.envGreeter2 };
+                });
+                let greet1 = await greeter1.greet("Alice");
+                let greet2 = await greeter2.greet("Bob");
+                let greet3 = await greeter3.greet("Carol");
+                return [greet1, greet2, greet3].join("\\n");
+              }
+            }
+          `,
+        },
+
+        // Set globalOutbound to redirect to our own `testOutbound` entrypoint.
+        globalOutbound: this.ctx.exports.testOutbound,
+
+        env: {
+          envGreeter: this.ctx.exports.GreeterFacet({
+            props: { greeting: 'Hello' },
+          }),
+          envGreeter2: this.ctx.exports.GreeterFacet({
+            props: { greeting: 'Howdy' },
+          }),
+
+          // Catch a bug where actor class channel numbers were assigned incorrectly.
+          someSubrequestChannel: this.ctx.exports.testOutbound({}),
+        },
+      };
+    });
+
+    let cls = worker.getDurableObjectClass('MyActor', {
+      props: {
+        foo: 123,
+        bar: 456,
+        propsGreeter: this.ctx.exports.GreeterFacet({
+          props: { greeting: 'Welcome' },
+        }),
+      },
+    });
+
+    let facet = this.ctx.facets.get('bar', () => {
+      return { class: cls };
+    });
+
+    assert.strictEqual(await facet.increment(), 1);
+    assert.strictEqual(await facet.increment(4), 5);
+
+    assert.deepEqual(await facet.myProps(), { foo: 123, bar: 456 });
+
+    assert.strictEqual(
+      await facet.greets(),
+      'Hello, Alice?\nWelcome, Bob?\nHowdy, Carol?'
+    );
+  }
+}
+
+export let facets = {
+  async test(ctrl, env, ctx) {
+    let id = ctx.exports.FacetTestActor.idFromName('foo');
+    let stub = ctx.exports.FacetTestActor.get(id);
+    await stub.doTest();
+  },
+};
+
+// Test isolate uniqueness when loading the same name multiple times.
+export let isolateUniqueness = {
+  async test(ctrl, env, ctx) {
+    let loadCount = 0;
+    let loadCodeCallback = () => {
+      ++loadCount;
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            import {WorkerEntrypoint} from "cloudflare:workers";
+            let i = 0;
+            export default class extends WorkerEntrypoint {
+              increment() {
+                return i++;
+              }
+            }
+          `,
+        },
+      };
+    };
+
+    let assertNotCalled = () => {
+      throw new Error(
+        'Code loader callback called when it should have reused an existing isolate.'
+      );
+    };
+
+    let name = 'isolateUniqueness';
+    let name2 = 'isolateUniquenessOtherName';
+
+    // Load the same name from all four of our loaders:
+    // - Two loaders with the same ID.
+    // - One with a unique ID.
+    // - One with no ID (anonymous).
+    let shared1 = env.sharedLoader1.get(name, loadCodeCallback).getEntrypoint();
+    let shared2 = env.sharedLoader2.get(name, assertNotCalled).getEntrypoint();
+    let unique = env.uniqueLoader.get(name, loadCodeCallback).getEntrypoint();
+    let anonymous = env.loader.get(name, loadCodeCallback).getEntrypoint();
+
+    // Also try loading a different name from various loaders.
+    let anonymousOtherName = env.loader
+      .get(name2, loadCodeCallback)
+      .getEntrypoint();
+    let sharedOtherName = env.sharedLoader1
+      .get(name2, loadCodeCallback)
+      .getEntrypoint();
+
+    // Same name from loaders with the same ID should go to the same isolate.
+    assert.strictEqual(await shared1.increment(), 0);
+    assert.strictEqual(await shared1.increment(), 1);
+    assert.strictEqual(await shared2.increment(), 2);
+    assert.strictEqual(await shared2.increment(), 3);
+
+    // Different IDs -> different isolates.
+    assert.strictEqual(await anonymous.increment(), 0);
+    assert.strictEqual(await anonymous.increment(), 1);
+    assert.strictEqual(await unique.increment(), 0);
+    assert.strictEqual(await unique.increment(), 1);
+
+    // Different names -> different isolates.
+    assert.strictEqual(await anonymousOtherName.increment(), 0);
+    assert.strictEqual(await anonymousOtherName.increment(), 1);
+    assert.strictEqual(await sharedOtherName.increment(), 0);
+    assert.strictEqual(await sharedOtherName.increment(), 1);
+
+    // Load the same name from the same loader -> same isolate.
+    let anonymousAgain = env.loader.get(name, assertNotCalled).getEntrypoint();
+    assert.strictEqual(await anonymousAgain.increment(), 2);
+    assert.strictEqual(await anonymousAgain.increment(), 3);
+
+    // Test that null/undefined name parameter creates unique isolates each time
+    // Each call should generate a unique name internally.
+    let noName1 = env.loader.get(null, loadCodeCallback).getEntrypoint();
+    let noName2 = env.loader.get(undefined, loadCodeCallback).getEntrypoint();
+    let noName3 = env.loader.get(undefined, loadCodeCallback).getEntrypoint();
+
+    // Each should be a different isolate
+    assert.strictEqual(await noName1.increment(), 0);
+    assert.strictEqual(await noName1.increment(), 1);
+    assert.strictEqual(await noName2.increment(), 0);
+    assert.strictEqual(await noName2.increment(), 1);
+    assert.strictEqual(await noName3.increment(), 0);
+    assert.strictEqual(await noName3.increment(), 1);
+
+    assert.strictEqual(loadCount, 8);
+  },
+};
+
+// Test non-string module types
+export let moduleTypes = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('moduleTypes', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'main.js',
+        modules: {
+          'main.js': {
+            js: `
+              import {WorkerEntrypoint} from "cloudflare:workers";
+              import textModule from './text.txt';
+              import jsonModule from './data.json';
+              import cjsModule from './cjs.cjs';
+              import dataModule from './binary.dat';
+
+              export default class extends WorkerEntrypoint {
+                getTextModule() { return textModule; }
+                getJsonModule() { return jsonModule; }
+                getCjsModule() { return cjsModule.greet('Alice'); }
+                getDataModule() { return dataModule; }
+              }
+            `,
+          },
+          'text.txt': {
+            text: 'Hello from text module!',
+          },
+          'data.json': {
+            json: { message: 'Hello from JSON module!', value: 42 },
+          },
+          'cjs.cjs': {
+            cjs: `
+              module.exports = {
+                greet: function(name) {
+                  return 'Hello from CommonJS, ' + name;
+                }
+              };
+            `,
+          },
+          'binary.dat': {
+            data: new TextEncoder().encode('Hello from binary data!'),
+          },
+        },
+      };
+    });
+
+    let entrypoint = worker.getEntrypoint();
+
+    assert.strictEqual(
+      await entrypoint.getTextModule(),
+      'Hello from text module!'
+    );
+
+    let jsonData = await entrypoint.getJsonModule();
+    assert.strictEqual(jsonData.message, 'Hello from JSON module!');
+    assert.strictEqual(jsonData.value, 42);
+
+    assert.strictEqual(
+      await entrypoint.getCjsModule(),
+      'Hello from CommonJS, Alice'
+    );
+
+    let dataModule = await entrypoint.getDataModule();
+    let decoder = new TextDecoder();
+    assert.strictEqual(decoder.decode(dataModule), 'Hello from binary data!');
+  },
+};
+
+// Test WASM module support
+export let wasmModules = {
+  async test(ctrl, env, ctx) {
+    // Create a simple WASM module that exports an add function
+    // (module (func (export "add") (param i32 i32) (result i32) (local.get 0) (local.get 1) (i32.add)))
+    const wasmBytes = new Uint8Array([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x60,
+      0x02, 0x7f, 0x7f, 0x01, 0x7f, 0x03, 0x02, 0x01, 0x00, 0x07, 0x07, 0x01,
+      0x03, 0x61, 0x64, 0x64, 0x00, 0x00, 0x0a, 0x09, 0x01, 0x07, 0x00, 0x20,
+      0x00, 0x20, 0x01, 0x6a, 0x0b,
+    ]);
+
+    let worker = env.loader.get('wasmModules', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'main.js',
+        modules: {
+          'main.js': {
+            js: `
+              import {WorkerEntrypoint} from "cloudflare:workers";
+              import wasmModule from './math.wasm';
+
+              export default class extends WorkerEntrypoint {
+                async getWasmAdd(a, b) {
+                  const instance = await WebAssembly.instantiate(wasmModule);
+                  return instance.exports.add(a, b);
+                }
+              }
+            `,
+          },
+          'math.wasm': {
+            wasm: wasmBytes,
+          },
+        },
+      };
+    });
+
+    let entrypoint = worker.getEntrypoint();
+
+    let result = await entrypoint.getWasmAdd(5, 7);
+    assert.strictEqual(result, 12);
+
+    result = await entrypoint.getWasmAdd(100, 42);
+    assert.strictEqual(result, 142);
+  },
+};
+
+// Test setting compat date / flags works
+export let compatDateFlags = {
+  async test(ctrl, env, ctx) {
+    let getCode = (compatibilityDate, compatibilityFlags) => {
+      return {
+        compatibilityDate,
+        compatibilityFlags,
+        mainModule: 'main.js',
+        modules: {
+          'main.js': `
+            import {WorkerEntrypoint} from "cloudflare:workers";
+            export default class extends WorkerEntrypoint {
+              hasNodeCompat() {
+                return typeof process !== 'undefined';
+              }
+              canUseRequestCache() {
+                try {
+                  new Request("https://foo", {cache: "no-store"});
+                  return true;
+                } catch {
+                  return false;
+                }
+              }
+            }
+          `,
+        },
+      };
+    };
+
+    // Test old date (2023), with node compat turned on.
+    {
+      let worker = env.loader.get('compatDateFlags1', () =>
+        getCode('2023-01-01', ['nodejs_compat', 'nodejs_compat_v2'])
+      );
+      let entrypoint = await worker.getEntrypoint();
+      assert.strictEqual(await entrypoint.hasNodeCompat(), true);
+      assert.strictEqual(await entrypoint.canUseRequestCache(), false);
+    }
+
+    // Test newer date (2025), with node compat not enabled.
+    {
+      let worker = env.loader.get('compatDateFlags2', () =>
+        getCode('2025-01-01', [])
+      );
+      let entrypoint = await worker.getEntrypoint();
+      assert.strictEqual(await entrypoint.hasNodeCompat(), false);
+      assert.strictEqual(await entrypoint.canUseRequestCache(), true);
+    }
+  },
+};
+
+// Test code loader callback that does something asynchronous
+export let asyncCodeLoader = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('asyncCodeLoader', async () => {
+      // Simulate async work
+      await new Promise((resolve) => setTimeout(resolve, 1));
+
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'main.js',
+        modules: {
+          'main.js': `
+            import {WorkerEntrypoint} from "cloudflare:workers";
+            export default class extends WorkerEntrypoint {
+              getMessage() {
+                return 'Hello from async loaded worker!';
+              }
+            }
+          `,
+        },
+      };
+    });
+
+    let result = await worker.getEntrypoint().getMessage();
+    assert.strictEqual(result, 'Hello from async loaded worker!');
+  },
+};
+
+// Test what happens if the code getter callback throws an exception
+export let codeLoaderException = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('codeLoaderException', () => {
+      throw new Error('Code loader failed!');
+    });
+
+    let ep = worker.getEntrypoint();
+    try {
+      await ep.someMethod();
+      assert.fail('Expected exception to be thrown');
+    } catch (error) {
+      assert.strictEqual(error.message, 'Code loader failed!');
+    }
+  },
+};
+
+// Test that ctx.exports works in dynamically-loaded workers.
+export let ctxExports = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('ctxExports', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        compatibilityFlags: ['enable_ctx_exports'],
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            import {WorkerEntrypoint} from "cloudflare:workers";
+            export default class extends WorkerEntrypoint {
+              async greet(name) {
+                let greeting = await this.ctx.exports.AltEntrypoint.greet(name);
+                return greeting + "!";
+              }
+            }
+            export class AltEntrypoint extends WorkerEntrypoint {
+              greet(name) { return "Hello, " + name; }
+            }
+          `,
+        },
+      };
+    });
+
+    let result = await worker.getEntrypoint().greet('Alice');
+    assert.strictEqual(result, 'Hello, Alice!');
+  },
+};
+
+const mixedModules = {
+  compatibilityDate: '2025-01-01',
+  modules: {
+    'foo.py': `
+from workers import WorkerEntrypoint
+class Default(WorkerEntrypoint):
+async def greet(self, name):
+return "Hello, " + name
+    `,
+    'foo.js': `
+      export default {
+        greet(name) { return "Hello, " + name; }
+      }
+    `,
+  },
+};
+
+export let noMixedJsPythonModules = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('noMixedJsPythonModules', () => {
+      return {
+        ...mixedModules,
+        mainModule: 'foo.js',
+      };
+    });
+
+    await assert.rejects(worker.getEntrypoint().greet('Alice'), {
+      name: 'TypeError',
+      message:
+        'Module "foo.py" is a Python module, but the main module isn\'t a Python module.',
+    });
+  },
+};
+
+export let suggestWorkerBundlerForTypeScriptModules = {
+  async test(ctrl, env, ctx) {
+    for (let mainModule of ['main.ts', 'main.tsx', 'main.jsx']) {
+      let worker = env.loader.get(mainModule, () => {
+        return {
+          compatibilityDate: '2026-01-01',
+          mainModule,
+          modules: {
+            [mainModule]: `
+              export default {
+                fetch() {
+                  return new Response('ok');
+                }
+              }
+            `,
+          },
+        };
+      });
+
+      await assert.rejects(
+        worker.getEntrypoint().fetch('https://example.com'),
+        {
+          name: 'TypeError',
+          message:
+            `Module name must end with '.js' or '.py' (or the content must be an object indicating the type explicitly). Got: ${mainModule}. ` +
+            "If you're trying to load TypeScript, bundle it first with '@cloudflare/worker-bundler' and pass the generated JavaScript modules.",
+        }
+      );
+    }
+  },
+};
+
+// Test that startup exceptions show proper error messages, not internal errors.
+export let startupException = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('startupException', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'main.js',
+        modules: {
+          'main.js': `
+            import {WorkerEntrypoint} from "cloudflare:workers";
+
+            // This will throw during startup (global scope)
+            throw new Error('intentional startup error');
+
+            export default class extends WorkerEntrypoint {
+              greet(name) {
+                return "Hello, " + name;
+              }
+            }
+          `,
+        },
+      };
+    });
+
+    let ep = worker.getEntrypoint();
+    try {
+      await ep.greet('Alice');
+      assert.fail('Expected exception to be thrown');
+    } catch (error) {
+      assert(
+        error.message.includes('intentional startup error'),
+        `Expected error message to contain 'intentional startup error', but got: ${error.message}`
+      );
+
+      // The error should NOT be a generic internal error
+      assert(
+        !error.message.includes('internal error; reference'),
+        `Error should not be a generic internal error, got: ${error.message}`
+      );
+    }
+  },
+};
+
+export let justLoad = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.load({
+      compatibilityDate: '2025-01-01',
+      mainModule: 'foo.js',
+      modules: {
+        'foo.js': `
+          import {WorkerEntrypoint} from "cloudflare:workers";
+          export default {
+            greet(name) { return "Hello, " + name; }
+          }
+          export let alternate = {
+            greet(name, env, ctx) { return \`\${ctx.props.greeting}, \${name}\`; }
+          }
+          export class FancyPropsEntrypoint extends WorkerEntrypoint {
+            async run() {
+              let greet1 = await this.ctx.props.greeter.greet("Dave");
+              let greet2 = await this.ctx.props.greeter2.greet("Eve");
+              return [greet1, greet2].join("\\n");
+            }
+          }
+        `,
+      },
+    });
+
+    {
+      let result = await worker.getEntrypoint().greet('Alice');
+      assert.strictEqual(result, 'Hello, Alice');
+    }
+
+    let greeter = worker.getEntrypoint('alternate', {
+      props: { greeting: 'Welcome' },
+    });
+    let greeter2 = worker.getEntrypoint('alternate', {
+      props: { greeting: 'Howdy' },
+    });
+
+    {
+      let result = await greeter.greet('Bob');
+      assert.strictEqual(result, 'Welcome, Bob');
+    }
+
+    {
+      let result = await greeter2.greet('Carol');
+      assert.strictEqual(result, 'Howdy, Carol');
+    }
+  },
+};
+
+// Test that abortIsolate() works correctly for dynamic workers.
+// When abortIsolate() is called on a dynamic worker, it should:
+// 1. Terminate the isolate (not the entire process).
+// 2. Cause subsequent lookups by name to reload the isolate from scratch.
+export let abortIsolateDynamic = {
+  async test(ctrl, env, ctx) {
+    // Create a dynamic worker that calls abortIsolate. ping() increments and returns a
+    // module-scoped counter so we can distinguish fresh isolates from reused ones.
+    let loadCount = 0;
+    const getWorkerEntrypoint = () =>
+      env.loader
+        .get('abort-test', () => {
+          loadCount++;
+          return {
+            compatibilityDate: '2025-01-01',
+            compatibilityFlags: ['experimental'],
+            allowExperimental: true,
+            mainModule: 'worker.js',
+            modules: {
+              'worker.js': `
+            import {WorkerEntrypoint, abortIsolate} from "cloudflare:workers";
+            let counter = 0;
+            export class TestEntrypoint extends WorkerEntrypoint {
+              async crash() {
+                abortIsolate('Dynamic worker abort test');
+              }
+              async ping() {
+                return ++counter;
+              }
+            }
+          `,
+            },
+          };
+        })
+        .getEntrypoint('TestEntrypoint');
+
+    let entrypoint = getWorkerEntrypoint();
+    // First, verify the worker works normally. Each ping increments the counter.
+    assert.strictEqual(await entrypoint.ping(), 1);
+    assert.strictEqual(await entrypoint.ping(), 2);
+    assert.strictEqual(loadCount, 1);
+
+    entrypoint = getWorkerEntrypoint();
+    assert.strictEqual(await entrypoint.ping(), 3);
+    assert.strictEqual(loadCount, 1);
+
+    // Now trigger abortIsolate - this should terminate the isolate but not crash the process.
+    await assert.rejects(
+      () => entrypoint.crash(),
+      (err) => {
+        return err.message.startsWith('internal error; reference =');
+      }
+    );
+
+    entrypoint = getWorkerEntrypoint();
+    assert.strictEqual(await entrypoint.ping(), 1);
+    assert.strictEqual(await entrypoint.ping(), 2);
+    assert.strictEqual(loadCount, 2);
+  },
+};
+
+// Regression test for AUTOVULN-CLOUDFLARE-WORKERD-256: the getCode() promise can be resolved
+// after its originating IoContext has been destroyed, and it can be resolved from a different
+// IoContext. The continuation must reject rather than accessing the destroyed context. This test:
+//   1. Makes a sub-request (IoContext B) that calls env.loader.get() with a pending getCode
+//      promise, saving the resolve function globally.
+//   2. Returns from the sub-request so IoContext B drains and is destroyed.
+//   3. Resolves the saved promise from the test's IoContext A.
+//
+// The continuation is bound to IoContext B using IoContext::addFunctor(), so calling it from
+// IoContext A throws before it can access IoContext B.
+
+// Entrypoint for the sub-request that sets up the pending loader promise.
+export class SetupLoaderUaf extends WorkerEntrypoint {
+  async fetch() {
+    let { promise, resolve } = Promise.withResolvers();
+    globalThis.savedLoaderResolve = resolve;
+
+    // Call env.loader.get() with a getCode that returns the pending promise.
+    // This installs a .then() continuation bound to this request's IoContext.
+    this.env.loader.get(null, () => promise);
+
+    // Let the reentry callback run and chain .then() onto the promise.
+    await scheduler.wait(10);
+
+    // Return: IoContext B will drain and be destroyed, but the V8 promise
+    // reaction (with the captured IoContext ref) survives on the JS heap.
+    return new Response('setup-done');
+  }
+}
+
+export let regressionDeadIoContextGetCode = {
+  async test(ctrl, env, ctx) {
+    // Step 1: sub-request sets up the pending promise via a separate entrypoint.
+    let setupEp = ctx.exports.SetupLoaderUaf;
+    let resp = await setupEp.fetch('http://x/setup-loader-uaf');
+    assert.strictEqual(await resp.text(), 'setup-done');
+
+    // Step 2: IoContext B has drained. Give the runtime a moment to clean up.
+    await scheduler.wait(50);
+
+    // Step 3: resolve the saved promise from IoContext A. The inner .then() continuation throws
+    // when its IoOwn detects that IoContext B is not current.
+    assert.notStrictEqual(
+      globalThis.savedLoaderResolve,
+      undefined,
+      'savedLoaderResolve should have been set by the sub-request'
+    );
+    globalThis.savedLoaderResolve({
+      compatibilityDate: '2025-01-01',
+      mainModule: 'm.js',
+      modules: { 'm.js': 'export default {}' },
+    });
+
+    // Give the promise reaction time to fire.
+    await scheduler.wait(50);
+
+    // The WorkerStub was created in IoContext B which is now dead. Attempting to
+    // use it from IoContext A should fail. The exact error depends on the runtime
+    // path, but the critical thing is that we reach this point without crashing
+    // (pre-patch, the process would have crashed from the UAF).
+    assert.ok(true, 'Reached end of test without UAF crash');
+  },
+};
+
+// Regression test for AUTOVULN-CLOUDFLARE-WORKERD-147: heap use-after-free of dynamically-loaded
+// WorkerService when a facet actor is torn down via monitorOnBroken(). The bug was that
+// `Server::WorkerService::startRequest` created a `WorkerEntrypoint` with the `LimitEnforcer`
+// being a `NullDisposer`-backed (i.e. not refcounted) `Own` instance to `WorkerService`.
+// When monitorOnBroken() dropped the `Actor` after the `ActorContainer` which owned the
+// `WorkerService`, it caused a UAF when dropping `limitEnforcer` in `~IoContext`
+export class FacetUafTestActor extends DurableObject {
+  async doTest() {
+    // Load an *anonymous* dynamic worker (name = null) so the WorkerStubImpl is NOT cached
+    // in WorkerLoaderNamespace::isolates. This means the only owners of the child WorkerService
+    // are the JS WorkerStub and any ActorClassImpl derived from it.
+    let worker = this.env.loader.get(null, () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        mainModule: 'child.js',
+        modules: {
+          'child.js': `
+            import {DurableObject} from "cloudflare:workers";
+            export class ChildActor extends DurableObject {
+              ping() {
+                // Schedule a self-abort after a short delay. This will trigger
+                // monitorOnBroken() in the parent's facet container.
+                setTimeout(() => this.ctx.abort('self-destruct'), 50);
+                return "pong";
+              }
+            }
+          `,
+        },
+      };
+    });
+
+    let cls = worker.getDurableObjectClass('ChildActor');
+    let facet = this.ctx.facets.get('uaf-test', () => ({ class: cls }));
+
+    // Trigger the child actor to start and schedule its self-abort.
+    let result = await facet.ping();
+    assert.strictEqual(result, 'pong');
+
+    // Drop JS references to the worker stub and class so that the facet's
+    // ActorContainer::classAndId.actorClass becomes the last owner of the
+    // ActorClassImpl -> WorkerStubImpl -> child WorkerService chain.
+    worker = null;
+    cls = null;
+    facet = null;
+
+    // Wait for the child's setTimeout to fire and trigger ctx.abort().
+    // monitorOnBroken() will move the actor out, erase the facet, and then
+    // destroy the actor. Without the fix, this is where the UAF occurs.
+    gc();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+export let facetUafRegression = {
+  async test(ctrl, env, ctx) {
+    let id = ctx.exports.FacetUafTestActor.idFromName('uaf-test');
+    let stub = ctx.exports.FacetUafTestActor.get(id);
+    await stub.doTest();
+  },
+};
+
+// Test that abortIsolate() works correctly for anonymous dynamic workers.
+// Anonymous workers don't have a name and therefore aren't stored in the loader's map.
+export let abortIsolateDynamicAnonymous = {
+  async test(ctrl, env, ctx) {
+    // Create an anonymous dynamic worker (no name provided to get())
+    let worker = env.loader.get(null, () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        compatibilityFlags: ['experimental'],
+        allowExperimental: true,
+        mainModule: 'worker.js',
+        modules: {
+          'worker.js': `
+            import {WorkerEntrypoint, abortIsolate} from "cloudflare:workers";
+            let counter = 0;
+            export class TestEntrypoint extends WorkerEntrypoint {
+              async crash() {
+                abortIsolate('Anonymous dynamic worker abort test');
+              }
+              async ping() {
+                return ++counter;
+              }
+            }
+          `,
+        },
+      };
+    });
+
+    // First, verify the worker works normally.
+    let entrypoint = worker.getEntrypoint('TestEntrypoint');
+    assert.strictEqual(await entrypoint.ping(), 1);
+    assert.strictEqual(await entrypoint.ping(), 2);
+
+    // Now trigger abortIsolate - this should terminate the isolate
+    // but NOT crash the entire process.
+    await assert.rejects(
+      () => entrypoint.crash(),
+      (err) => {
+        return err.message.startsWith('internal error; reference =');
+      }
+    );
+  },
+};
+
+// =============================================================================
+// Tests for passing Durable Object stubs into dynamic workers.
+
+// Test passing a DO stub as an RPC parameter into a dynamic worker.
+export let doStubViaRpcParam = {
+  async test(ctrl, env, ctx) {
+    let target = ctx.exports.StubCounter.get(
+      ctx.exports.StubCounter.idFromName('rpcParam')
+    );
+
+    let worker = env.loader.get('doStubViaRpcParam', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        compatibilityFlags: ['experimental'],
+        allowExperimental: true,
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            import { WorkerEntrypoint } from "cloudflare:workers";
+            export default class extends WorkerEntrypoint {
+              callStub(stub, amount) {
+                return stub.increment(amount);
+              }
+            }
+          `,
+        },
+      };
+    });
+
+    let result = await worker.getEntrypoint().callStub(target, 5);
+    assert.strictEqual(result, 5);
+
+    // Verify the original stub still sees the updated state.
+    let direct = await target.increment(3);
+    assert.strictEqual(direct, 8);
+  },
+};
+
+// Test passing a DO stub via props into a dynamic worker.
+export let doStubViaProps = {
+  async test(ctrl, env, ctx) {
+    let target = ctx.exports.StubCounter.get(
+      ctx.exports.StubCounter.idFromName('props')
+    );
+
+    let worker = env.loader.get('doStubViaProps', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        compatibilityFlags: ['experimental'],
+        allowExperimental: true,
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            import { WorkerEntrypoint } from "cloudflare:workers";
+            export default class extends WorkerEntrypoint {
+              async run() {
+                return await this.ctx.props.counter.increment(10);
+              }
+            }
+          `,
+        },
+      };
+    });
+
+    let result = await worker
+      .getEntrypoint(undefined, {
+        props: { counter: target },
+      })
+      .run();
+    assert.strictEqual(result, 10);
+  },
+};
+
+// Test passing a DO stub via env into a dynamic worker.
+export let doStubViaEnv = {
+  async test(ctrl, env, ctx) {
+    let target = ctx.exports.StubCounter.get(
+      ctx.exports.StubCounter.idFromName('env')
+    );
+
+    let worker = env.loader.get('doStubViaEnv', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        compatibilityFlags: ['experimental'],
+        allowExperimental: true,
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            import { WorkerEntrypoint } from "cloudflare:workers";
+            export default class extends WorkerEntrypoint {
+              async run() {
+                return await this.env.counter.increment(7);
+              }
+            }
+          `,
+        },
+        env: {
+          counter: target,
+        },
+      };
+    });
+
+    let result = await worker.getEntrypoint().run();
+    assert.strictEqual(result, 7);
+  },
+};
+
+// Test using a DO stub as a tail worker of a dynamic worker.
+export let doStubAsTail = {
+  async test(ctrl, env, ctx) {
+    let tailReceiver = ctx.exports.TailReceiver.get(
+      ctx.exports.TailReceiver.idFromName('tail')
+    );
+
+    let worker = env.loader.get('doStubAsTail', () => {
+      return {
+        compatibilityDate: '2025-01-01',
+        compatibilityFlags: ['experimental'],
+        allowExperimental: true,
+        mainModule: 'foo.js',
+        modules: {
+          'foo.js': `
+            export default {
+              fetch(req, env, ctx) {
+                console.log("hello from tailed worker");
+                return new Response("OK");
+              },
+            }
+          `,
+        },
+        tails: [tailReceiver],
+      };
+    });
+
+    let resp = await worker.getEntrypoint().fetch('https://example.com');
+    assert.strictEqual(await resp.text(), 'OK');
+
+    let event = await tailReceiver.wait();
+    assert.strictEqual(event[0].logs[0].message[0], 'hello from tailed worker');
+  },
+};
+
+export let minimalPythonPackage = {
+  async test(ctrl, env, ctx) {
+    let worker = env.loader.get('minimalPythonPackage', () => {
+      return {
+        compatibilityDate: '2026-05-15',
+        mainModule: 'main.py',
+        compatibilityFlags: ['python_workers'],
+        modules: {
+          'main.py': `
+from workers import WorkerEntrypoint
+class Default(WorkerEntrypoint):
+  async def main(self):
+    import testpkg
+    return testpkg.testfunc()
+`,
+          'python_modules/testpkg/pkgmodule.py': `
+def testfunc():
+  return "Hello dynamic worker package"
+`,
+          'python_modules/testpkg/__init__.py': `
+from . import pkgmodule
+testfunc = pkgmodule.testfunc
+`,
+        },
+      };
+    });
+
+    {
+      let result = await worker.getEntrypoint().main();
+      assert.strictEqual(result, 'Hello dynamic worker package');
+    }
+  },
+};

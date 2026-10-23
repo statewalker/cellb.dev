@@ -395,6 +395,32 @@ const WS_CONSTRUCTOR_OTHERS = [
   "invalidProtocolToken",
   "singleProtocolString",
 ];
+// worker-loader-test.js exports webrun-cells answers as celld does; the rest is a known gap.
+const WL_AGREE = [
+  "asyncCodeLoader",
+  "codeLoaderException",
+  "passEnv",
+  "passEnvCaps",
+  "startupException",
+  "suggestWorkerBundlerForTypeScriptModules",
+];
+const WL_GAPS = [
+  "abortIsolateDynamic",
+  "abortIsolateDynamicAnonymous",
+  "basics",
+  "compatDateFlags",
+  "ctxExports",
+  "doStubViaEnv",
+  "doStubViaProps",
+  "doStubViaRpcParam",
+  "facetUafRegression",
+  "facets",
+  "justLoad",
+  "moduleTypes",
+  "nullGlobalOutbound",
+  "regressionDeadIoContextGetCode",
+  "wasmModules",
+];
 const wdOverrides: Record<string, Partial<Scenario>> = {
   // `default` (most of sql-test.js) is split off: it needs sql.ingest. testRollbackKvInit
   // reports the alarm time it finds (Date.now() + a year).
@@ -410,12 +436,19 @@ const wdOverrides: Record<string, Partial<Scenario>> = {
     knownGap: "celld fails this test ('got '); webrun-cells passes it, as workerd does",
   },
   "wd-websocket-constructor": { steps: [{ path: `/?skip=${WS_GAPS.join(",")}` }] },
+  "wd-worker-loader": { steps: [{ path: `/?skip=${WL_GAPS.join(",")}` }] },
 };
 scenarios["wd-websocket-constructor-gaps"] = {
   project: "wd-websocket-constructor",
   steps: [{ path: `/?skip=${WS_CONSTRUCTOR_OTHERS.join(",")}` }],
   knownGap:
     "WebSocketPair ends have no binaryType and deliver ArrayBuffers (websocket_standard_binary_type); the host's own WebSocket and CloseEvent: Node takes 'BLOB' as 'blob', Chromium keeps lone surrogates in a close reason",
+};
+scenarios["wd-worker-loader-gaps"] = {
+  project: "wd-worker-loader",
+  steps: [{ path: `/?skip=${WL_AGREE.join(",")}` }],
+  knownGap:
+    "no ctx.exports.<Entrypoint>({ props }) stubs or plain-object ctx.exports; WorkerCode compatibilityFlags, data/wasm modules, DO stubs in env/props; celld refuses allowExperimental and stub cloning",
 };
 scenarios["wd-sql-default"] = {
   project: "wd-sql",

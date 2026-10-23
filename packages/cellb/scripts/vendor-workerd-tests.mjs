@@ -180,6 +180,42 @@ const WD_TESTS = {
     workerLoaders: [],
     skip: [],
   },
+  // Durable Objects are reached through ctx.exports; the bindings only declare the classes.
+  // rpc and enable_ctx_exports (in the .wd-test): defaults at our compatibility_date.
+  "wd-worker-loader": {
+    upstream: "worker-loader-test.js",
+    durableObjects: {
+      FacetTestActor: "FacetTestActor",
+      FacetUafTestActor: "FacetUafTestActor",
+      RendezvousActor: "RendezvousActor",
+      StubCounter: "StubCounter",
+      TailReceiver: "TailReceiver",
+    },
+    flags: ["nodejs_compat", "experimental"],
+    vars: {},
+    // wrangler's worker_loaders have no `id`: sharedLoader1/2 and uniqueLoader are plain loaders.
+    workerLoaders: ["loader", "sharedLoader1", "sharedLoader2", "uniqueLoader"].map((binding) => ({
+      binding,
+    })),
+    skip: [
+      // shared and unique loader ids (sharedLoader1/2 share "shared"): not expressible in wrangler
+      "isolateUniqueness",
+      // Python Workers (Pyodide)
+      "pythonBasics",
+      "pythonArbitraryModuleExtensions",
+      "pythonImplicitFlagsRespectCompatDate",
+      "noMixedJsPythonModules",
+      "minimalPythonPackage",
+      // Tail Workers fed through the loader
+      "tails",
+      "doStubAsTail",
+      // the test's own globalOutbound (an entrypoint of itself): not expressible in wrangler
+      "inheritGlobalOutbound",
+      // webrun-cells ignores WorkerCode.globalOutbound, so this would really fetch
+      // https://example.com (a known gap, see note 24)
+      "overrideGlobalOutbound",
+    ],
+  },
 };
 
 const runner = (

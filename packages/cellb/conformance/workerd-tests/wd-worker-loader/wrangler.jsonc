@@ -1,0 +1,59 @@
+{
+  "name": "wd-worker-loader",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "experimental"
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "FacetTestActor",
+        "class_name": "FacetTestActor"
+      },
+      {
+        "name": "FacetUafTestActor",
+        "class_name": "FacetUafTestActor"
+      },
+      {
+        "name": "RendezvousActor",
+        "class_name": "RendezvousActor"
+      },
+      {
+        "name": "StubCounter",
+        "class_name": "StubCounter"
+      },
+      {
+        "name": "TailReceiver",
+        "class_name": "TailReceiver"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "FacetTestActor",
+        "FacetUafTestActor",
+        "RendezvousActor",
+        "StubCounter",
+        "TailReceiver"
+      ]
+    }
+  ],
+  "worker_loaders": [
+    {
+      "binding": "loader"
+    },
+    {
+      "binding": "sharedLoader1"
+    },
+    {
+      "binding": "sharedLoader2"
+    },
+    {
+      "binding": "uniqueLoader"
+    }
+  ]
+}

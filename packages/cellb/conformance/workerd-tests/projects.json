@@ -14,5 +14,6 @@
   "wd-stub-storage",
   "wd-sync-kv",
   "wd-websocket-constructor",
-  "wd-websocket-hibernation"
+  "wd-websocket-hibernation",
+  "wd-worker-loader"
 ]
