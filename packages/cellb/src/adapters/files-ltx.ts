@@ -121,53 +121,70 @@ export function filesApiLtxLog(
     await files.write(`${cellDir(cellKey)}/e${epoch}/0000/${ltxFileName(min, max)}`, [bytes]);
   };
 
+  const queues = new Map<string, Promise<void>>();
+  const logCommit = async (
+    cellKey: string,
+    {
+      image: imageOrThunk,
+      pages: hooked,
+      epoch: leaseEpoch,
+    }: Parameters<CellDurability["committed"]>[1],
+  ): Promise<void> => {
+    const epoch = leaseEpoch ?? opts.epoch ?? 0;
+    let prev = last.get(cellKey);
+    if (!prev) {
+      const r = await rebuild(cellKey);
+      prev = { txid: r.txid, image: r.image, epoch: r.epoch };
+    }
+    // A new owner epoch is a new generation: it starts with a snapshot at TXID 1.
+    if (prev.epoch !== epoch) prev = { txid: 0n, image: prev.image, epoch };
+    const snapshot = prev.txid === 0n;
+    const txid = prev.txid + 1n;
+    const imageNow = () => (typeof imageOrThunk === "function" ? imageOrThunk() : imageOrThunk);
+
+    // 1. The page hook gave the changed pages (SQLite WASM): O(changed pages).
+    if (hooked && !snapshot) {
+      if (!hooked.pages.size) return; // nothing written
+      await write(cellKey, epoch, txid, txid, hooked.pageSize, hooked.pageCount, hooked.pages);
+      last.set(cellKey, { txid, image: undefined, epoch });
+      return;
+    }
+    // 2. Otherwise diff the committed image against the previous one (O(database size)).
+    const image = await imageNow();
+    if (!image?.byteLength) return;
+    const pageSize = pageSizeOf(image);
+    const changed = new Map<number, Uint8Array>();
+    for (let p = 1, o = 0; o < image.byteLength; p++, o += pageSize) {
+      const page = image.subarray(o, o + pageSize);
+      const old = prev.image?.subarray(o, o + pageSize);
+      if (snapshot || !old || old.byteLength !== pageSize || !sameBytes(page, old))
+        changed.set(p, page.slice());
+    }
+    if (!changed.size && prev.image?.byteLength === image.byteLength) return;
+    await write(
+      cellKey,
+      epoch,
+      snapshot ? 1n : txid,
+      txid,
+      pageSize,
+      image.byteLength / pageSize,
+      changed,
+    );
+    last.set(cellKey, { txid, image: image.slice(), epoch });
+  };
+
   return {
     capturePages: true,
     intervalMs: opts.intervalMs,
     onError: opts.onError,
 
-    async committed(cellKey, { image: imageOrThunk, pages: hooked, epoch: leaseEpoch }) {
-      const epoch = leaseEpoch ?? opts.epoch ?? 0;
-      let prev = last.get(cellKey);
-      if (!prev) {
-        const r = await rebuild(cellKey);
-        prev = { txid: r.txid, image: r.image, epoch: r.epoch };
-      }
-      // A new owner epoch is a new generation: it starts with a snapshot at TXID 1.
-      if (prev.epoch !== epoch) prev = { txid: 0n, image: prev.image, epoch };
-      const snapshot = prev.txid === 0n;
-      const txid = prev.txid + 1n;
-      const imageNow = () => (typeof imageOrThunk === "function" ? imageOrThunk() : imageOrThunk);
-
-      // 1. The page hook gave the changed pages (SQLite WASM): O(changed pages).
-      if (hooked && !snapshot) {
-        if (!hooked.pages.size) return; // nothing written
-        await write(cellKey, epoch, txid, txid, hooked.pageSize, hooked.pageCount, hooked.pages);
-        last.set(cellKey, { txid, image: undefined, epoch });
-        return;
-      }
-      // 2. Otherwise diff the committed image against the previous one (O(database size)).
-      const image = await imageNow();
-      if (!image?.byteLength) return;
-      const pageSize = pageSizeOf(image);
-      const changed = new Map<number, Uint8Array>();
-      for (let p = 1, o = 0; o < image.byteLength; p++, o += pageSize) {
-        const page = image.subarray(o, o + pageSize);
-        const old = prev.image?.subarray(o, o + pageSize);
-        if (snapshot || !old || old.byteLength !== pageSize || !sameBytes(page, old))
-          changed.set(p, page.slice());
-      }
-      if (!changed.size && prev.image?.byteLength === image.byteLength) return;
-      await write(
-        cellKey,
-        epoch,
-        snapshot ? 1n : txid,
-        txid,
-        pageSize,
-        image.byteLength / pageSize,
-        changed,
-      );
-      last.set(cellKey, { txid, image: image.slice(), epoch });
+    committed(cellKey, info) {
+      // One commit after the other per cell (TXIDs and the previous image in commit order).
+      const next = (queues.get(cellKey) ?? Promise.resolve())
+        .catch(() => {})
+        .then(() => logCommit(cellKey, info));
+      queues.set(cellKey, next);
+      return next;
     },
 
     async save(cellKey: string, image: Uint8Array, _info: BackupInfo) {

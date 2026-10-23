@@ -133,6 +133,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   // One alarm() at a time per object (as on Cloudflare): a re-armed alarm that comes due
   // while the previous handler still runs waits for it.
   const alarmRuns = new Map<string, Promise<void>>();
+  const ownedRetries = new Map<string, number>();
   function fireAlarm(e: AlarmEntry, retryCount: number): Promise<void> {
     const prev = alarmRuns.get(e.cellKey) ?? Promise.resolve();
     const next = prev.then(() => fireAlarmNow(e, retryCount));
@@ -176,8 +177,16 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       if (isOwnedElsewhere(err)) {
         hosts.get(e.cellKey)?.close();
         hosts.delete(e.cellKey);
+        // A live owner fires it. A stopped one's lease expires within its TTL: look again a
+        // few times before leaving it to the next poll of the wake index.
+        const n = (ownedRetries.get(e.cellKey) ?? 0) + 1;
+        if (n <= 15) {
+          ownedRetries.set(e.cellKey, n);
+          alarms.set(e, clock.now() + 2_000);
+        } else ownedRetries.delete(e.cellKey);
         return;
       }
+      ownedRetries.delete(e.cellKey);
       failed = true;
     }
     if (!failed || retryCount >= MAX_ALARM_RETRIES) return;
