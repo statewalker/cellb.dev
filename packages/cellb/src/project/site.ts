@@ -31,6 +31,12 @@ export const LOADED_CONSOLES = "__cellsLoadedConsoles";
 export function createProjectSite(opts: {
   projectFiles: FilesApi;
   nodeCompat?: boolean;
+  /**
+   * The `node:*` registry entries of the realm that runs the code (`nodeRegistryEntries`): a
+   * namespace import (`import * as assert from "node:assert"`) exports the keys the server
+   * sees here, so without them its members are undefined.
+   */
+  nodeModules?: Record<string, unknown>;
 }): SiteHandler {
   const host = "globalThis.__webrunHostRegistry.get";
   // nodejs_compat: node:* and the Buffer/process globals come from the realm's registry too.
@@ -40,7 +46,7 @@ export function createProjectSite(opts: {
       ...Object.keys(NODE_POLYFILL_PACKAGES),
       ...Object.keys(NODE_POLYFILL_FILES),
     ])
-      provided[nodeAlias(name)] = {};
+      provided[nodeAlias(name)] = (opts.nodeModules?.[nodeAlias(name)] as object) ?? {};
   const globals = {
     Response: `${host}("Response")`,
     WebSocketPair: `${host}("WebSocketPair")`,

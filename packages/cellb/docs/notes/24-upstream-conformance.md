@@ -44,6 +44,10 @@ fails p09 at once with the bundler's error, not by timing out.
 | `wd-actor-alarms-delete` | `actor-alarms-delete-test.js` | `default: ok` | same |
 | `wd-actor-alarms-in-memory` | `actor-alarms-in-memory-test.js` | `clearAfterAlarm: ok`, `updateDuringAlarm: ok` | same |
 
+Chromium answers the same on both paths (the esbuild bundle and the in-browser module server).
+On the module server, `import * as assert from "node:assert"` needed webrun-modules 0.3.4 and
+the realm's registry entries passed to `createProjectSite` (`nodeModules`).
+
 What the upstream tests found in webrun-cells, each fixed in its own commit:
 
 - **`delete_all_preserves_alarm` was ignored.** `deleteAll()` always cleared the alarm; the
