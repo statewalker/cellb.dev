@@ -1,0 +1,34 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /storage",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "getManyUndefinedKey": [["a", 1]],
+        "putManyUndefinedValue": "undefined",
+        "deleteManyMissing": 1,
+        "listStartAndStartAfter": ["b", "c"],
+        "listOptionsNotMutated": true,
+        "txnSeesUncommitted": "new",
+        "txnListIncludesNew": ["t", "t2"],
+        "txnDeleteReportsNew": true,
+        "txnReturnValue": {
+          "ok": [1, 2]
+        },
+        "putThenDeleteAllSameTurn": "undefined"
+      }
+    },
+    {
+      "request": "GET /stub",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "unknownProtocol": 200,
+        "nonResponse": 200,
+        "immutableHeaders": "1"
+      }
+    }
+  ]
+}

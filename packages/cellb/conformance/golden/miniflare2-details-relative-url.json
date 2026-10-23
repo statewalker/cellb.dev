@@ -1,0 +1,13 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /stub-relative",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "relativeUrl": "Error: rejected: TypeError: Invalid URL: relative URL without a base [at new URL (<anonymous>:78:23) <- at Store.fetch (worker.js:61:9) <- at <anonymous>:536"
+      }
+    }
+  ]
+}

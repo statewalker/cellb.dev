@@ -55,6 +55,8 @@ fails p09 at once with the bundler's error, not by timing out.
 | `wd-worker-loader` (6 exports) | `worker-loader-test.js` | `asyncCodeLoader`, `codeLoaderException`, `passEnv`, `passEnvCaps`, `startupException: ok`; `suggestWorkerBundlerForTypeScriptModules` fails | same, after the fixes below |
 | `wd-worker-loader-gaps` (14 exports) | same file | mostly failing on celld too (no `allowExperimental`, no stub cloning) | **known gap**, see below |
 | `wd-websocket-constructor-gaps` (the other 5) | same file | all `ok` | **known gap**: `WebSocketPair` ends have no `binaryType` and always deliver ArrayBuffers; the host's `WebSocket` (Node) and `CloseEvent` (Chromium) deviate |
+| `miniflare2-details` (`/storage`, `/stub`) | Miniflare v2 `storage.spec.ts`, `namespace.spec.ts`: the behaviours they covered, recorded as observations (their assertions are not copied) | `undefined` keys and values, `start` with `startAfter`, uncommitted reads in transactions, `put()` then `deleteAll()` in one turn; a stub's `fetch()` takes `ftp:` URLs, a non-`Response` return (as `"[object Object]"`, 200) and returns mutable headers | same, after the fixes below |
+| `miniflare2-details-relative-url` | same | the object receives `/x` and fails on `new URL()`; the rejection carries its stack frames | **known gap**: rejected at the stub, as workerd |
 
 Chromium answers the same on both paths (the esbuild bundle and the in-browser module server).
 On the module server, `import * as assert from "node:assert"` needed webrun-modules 0.3.4 and
@@ -87,6 +89,9 @@ What the upstream tests found in webrun-cells, each fixed in its own commit:
 - **On the module server, `import assert from "node:assert"` was not callable.** A `node:*`
   registry entry is now the module's default export (`assert`, `EventEmitter`, `process`),
   carrying the named exports as properties.
+- **An object's `fetch()` returning a non-`Response` reached the caller as that value.** As in
+  celld, the stub now answers with it as text (`String(value)`, status 200); found by
+  `miniflare2-details`.
 
 **What `worker-loader-test.js` shows webrun-cells lacks** (`wd-worker-loader-gaps`):
 `ctx.exports.<Entrypoint>({ props })` stubs and plain-object exports in `ctx.exports`;
@@ -134,7 +139,7 @@ entry that no longer differs fails the run.
 | Result | Projects |
 |---|---|
 | agrees | the 8 storage and alarm `wd-*` projects, `wd-actor-block-concurrency-depth`, `wd-actor-stub`, `wd-websocket-constructor`, `wd-websocket-constructor-gaps`, hello, webapi, counter, rpc, router, body, async, alarm, alarm-retry, wsecho, wsclient, html-rewriter, html-rewriter-async, node-compat, kv-values |
-| differs (`workerdDiffers`) | `do-ids` (per-deployment id keys; message punctuation), `storage-details` (celld stores `undefined`, coerces `setAlarm(non-date)`, needs no `alarm()` handler; SQL error texts), `worker-details` (celld's JSON "Worker failed" body, non-`Response` returns accepted, no cross-isolate RPC stubs), `ws-details` (`Error` vs `TypeError`; `send()` before `accept()`), `wd-sql` (workerd has `getCurrentBookmark()` and rolls the alarm back), `wd-sql-default` (workerd runs it up to `gc()`), `wd-actor-block-concurrency-timer` (workerd holds the earlier timer at the input gate; its run outlasts the 5 s limit), `wd-actor-fetch-rejection` (workerd reports unhandled rejections), `wd-stub-storage` (workerd stores stubs), `wd-websocket-hibernation` (workerd passes) |
+| differs (`workerdDiffers`) | `do-ids` (per-deployment id keys; message punctuation), `storage-details` (celld stores `undefined`, coerces `setAlarm(non-date)`, needs no `alarm()` handler; SQL error texts), `worker-details` (celld's JSON "Worker failed" body, non-`Response` returns accepted, no cross-isolate RPC stubs), `ws-details` (`Error` vs `TypeError`; `send()` before `accept()`), `wd-sql` (workerd has `getCurrentBookmark()` and rolls the alarm back), `wd-sql-default` (workerd runs it up to `gc()`), `wd-actor-block-concurrency-timer` (workerd holds the earlier timer at the input gate; its run outlasts the 5 s limit), `wd-actor-fetch-rejection` (workerd reports unhandled rejections), `wd-stub-storage` (workerd stores stubs), `wd-websocket-hibernation` (workerd passes), `miniflare2-details` (workerd refuses `start` with `startAfter`, `ftp:` URLs, non-`Response` returns and header mutation), `miniflare2-details-relative-url` (workerd rejects at the stub) |
 | skipped | 23 projects with non-DO bindings, and `vectordb` (`sqlite_vec`) |
 
 The vendored flags drop the ones workerd refuses to see listed at our `compatibility_date`
@@ -174,5 +179,5 @@ exports are left out with a stated reason (`skip` in the script's `WD_TESTS` tab
 | `js-rpc-test` and the `*rpc*` family | They need a second worker script; the project loader binds only its own entrypoints |
 | `actor-alarms-name-test`, tail/trace tests, `api/node/tests`, Python tests | `workerd:unsafe`, tail workers, host Node, Pyodide: workerd-only or not webrun-cells code |
 | Miniflare 4's own test suite | It tests Miniflare's options and wiring; its simulators run unchanged here (p08a/b) |
-| Miniflare v2's rwmutex, plugin, runner, http-server and shared-storage tests | Internal to Miniflare's design; p02 already runs every storage case on both SQLite drivers |
+| Miniflare v2's rwmutex, plugin, runner, http-server and shared-storage tests | Internal to Miniflare's design; p02 already runs every storage case on both SQLite drivers. The storage and namespace behaviours its `durable-objects` tests checked are recorded on celld instead (`miniflare2-details`) |
 | celld's tests | None are published |

@@ -337,6 +337,7 @@ export const scenarios: Record<string, Scenario> = {
   "storage-details": {
     steps: [{ path: "/kv" }, { path: "/sql" }, { path: "/txn" }, { path: "/alarms" }],
   },
+  "miniflare2-details": { steps: ["/storage", "/stub"].map((path) => ({ path })) },
   "queues-details": {
     steps: [{ path: "/validate" }, { path: "/send" }, { waitMs: 3500 }, { path: "/log" }],
     mask: ["oldestMessageTimestamp"],
@@ -450,6 +451,12 @@ scenarios["wd-worker-loader-gaps"] = {
   knownGap:
     "no ctx.exports.<Entrypoint>({ props }) stubs or plain-object ctx.exports; WorkerCode compatibilityFlags, data/wasm modules, DO stubs in env/props; celld refuses allowExperimental and stub cloning",
 };
+scenarios["miniflare2-details-relative-url"] = {
+  project: "miniflare2-details",
+  steps: [{ path: "/stub-relative" }],
+  knownGap:
+    "a stub's fetch() of a relative URL: celld passes it to the object and rejects with its stack frames in the message; webrun-cells rejects at the stub, as workerd",
+};
 scenarios["wd-sql-default"] = {
   project: "wd-sql",
   steps: [
@@ -478,6 +485,10 @@ const workerdDiffers: Record<string, string> = {
     "celld fires a timer set before blockConcurrencyWhile() during it (workerd holds it at the input gate); on workerd the test outlasts the 5 s runner limit",
   "wd-actor-fetch-rejection":
     "workerd reports unhandled stub-fetch rejections; celld never does and wraps the error",
+  "miniflare2-details":
+    "workerd refuses list({ start, startAfter }), ftp: URLs, non-Response returns and mutating a stub response's headers",
+  "miniflare2-details-relative-url":
+    "workerd rejects a relative URL at the stub; celld passes it to the object",
   "wd-stub-storage": "workerd stores service and actor stubs; celld refuses to clone them",
   "wd-websocket-hibernation": "workerd passes; celld fails ('got ')",
 };
