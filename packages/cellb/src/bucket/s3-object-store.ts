@@ -91,7 +91,9 @@ export async function signV4(
 export function s3ObjectStore(o: S3Options): ObjectStore {
   const f = o.fetch ?? fetch;
   const base = `${o.endpoint.replace(/\/$/, "")}/${o.bucket}`;
-  const full = (key: string) => `${o.prefix ?? ""}${key}`;
+  // celld's `s3://BUCKET/PREFIX` puts keys under "PREFIX/": a prefix is a directory.
+  const root = o.prefix ? (o.prefix.endsWith("/") ? o.prefix : `${o.prefix}/`) : "";
+  const full = (key: string) => `${root}${key}`;
   const call = async (
     method: string,
     url: URL,
@@ -132,7 +134,7 @@ export function s3ObjectStore(o: S3Options): ObjectStore {
         if (!r.ok) throw new Error(`S3 LIST ${prefix}: ${r.status} ${await r.text()}`);
         const xml = await r.text();
         for (const m of xml.matchAll(/<Key>([^<]*)<\/Key>/g))
-          keys.push(unxml(m[1]).slice((o.prefix ?? "").length));
+          keys.push(unxml(m[1]).slice(root.length));
         token = /<IsTruncated>true<\/IsTruncated>/.test(xml)
           ? unxml(/<NextContinuationToken>([^<]*)<\/NextContinuationToken>/.exec(xml)?.[1] ?? "")
           : undefined;

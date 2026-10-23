@@ -31,6 +31,8 @@ export interface CellRuntimeOptions {
    * worker, tab or peer); `undefined` means "host it here". Default: all local.
    */
   route?: (cellKey: string, id: DurableObjectId) => Send | undefined;
+  /** How often to re-read a shared alarm wake index (durability.wakes), in ms. Default 30 s. */
+  wakePollMs?: number;
   /** Every object of this runtime is a facet of an outer cell (an isolate's runtime). */
   facets?: boolean;
   /** The Worker script's name (wrangler `name`): object ids derive from it, as on celld. */
@@ -147,13 +149,35 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     let failed = false;
     try {
       await host.deliver(async (obj, state) => {
+        // A wake (local timer, or an entry of the shared wake index) is a hint: the stored
+        // alarm decides. Gone (fired or deleted elsewhere) → nothing to do; moved later →
+        // wait for that time.
+        const stored = state.storage.alarmSync();
+        if (retryCount > 0) {
+          // A retry of a failed handler: the alarm was consumed when it started. A new alarm
+          // armed meanwhile replaces the retry.
+          if (stored !== null) return;
+          if (typeof obj.alarm === "function") await obj.alarm({ retryCount, isRetry: true });
+          return;
+        }
+        if (stored === null) return;
+        if (stored > clock.now()) {
+          alarms.set(e, stored);
+          return;
+        }
         // The alarm is consumed when its handler starts: getAlarm() inside it returns null
         // unless the handler sets a new one.
-        if (state.storage.alarmSync() === e.at) state.storage.clearAlarmSync();
+        state.storage.clearAlarmSync();
         if (typeof obj.alarm === "function")
           await obj.alarm({ retryCount, isRetry: retryCount > 0 });
       });
-    } catch {
+    } catch (err) {
+      // Owned by another node (celld or webrun-cells): its owner fires the alarm.
+      if (isOwnedElsewhere(err)) {
+        hosts.get(e.cellKey)?.close();
+        hosts.delete(e.cellKey);
+        return;
+      }
       failed = true;
     }
     if (!failed || retryCount >= MAX_ALARM_RETRIES) return;
@@ -257,20 +281,27 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   // Alarms published by any node in a shared wake index (celld's): this node fires them too.
   // An entry is only a hint: firing opens the cell and runs alarm() only if its stored alarm
   // is still due at that time.
+  // The index is read at start and then every `wakePollMs` (default 30 s), so alarms of cells
+  // whose owner went away are picked up — celld's waker does the same.
   const wakes = opts.durability?.wakes;
+  let wakeTimer: unknown;
+  let wakesStopped = false;
   if (wakes) {
     const known = new Set(Object.values(bindingClasses));
-    void wakes
-      .call(opts.durability)
-      .then((list) => {
-        for (const w of list)
-          if (known.has(w.className))
+    const poll = async () => {
+      try {
+        for (const w of await wakes.call(opts.durability))
+          if (known.has(w.className) && !alarmRuns.has(w.cellKey))
             alarms.set(
               { cellKey: w.cellKey, className: w.className, idHex: w.cellKey.split("/")[1] },
               w.at,
             );
-      })
-      .catch(() => {});
+      } catch {
+        // the index is unavailable for now: next poll
+      }
+      if (!wakesStopped) wakeTimer = clock.setTimeout(() => void poll(), opts.wakePollMs ?? 30_000);
+    };
+    void poll();
   }
   // Idle sweep for hibernation (opt-in).
   let hibernationTimer: unknown;
@@ -333,6 +364,8 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     async close() {
       if (hibernationTimer !== undefined) clock.clearTimeout(hibernationTimer);
       closed = true;
+      wakesStopped = true;
+      if (wakeTimer !== undefined) clock.clearTimeout(wakeTimer);
       alarms.stop();
       clock.clearTimeout(timer);
       timer = undefined;
@@ -375,4 +408,15 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     },
   };
   return runtime;
+}
+
+/** The error (or its cause chain) says another node owns the cell. */
+export function isOwnedElsewhere(e: unknown): boolean {
+  for (
+    let x = e as { name?: string; cause?: unknown } | undefined, i = 0;
+    x && i < 5;
+    x = x.cause as never, i++
+  )
+    if (x.name === "CellOwnedElsewhereError") return true;
+  return false;
 }

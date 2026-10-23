@@ -113,6 +113,22 @@ retirement) once the commit is durable; (c) at start, reads the index and arms t
 armed in webrun-cells fires in celld, one armed in celld fires in webrun-cells; without our
 wake entry celld does not fire it (checked).
 
+## A real celld fleet node on S3 (`test/p11g-celld-rustfs.test.ts`)
+
+Beyond celld dev's local store: a celld **fleet node** (`celld --bucket s3://cells/<prefix>
+--endpoint …`) and webrun-cells share one S3 bucket served by a local RustFS. The Counter
+goes celld → webrun-cells → celld, and alarms cross through the wake index in both
+directions. Needs CELLD_BIN and a RustFS (RUSTFS_ENDPOINT, default `http://127.0.0.1:9100`).
+Fixes it required: an S3 prefix is a directory (`s3://BUCKET/PREFIX` → keys under
+`PREFIX/`, as celld uses it); the wake index is re-read periodically (`wakePollMs`, default
+30 s) so alarms of cells whose owner went away are picked up, as celld's waker does; a wake is
+only a hint — the stored alarm decides (fired or deleted elsewhere: nothing; moved later: wait),
+and a cell owned by another node is left to its owner.
+
+The first run of the Counter case after the interrupted session failed once (celld continued
+from its own state); five later runs passed. Kept with a diagnostic message showing celld's
+restore path if it recurs.
+
 ## Remaining differences
 
 - Wake-entry cleanup: celld deletes entries below a proved retirement frontier; webrun-cells
