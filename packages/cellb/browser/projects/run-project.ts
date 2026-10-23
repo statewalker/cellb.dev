@@ -12,6 +12,8 @@ import {
 } from "../../conformance/scenarios.js";
 import { sahpoolOpener } from "../../src/adapters/wasm-sqlite.js";
 import type { ModuleLoader } from "../../src/bindings/worker-loader.js";
+import { celldBucket } from "../../src/bucket/celld-cells.js";
+import { s3ObjectStore } from "../../src/bucket/s3-object-store.js";
 import type { WorkerModule } from "../../src/core/runtime.js";
 import { createWebSocketClass } from "../../src/index.js";
 import { createProjectRuntime, type WranglerConfig } from "../../src/project/wrangler.js";
@@ -39,6 +41,18 @@ export async function runProject(job: {
   loadModules: ModuleLoader;
   isolatedModules?: ModuleLoader;
   logs: string[];
+  /** A celld bucket on S3 shared with real celld nodes (ownership, LTX logs, wake index). */
+  bucket?: {
+    endpoint: string;
+    signAs: string;
+    bucket: string;
+    prefix: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    node: string;
+  };
+  /** With `bucket`: fetch these paths (retrying while another node still owns the cell). */
+  paths?: string[];
 }) {
   const vec = job.config.compatibility_flags?.includes("sqlite_vec");
   // sqlite_vec needs a SQLite WASM build with sqlite-vec compiled in (no Emscripten options).
@@ -54,13 +68,41 @@ export async function runProject(job: {
   const assetFiles = new Map(
     job.assets.map(([p, b64]) => [p, Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))] as const),
   );
-  const { runtime, unsupported } = createProjectRuntime(job.config, job.module as WorkerModule, {
-    openSql,
-    files,
-    assetFiles,
-    loadModules: job.loadModules,
-    isolatedModules: job.isolatedModules,
-  });
+  const shared = job.bucket
+    ? celldBucket(s3ObjectStore({ ...job.bucket, region: "us-east-1" }), {
+        node: job.bucket.node,
+        leaseTtlMs: 3_000,
+      })
+    : undefined;
+  const { runtime, unsupported } = createProjectRuntime(
+    job.config,
+    job.module as WorkerModule,
+    {
+      openSql,
+      files,
+      assetFiles,
+      loadModules: job.loadModules,
+      isolatedModules: job.isolatedModules,
+      ...(shared
+        ? { ownership: shared.ownership, durability: shared.durability, backup: shared.durability }
+        : {}),
+    } as never,
+  );
+  if (shared && job.paths) {
+    const answers: string[] = [];
+    for (const path of job.paths) {
+      let text = "";
+      for (let i = 0; i < 60; i++) {
+        text = await (await runtime.fetch(new Request(`http://browser${path}`))).text();
+        if (!text.includes("owned by another")) break;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      answers.push(text);
+    }
+    await runtime.close();
+    await shared.close();
+    return { answers };
+  }
   const WS = createWebSocketClass((url, p) => runtime.connectWebSocket(url, p));
   const target: Target = {
     origin: "http://127.0.0.1:18701",

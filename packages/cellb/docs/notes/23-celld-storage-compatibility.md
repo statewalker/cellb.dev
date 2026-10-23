@@ -125,9 +125,22 @@ Fixes it required: an S3 prefix is a directory (`s3://BUCKET/PREFIX` → keys un
 only a hint — the stored alarm decides (fired or deleted elsewhere: nothing; moved later: wait),
 and a cell owned by another node is left to its owner.
 
-The first run of the Counter case after the interrupted session failed once (celld continued
-from its own state); five later runs passed. Kept with a diagnostic message showing celld's
-restore path if it recurs.
+## webrun-cells in Chromium ⇄ a celld fleet node (`browser/e2e/celld-bucket.spec.ts`)
+
+The page runs the project on SQLite WASM in OPFS with `celldBucket` on the same S3 bucket as
+a real celld fleet node, reached through the dev server's `/s3` proxy (requests are signed
+for the real endpoint: `s3ObjectStore({ signAs })`). The Counter and a facet's state go
+celld → Chromium → celld.
+
+**Race found there, fixed:** two quick commits of one cell (in the browser, the cell's
+first two commits) were logged concurrently: both saw TXID 0 and PUT the same snapshot key, and
+the older image could land last — celld then restored the older state. Both LTX writers
+(`celldBucket`, `filesApiLtxLog`) now log a cell's commits strictly in order. Before: 1 of 4
+browser runs passed (and one S3 Node run had failed the same way); after: 4 of 4.
+
+**Alarm of a cell still owned elsewhere:** when a wake fires while the previous owner's lease is
+still live, the cell is looked at again every 2 s for up to 30 s (then the next index poll),
+instead of waiting 30 s.
 
 ## Remaining differences
 

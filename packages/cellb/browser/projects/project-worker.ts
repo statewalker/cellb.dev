@@ -22,7 +22,7 @@ const WORKERS_MODULE_SHIM =
 
 scope.onmessage = async (e) => {
   const reply = (v: unknown) => (e.ports[0] as MessagePort).postMessage(v);
-  const { project, scenario, wsServer } = e.data as {
+  const { project, scenario, wsServer, bucket, paths } = e.data as {
     project: {
       name: string;
       config: WranglerConfig;
@@ -31,6 +31,8 @@ scope.onmessage = async (e) => {
     };
     scenario: string;
     wsServer?: string;
+    bucket?: Parameters<typeof runProject>[0]["bucket"];
+    paths?: string[];
   };
   const logs = captureLogs();
   const cfg = (e.data.project?.config ?? e.data.config) as WranglerConfig;
@@ -60,6 +62,8 @@ scope.onmessage = async (e) => {
       module,
       assets: project.assets,
       wsServer,
+      bucket,
+      paths,
       loadModules: browserModuleLoader(WORKERS_MODULE_SHIM),
       isolatedModules: browserIsolatedLoader({
         isolateScript: new URL("../isolate/isolate-worker.ts", import.meta.url),

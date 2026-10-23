@@ -16,6 +16,11 @@ export interface S3Options {
   sessionToken?: string;
   /** Key prefix inside the bucket (celld's `CELLD_BUCKET` path part). */
   prefix?: string;
+  /**
+   * The S3 endpoint the requests are signed for, when `endpoint` is a proxy in front of it
+   * (a browser page reaching a local S3 through its dev server): SigV4 covers host and path.
+   */
+  signAs?: string;
   fetch?: typeof fetch;
 }
 
@@ -91,6 +96,8 @@ export async function signV4(
 export function s3ObjectStore(o: S3Options): ObjectStore {
   const f = o.fetch ?? fetch;
   const base = `${o.endpoint.replace(/\/$/, "")}/${o.bucket}`;
+  const signBase = `${(o.signAs ?? o.endpoint).replace(/\/$/, "")}/${o.bucket}`;
+  const signed = (url: URL) => (o.signAs ? new URL(signBase + url.href.slice(base.length)) : url);
   // celld's `s3://BUCKET/PREFIX` puts keys under "PREFIX/": a prefix is a directory.
   const root = o.prefix ? (o.prefix.endsWith("/") ? o.prefix : `${o.prefix}/`) : "";
   const full = (key: string) => `${root}${key}`;
@@ -102,7 +109,7 @@ export function s3ObjectStore(o: S3Options): ObjectStore {
   ) =>
     f(url, {
       method,
-      headers: await signV4(method, url, headers, body, o),
+      headers: await signV4(method, signed(url), headers, body, o),
       body: body as BodyInit | undefined,
     });
   return {
