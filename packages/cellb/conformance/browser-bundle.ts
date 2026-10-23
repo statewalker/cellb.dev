@@ -41,6 +41,9 @@ export async function bundleProjectForBrowser(name: string): Promise<BrowserProj
       format: "esm",
       platform: "browser",
       target: "es2022",
+      // Function names are observable (the npm assert polyfill reports its caller's name as the
+      // operator); bundling must not rename them.
+      keepNames: true,
       logLevel: "silent",
       inject: [
         "cells:globals",

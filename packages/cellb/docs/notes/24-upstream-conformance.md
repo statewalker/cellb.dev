@@ -45,6 +45,11 @@ fails p09 at once with the bundler's error, not by timing out.
 | `wd-actor-alarms-in-memory` | `actor-alarms-in-memory-test.js` | `clearAfterAlarm: ok`, `updateDuringAlarm: ok` | same |
 | `wd-sql` (all but `default`) | `sql-test.js` | `testMultiStatement: ok`; `testRollbackKvInit` fails (the alarm set in a rolled-back `transactionSync()` survives); no `getCurrentBookmark()`, no `gc` | same, after the fixes below |
 | `wd-sql-default` (`default` only) | same file | stops at `sql.ingest()`'s syntax-error message | **known gap**: no `sql.ingest()` |
+| `wd-actor-block-concurrency-depth` | `actor-block-concurrency-depth-test.js` | `default: ok` | same, after the fixes below |
+| `wd-actor-block-concurrency-timer` | `actor-block-concurrency-timer-test.js` | fails: the timer set before `blockConcurrencyWhile()` fires during it | same |
+| `wd-actor-stub` | `actor-stub-test.js` | fails: `get(id, { retry })` is not validated | same, after the fixes below |
+| `wd-actor-fetch-rejection` | `actor-fetch-rejection-test.js` | `handledRejection` fails with celld's wrapped error; `unhandledRejection: timeout` | **known gap**: no global `addEventListener('unhandledrejection')` in Node |
+| `wd-stub-storage` | `stub-storage-test.js` | both fail: celld cannot clone the stubs it is asked to store | **known gap**: no `ctx.exports.<Entrypoint>({ props })` stubs |
 
 Chromium answers the same on both paths (the esbuild bundle and the in-browser module server).
 On the module server, `import * as assert from "node:assert"` needed webrun-modules 0.3.4 and
@@ -68,6 +73,10 @@ What the upstream tests found in webrun-cells, each fixed in its own commit:
 - **`SELECT "foo"` was an error.** celld and workerd read a double-quoted name that is no column
   as a string (SQLite's DQS); both SQLite drivers now do too.
 - **A cursor's last `next()` had a `value` key.** It is now `{ done: true }`, as in workerd.
+- **`blockConcurrencyWhile()` nested without limit.** The 65th nested call now throws
+  `blockConcurrencyWhile() calls are nested too deeply.` at once, as in workerd and celld.
+- **A stub had `fetch` and an internal symbol as own enumerable keys.** `Object.keys(stub)` is
+  now `[id, name]`, and two stubs of one object are deep-equal.
 
 `sql-test.js` is split. Its four critical-error exports are not run: they shrink the database
 with `setMaxPageCountForTest`, a workerd test hook celld refuses, so they mean nothing outside
@@ -76,6 +85,13 @@ webrun-cells lacks. It is a `knownGap` scenario of its own, so the other exports
 compared. Even with `ingest`, it would only agree with celld up to celld's failure at an ingest
 error message. A failed assertion is compared by its `AssertionError` name only, because Node's
 `assert` and celld's word the same failure differently.
+
+**How failures are compared.** The runner reports a failed assertion by its fields, as
+`AssertionError: <actual> <operator> <expected>`, not by its message. Node's `assert`, the npm
+polyfill in Chromium and celld's own `assert` word the same failure differently, but they agree
+on those fields. The Chromium bundle keeps function names (esbuild `keepNames`), because the
+polyfill reports its caller's name as the operator. A test that reports a time (`wd-sql`) masks
+epoch milliseconds.
 
 ## celld vs workerd
 
@@ -89,13 +105,15 @@ entry that no longer differs fails the run.
 
 | Result | Projects |
 |---|---|
-| agrees | the 8 storage and alarm `wd-*` projects, hello, webapi, counter, rpc, router, body, async, alarm, alarm-retry, wsecho, wsclient, html-rewriter, html-rewriter-async, node-compat, kv-values |
-| differs (`workerdDiffers`) | `do-ids` (per-deployment id keys; message punctuation), `storage-details` (celld stores `undefined`, coerces `setAlarm(non-date)`, needs no `alarm()` handler; SQL error texts), `worker-details` (celld's JSON "Worker failed" body, non-`Response` returns accepted, no cross-isolate RPC stubs), `ws-details` (`Error` vs `TypeError`; `send()` before `accept()`), `wd-sql` (workerd has `getCurrentBookmark()` and rolls the alarm back), `wd-sql-default` (workerd runs it up to `gc()`) |
+| agrees | the 8 storage and alarm `wd-*` projects, `wd-actor-block-concurrency-depth`, `wd-actor-stub`, hello, webapi, counter, rpc, router, body, async, alarm, alarm-retry, wsecho, wsclient, html-rewriter, html-rewriter-async, node-compat, kv-values |
+| differs (`workerdDiffers`) | `do-ids` (per-deployment id keys; message punctuation), `storage-details` (celld stores `undefined`, coerces `setAlarm(non-date)`, needs no `alarm()` handler; SQL error texts), `worker-details` (celld's JSON "Worker failed" body, non-`Response` returns accepted, no cross-isolate RPC stubs), `ws-details` (`Error` vs `TypeError`; `send()` before `accept()`), `wd-sql` (workerd has `getCurrentBookmark()` and rolls the alarm back), `wd-sql-default` (workerd runs it up to `gc()`), `wd-actor-block-concurrency-timer` (workerd holds the earlier timer at the input gate; its run outlasts the 5 s limit), `wd-actor-fetch-rejection` (workerd reports unhandled rejections), `wd-stub-storage` (workerd stores stubs) |
 | skipped | 23 projects with non-DO bindings, and `vectordb` (`sqlite_vec`) |
 
 The vendored flags drop the ones workerd refuses to see listed at our `compatibility_date`
 (defaults by then): `rpc` and `enable_ctx_exports` in `wd-sync-kv`, and
-`streams_enable_constructors` and `transformstream_enable_standard_constructor` in `wd-sql`.
+`streams_enable_constructors` and `transformstream_enable_standard_constructor` in `wd-sql`,
+`enable_ctx_exports` in `wd-actor-stub`, and `rpc`, `enable_ctx_exports` and
+`fetcher_no_get_put_delete` in `wd-stub-storage`.
 celld answers the same without them.
 
 ## Known differences from celld (not covered by an upstream test)

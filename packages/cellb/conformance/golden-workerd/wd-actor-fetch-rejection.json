@@ -1,0 +1,14 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "handledRejection": "ok",
+        "unhandledRejection": "ok"
+      }
+    }
+  ]
+}

@@ -6,7 +6,8 @@
 // Each upstream `*-test.js` is copied byte-identical below one provenance line. Next to it:
 //   wrangler.jsonc — hand-translated from the test's `.wd-test` (one entry of WD_TESTS below);
 //   index.js       — a runner: GET / calls every `test(ctrl, env, ctx)` export in module order
-//                    and answers { exportName: "ok" | "timeout" | "<Error>: <first line>" };
+//                    and answers { exportName: "ok" | "timeout" | "<Error>: <first line>" }
+//                    ("AssertionError: <actual> <operator> <expected>" for a failed assertion);
 //                    GET /?skip=a,b leaves those exports out (to split off a known gap).
 // The output is committed, so tests need no workerd checkout. The scenarios and the celld
 // goldens are wired in conformance/scenarios.ts and recorded by conformance/record-celld.ts.
@@ -109,6 +110,54 @@ const WD_TESTS = {
       "testCriticalErrorOnTransactionSyncRollback",
     ],
   },
+  "wd-actor-block-concurrency-depth": {
+    upstream: "actor-block-concurrency-depth-test.js",
+    durableObjects: { ns: "DepthTester" },
+    flags: ["experimental", "nodejs_compat", "js_rpc"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
+  "wd-actor-block-concurrency-timer": {
+    upstream: "actor-block-concurrency-timer-test.js",
+    durableObjects: { ns: "TimerTester" },
+    flags: ["experimental", "nodejs_compat", "js_rpc"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
+  // enable_ctx_exports (in the .wd-test): a default at our compatibility_date.
+  "wd-actor-stub": {
+    upstream: "actor-stub-test.js",
+    durableObjects: { ns: "DurableObjectExample" },
+    flags: ["experimental", "nodejs_compat", "js_rpc"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
+  "wd-actor-fetch-rejection": {
+    upstream: "actor-fetch-rejection-test.js",
+    durableObjects: { ns: "FailingActor" },
+    flags: ["nodejs_compat"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
+  // Reached through ctx.exports; the binding only declares the class. rpc, enable_ctx_exports
+  // and fetcher_no_get_put_delete (in the .wd-test): defaults at our compatibility_date.
+  "wd-stub-storage": {
+    upstream: "stub-storage-test.js",
+    durableObjects: { MyActor: "MyActor" },
+    flags: [
+      "nodejs_compat",
+      "allow_irrevocable_stub_storage",
+      "experimental",
+      "service_binding_extra_handlers",
+    ],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
 };
 
 const runner = (
@@ -119,7 +168,16 @@ import * as mod from "./${upstream}";
 export * from "./${upstream}"; // the Durable Object / entrypoint classes (not \`default\`)
 const SKIP = new Set(${JSON.stringify(skip)});
 const TIMEOUT_MS = 5_000;
-const first = (e) => \`\${e?.name ?? "Error"}: \${String(e?.message ?? e).split("\\n")[0].slice(0, 200)}\`;
+// An assertion is reported by its fields, not its message: each engine's node:assert words
+// the same failure differently.
+const show = (v) => {
+  if (v === null || typeof v !== "object" || v instanceof RegExp || v instanceof Error) return String(v);
+  try { return JSON.stringify(v); } catch { return String(v); }
+};
+const first = (e) =>
+  e?.name === "AssertionError" && "operator" in e
+    ? \`AssertionError: \${show(e.actual)} \${e.operator} \${show(e.expected)}\`.slice(0, 300)
+    : \`\${e?.name ?? "Error"}: \${String(e?.message ?? e).split("\\n")[0].slice(0, 200)}\`;
 export default {
   async fetch(request, env, ctx) {
     const asked = new URL(request.url).searchParams.get("skip")?.split(",") ?? [];

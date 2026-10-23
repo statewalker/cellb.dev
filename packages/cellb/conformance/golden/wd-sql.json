@@ -8,7 +8,7 @@
       "body": {
         "testCursorUaf": "ReferenceError: gc is not defined",
         "testMultiStatement": "ok",
-        "testRollbackKvInit": "AssertionError",
+        "testRollbackKvInit": "AssertionError: <ms> strictEqual null",
         "testSessionsAPIBookmark": "TypeError: this.state.storage.getCurrentBookmark is not a function"
       }
     }

@@ -3,7 +3,16 @@ import * as mod from "./sync-kv-test.js";
 export * from "./sync-kv-test.js"; // the Durable Object / entrypoint classes (not `default`)
 const SKIP = new Set([]);
 const TIMEOUT_MS = 5_000;
-const first = (e) => `${e?.name ?? "Error"}: ${String(e?.message ?? e).split("\n")[0].slice(0, 200)}`;
+// An assertion is reported by its fields, not its message: each engine's node:assert words
+// the same failure differently.
+const show = (v) => {
+  if (v === null || typeof v !== "object" || v instanceof RegExp || v instanceof Error) return String(v);
+  try { return JSON.stringify(v); } catch { return String(v); }
+};
+const first = (e) =>
+  e?.name === "AssertionError" && "operator" in e
+    ? `AssertionError: ${show(e.actual)} ${e.operator} ${show(e.expected)}`.slice(0, 300)
+    : `${e?.name ?? "Error"}: ${String(e?.message ?? e).split("\n")[0].slice(0, 200)}`;
 export default {
   async fetch(request, env, ctx) {
     const asked = new URL(request.url).searchParams.get("skip")?.split(",") ?? [];

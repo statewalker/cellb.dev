@@ -373,11 +373,15 @@ export const scenarios: Record<string, Scenario> = {
 // scripts/vendor-workerd-tests.mjs): GET / runs every `test` export inside the worker and
 // answers each one's outcome. Per-project adjustments (knownGap, textMask, …) go here.
 const wdOverrides: Record<string, Partial<Scenario>> = {
-  // `default` (most of sql-test.js) is split off: it needs sql.ingest. The assertion libraries
-  // word a failure differently (Node's assert, celld's), so only that it failed is compared.
-  "wd-sql": {
-    steps: [{ path: "/?skip=default" }],
-    textMask: [['AssertionError: [^"\\\\]*', "AssertionError"]],
+  // `default` (most of sql-test.js) is split off: it needs sql.ingest. testRollbackKvInit
+  // reports the alarm time it finds (Date.now() + a year).
+  "wd-sql": { steps: [{ path: "/?skip=default" }], textMask: [["\\b1\\d{12}\\b", "<ms>"]] },
+  "wd-actor-fetch-rejection": {
+    knownGap:
+      "no global addEventListener('unhandledrejection') in Node; celld's own assert rethrows its 'rejected: … [at …]' error",
+  },
+  "wd-stub-storage": {
+    knownGap: "no ctx.exports.<Entrypoint>({ props }) stubs to store; celld refuses to clone them",
   },
 };
 scenarios["wd-sql-default"] = {
@@ -404,6 +408,11 @@ const workerdDiffers: Record<string, string> = {
     "celld lacks getCurrentBookmark() and keeps an alarm set inside a rolled-back transactionSync()",
   "wd-sql-default":
     "workerd runs it up to gc() (no --expose-gc); celld stops at ingest's syntax-error message",
+  "wd-actor-block-concurrency-timer":
+    "celld fires a timer set before blockConcurrencyWhile() during it (workerd holds it at the input gate); on workerd the test outlasts the 5 s runner limit",
+  "wd-actor-fetch-rejection":
+    "workerd reports unhandled stub-fetch rejections; celld never does and wraps the error",
+  "wd-stub-storage": "workerd stores service and actor stubs; celld refuses to clone them",
 };
 for (const name of wdProjects as string[])
   scenarios[name] = { steps: [{ path: "/" }], ...wdOverrides[name] };

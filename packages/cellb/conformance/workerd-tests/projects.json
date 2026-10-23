@@ -2,10 +2,15 @@
   "wd-actor-alarms",
   "wd-actor-alarms-delete",
   "wd-actor-alarms-in-memory",
+  "wd-actor-block-concurrency-depth",
+  "wd-actor-block-concurrency-timer",
+  "wd-actor-fetch-rejection",
   "wd-actor-kv",
+  "wd-actor-stub",
   "wd-delete-all-deletes-alarm-disabled",
   "wd-delete-all-deletes-alarm-enabled",
   "wd-sql",
   "wd-sql-restrict-names",
+  "wd-stub-storage",
   "wd-sync-kv"
 ]
