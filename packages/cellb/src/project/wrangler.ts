@@ -2,6 +2,7 @@ import type { FilesApi } from "@statewalker/webrun-files";
 import { type AssetFiles, type AssetsConfig, createAssets } from "../bindings/assets.js";
 import { celldKv } from "../bindings/celld-kv.js";
 import { celldQueues } from "../bindings/celld-queues.js";
+import { celldWorkflows } from "../bindings/celld-workflows.js";
 import { startCronTriggers } from "../bindings/cron.js";
 import {
   makeQueueCell,
@@ -132,13 +133,18 @@ export function createProjectRuntime(
     durableObjects[QUEUE_OBJECTS] = { className: "__Queue" };
   }
   // Workflows: every instance is a cell of a runtime-supplied class (as on celld).
+  // celld's own workflow code (vendor/celld/workflows.js): its instance cell and binding.
+  let workflows: ReturnType<typeof celldWorkflows> | undefined;
   if (config.workflows?.length) {
-    worker.__CellsWorkflow = makeWorkflowCell(
-      (name) => module[name] as never,
-      () => runtime.env,
-      host.clock ? () => host.clock!.now() : undefined,
-    );
-    durableObjects[WORKFLOW_OBJECTS] = { className: "__CellsWorkflow" };
+    workflows = celldWorkflows({
+      script: config.name ?? "worker",
+      workflows: Object.fromEntries(config.workflows.map((w) => [w.name, w.class_name])),
+      exports: () => module as Record<string, unknown>,
+      env: () => runtime.env,
+      namespace: () => runtime.env[WORKFLOW_OBJECTS],
+    });
+    worker[workflows.className] = workflows.WorkflowCell as never;
+    durableObjects[WORKFLOW_OBJECTS] = { className: workflows.className };
   }
   for (const s of config.services ?? [])
     if (s.service !== config.name)
@@ -244,8 +250,7 @@ export function createProjectRuntime(
       assets.route(req) ??
       (hasWorker ? workerFetch(req) : new Response("Not found", { status: 404 }));
   }
-  for (const w of config.workflows ?? [])
-    env[w.binding] = workflowBinding(env[WORKFLOW_OBJECTS] as DurableObjectNamespace, w);
+  for (const w of config.workflows ?? []) env[w.binding] = workflows!.binding(w.name);
   // Service bindings to this script's own entrypoints (a celld fleet runs one application):
   // default export or a named WorkerEntrypoint, with fetch() and JS RPC.
   for (const s of config.services ?? []) {

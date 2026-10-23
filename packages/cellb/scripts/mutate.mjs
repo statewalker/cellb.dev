@@ -368,10 +368,10 @@ const mutants = [
     "test/p09-celld-conformance.test.ts -t do-ids",
   ],
   [
-    "queues: retries never dead-letter",
-    "src/bindings/queues.ts",
-    "if (attempts > cfg.max_retries) {",
-    "if (false) {",
+    "queues: retries never exhausted (celld policy port)",
+    "src/bindings/celld-queues.ts",
+    "const exhausted = (attempt: number, maxRetries: number) => attempt > maxRetries;",
+    "const exhausted = (_attempt: number, _maxRetries: number) => false;",
     "test/p09-celld-conformance.test.ts -t queues-api",
   ],
   [

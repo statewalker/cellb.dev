@@ -340,6 +340,15 @@ export class DurableObjectStorage extends AsyncKvApi {
       this.onAlarmChange(at);
     });
   }
+  /** setAlarm() inside a synchronous transaction (celld's harness ops). */
+  setAlarmSync(at: number): void {
+    this.#meta();
+    this.sql.internalExec(
+      "INSERT INTO _cf_ALARM(scope,at_ms,retry,counted_retry,generation) VALUES(?,?,0,0,random()) ON CONFLICT(scope) DO UPDATE SET at_ms=excluded.at_ms, retry=0, counted_retry=0, generation=random()",
+      [this.kv.scope, at],
+    );
+    this.onAlarmChange(at);
+  }
   deleteAlarm(_opts?: unknown): Promise<void> {
     return this.op(() => this.clearAlarmSync());
   }

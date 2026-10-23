@@ -218,10 +218,10 @@ export function celldQueues(opts: {
       if (opts.defer) opts.defer(work);
       else void work.catch((e) => console.error("Queue delivery failed:", e));
     },
-    // celld: set the alarm and wait until a durable wake entry covers it. Here the storage
-    // itself is the "scope" (DurableObjectStorage._scope); the wake entry is published with the
-    // event's commit, which the output gate already waits for.
-    __queue_alarm_set_wait: async (storage: { setAlarm(at: number): Promise<void> }, at: number) =>
+    // celld: set the alarm and wait for its wake entry. Here the wake entry is published with
+    // the commit (output gate), so setting the alarm is all; the cell passes its storage's
+    // `_scope`, which the wrapper class below points at the storage itself.
+    __queue_alarm_set_wait: (storage: { setAlarm(at: number): Promise<void> }, at: number) =>
       storage.setAlarm(at),
     __sc_encode: serialize,
     __sc_decode: deserialize,
@@ -249,8 +249,15 @@ export function celldQueues(opts: {
     ) => opts.runConsumer(batch),
     btoa: (bytes: Uint8Array) => b64(bytes),
   });
+  const Base = service.QueueCell as new (ctx: any, env: any) => object;
+  class QueueCell extends Base {
+    constructor(ctx: any, env: any) {
+      Object.defineProperty(ctx.storage, "_scope", { value: ctx.storage, configurable: true });
+      super(ctx, env);
+    }
+  }
   return {
-    QueueCell: service.QueueCell,
+    QueueCell,
     /** The producer binding (celld: `__makeQueue(queue, cellName, deliveryDelay)`). */
     producer: (queue: string, deliveryDelay = 0) => service.makeQueue(queue, queue, deliveryDelay),
   };

@@ -197,9 +197,37 @@ both ways; **delayed queue messages pending at the hand-over** are delivered by 
 (sent on celld → delivered by webrun-cells; sent on webrun-cells → delivered by celld). The three
 queue projects still match celld in Node and Chromium.
 
+## Bindings: D1, KV, Queues
+
+**D1.** celld keeps a D1 database as an ordinary cell, `__D1Database:<id>` (id from the
+`database_id` in the fleet-wide D1 namespace), with the application's tables directly in its
+SQLite. Ours already had the same id and layout; only the internal class name differed. With
+celld's name, a guestbook goes celld (1) → webrun-cells (2) → celld (3) on both drivers.
+
+**KV.** celld's own `services/kv.js` was already the implementation (note 21); with the cell
+class named `__KvNamespace`, values move both ways.
+
+**Queues.** A queue is a cell `__Queue:<id>` (id from the queue name) with celld's schema
+(`__queue_messages` with leases and dead-letter transfer state, `__queue_stats` maintained by
+triggers, `__queue_meta`, `__queue_transfer_receipts`). The code that drives it is JavaScript
+in celld's `harness.js` that asks Rust for every deadline and lease decision through seven
+policy operations. As for KV, webrun-cells now runs that code **unchanged**:
+`scripts/vendor-celld.mjs` extracts the queue cell, the producer binding and the consumer
+batch object into `vendor/celld/queues.js`; `src/bindings/celld-queues.ts` hosts it with a
+TypeScript port of `celld_logic::queue` (rearm, capacity, retries, expiry, batch plan,
+settlement match, purge), celld's limits and lease duration (1 s + 300 s + 15 s), delivery of
+the batch to the Worker's `queue()` and the settlement POST back to the cell (`/__qSettle`).
+One shim needed care: celld arms the queue's alarm through an engine op given the storage
+scope; the host wraps the cell class so that op sets the alarm on the cell's storage.
+
+`queues`, `queues-api`, `queues-details` match celld in Node and Chromium; a delayed message
+sent on celld is delivered by webrun-cells after the hand-over, and the reverse. The previous
+queue implementation (`src/bindings/queues.ts`) is no longer used by projects.
+
 ## Remaining differences
 
 - Workflows and R2: not yet compared at the storage level.
+- Workflows and R2 still use webrun-cells' own storage layouts.
 - The waker role: celld elects one node to wake cells of stopped owners; every webrun-cells
   runtime polls the index itself (an entry is only a hint, so this is safe, just redundant).
 - Browser project hosts do not configure a host log yet, so isolated facets there keep

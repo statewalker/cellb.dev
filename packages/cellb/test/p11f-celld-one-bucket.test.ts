@@ -401,5 +401,167 @@ describe.skipIf(!CELLD)(
         }
       }, 150_000);
     }
+
+    // A Workflow instance sleeping when its cell changes hands: the other side finishes it
+    // from celld's records (finished steps are not run again: their counter stays 0 there).
+    for (const driver of ["node", "wasm"] as const) {
+      it(`Workflows: an instance started on celld finishes on webrun-cells, and back (${driver})`, async () => {
+        const dir = join(mkdtempSync(join(tmpdir(), "wf-handoff-")), "workflow-api");
+        cpSync(join(ours, "workflow-api"), dir, { recursive: true });
+        let celld = await celldDev(dir);
+        expect(await (await fetch(`${celld.base}/create?id=s1&kind=steps`)).json()).toEqual({
+          id: "s1",
+        });
+        await new Promise((r) => setTimeout(r, 300)); // step "a" done, sleeping 2 s
+        await stop(celld.p);
+        const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+        const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
+        const { runtime } = await loadNodeProject(dir, {
+          openSql: driver === "node" ? nodeSqliteOpener() : await wasm(),
+          files: new MemFilesApi(),
+          ownership: bucket.ownership,
+          durability: bucket.durability,
+          backup: bucket.durability,
+        } as never);
+        const status = async (id: string) => {
+          for (let i = 0; i < 60; i++) {
+            const text = await (
+              await runtime.fetch(new Request(`http://w/status?id=${id}`))
+            ).text();
+            if (!text.includes("owned by another")) return JSON.parse(text);
+            await new Promise((r) => setTimeout(r, 500));
+          }
+        };
+        let st: any;
+        for (let i = 0; i < 40; i++) {
+          st = await status("s1");
+          if (st.status === "complete") break;
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        expect(st).toMatchObject({ status: "complete", output: { a: 1, b: 2, stepARuns: 0 } });
+        // the other way: started here, finished by celld
+        let created = "";
+        for (let i = 0; i < 40 && !created.includes("s2"); i++)
+          created = await (
+            await runtime.fetch(new Request("http://w/create?id=s2&kind=steps"))
+          ).text();
+        await new Promise((r) => setTimeout(r, 300));
+        await runtime.close();
+        await bucket.close();
+        store.close();
+        await new Promise((r) => setTimeout(r, 3_500));
+        celld = await celldDev(dir);
+        try {
+          let st2: any;
+          for (let i = 0; i < 40; i++) {
+            st2 = await (await fetch(`${celld.base}/status?id=s2`)).json();
+            if (st2.status === "complete") break;
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          expect(st2).toMatchObject({ status: "complete", output: { a: 1, b: 2, stepARuns: 0 } });
+        } finally {
+          await stop(celld.p);
+        }
+      }, 150_000);
+    }
+
+    // A queue is a cell (celld's own queue code on both sides): pending messages travel with it.
+    const handoff = async (direction: "celld→webrun" | "webrun→celld") => {
+      const dir = join(mkdtempSync(join(tmpdir(), "queue-handoff-")), "queue-handoff");
+      cpSync(join(ours, "queue-handoff"), dir, { recursive: true });
+      let celld = await celldDev(dir);
+      const store = () => sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+      const webrun = async () => {
+        const st = store();
+        const bucket = celldBucket(st, { node: `webrun-${Date.now()}`, leaseTtlMs: 3_000 });
+        const { runtime } = await loadNodeProject(dir, {
+          openSql: nodeSqliteOpener(),
+          files: new MemFilesApi(),
+          ownership: bucket.ownership,
+          durability: bucket.durability,
+          backup: bucket.durability,
+        } as never);
+        const call = async (path: string) => {
+          for (let i = 0; i < 60; i++) {
+            const text = await (await runtime.fetch(new Request(`http://w${path}`))).text();
+            if (!text.includes("owned by another")) return JSON.parse(text);
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          throw new Error("never owned");
+        };
+        return {
+          call,
+          close: async () => {
+            await runtime.close();
+            await bucket.close();
+            st.close();
+          },
+        };
+      };
+      if (direction === "celld→webrun") {
+        await fetch(`${celld.base}/send?body=now`);
+        await fetch(`${celld.base}/send?body=later&delay=8`); // pending at hand-over
+        await new Promise((r) => setTimeout(r, 2_500));
+        expect(await (await fetch(`${celld.base}/`)).json()).toEqual([
+          { body: "now", attempts: 1 },
+        ]);
+        await stop(celld.p);
+        const w = await webrun();
+        try {
+          let got: unknown[] = [];
+          for (let i = 0; i < 40 && got.length < 2; i++) {
+            await new Promise((r) => setTimeout(r, 500));
+            got = await w.call("/");
+          }
+          expect(got).toEqual([
+            { body: "later", attempts: 1 },
+            { body: "now", attempts: 1 },
+          ]);
+        } finally {
+          await w.close();
+        }
+      } else {
+        await stop(celld.p); // deployed; the queue cell does not exist yet
+        const w = await webrun();
+        await w.call("/send?body=now");
+        await w.call("/send?body=later&delay=8");
+        await new Promise((r) => setTimeout(r, 2_500));
+        expect(await w.call("/")).toEqual([{ body: "now", attempts: 1 }]);
+        await w.close();
+        await new Promise((r) => setTimeout(r, 3_500));
+        celld = await celldDev(dir);
+        try {
+          let got: unknown[] = [];
+          for (let i = 0; i < 40 && got.length < 2; i++) {
+            await new Promise((r) => setTimeout(r, 500));
+            got = await (await fetch(`${celld.base}/`)).json();
+          }
+          expect(
+            got,
+            celld
+              .log()
+              .split("\n")
+              .filter((l) => /queue|restore|wake/i.test(l))
+              .slice(-10)
+              .join("\n"),
+          ).toEqual([
+            { body: "later", attempts: 1 },
+            { body: "now", attempts: 1 },
+          ]);
+        } finally {
+          await stop(celld.p);
+        }
+      }
+    };
+    it(
+      "Queues: a delayed message sent on celld is delivered by webrun-cells",
+      () => handoff("celld→webrun"),
+      120_000,
+    );
+    it(
+      "Queues: a delayed message sent on webrun-cells is delivered by celld",
+      () => handoff("webrun→celld"),
+      120_000,
+    );
   },
 );

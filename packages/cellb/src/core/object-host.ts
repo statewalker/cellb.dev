@@ -127,6 +127,13 @@ export class ObjectHost {
     );
     this.state = state;
     state.attachDispatcher((fn) => this.deliver(fn));
+    // ctx.abort(reason) (workerd, celld): the object resets — a fresh instance on the same
+    // database serves the next event; the calling event fails with the reason. Writes the event
+    // already made still commit (celld: celld's workflow cell aborts after its delete commit).
+    (state as unknown as { abort(reason?: unknown): never }).abort = (reason?: unknown): never => {
+      queueMicrotask(() => this.restart());
+      throw reason ?? new Error("Durable Object reset because its code calls abort()");
+    };
     state.exports = opts.exports ?? {};
     state.facets = createFacets(
       { ...opts, epoch: () => this.#epoch },
