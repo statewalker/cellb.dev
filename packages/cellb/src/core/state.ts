@@ -4,7 +4,8 @@ import type { DurableObjectStorage } from "./storage.js";
 
 /** `ctx` passed to a Durable Object constructor. */
 export class DurableObjectState {
-  readonly id: DurableObjectId;
+  /** Not readonly: an object woken by id alone gets its recorded name back (celld). */
+  id: DurableObjectId;
   readonly storage: DurableObjectStorage;
   readonly #gate: InputGate;
   readonly #waitUntil: (p: Promise<unknown>) => void;

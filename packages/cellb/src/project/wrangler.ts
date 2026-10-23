@@ -1,6 +1,7 @@
 import type { FilesApi } from "@statewalker/webrun-files";
 import { type AssetFiles, type AssetsConfig, createAssets } from "../bindings/assets.js";
 import { celldKv } from "../bindings/celld-kv.js";
+import { celldQueues } from "../bindings/celld-queues.js";
 import { startCronTriggers } from "../bindings/cron.js";
 import {
   makeQueueCell,
@@ -116,15 +117,19 @@ export function createProjectRuntime(
   }
   // Queues: every queue is a cell of a runtime-supplied class (as on celld).
   const consumers = new Map((config.queues?.consumers ?? []).map((c) => [c.queue, c]));
+  // celld's own queue code (vendor/celld/queues.js): its queue cell, producer and consumer
+  // batch, so a queue's cell (and pending messages) is celld's format.
   let queueDispatcher: QueueDispatcher | undefined;
+  let queues: ReturnType<typeof celldQueues> | undefined;
   if (config.queues?.producers?.length || consumers.size) {
-    worker.__CellsQueue = makeQueueCell(
-      consumers,
-      () => queueDispatcher,
-      () => runtime.env[QUEUE_OBJECTS] as DurableObjectNamespace,
-      host.clock ? () => host.clock!.now() : undefined,
-    );
-    durableObjects[QUEUE_OBJECTS] = { className: "__CellsQueue" };
+    queues = celldQueues({
+      namespace: () => runtime.env[QUEUE_OBJECTS] as never,
+      consumers: [...consumers.values()],
+      compatibilityDate: config.compatibility_date,
+      runConsumer: (batch) => queueDispatcher!.deliver(batch as never),
+    });
+    worker.__Queue = queues.QueueCell as never;
+    durableObjects[QUEUE_OBJECTS] = { className: "__Queue" };
   }
   // Workflows: every instance is a cell of a runtime-supplied class (as on celld).
   if (config.workflows?.length) {
@@ -165,7 +170,7 @@ export function createProjectRuntime(
     namespaceKeys: {
       __KvNamespace: "cells:v1:kv:__KvNamespace",
       __D1Database: "cells:v1:d1:__D1Database",
-      __CellsQueue: "cells:v1:queue:__Queue",
+      __Queue: "cells:v1:queue:__Queue",
     },
     durability: host.durability,
     backup: host.backup,
@@ -178,11 +183,7 @@ export function createProjectRuntime(
   for (const ns of config.kv_namespaces ?? [])
     env[ns.binding] = new kv!.KvNamespace(() => env[KV_OBJECTS], `${ns.id}/0`);
   for (const p of config.queues?.producers ?? [])
-    env[p.binding] = queueProducer(
-      env[QUEUE_OBJECTS] as DurableObjectNamespace,
-      p.queue,
-      p.delivery_delay ?? 0,
-    );
+    env[p.binding] = queues!.producer(p.queue, p.delivery_delay ?? 0);
   if (consumers.size) {
     const handler = (module.default as { queue?: (b: unknown, e: unknown, c: unknown) => unknown })
       .queue;

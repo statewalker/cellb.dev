@@ -21,6 +21,8 @@ export class SyncKvStorage {
   #codec: ValueCodec;
   #ready = false;
   readonly scope: string;
+  /** The name the object was addressed by: recorded as celld's _cf_METADATA.actor_name. */
+  actorName: string | undefined;
 
   constructor(sql: SqlStorage, codec: ValueCodec, scope = "") {
     this.#sql = sql;
@@ -33,6 +35,11 @@ export class SyncKvStorage {
   #init(): void {
     if (this.#ready) return;
     for (const ddl of CELLD_SCHEMA) this.#sql.internalExec(ddl);
+    if (this.actorName !== undefined)
+      this.#sql.internalExec(
+        "INSERT OR IGNORE INTO _cf_METADATA (scope, actor_name) VALUES (?, ?)",
+        [this.scope, this.actorName],
+      );
     this.#ready = true;
   }
   get<T = unknown>(key: string): T | undefined {
@@ -240,6 +247,10 @@ export class DurableObjectStorage extends AsyncKvApi {
   }
   /** `delete_all_preserves_alarm`: deleteAll() leaves the alarm in place. */
   deleteAllPreservesAlarm = false;
+  /** celld's harness hands its storage "scope" to engine ops; here it is the storage itself. */
+  get _scope(): this {
+    return this;
+  }
   /** Called whenever the stored alarm changes (the runtime schedules it). */
   onAlarmChange: (at: number | null) => void = () => {};
 
@@ -247,6 +258,11 @@ export class DurableObjectStorage extends AsyncKvApi {
   #meta(): void {
     if (this.#metaReady) return;
     for (const ddl of CELLD_SCHEMA) this.sql.internalExec(ddl);
+    if (this.kv.actorName !== undefined)
+      this.sql.internalExec(
+        "INSERT OR IGNORE INTO _cf_METADATA (scope, actor_name) VALUES (?, ?)",
+        [this.kv.scope, this.kv.actorName],
+      );
     this.#metaReady = true;
   }
   /**

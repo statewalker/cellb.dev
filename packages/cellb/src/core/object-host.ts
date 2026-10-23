@@ -118,6 +118,7 @@ export class ObjectHost {
     );
     // The cell's scope in celld's tables ("Class:idhex"), so its database is celld's format.
     const kv = new SyncKvStorage(this.#sql, opts.codec, scopeOf(opts.cellKey));
+    if (!opts.facet) kv.actorName = opts.id.name;
     const storage = new DurableObjectStorage(this.#sql, kv, this.#gate, () => this.#barrier());
     if (opts.onAlarmChange) storage.onAlarmChange = opts.onAlarmChange;
     storage.deleteAllPreservesAlarm = !!opts.deleteAllPreservesAlarm;
@@ -150,6 +151,7 @@ export class ObjectHost {
     const replay = opts.backup?.replay;
     const acquire = opts.acquire;
     if (!load && !replay && !acquire) {
+      this.#nameFromMetadata(state);
       construct();
       return;
     }
@@ -186,6 +188,7 @@ export class ObjectHost {
           this.#initWake();
           this.#scheduleRestoredAlarm(opts.onAlarmChange);
         }
+        this.#nameFromMetadata(state);
         construct();
       })
       .catch((e) => this.#breakOn(e));
@@ -401,6 +404,30 @@ export class ObjectHost {
     return () => publish(this.cellKey, row);
   }
   readonly #opts: { durability: CellDurability; facet?: boolean };
+
+  /**
+   * celld records the name an object was addressed by (`_cf_METADATA.actor_name`) and gives it
+   * back as `ctx.id.name` when the object is woken by id alone (an alarm, a wake entry) —
+   * celld's own queue cells rely on it. Both directions here: restore it, and record it.
+   */
+  #nameFromMetadata(state: { id: DurableObjectId }): void {
+    if (this.#opts.facet) return;
+    const scope = scopeOf(this.cellKey);
+    // Reading only: no DDL or write outside a logged transaction (a changeset log replays
+    // only what it captured). The name is recorded with the cell's first storage write.
+    if (state.id.name !== undefined) return;
+    try {
+      const r = this.#driver.exec("SELECT actor_name FROM _cf_METADATA WHERE scope = ?", [scope])
+        .rows[0];
+      if (r?.[0] != null)
+        (state as { id: DurableObjectId }).id = new DurableObjectIdClass(
+          state.id.toString(),
+          String(r[0]),
+        );
+    } catch {
+      // no _cf_METADATA yet
+    }
+  }
 
   #rescope(scope: string): void {
     for (const table of ["_cf_KV", "_cf_ALARM", "_cf_METADATA"])

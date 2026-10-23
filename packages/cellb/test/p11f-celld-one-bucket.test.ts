@@ -341,5 +341,65 @@ describe.skipIf(!CELLD)(
         120_000,
       );
     }
+
+    // Delayed messages are pending in the queue cell when it changes hands: the other side
+    // delivers them (celld's queue schema and code on both sides).
+    for (const driver of ["node", "wasm"] as const) {
+      it(`Queues: messages sent on celld are delivered by webrun-cells, and back (${driver})`, async () => {
+        const dir = join(mkdtempSync(join(tmpdir(), "queue-handoff-")), "queue-handoff");
+        cpSync(join(ours, "queue-handoff"), dir, { recursive: true });
+        let celld = await celldDev(dir);
+        await fetch(`${celld.base}/send?body=a-from-celld&delay=3`);
+        await stop(celld.p);
+        const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+        const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
+        const { runtime } = await loadNodeProject(dir, {
+          openSql: driver === "node" ? nodeSqliteOpener() : await wasm(),
+          files: new MemFilesApi(),
+          ownership: bucket.ownership,
+          durability: bucket.durability,
+          backup: bucket.durability,
+        } as never);
+        const logW = async () => {
+          for (let i = 0; i < 60; i++) {
+            const text = await (await runtime.fetch(new Request("http://w/"))).text();
+            if (!text.includes("owned by another")) return JSON.parse(text);
+            await new Promise((r) => setTimeout(r, 500));
+          }
+        };
+        let got: any;
+        for (let i = 0; i < 40; i++) {
+          got = await logW();
+          if (got.length) break;
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        expect(got).toEqual([{ body: "a-from-celld", attempts: 1 }]);
+        // and the other way: sent on webrun-cells (delayed), delivered by celld
+        let sent = "";
+        for (let i = 0; i < 40 && !sent.includes("sent"); i++)
+          sent = await (
+            await runtime.fetch(new Request("http://w/send?body=b-from-webrun&delay=4"))
+          ).text();
+        await runtime.close();
+        await bucket.close();
+        store.close();
+        await new Promise((r) => setTimeout(r, 3_500));
+        celld = await celldDev(dir);
+        try {
+          let log: any;
+          for (let i = 0; i < 40; i++) {
+            log = await (await fetch(`${celld.base}/`)).json();
+            if (log.length === 2) break;
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          expect(log).toEqual([
+            { body: "a-from-celld", attempts: 1 },
+            { body: "b-from-webrun", attempts: 1 },
+          ]);
+        } finally {
+          await stop(celld.p);
+        }
+      }, 150_000);
+    }
   },
 );

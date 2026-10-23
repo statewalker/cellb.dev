@@ -43,10 +43,11 @@ const project = (maxConcurrency?: number) => {
 
 describe("P08e Queues max_concurrency", () => {
   for (const [conc, peak] of [
-    [undefined, 1],
+    // celld: unset means its ceiling (250), not 1 — consumer.maxConcurrency ?? limits.maxConcurrency
+    [undefined, 5],
     [3, 3],
   ] as const) {
-    it(`max_concurrency ${conc ?? "default (1)"} → at most ${peak} batch(es) in flight`, async () => {
+    it(`max_concurrency ${conc ?? "default (celld: 250)"} → at most ${peak} batch(es) in flight`, async () => {
       const g = globalThis as any;
       const { runtime } = await loadNodeProject(project(conc), {
         openSql: nodeSqliteOpener(),

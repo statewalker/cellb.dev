@@ -170,8 +170,36 @@ handler that re-arms and then throws keeps its new alarm" and checks the stored 
 Mutants (all killed): success not deleting, failures not rescheduled, a handler's re-arm
 overwritten, getAlarm() visible inside the handler, retired wake entries kept.
 
+## Bindings: D1, KV, Queues
+
+- **D1** — celld stores a database as a cell `__D1Database:<id>` (id from `database_id` in the
+  fleet-wide D1 namespace) with the user's tables directly in its SQLite, as Miniflare's D1
+  simulator does. Only our internal class name differed; renamed to `__D1Database`.
+- **KV** — celld's own `kv.js` was already in use; its cell class is now named `__KvNamespace`
+  as on celld.
+- **Queues** — celld's queue is a cell `__Queue:<id>` (id from the queue name) with its own
+  schema (`__queue_messages` with leases, `__queue_stats` with triggers, `__queue_meta`,
+  `__queue_transfer_receipts`), driven by ~1,500 lines of harness JavaScript that call celld's
+  Rust only for decisions. As for KV, that code is now vendored **unchanged**
+  (`scripts/vendor-celld.mjs` extracts the queue cell, producer and consumer batch from
+  `harness.js` → `vendor/celld/queues.js`), and `src/bindings/celld-queues.ts` hosts it: celld's
+  limits and lease duration, the seven policy operations of `celld_logic::queue` ported to
+  TypeScript, delivery to the consumer and settlement through `/__qSettle`. Our previous queue
+  cell is no longer used by projects. One behaviour changed with it: an unset
+  `max_concurrency` means celld's ceiling (250), not 1.
+- **Object names** — celld records the name an object was addressed by
+  (`_cf_METADATA.actor_name`) and restores it as `ctx.id.name` when the object is woken by id
+  alone; celld's queue cell depends on it (`this.queue = ctx.id.name`). webrun-cells now records
+  the name with the cell's first storage write and restores it on open.
+
+Tests (real celld, both drivers): the D1 guestbook continues across runtimes; KV values cross
+both ways; **delayed queue messages pending at the hand-over** are delivered by the other side
+(sent on celld → delivered by webrun-cells; sent on webrun-cells → delivered by celld). The three
+queue projects still match celld in Node and Chromium.
+
 ## Remaining differences
 
+- Workflows and R2: not yet compared at the storage level.
 - The waker role: celld elects one node to wake cells of stopped owners; every webrun-cells
   runtime polls the index itself (an entry is only a hint, so this is safe, just redundant).
 - Browser project hosts do not configure a host log yet, so isolated facets there keep
