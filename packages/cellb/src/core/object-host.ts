@@ -179,7 +179,10 @@ export class ObjectHost {
           if (replay) await this.#replayLog(replay);
         }
         if (opts.facet) this.#rescope(scopeOf(opts.cellKey));
-        else this.#initWake();
+        else {
+          this.#initWake();
+          this.#scheduleRestoredAlarm(opts.onAlarmChange);
+        }
         construct();
       })
       .catch((e) => this.#breakOn(e));
@@ -349,6 +352,22 @@ export class ObjectHost {
       [scope, this.#epoch.toString(16).padStart(16, "0")],
     );
     this.#wakeSeq = this.#wakeRow()?.sequence;
+  }
+  /**
+   * A cell restored on open may carry an alarm armed by its previous owner (another node, or
+   * celld). This node owns the cell now, so the alarm is its to fire: hand it to the scheduler,
+   * which otherwise only hears of alarms set here (or of a later wake-index poll).
+   */
+  #scheduleRestoredAlarm(onAlarmChange?: (at: number) => void): void {
+    let at: unknown;
+    try {
+      at = this.#driver.exec("SELECT at_ms FROM _cf_ALARM WHERE scope = ?", [
+        scopeOf(this.cellKey),
+      ]).rows[0]?.[0];
+    } catch {
+      return; // no alarm table: the cell never had an alarm
+    }
+    if (at != null) onAlarmChange?.(Number(at));
   }
   #wakeSeq: number | undefined;
   #wakeRow(): { epoch: number; sequence: number; at: number | null } | undefined {
