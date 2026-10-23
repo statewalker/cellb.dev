@@ -211,6 +211,29 @@ export function serialize(value: unknown): Uint8Array {
       w.byte(T.date);
       return w.double(v.getTime());
     }
+    if (v instanceof Error) {
+      // V8's Error: 'r', the prototype tag (standard subclasses), 'm' message, 's' stack, '.'
+      w.byte(T.error);
+      const proto: Record<string, number> = {
+        EvalError: 0x45,
+        RangeError: 0x52,
+        ReferenceError: 0x46,
+        SyntaxError: 0x53,
+        TypeError: 0x54,
+        URIError: 0x55,
+      };
+      const tag = proto[v.constructor?.name ?? ""];
+      if (tag) w.byte(tag);
+      if (v.message !== undefined && v.message !== "") {
+        w.byte(0x6d);
+        str(String(v.message));
+      }
+      if (typeof v.stack === "string") {
+        w.byte(0x73);
+        str(v.stack);
+      }
+      return w.byte(0x2e);
+    }
     if (v instanceof RegExp) {
       w.byte(T.regexp);
       str(v.source);

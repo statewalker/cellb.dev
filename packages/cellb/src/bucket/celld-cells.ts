@@ -48,7 +48,7 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
   // takes its cells over (logic/lib.rs apply_node_lease_result) — a split brain. With an
   // address celld routes a request for our cell to it; a node that does not accept celld's
   // peer protocol (a browser) gets an unroutable placeholder, so the request fails instead.
-  const addr = opts.addr || `${opts.node}.webrun-cells.invalid:9`;
+  let addr = opts.addr || `${opts.node}.webrun-cells.invalid:9`;
   const generation = [...crypto.getRandomValues(new Uint8Array(32))]
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
@@ -177,6 +177,14 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
     durability,
     /** The fleet bucket itself (R2 objects live directly in it, under `r2/<bucket>/`). */
     store,
+    /**
+     * The address celld nodes reach this node at (its celld peer server): published in the
+     * node record now, so celld routes requests for our cells here instead of refusing them.
+     */
+    async advertise(address: string) {
+      addr = address;
+      if (leaseWritten) await writeLease();
+    },
     /** Clean shutdown: stop renewing and remove this node's lease record. */
     async close() {
       if (renew) clearTimeout(renew);

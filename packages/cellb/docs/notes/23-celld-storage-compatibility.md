@@ -320,6 +320,33 @@ Self-fencing: besides stopping when a renewal fails, celldBucket now refuses to 
 a write once its lease could have lapsed (`expires_ms` minus a margin), and a deadline timer
 stops every cell when renewals stop arriving (a paused process, a frozen tab).
 
+## A mixed fleet: webrun-cells as a celld peer (`src/peer/celld-peer.ts`, `test/p11j-*`)
+
+celld nodes reach a cell's owner through **celld's peer protocol** (protocol 5):
+
+- every peer request is signed with HMAC-SHA-256 over
+  `cells-peer-request-v1 / 5 / method / path / sha256(body) / source / target / timestamp /
+  nonce`, keyed by the fleet secret `fleet/peer-auth.json`, checked within ±30 s, against a
+  nonce replay cache, and for the right target node;
+- `GET /peer/tunnel` with `Upgrade: celld-tunnel` (kind `do` or `rpc`) is answered with 101,
+  and the connection then carries plain HTTP/1.1 calls with `x-cells-scope` (the cell),
+  `x-cells-do-name` and, for RPC, `x-cells-rpc-method`: a fetch goes through as is; an RPC
+  sends V8-serialized arguments and gets the V8-serialized result, or a tagged exception
+  (`0`, then `[error, own properties]` — the V8 serializer now writes Error objects too);
+- a node that does not own the cell answers 409 `x-cells-route-error: stale-owner`.
+
+webrun-cells (Node) implements both halves: `startCelldPeerServer({ runtime, store, node })`
+serves the tunnel, and `bucket.advertise(addr)` puts its address in the node record, so celld
+routes our cells' requests to us; `celldPeers({ store, node })` (CellRuntimeOptions.peers)
+routes a webrun-cells Worker's calls for celld's cells to the celld owner through the tunnel.
+Tests with the real celld: celld's Worker reaches a webrun-cells-owned cell by fetch and by
+RPC; webrun-cells' Worker reaches a celld-owned cell by fetch and by RPC — one fleet, two
+runtimes, each cell served by its owner. (One detail: celld's inner RPC requests carry no
+Host header, which Node's HTTP server rejects by default.)
+
+Not implemented: `/peer/probe` (celld's operator diagnostics need an Ed25519 probe key),
+WebSocket upgrades through the tunnel, celld's fleet log tier (followers), adoption handoffs.
+
 ## Running the interop suite anywhere
 
 `scripts/interop-env.sh` makes the environment reproducible: it fetches the pinned celld and

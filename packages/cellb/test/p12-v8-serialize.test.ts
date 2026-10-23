@@ -45,6 +45,19 @@ const corpus: [string, unknown][] = [
     })(),
   ],
   ["ArrayBuffer", new Uint8Array([1, 2, 3, 250]).buffer],
+  [
+    "errors",
+    (() => {
+      const errors = [
+        new Error("boom"),
+        new TypeError("t"),
+        new RangeError("r"),
+        new SyntaxError("s"),
+      ];
+      for (const e of errors) e.stack = `${e.name}: ${e.message}\n    at x`;
+      return errors;
+    })(),
+  ],
 ];
 
 describe("P12 V8 value serialization in TypeScript", () => {

@@ -8,7 +8,7 @@ import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
 import { type ExecutionContext, WorkerEntrypoint } from "./durable-object.js";
 import { classHandle, entrypointStub } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
-import { DurableObjectNamespace, localEndpoint } from "./namespace.js";
+import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./namespace.js";
 import { CellOwnedElsewhereError, type DurableObjectClass, ObjectHost } from "./object-host.js";
 
 export interface WorkerModule {
@@ -50,7 +50,19 @@ export interface CellRuntimeOptions {
    * (`CellOwnedElsewhereError`), the call goes to the owner's node over an internal link
    * (`cellsHttpHandler` on the far side). `ownerOf` reads the cell's lease holder.
    */
-  peers?: { ownerOf(cellKey: string): Promise<string | undefined>; link(owner: string): Send };
+  peers?: {
+    ownerOf(cellKey: string): Promise<string | undefined>;
+    link(owner: string): Send;
+    /**
+     * Talks to an owner directly, for owners that do not speak cellsHttpHandler (a celld node,
+     * reached through celld's peer tunnel). Takes precedence over `link` when it returns one.
+     */
+    endpoint?(
+      owner: string,
+      cellKey: string,
+      name: string | undefined,
+    ): Promise<ObjectEndpoint | undefined>;
+  };
   /** Hibernate objects idle this long (ms); swept every max(1 s, half of it). Off by default. */
   hibernateAfterMs?: number;
   /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
@@ -241,6 +253,8 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       const viaOwner = async () => {
         const owner = await peers.ownerOf(cellKey);
         if (!owner) throw new CellOwnedElsewhereError(cellKey);
+        const direct = await peers.endpoint?.(owner, cellKey, id.name);
+        if (direct) return direct;
         return httpEndpoint(postVia(peers.link(owner)), codec, binding, className, id);
       };
       // The host reports a failed open as a broken object; the cause tells why.
