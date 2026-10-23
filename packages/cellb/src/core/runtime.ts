@@ -287,6 +287,15 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       };
     });
     bindingClasses[binding] = className;
+    // ctx.exports.<Class> of a class with a namespace is also that namespace, as in workerd
+    // (`ctx.exports.MyActor.getByName("a")`); it stays usable as a facet class handle.
+    const ns = env[binding] as DurableObjectNamespace;
+    const exported = exportsObj[className] as Record<string, unknown> | undefined;
+    if (exported && !("getByName" in exported))
+      for (const [m, d] of Object.entries(
+        Object.getOwnPropertyDescriptors(DurableObjectNamespace.prototype),
+      ))
+        if (m !== "constructor" && typeof d.value === "function") exported[m] = d.value.bind(ns);
   }
 
   alarms.restore();
