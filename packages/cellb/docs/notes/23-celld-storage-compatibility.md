@@ -358,7 +358,11 @@ pushes to the branch and on pull requests touching the app.
 ## Remaining differences
 
 - Workflows and R2: not yet compared at the storage level.
-- The waker role: celld elects one node to wake cells of stopped owners; every webrun-cells
-  runtime polls the index itself (an entry is only a hint, so this is safe, just redundant).
+- The waker role is now celld's (`wake/waker.json`, an advisory CAS lease): every node wakes its
+  own cells; only the elected waker wakes cells nobody owns or whose owner is dead, and looks at a
+  live owner's cell again only once that owner's lease would have run out.
+- On Node, `nodeSqliteOpener(dir, { pageCapture: true })` reads each commit's pages from the WAL
+  (no automatic checkpoints; it checkpoints itself past 4 MiB) — LTX logs cost O(changed pages)
+  as with SQLite WASM; celld round trips pass with it.
 - Browser project hosts do not configure a host log yet, so isolated facets there keep
   their database in the isolate's OPFS pool only.

@@ -44,6 +44,8 @@ if ! curl -fs -o /dev/null "$ENDPOINT/health"; then
   for _ in $(seq 1 60); do curl -fs -o /dev/null "$ENDPOINT/health" && break; sleep 0.5; done
   curl -fs -o /dev/null "$ENDPOINT/health" || { echo "RustFS did not start; see $ROOT/rustfs.log" >&2; exit 1; }
 fi
+# the tests' bucket ("cells"); creating an existing bucket is harmless (409)
+curl -s -o /dev/null --aws-sigv4 "aws:amz:us-east-1:s3" --user rustfsadmin:rustfssecret -X PUT "$ENDPOINT/cells" || true
 
 export CELLD_BIN="$CELLD" ESBUILD_DIR RUSTFS_ENDPOINT="$ENDPOINT"
 if [ $# -gt 0 ]; then

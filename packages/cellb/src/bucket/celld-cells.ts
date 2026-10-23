@@ -23,6 +23,8 @@ export interface CelldBucketOptions {
   addr?: string;
   leaseTtlMs?: number;
   now?: () => number;
+  /** The waker-role lease (celld: 3 × its due-scan tick); match 3 × the runtime's wakePollMs. */
+  wakerTtlMs?: number;
 }
 
 const enc = new TextEncoder();
@@ -170,7 +172,54 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
     },
   };
 
-  const durability = log;
+  // celld's waker role (wake.rs try_hold_waker): one node per fleet wakes alarms of cells that
+  // nobody owns or whose owner is dead — an advisory CAS lease in wake/waker.json; every node
+  // wakes its own cells; a live owner's cells are never hinted.
+  const holdWaker = async (ttlMs: number) => {
+    const key = "wake/waker.json";
+    const cur = await readJson<{ node: string; expires_ms: number }>(key);
+    const t = now();
+    if (cur && cur.value.node !== opts.node && cur.value.expires_ms > t) return false;
+    try {
+      await store.put(
+        key,
+        enc.encode(JSON.stringify({ node: opts.node, expires_ms: t + ttlMs })),
+        cur ? { ifMatch: cur.etag } : { ifNoneMatch: "*" },
+      );
+      return true;
+    } catch (e) {
+      if (!(e instanceof PreconditionFailedError)) return false;
+      const again = await readJson<{ node: string; expires_ms: number }>(key);
+      return again?.value.node === opts.node && again.value.expires_ms > t;
+    }
+  };
+  const allWakes = log.wakes!.bind(log);
+  const durability = Object.assign(log, {
+    async wakes() {
+      const due = await allWakes();
+      let elected: boolean | undefined;
+      const out: typeof due = [];
+      for (const w of due) {
+        const own = await readJson<{ node: string }>(`cells/${scopeOf(w.cellKey)}/own.json`);
+        const owner = own?.value.node;
+        if (owner === opts.node) {
+          out.push(w); // our own cell: always
+          continue;
+        }
+        let ownerExpires = 0;
+        if (owner) {
+          const lease = await readJson<{ expires_ms: number }>(`nodes/${owner}.json`);
+          ownerExpires = lease?.value.expires_ms ?? 0;
+        }
+        elected ??= await holdWaker(opts.wakerTtlMs ?? 90_000);
+        if (!elected) continue; // unowned or dead owners are the elected waker's job
+        // A live owner fires its own alarms; the waker looks again when that owner's lease
+        // would have run out (a stopped owner's cells are then due here).
+        out.push(ownerExpires > now() ? { ...w, at: Math.max(w.at, ownerExpires + 1) } : w);
+      }
+      return out;
+    },
+  });
 
   return {
     ownership,

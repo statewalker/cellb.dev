@@ -34,4 +34,30 @@ describe("P11h wake index hygiene", () => {
     });
     await b.close();
   });
+
+  it("waker role: own cells always; unowned or dead-owner cells by the elected waker; a live owner's only after its lease", async () => {
+    const store = memoryObjectStore();
+    const a = celldBucket(store, { node: "a" });
+    const b = celldBucket(store, { node: "b" });
+    const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
+    const cell = (c: string) => `Agent/${c.repeat(64)}`;
+    const at = Date.now() + 60_000;
+    // ownership: 1 → a, 2 → b (live), 3 → nobody, 4 → dead node "z"
+    await store.put(`cells/Agent:${"1".repeat(64)}/own.json`, enc({ node: "a", epoch: 1 }));
+    await store.put(`cells/Agent:${"2".repeat(64)}/own.json`, enc({ node: "b", epoch: 1 }));
+    await store.put(`cells/Agent:${"4".repeat(64)}/own.json`, enc({ node: "z", epoch: 1 }));
+    await store.put("nodes/a.json", enc({ node: "a", expires_ms: Date.now() + 60_000 }));
+    await store.put("nodes/b.json", enc({ node: "b", expires_ms: Date.now() + 120_000 }));
+    await store.put("nodes/z.json", enc({ node: "z", expires_ms: Date.now() - 1 }));
+    for (const c of ["1", "2", "3", "4"])
+      await a.durability.publishWake!(cell(c), { epoch: 1, sequence: 1, at });
+    const keys = (ws: { cellKey: string }[]) => ws.map((w) => w.cellKey[6]).sort();
+    const fromA = await a.durability.wakes!(); // a holds the waker role now
+    expect(keys(fromA)).toEqual(["1", "2", "3", "4"]);
+    // b's live cell: the waker only looks again once b's lease would have run out
+    expect(fromA.find((w) => w.cellKey === cell("2"))!.at).toBeGreaterThan(at);
+    expect(keys(await b.durability.wakes!())).toEqual(["2"]); // b: only its own (a is the waker)
+    await a.close();
+    await b.close();
+  });
 });
