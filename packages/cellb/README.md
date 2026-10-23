@@ -98,3 +98,10 @@ real celld: `scripts/interop-env.sh` downloads the pinned celld (0.6.2) and Rust
 releases into `~/.cache/webrun-cells-interop`, starts RustFS on 127.0.0.1:9200, and exports
 `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT`. Without them those tests skip. CI:
 `.github/workflows/webrun-cells-interop.yml`.
+
+## Host app
+
+`pnpm run browser:dev`, then open `/host/`: load a Workers project folder, choose a fleet bucket
+(OPFS, or S3 shared with celld nodes), and the project runs in a worker of this browser, served
+at its own URL through the ServiceWorker (`browser/host/`, `src/project/browser-host.ts`).
+

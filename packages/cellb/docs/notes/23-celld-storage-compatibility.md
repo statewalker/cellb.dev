@@ -320,6 +320,16 @@ Self-fencing: besides stopping when a renewal fails, celldBucket now refuses to 
 a write once its lease could have lapsed (`expires_ms` minus a margin), and a deadline timer
 stops every cell when renewals stop arriving (a paused process, a frozen tab).
 
+## The host app (`browser/host/`)
+
+A page to run a Workers project from the browser for real: pick a project folder (wrangler.jsonc
+and its code), a node name and a fleet bucket — OPFS in this browser, S3 shared with celld nodes
+(directly with CORS, or through a same-origin proxy), or none — and the project runs in a worker
+(`host-worker.ts`, `browserProjectRuntime`) and is served through the ServiceWorker at its own
+URL, so an iframe, a link or `fetch` reach it over real HTTP. The page lists the cells this node
+owns in the bucket. Test (Chromium): the counter example served at its URL counts 1, 2 on one
+browser node, and 3, 4 on the next one started on the same OPFS bucket.
+
 ## A mixed fleet: webrun-cells as a celld peer (`src/peer/celld-peer.ts`, `test/p11j-*`)
 
 celld nodes reach a cell's owner through **celld's peer protocol** (protocol 5):

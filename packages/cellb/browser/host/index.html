@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>webrun-cells host</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 1rem; max-width: 72rem; }
+      fieldset { margin: 0.5rem 0; } label { display: block; margin: 0.25rem 0; }
+      iframe { width: 100%; height: 22rem; border: 1px solid #8884; } pre { background: #8881; padding: 0.5rem; }
+    </style>
+  </head>
+  <body>
+    <h1>webrun-cells host</h1>
+    <p>Run a Workers project (a folder with <code>wrangler.jsonc</code>) in this browser, its cells on a celld fleet bucket.</p>
+    <form id="host-form">
+      <label>Project folder <input id="project" type="file" webkitdirectory multiple required /></label>
+      <label>Node name <input id="node" placeholder="browser-…" /></label>
+      <label>Fleet bucket
+        <select id="bucket-kind">
+          <option value="opfs">OPFS (this browser)</option>
+          <option value="s3">S3 (shared with celld nodes)</option>
+          <option value="none">none (cells local to this tab)</option>
+        </select>
+      </label>
+      <label>OPFS bucket directory <input id="opfs" value="fleet" /></label>
+      <fieldset id="s3-fields" hidden>
+        <legend>S3</legend>
+        <label>Endpoint (direct with CORS, or a same-origin proxy such as /s3) <input id="s3-endpoint" /></label>
+        <label>Sign as (the real endpoint, when using a proxy) <input id="s3-sign-as" /></label>
+        <label>Bucket <input id="s3-bucket" value="cells" /></label>
+        <label>Prefix (as celld's s3://BUCKET/PREFIX) <input id="s3-prefix" /></label>
+        <label>Access key <input id="s3-key" /></label>
+        <label>Secret key <input id="s3-secret" type="password" /></label>
+      </fieldset>
+      <button type="submit">Start</button> <button type="button" id="stop">Stop</button>
+    </form>
+    <p>Status: <span id="status">idle</span> — app at <a id="app-link" href="about:blank" target="_blank">(not started)</a></p>
+    <iframe id="app" title="app"></iframe>
+    <h2>Cells owned by this node <button type="button" id="refresh-owned">refresh</button></h2>
+    <pre id="owned"></pre>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

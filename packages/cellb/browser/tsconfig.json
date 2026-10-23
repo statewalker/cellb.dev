@@ -11,6 +11,7 @@
     "./site-projects/*.ts",
     "./changelog/*.ts",
     "./ltx/*.ts",
+    "./host/*.ts",
     "./isolate/*.ts",
     "../src",
     "../test/fixtures.ts"
