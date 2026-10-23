@@ -45,8 +45,9 @@ Project `node-compat` (Buffer, crypto, events, path, util, AsyncLocalStorage, pr
 hosts: `node:*` are Node itself. Browsers: npm polyfills (buffer, events, path-browserify,
 util) plus ours (crypto on @noble/hashes, run-scoped AsyncLocalStorage, process); `Buffer` and
 `process` also become globals. celld itself does not implement `URL` from `node:url`.
-webrun-modules resolves `node:*` to its jspm polyfills before host-provided names, so the
-in-browser server serves them under aliases — an upstream change would remove that.
+On the in-browser server these are provided names under their `node:*` names: since
+webrun-modules 0.3.5 a provided name wins over its own jspm polyfill, so sources are served
+unchanged.
 
 ## Also added
 

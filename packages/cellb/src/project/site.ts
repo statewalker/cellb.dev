@@ -46,7 +46,7 @@ export function createProjectSite(opts: {
       ...Object.keys(NODE_POLYFILL_PACKAGES),
       ...Object.keys(NODE_POLYFILL_FILES),
     ])
-      provided[nodeAlias(name)] = (opts.nodeModules?.[nodeAlias(name)] as object) ?? {};
+      provided[name] = (opts.nodeModules?.[name] as object) ?? {};
   const globals = {
     Response: `${host}("Response")`,
     WebSocketPair: `${host}("WebSocketPair")`,
@@ -58,7 +58,7 @@ export function createProjectSite(opts: {
   };
   const modules = newModuleServer({
     cache: new MemFilesApi(),
-    project: opts.nodeCompat ? withNodeAliases(opts.projectFiles) : opts.projectFiles,
+    project: opts.projectFiles,
     basePath: "/modules/",
     target: "browser",
     provided,
@@ -178,38 +178,4 @@ export function siteModuleLoader(baseUrl: string): ModuleLoader {
       unknown
     >;
   };
-}
-
-/**
- * webrun-modules resolves `node:*` to its own polyfills (jspm nodelibs) BEFORE host-provided
- * names, and those lack parts of what nodejs_compat offers (e.g. crypto.timingSafeEqual).
- * Served sources therefore have `node:x` rewritten to `cells-node-x`, a provided name the
- * worker's registry binds to webrun-cells' polyfills. (Upstream fix: let provided names win.)
- */
-export const nodeAlias = (name: string) => `cells-node-${name.slice("node:".length)}`;
-
-const SOURCE = /\.(m?js|ts|jsx|tsx)$/;
-function withNodeAliases(files: FilesApi): FilesApi {
-  return new Proxy(files, {
-    get(target, prop, receiver) {
-      if (prop !== "read") return Reflect.get(target, prop, receiver);
-      return (path: string, options?: unknown) => {
-        const inner = target.read(path, options as never);
-        if (!SOURCE.test(path) || options) return inner;
-        return (async function* () {
-          const chunks: Uint8Array[] = [];
-          for await (const c of inner) chunks.push(c);
-          const text = new TextDecoder().decode(
-            chunks.length === 1 ? chunks[0] : new Uint8Array(chunks.flatMap((c) => [...c])),
-          );
-          yield new TextEncoder().encode(
-            text.replace(
-              /(["'])node:([\w/]+)\1/g,
-              (_m, q, n) => `${q}${nodeAlias(`node:${n}`)}${q}`,
-            ),
-          );
-        })();
-      };
-    },
-  });
 }

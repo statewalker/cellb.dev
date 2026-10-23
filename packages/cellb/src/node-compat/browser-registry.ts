@@ -23,9 +23,10 @@ const modules: Record<string, unknown> = {
   "node:process": process,
 };
 
-/** Registry entries: each module under its served alias (see `nodeAlias` in project/site.ts). */
+/** Registry entries: each module under its `node:*` name (a provided name wins over
+ *  webrun-modules' own polyfill), plus the Buffer/process globals. */
 export const nodeRegistryEntries: Record<string, unknown> = {
-  ...Object.fromEntries(Object.entries(modules).map(([k, v]) => [`cells-node-${k.slice(5)}`, v])),
+  ...modules,
   Buffer,
   process,
 };
