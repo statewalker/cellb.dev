@@ -1,6 +1,6 @@
 /**
  * WebSocket conformance cases — one list, run against several implementations:
- *   - native WebSocket (browser / Node 22) ⇄ reference `ws` server,
+ *   - native WebSocket (browser / Node) ⇄ reference `ws` server,
  *   - webrun-cells sockets ⇄ Room Durable Object (in-process, worker-thread shards,
  *     browser ServiceWorker + shard workers, local and cross-shard).
  * The cases encode the WHATWG WebSocket behaviour; a difference between the native
@@ -351,18 +351,5 @@ export const cases: Record<string, (env: WsEnv) => Promise<void>> = {
     a.send("count?");
     same((await ea.message()).data, "count:1", "one socket left");
     a.close();
-  },
-};
-
-/**
- * Native implementations that deviate from the WHATWG spec on a case (verified by probe).
- * Such cases are skipped for that implementation only — the browser run is the reference.
- */
-export const knownNativeDeviations: Record<string, Record<string, string>> = {
-  "node-undici": {
-    "close() while CONNECTING: no open, close event, socket CLOSED":
-      "Node 22's WebSocket fires two 'error' events and never 'close' (probe: test p07y)",
-    "refused upgrade: error then close 1006, never open":
-      "Node 22's WebSocket fires 'error' but never 'close' on a refused handshake",
   },
 };

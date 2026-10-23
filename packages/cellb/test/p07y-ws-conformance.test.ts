@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { build } from "esbuild";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, it } from "vitest";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
   CellRouter,
@@ -13,11 +13,56 @@ import {
   serveHandlerOverPort,
 } from "../src/index.js";
 import { worker } from "./fixtures.js";
-import { cases, knownNativeDeviations, type WsEnv } from "./ws-conformance.js";
+import { cases, type WsEnv } from "./ws-conformance.js";
 import { startReferenceServer } from "./ws-reference-server.js";
 
+// Node's native WebSocket (undici) deviates from WHATWG on connection failures, differently
+// per Node version: 22 fires 'error' and never 'close'; 24.8 closes with 1002 instead of
+// 1006; 24.21 gets the refused handshake right, but close() while connecting dispatches
+// 'error' and 'close' synchronously inside close() and leaves readyState at CLOSING. So the
+// deviations are probed on the running Node, not assumed: a native case is skipped only
+// when its deviation is observed here.
+async function probeNativeDeviations(): Promise<Record<string, string>> {
+  const net = await import("node:net");
+  const srv = net.createServer((c) =>
+    c.once("data", () => c.end("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")),
+  );
+  await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+  const url = `ws://127.0.0.1:${(srv.address() as { port: number }).port}/x`;
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const [refused, closing] = sockets.map((ws, i) => {
+    const log: string[] = [];
+    ws.onopen = () => log.push("open");
+    ws.onerror = () => log.push("error");
+    ws.onclose = (e) => log.push(`close:${e.code}`);
+    if (i === 1) {
+      ws.close();
+      log.push(`close() returned, readyState ${ws.readyState}`);
+    }
+    return log;
+  });
+  await new Promise((r) => setTimeout(r, 1500));
+  srv.close();
+  closing.push(`finally readyState ${sockets[1].readyState}`);
+  const found = (log: string[]) => `Node ${process.version} logs [${log.join(", ")}]`;
+  const deviations: Record<string, string> = {};
+  if (refused.join() !== "error,close:1006")
+    deviations["refused upgrade: error then close 1006, never open"] = found(refused);
+  // What the case asserts: CLOSING right after close(), then (asynchronously) a 'close'
+  // event and no 'open', ending CLOSED.
+  if (
+    closing[0] !== "close() returned, readyState 2" ||
+    !closing.some((e) => e.startsWith("close:")) ||
+    closing.includes("open") ||
+    closing.at(-1) !== "finally readyState 3"
+  )
+    deviations["close() while CONNECTING: no open, close event, socket CLOSED"] = found(closing);
+  return deviations;
+}
+const nativeDeviations = await probeNativeDeviations();
+
 // The same WHATWG WebSocket conformance cases against three implementations.
-// Native = Node 22's built-in WebSocket (undici) talking to a real `ws` server.
+// Native = Node's built-in WebSocket (undici) talking to a real `ws` server.
 const impls: Record<string, () => Promise<{ env: WsEnv; stop(): Promise<void> }>> = {
   async "native WebSocket ⇄ ws server"() {
     const srv = await startReferenceServer();
@@ -111,34 +156,10 @@ for (const [implName, start] of Object.entries(impls)) {
       ctx = await start();
     }, 30_000);
     afterAll(() => ctx?.stop());
-    const skip = implName.startsWith("native") ? knownNativeDeviations["node-undici"] : {};
+    const skip = implName.startsWith("native") ? nativeDeviations : {};
     for (const [name, run] of Object.entries(cases)) {
       if (skip[name]) it.skip(`${name} — native deviation: ${skip[name]}`, () => {});
       else it(name, () => run(ctx.env), 20_000);
     }
   });
 }
-
-// The deviations above are facts about Node's WebSocket, not assumptions: keep them proven.
-describe("P07y Node's native WebSocket deviations (documented)", () => {
-  it("refused handshake: 'error' only, no 'close'; close() while connecting: no 'close'", async () => {
-    const net = await import("node:net");
-    const srv = net.createServer((c) =>
-      c.once("data", () => c.end("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")),
-    );
-    await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
-    const url = `ws://127.0.0.1:${(srv.address() as { port: number }).port}/x`;
-    const logs = [new WebSocket(url), new WebSocket(url)].map((ws, i) => {
-      const log: string[] = [];
-      ws.onerror = () => log.push("error");
-      ws.onclose = () => log.push("close");
-      if (i === 1) ws.close();
-      return log;
-    });
-    await new Promise((r) => setTimeout(r, 1500));
-    srv.close();
-    expect(logs[0]).toContain("error");
-    expect(logs[0]).not.toContain("close");
-    expect(logs[1]).not.toContain("close");
-  });
-});

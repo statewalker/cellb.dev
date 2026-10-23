@@ -15,7 +15,7 @@ our own expectations.
 
 | Runner | Implementations |
 |---|---|
-| `test/p07y-ws-conformance.test.ts` (Node) | Node 22 native WebSocket ⇄ `ws`; webrun-cells in-process; webrun-cells via `CellRouter` + 3 worker-thread shards |
+| `test/p07y-ws-conformance.test.ts` (Node) | Node native WebSocket ⇄ `ws`; webrun-cells in-process; webrun-cells via `CellRouter` + 3 worker-thread shards |
 | `browser/e2e/ws-conformance.spec.ts` (Chromium) | Chrome's native WebSocket ⇄ `ws` (the reference); webrun-cells via ServiceWorker router → shard workers (local and cross-shard) |
 
 Cases: open state, `url`, `extensions`, `bufferedAmount`; constants; subprotocol
@@ -31,10 +31,13 @@ reason; close without code (1005); server close (4000); `close()` while CONNECTI
 - **Chrome's native WebSocket passes all 19** — it is the reference.
 - **webrun-cells passes all 19** in every configuration (Node in-process, Node shards,
   Chromium through the ServiceWorker, local and cross-shard).
-- **Node's native WebSocket (undici, Node 22) deviates on 2 cases**: a refused handshake
-  and `close()` while connecting fire `error` but never `close`. Those two are skipped
-  for that implementation only (`knownNativeDeviations`), and a separate test proves the
-  deviation so it cannot silently become wrong.
+- **Node's native WebSocket (undici) deviates on up to 2 cases, depending on the Node
+  version**: on Node 22 a refused handshake and `close()` while connecting fire `error` but
+  never `close`; on Node 24.8 they close with 1002 instead of 1006; on Node 24.21 the
+  refused handshake conforms, but `close()` while connecting fires `error` and `close`
+  synchronously inside `close()` and leaves `readyState` at CLOSING.
+  The test probes the running Node first and skips a case for that implementation only when
+  its deviation is observed, so a Node upgrade cannot leave a stale skip or a false failure.
 
 ## Bugs found and fixed
 
