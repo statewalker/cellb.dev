@@ -1,0 +1,11 @@
+{
+  "name": "wd-websocket-constructor",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "websocket_close_reason_byte_limit",
+    "pedantic_wpt",
+    "websocket_standard_binary_type"
+  ]
+}

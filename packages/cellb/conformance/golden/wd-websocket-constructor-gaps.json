@@ -1,0 +1,17 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /?skip=binaryMessageDeliveredAsArrayBuffer,binaryTypeDefaultsToBlob,binaryTypeSetterValid,closeCode1000Succeeds,closeCode3000To4999Succeeds,closeCodeSpecInvalid,closeReasonExact123Bytes,closeReasonMultibyteExceeds,closeReasonTooLong,duplicateProtocols,emptyProtocolsArray,invalidProtocolToken,singleProtocolString",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "binaryMessageDeliveredAsBlob": "ok",
+        "binaryTypeSetterInvalid": "ok",
+        "binaryTypeSwitchMidStream": "ok",
+        "binaryTypeWebSocketPairDefault": "ok",
+        "closeReasonUSVString": "ok"
+      }
+    }
+  ]
+}

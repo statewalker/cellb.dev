@@ -50,6 +50,9 @@ fails p09 at once with the bundler's error, not by timing out.
 | `wd-actor-stub` | `actor-stub-test.js` | fails: `get(id, { retry })` is not validated | same, after the fixes below |
 | `wd-actor-fetch-rejection` | `actor-fetch-rejection-test.js` | `handledRejection` fails with celld's wrapped error; `unhandledRejection: timeout` | **known gap**: no global `addEventListener('unhandledrejection')` in Node |
 | `wd-stub-storage` | `stub-storage-test.js` | both fail: celld cannot clone the stubs it is asked to store | **known gap**: no `ctx.exports.<Entrypoint>({ props })` stubs |
+| `wd-websocket-hibernation` | `websocket-hibernation.js` | fails (`Error: got `) | **known gap** the other way round: passes, as workerd does |
+| `wd-websocket-constructor` (13 of 18 exports) | `websocket-constructor-test.js` | all `ok` | same, after the fixes below |
+| `wd-websocket-constructor-gaps` (the other 5) | same file | all `ok` | **known gap**: `WebSocketPair` ends have no `binaryType` and always deliver ArrayBuffers; the host's `WebSocket` (Node) and `CloseEvent` (Chromium) deviate |
 
 Chromium answers the same on both paths (the esbuild bundle and the in-browser module server).
 On the module server, `import * as assert from "node:assert"` needed webrun-modules 0.3.4 and
@@ -77,6 +80,15 @@ What the upstream tests found in webrun-cells, each fixed in its own commit:
   `blockConcurrencyWhile() calls are nested too deeply.` at once, as in workerd and celld.
 - **A stub had `fetch` and an internal symbol as own enumerable keys.** `Object.keys(stub)` is
   now `[id, name]`, and two stubs of one object are deep-equal.
+- **`const [client, server] = new WebSocketPair()` threw.** The pair is now iterable.
+- **The client's `binaryType` took any value.** Only `"blob"` and `"arraybuffer"` are taken now.
+
+`binaryType` depends on a flag. With `websocket_standard_binary_type`, celld's pair and client
+sockets default to `"blob"` and deliver Blobs; without it, they default to `"arraybuffer"`
+(probed by hand). webrun-cells' `WebSocketPair` is one class shared by every project, and its
+globals reach a project three ways (esbuild inject, the browser bundle, the module server).
+A per-project default therefore needs plumbing on all three paths: a follow-up, kept visible
+as `wd-websocket-constructor-gaps`.
 
 `sql-test.js` is split. Its four critical-error exports are not run: they shrink the database
 with `setMaxPageCountForTest`, a workerd test hook celld refuses, so they mean nothing outside
@@ -105,8 +117,8 @@ entry that no longer differs fails the run.
 
 | Result | Projects |
 |---|---|
-| agrees | the 8 storage and alarm `wd-*` projects, `wd-actor-block-concurrency-depth`, `wd-actor-stub`, hello, webapi, counter, rpc, router, body, async, alarm, alarm-retry, wsecho, wsclient, html-rewriter, html-rewriter-async, node-compat, kv-values |
-| differs (`workerdDiffers`) | `do-ids` (per-deployment id keys; message punctuation), `storage-details` (celld stores `undefined`, coerces `setAlarm(non-date)`, needs no `alarm()` handler; SQL error texts), `worker-details` (celld's JSON "Worker failed" body, non-`Response` returns accepted, no cross-isolate RPC stubs), `ws-details` (`Error` vs `TypeError`; `send()` before `accept()`), `wd-sql` (workerd has `getCurrentBookmark()` and rolls the alarm back), `wd-sql-default` (workerd runs it up to `gc()`), `wd-actor-block-concurrency-timer` (workerd holds the earlier timer at the input gate; its run outlasts the 5 s limit), `wd-actor-fetch-rejection` (workerd reports unhandled rejections), `wd-stub-storage` (workerd stores stubs) |
+| agrees | the 8 storage and alarm `wd-*` projects, `wd-actor-block-concurrency-depth`, `wd-actor-stub`, `wd-websocket-constructor`, `wd-websocket-constructor-gaps`, hello, webapi, counter, rpc, router, body, async, alarm, alarm-retry, wsecho, wsclient, html-rewriter, html-rewriter-async, node-compat, kv-values |
+| differs (`workerdDiffers`) | `do-ids` (per-deployment id keys; message punctuation), `storage-details` (celld stores `undefined`, coerces `setAlarm(non-date)`, needs no `alarm()` handler; SQL error texts), `worker-details` (celld's JSON "Worker failed" body, non-`Response` returns accepted, no cross-isolate RPC stubs), `ws-details` (`Error` vs `TypeError`; `send()` before `accept()`), `wd-sql` (workerd has `getCurrentBookmark()` and rolls the alarm back), `wd-sql-default` (workerd runs it up to `gc()`), `wd-actor-block-concurrency-timer` (workerd holds the earlier timer at the input gate; its run outlasts the 5 s limit), `wd-actor-fetch-rejection` (workerd reports unhandled rejections), `wd-stub-storage` (workerd stores stubs), `wd-websocket-hibernation` (workerd passes) |
 | skipped | 23 projects with non-DO bindings, and `vectordb` (`sqlite_vec`) |
 
 The vendored flags drop the ones workerd refuses to see listed at our `compatibility_date`

@@ -12,5 +12,7 @@
   "wd-sql",
   "wd-sql-restrict-names",
   "wd-stub-storage",
-  "wd-sync-kv"
+  "wd-sync-kv",
+  "wd-websocket-constructor",
+  "wd-websocket-hibernation"
 ]

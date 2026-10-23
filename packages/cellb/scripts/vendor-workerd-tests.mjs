@@ -158,6 +158,28 @@ const WD_TESTS = {
     workerLoaders: [],
     skip: [],
   },
+  "wd-websocket-hibernation": {
+    upstream: "websocket-hibernation.js",
+    durableObjects: { ns: "DurableObjectExample" },
+    flags: ["experimental", "nodejs_compat"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
+  // Opens sockets to wss://example.com/ and closes them before they connect.
+  "wd-websocket-constructor": {
+    upstream: "websocket-constructor-test.js",
+    durableObjects: {},
+    flags: [
+      "nodejs_compat",
+      "websocket_close_reason_byte_limit",
+      "pedantic_wpt",
+      "websocket_standard_binary_type",
+    ],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
 };
 
 const runner = (
@@ -213,10 +235,19 @@ for (const [name, t] of Object.entries(WD_TESTS)) {
     compatibility_date: "2026-01-01",
     compatibility_flags: t.flags,
     ...(Object.keys(t.vars).length ? { vars: t.vars } : {}),
-    durable_objects: {
-      bindings: Object.entries(t.durableObjects).map(([b, c]) => ({ name: b, class_name: c })),
-    },
-    migrations: [{ tag: "v1", new_sqlite_classes: [...new Set(Object.values(t.durableObjects))] }],
+    ...(Object.keys(t.durableObjects).length
+      ? {
+          durable_objects: {
+            bindings: Object.entries(t.durableObjects).map(([b, c]) => ({
+              name: b,
+              class_name: c,
+            })),
+          },
+          migrations: [
+            { tag: "v1", new_sqlite_classes: [...new Set(Object.values(t.durableObjects))] },
+          ],
+        }
+      : {}),
     ...(t.workerLoaders.length ? { worker_loaders: t.workerLoaders } : {}),
   };
   writeFileSync(resolve(dir, "wrangler.jsonc"), `${JSON.stringify(config, null, 2)}\n`);
