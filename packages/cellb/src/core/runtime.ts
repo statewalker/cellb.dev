@@ -254,6 +254,24 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   }
 
   alarms.restore();
+  // Alarms published by any node in a shared wake index (celld's): this node fires them too.
+  // An entry is only a hint: firing opens the cell and runs alarm() only if its stored alarm
+  // is still due at that time.
+  const wakes = opts.durability?.wakes;
+  if (wakes) {
+    const known = new Set(Object.values(bindingClasses));
+    void wakes
+      .call(opts.durability)
+      .then((list) => {
+        for (const w of list)
+          if (known.has(w.className))
+            alarms.set(
+              { cellKey: w.cellKey, className: w.className, idHex: w.cellKey.split("/")[1] },
+              w.at,
+            );
+      })
+      .catch(() => {});
+  }
   // Idle sweep for hibernation (opt-in).
   let hibernationTimer: unknown;
   if (opts.hibernateAfterMs !== undefined) {

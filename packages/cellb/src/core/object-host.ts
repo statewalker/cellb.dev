@@ -8,7 +8,7 @@ import type {
   SyncSqlDriver,
   ValueCodec,
 } from "../ports.js";
-import { LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE, scopeOf } from "./celld-schema.js";
+import { CELLD_SCHEMA, LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE, scopeOf } from "./celld-schema.js";
 import { InputGate, OutputGate } from "./gates.js";
 import { asyncStub, type IsolatedClass, isClassHandle } from "./handles.js";
 import { type DurableObjectId, DurableObjectId as DurableObjectIdClass } from "./id.js";
@@ -85,6 +85,7 @@ export class ObjectHost {
     this.cellKey = opts.cellKey;
     this.#driver = opts.openSql(opts.cellKey);
     this.#epoch = opts.epoch;
+    this.#opts = opts;
     for (const ext of opts.sqlExtensions ?? []) {
       if (!this.#driver.loadExtension)
         throw new Error(`SQLite extension "${ext}" is not available on this host`);
@@ -101,15 +102,15 @@ export class ObjectHost {
         const image = opts.durability.capturePages
           ? () => d.pageImage?.() ?? d.snapshot?.()
           : undefined;
-        return this.#out.track(
-          opts.durability.committed(this.cellKey, {
-            seq: ++this.#seq,
-            changes,
-            image,
-            pages,
-            epoch: this.#epoch,
-          }),
-        );
+        const durable = opts.durability.committed(this.cellKey, {
+          seq: ++this.#seq,
+          changes,
+          image,
+          pages,
+          epoch: this.#epoch,
+        });
+        const wake = this.#wakeAfterCommit();
+        return this.#out.track(wake ? durable.then(wake) : durable);
       },
       { capture: !!opts.durability.captureChanges },
     );
@@ -178,6 +179,7 @@ export class ObjectHost {
           if (replay) await this.#replayLog(replay);
         }
         if (opts.facet) this.#rescope(scopeOf(opts.cellKey));
+        else this.#initWake();
         construct();
       })
       .catch((e) => this.#breakOn(e));
@@ -332,6 +334,53 @@ export class ObjectHost {
    * on open (storage.rs open_embedded); doing the same here reads a facet database celld
    * wrote, whatever scope it used.
    */
+  /**
+   * celld's alarm publication identity (storage/wake_record.rs initialize): one `_cf_WAKE`
+   * row per cell carrying the writer epoch; triggers bump its sequence on every alarm change.
+   */
+  #initWake(): void {
+    if (!this.#epoch || !this.#opts.durability.publishWake) return;
+    const scope = scopeOf(this.cellKey);
+    for (const ddl of CELLD_SCHEMA) this.#driver.exec(ddl, []);
+    this.#driver.exec(
+      `INSERT INTO _cf_WAKE(scope,epoch,sequence,at_ms)
+       VALUES(?1,?2,0,(SELECT at_ms FROM _cf_ALARM WHERE scope=?1))
+       ON CONFLICT(scope) DO UPDATE SET epoch=excluded.epoch WHERE excluded.epoch>_cf_WAKE.epoch`,
+      [scope, this.#epoch.toString(16).padStart(16, "0")],
+    );
+    this.#wakeSeq = this.#wakeRow()?.sequence;
+  }
+  #wakeSeq: number | undefined;
+  #wakeRow(): { epoch: number; sequence: number; at: number | null } | undefined {
+    try {
+      const r = this.#driver.exec("SELECT epoch, sequence, at_ms FROM _cf_WAKE WHERE scope = ?", [
+        scopeOf(this.cellKey),
+      ]).rows[0];
+      return r
+        ? {
+            epoch: Number.parseInt(String(r[0]), 16),
+            sequence: Number(r[1]),
+            at: r[2] == null ? null : Number(r[2]),
+          }
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  /**
+   * After a commit: if it changed the alarm, a publication to run once the commit is durable
+   * (celld publishes after replication).
+   */
+  #wakeAfterCommit(): (() => Promise<void>) | undefined {
+    const publish = this.#opts.durability.publishWake;
+    if (!publish || this.#opts.facet || !this.#epoch) return undefined;
+    const row = this.#wakeRow();
+    if (!row || row.sequence === this.#wakeSeq) return undefined;
+    this.#wakeSeq = row.sequence;
+    return () => publish(this.cellKey, row);
+  }
+  readonly #opts: { durability: CellDurability; facet?: boolean };
+
   #rescope(scope: string): void {
     for (const table of ["_cf_KV", "_cf_ALARM", "_cf_METADATA"])
       try {

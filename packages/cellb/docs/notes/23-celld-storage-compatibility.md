@@ -89,9 +89,33 @@ Worker-Loader class as facet) goes celld (0, 1) → webrun-cells (2) → celld (
   switches the header to rollback-journal mode on restore (same pages; celld turns WAL back on
   when it opens the database). The Counter round trip runs on both drivers.
 
+## One bucket, celld's ownership protocol, no manual step (`test/p11f-*`)
+
+Earlier interop tests moved files and edited `own.json` by hand. The real path is
+`celldBucket` on the shared object store: ownership by compare-and-swap on `own.json`
+epochs, node leases in `nodes/`, LTX streams per cell and per facet. Through celld dev's own
+`objects.sqlite3`, each of these goes celld → webrun-cells → celld with the state continuing,
+on node:sqlite and on SQLite WASM: the Counter, a facet's state, celld's facets example (a
+Worker-Loader facet), stored values of every kind.
+
+## Alarms cross through celld's wake index
+
+celld finds alarms of inactive cells through a bucket-level index, not by opening databases:
+`wake/entries/<UTC minute due>/<cell>/<epoch16>-<seq16>` (`{cell, due_ms, format: 2,
+identity}`), `wake/retired/<cell>.json` voiding older (or cancelled) identities, and
+`wake/format.json`. The identity comes from the cell's `_cf_WAKE` row: the writer epoch, and
+a sequence the `_cf_ALARM` triggers bump on every change (`storage/wake_record.rs`).
+
+webrun-cells now (a) initializes the `_cf_WAKE` row with its epoch when it opens a cell, as
+celld does; (b) after a commit that changed the alarm, publishes the entry (or the
+retirement) once the commit is durable; (c) at start, reads the index and arms those alarms
+(an entry is a hint: `alarm()` runs only if the stored alarm is still due). Tests: an alarm
+armed in webrun-cells fires in celld, one armed in celld fires in webrun-cells; without our
+wake entry celld does not fire it (checked).
+
 ## Remaining differences
 
-- celld's `_cf_WAKE` rows (fleet wake-up bookkeeping) are created by celld on activation;
-  webrun-cells creates the table and triggers but not the rows.
+- Wake-entry cleanup: celld deletes entries below a proved retirement frontier; webrun-cells
+  writes entries and retirements but leaves cleanup to celld.
 - Browser project hosts do not configure a host log yet, so isolated facets there keep
   their database in the isolate's OPFS pool only.

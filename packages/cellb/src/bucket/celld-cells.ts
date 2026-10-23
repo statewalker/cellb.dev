@@ -116,8 +116,70 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
     },
   };
 
+  // celld's wake index (logic/wake.rs, wake_format.rs): one immutable entry per alarm
+  // installation, filed under the UTC minute it is due; a per-cell retirement certificate
+  // marks older installations (and a cancelled one) as void.
+  const hex16 = (n: number) => n.toString(16).padStart(16, "0");
+  let wakeFormat: Promise<unknown> | undefined;
+  const ensureWakeFormat = () =>
+    (wakeFormat ??= store
+      .put("wake/format.json", enc.encode(JSON.stringify({ format: 2 })), { ifNoneMatch: "*" })
+      .catch(() => {}));
+
   const durability: CellDurability & CellBackup = {
     capturePages: true,
+
+    async publishWake(cellKey, w) {
+      await ensureWakeFormat();
+      const cell = scopeOf(cellKey);
+      const identity = `${hex16(w.epoch)}-${hex16(w.sequence)}`;
+      if (w.at == null) {
+        // cancelled: retire this identity (and everything older)
+        await store.put(
+          `wake/retired/${cell}.json`,
+          enc.encode(JSON.stringify({ format: 2, identity, at_ms: null })),
+        );
+        return;
+      }
+      const minute = new Date(w.at).toISOString().slice(0, 16);
+      await store.put(
+        `wake/entries/${minute}/${cell}/${identity}`,
+        enc.encode(JSON.stringify({ cell, due_ms: w.at, format: 2, identity })),
+      );
+    },
+
+    async wakes() {
+      const retired = new Map<string, { id: string; none: boolean }>();
+      for (const k of await store.list("wake/retired/")) {
+        const o = await store.get(k);
+        if (!o) continue;
+        const r = JSON.parse(dec.decode(o.body)) as { identity: string; at_ms: number | null };
+        retired.set(k.slice("wake/retired/".length, -".json".length), {
+          id: r.identity,
+          none: r.at_ms == null,
+        });
+      }
+      const out: { cellKey: string; className: string; at: number }[] = [];
+      const latest = new Map<string, { id: string; at: number }>();
+      for (const k of await store.list("wake/entries/")) {
+        const m = /^wake\/entries\/[^/]+\/(.+)\/([0-9a-f]{16}-[0-9a-f]{16})$/.exec(k);
+        if (!m) continue;
+        const [, cell, id] = m;
+        if (cell.includes("/")) continue; // facets wake through their root
+        const r = retired.get(cell);
+        if (r && (id < r.id || (id === r.id && r.none))) continue;
+        const o = await store.get(k);
+        if (!o) continue;
+        const at = (JSON.parse(dec.decode(o.body)) as { due_ms: number }).due_ms;
+        const prev = latest.get(cell);
+        if (!prev || id > prev.id) latest.set(cell, { id, at });
+      }
+      for (const [cell, { at }] of latest) {
+        const [className] = cell.split(":");
+        out.push({ cellKey: cell.replace(":", "/"), className, at });
+      }
+      return out;
+    },
 
     async committed(cellKey, info) {
       const cell = cells.get(cellKey) ?? { epoch: info.epoch ?? 1, txid: 0n, pages: undefined };

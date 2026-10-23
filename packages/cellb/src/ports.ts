@@ -68,6 +68,16 @@ export interface CellDurability {
       epoch?: number;
     },
   ): Promise<void>;
+  /**
+   * celld's alarm wake index: after a commit that changed the alarm, its publication
+   * (writer epoch, sequence, due time) — written once the commit is durable.
+   */
+  publishWake?(
+    cellKey: string,
+    wake: { epoch: number; sequence: number; at: number | null },
+  ): Promise<void>;
+  /** Alarms published in the shared wake index (by any node), so this node can fire them. */
+  wakes?(): Promise<{ cellKey: string; className: string; at: number }[]>;
   /** Asks the runtime for the whole database image after each commit (page-level logs: LTX). */
   readonly capturePages?: boolean;
   /** Asks the runtime to capture each transaction's changes (transaction-log durability). */
