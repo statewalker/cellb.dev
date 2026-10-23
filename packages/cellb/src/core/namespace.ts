@@ -128,11 +128,12 @@ export function runInDurableObject<T>(
 
 /** Stub = Proxy: `fetch` → fetch handler, any other property → JS-RPC call. */
 function createStub(id: DurableObjectId, endpoint: () => ObjectEndpoint): DurableObjectStub {
-  const target = {
-    [kEndpoint]: endpoint,
-    id,
-    name: id.name,
-    fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const target = { id, name: id.name };
+  // Only id and name are own enumerable keys, as in workerd and celld: Object.keys(stub) is
+  // [id, name], and two stubs of one object are deep-equal.
+  Object.defineProperty(target, kEndpoint, { value: endpoint });
+  Object.defineProperty(target, "fetch", {
+    value(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       const req = new Request(input as any, init);
       // Cloudflare's `cf` request property (RequestInit.cf or Request#cf) is not part of
       // the Fetch standard: re-attach it so objects can read `request.cf`.
@@ -146,12 +147,12 @@ function createStub(id: DurableObjectId, endpoint: () => ObjectEndpoint): Durabl
           : undefined;
       return endpoint().fetch(source ? carryWebSocketHeaders(source, req) : req);
     },
-  };
+  });
   return new Proxy(target, {
     get(t, prop, recv) {
       if (prop in t) return Reflect.get(t, prop, recv);
       if (prop === "then" || typeof prop === "symbol") return undefined;
       return (...args: unknown[]) => endpoint().call(String(prop), args);
     },
-  }) as DurableObjectStub;
+  }) as unknown as DurableObjectStub;
 }
