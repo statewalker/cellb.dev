@@ -1,19 +1,12 @@
 import type { FilesApi } from "@statewalker/webrun-files";
 import { type AssetFiles, type AssetsConfig, createAssets } from "../bindings/assets.js";
 import { celldKv } from "../bindings/celld-kv.js";
-import { celldQueues } from "../bindings/celld-queues.js";
+import { celldQueues, type QueueConsumerConfig } from "../bindings/celld-queues.js";
 import { celldWorkflows } from "../bindings/celld-workflows.js";
 import { startCronTriggers } from "../bindings/cron.js";
-import {
-  makeQueueCell,
-  type QueueConsumerConfig,
-  type QueueDispatcher,
-  queueProducer,
-} from "../bindings/queues.js";
 import { r2Bucket, r2BucketOn } from "../bindings/r2.js";
 import { celldR2Backend } from "../bindings/r2-celld.js";
 import { type ModuleLoader, workerLoader } from "../bindings/worker-loader.js";
-import { makeWorkflowCell, type WorkflowConfig, workflowBinding } from "../bindings/workflows.js";
 import { entrypointStub } from "../core/handles.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
@@ -55,6 +48,18 @@ export interface WranglerConfig {
   assets?: AssetsConfig;
   services?: { binding: string; service: string; entrypoint?: string; props?: unknown }[];
   worker_loaders?: { binding: string }[];
+}
+
+/** wrangler `workflows` entries. */
+export interface WorkflowConfig {
+  binding: string;
+  name: string;
+  class_name: string;
+}
+
+/** Runs the Worker's `queue(batch, env, ctx)` handler for a batch celld's queue cell leased. */
+interface QueueDispatcher {
+  deliver(batch: unknown): Promise<void>;
 }
 
 export interface ProjectHost

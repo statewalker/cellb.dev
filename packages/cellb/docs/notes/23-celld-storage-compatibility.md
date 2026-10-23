@@ -222,7 +222,7 @@ scope; the host wraps the cell class so that op sets the alarm on the cell's sto
 
 `queues`, `queues-api`, `queues-details` match celld in Node and Chromium; a delayed message
 sent on celld is delivered by webrun-cells after the hand-over, and the reverse. The previous
-queue implementation (`src/bindings/queues.ts`) is no longer used by projects.
+queue implementation (`src/bindings/queues.ts`) has been removed.
 
 ## Workflows
 
@@ -239,7 +239,7 @@ started inside another step's callback).
 on celld finishes on webrun-cells and one waiting for an event takes the event there — step
 `a` is not run again on the new runtime (its result is read from celld's records) — and the
 same from webrun-cells to celld. The previous workflow implementation
-(`src/bindings/workflows.ts`) is no longer used by projects.
+(`src/bindings/workflows.ts`) has been removed.
 
 ## R2
 
