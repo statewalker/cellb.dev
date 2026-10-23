@@ -20,6 +20,7 @@ in browsers — behind one MessagePort (`src/isolate/`):
 | fetch / RPC | serialized requests/responses and structured-cloned arguments over the port |
 | Logs | sent to the host, which prints them and feeds Tail Workers. In browsers loaded modules get their own console — the realm's global one is left alone (the dev server logs there) |
 | `globalOutbound: null` | the isolate's global `fetch` throws |
+| Uncaught exceptions | an exception no request awaits (a timer, `ctx.abort()` called from one) is logged as `Uncaught …` and the isolate keeps running, as a Dedicated Worker and workerd do. Node would end the worker thread: the host then saw an unhandled `error` event and every later call to that Worker hung (`test/p10d-isolate-uncaught.test.ts`) |
 | Durable Object classes (facets) | run **in the isolate** too: the isolate hosts them in its own runtime with its own SQLite (Node: in memory or a data dir; browsers: an OPFS sahpool per loaded Worker); the parent's facet stub forwards fetch/RPC, `abort` (fresh instance, same database) and `delete` (cleared database) |
 
 `isolation-api` (now also a facet of loaded code: it does not see host globals, its writes

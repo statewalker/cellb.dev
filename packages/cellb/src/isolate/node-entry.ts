@@ -4,6 +4,10 @@ import { nodeSqliteOpener } from "../adapters/node-sqlite.js";
 import { serveIsolate } from "./isolate.js";
 import type { PortLike } from "./protocol.js";
 
+// An exception no request awaits (a timer, ctx.abort() from one) is reported, and the isolate
+// lives on, as in a browser Dedicated Worker and workerd; Node would end the thread.
+process.on("uncaughtException", (e) => console.error("Uncaught", e));
+
 serveIsolate(
   parentPort as unknown as PortLike,
   async ({ source }) =>
