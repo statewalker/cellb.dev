@@ -262,6 +262,35 @@ Tests: the four R2 conformance projects pass again in celld's layout (over a mem
 `r2-handoff` — bytes, httpMetadata with cacheExpiry, non-ASCII custom metadata, MD5,
 ranges, listing — goes celld → webrun-cells → celld on both drivers.
 
+## One LTX writer
+
+`src/bucket/ltx-log.ts` (`ltxLog(store)`) is the only LTX writer: celldBucket uses it under
+celld's ownership protocol (each acquisition starts a generation), and `filesApiLtxLog` is the
+same writer on a FilesApi (a fixed epoch, compaction on save). It writes a cell's commits in
+order, takes changed pages from the SQLite WASM page hook or diffs the image, continues an
+epoch's TXIDs after a restart, publishes the wake index, and restores the newest epoch whose
+files chain from a snapshot (compaction snapshots and overlaps included).
+
+## Browser hosts on the fleet bucket
+
+`src/project/browser-host.ts` — `browserProjectRuntime({ config, module, sqlite3, pool,
+filesDir, bucket })` builds a project's runtime in a worker (SQLite WASM on OPFS with the page
+hook, OPFS FilesApi, isolates) and, with `bucket`, puts it on a celld fleet bucket: ownership,
+LTX logs, wake index, and R2 objects all in celld's layout. The bucket can be:
+
+- `{ s3: {...} }` — S3-compatible, directly (CORS on the bucket: GET/PUT/DELETE/HEAD; request
+  headers `authorization`, `content-type`, `x-amz-*`, `if-match`, `if-none-match`; exposed
+  headers `etag`, `last-modified`, `x-amz-meta-celld-r2`) or through a same-origin proxy with
+  `signAs` the real endpoint;
+- `{ opfs: "<dir>" }` — in this origin's OPFS: persistence and hand-over between tabs/workers
+  with no server (one writer at a time: OPFS has no conditional writes across workers);
+- `{ store }` — any ObjectStore.
+
+Both test hosts (projects in a Dedicated Worker, and the in-browser HTTP server) build their
+runtimes through it. Tests in Chromium: through an OPFS bucket, a counter, a facet's state and
+an R2 object with metadata continue from one browser node to the next; with a real celld
+fleet node on S3 (RustFS), the Counter, a facet and R2 objects go celld → browser → celld.
+
 ## Remaining differences
 
 - Workflows and R2: not yet compared at the storage level.

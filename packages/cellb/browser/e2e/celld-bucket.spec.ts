@@ -162,4 +162,29 @@ test.describe("celld fleet node ⇄ webrun-cells in Chromium on one S3 bucket", 
       { facet: 3, parent: 3 },
     ]);
   });
+
+  test("R2 objects with metadata: celld → browser → celld", async ({ page }) => {
+    test.setTimeout(150_000);
+    const dir = join(mkdtempSync(join(tmpdir(), "bucket-browser-")), "r2-handoff");
+    cpSync(join(ours, "r2-handoff"), dir, { recursive: true });
+    const a = await roundTrip(page, dir, "r2-handoff", {
+      celld1: ["/put?key=a&body=from-celld&who=celld"],
+      browser: ["/get?key=a", "/put?key=b&body=from-browser&who=browser"],
+      celld2: ["/get?key=b", "/list"],
+    });
+    const [fromCelld] = [JSON.parse(a.browser[0])];
+    expect(fromCelld, JSON.stringify(a)).toEqual(
+      expect.objectContaining({
+        body: "from-celld",
+        customMetadata: { Who: "celld", note: "déjà vu ✓" },
+      }),
+    );
+    expect(JSON.parse(a.celld2[0])).toEqual(
+      expect.objectContaining({
+        body: "from-browser",
+        customMetadata: { Who: "browser", note: "déjà vu ✓" },
+      }),
+    );
+    expect(JSON.parse(a.celld2[1])).toEqual(["a", "b"]);
+  });
 });

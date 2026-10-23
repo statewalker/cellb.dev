@@ -1,7 +1,6 @@
 // Shared by the project workers: builds a webrun-cells runtime for a project in a
 // Dedicated Worker (SQLite on OPFS, OPFS FilesApi), runs its scenario, captures user logs.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
 import {
   formatLog,
   normalizeLogs,
@@ -10,13 +9,11 @@ import {
   type Target,
   withContentLength,
 } from "../../conformance/scenarios.js";
-import { sahpoolOpener } from "../../src/adapters/wasm-sqlite.js";
 import type { ModuleLoader } from "../../src/bindings/worker-loader.js";
-import { celldBucket } from "../../src/bucket/celld-cells.js";
-import { s3ObjectStore } from "../../src/bucket/s3-object-store.js";
 import type { WorkerModule } from "../../src/core/runtime.js";
 import { createWebSocketClass } from "../../src/index.js";
-import { createProjectRuntime, type WranglerConfig } from "../../src/project/wrangler.js";
+import { browserProjectRuntime } from "../../src/project/browser-host.js";
+import type { WranglerConfig } from "../../src/project/wrangler.js";
 
 /** Captures the realm's console as celld prints user logs (call before running user code). */
 export function captureLogs(): string[] {
@@ -41,16 +38,21 @@ export async function runProject(job: {
   loadModules: ModuleLoader;
   isolatedModules?: ModuleLoader;
   logs: string[];
-  /** A celld bucket on S3 shared with real celld nodes (ownership, LTX logs, wake index). */
-  bucket?: {
-    endpoint: string;
-    signAs: string;
-    bucket: string;
-    prefix: string;
-    accessKeyId: string;
-    secretAccessKey: string;
-    node: string;
-  };
+  /**
+   * A celld fleet bucket (browser-host.ts): on S3 shared with celld nodes (`endpoint` …), or in
+   * this origin's OPFS (`opfs`: a directory name).
+   */
+  bucket?:
+    | {
+        endpoint: string;
+        signAs: string;
+        bucket: string;
+        prefix: string;
+        accessKeyId: string;
+        secretAccessKey: string;
+        node: string;
+      }
+    | { opfs: string; node: string };
   /** With `bucket`: fetch these paths (retrying while another node still owns the cell). */
   paths?: string[];
 }) {
@@ -60,34 +62,38 @@ export async function runProject(job: {
     ? await ((await import("sqlite-vec-wasm-demo")).default as any)()
     : await (sqlite3InitModule as any)({ print() {}, printErr() {} });
   const run = `${job.name}-${Date.now().toString(36)}`;
-  const openSql = await sahpoolOpener(sqlite3, { name: `cells-${run}`, initialCapacity: 32 });
-  const root = await navigator.storage.getDirectory();
-  const files = new BrowserFilesApi({
-    rootHandle: await root.getDirectoryHandle(`files-${run}`, { create: true }),
-  });
   const assetFiles = new Map(
     job.assets.map(([p, b64]) => [p, Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))] as const),
   );
-  const shared = job.bucket
-    ? celldBucket(s3ObjectStore({ ...job.bucket, region: "us-east-1" }), {
-        node: job.bucket.node,
-        leaseTtlMs: 3_000,
-      })
-    : undefined;
-  const { runtime, unsupported } = createProjectRuntime(
-    job.config,
-    job.module as WorkerModule,
-    {
-      openSql,
-      files,
-      assetFiles,
-      loadModules: job.loadModules,
-      isolatedModules: job.isolatedModules,
-      ...(shared
-        ? { ownership: shared.ownership, durability: shared.durability, backup: shared.durability }
-        : {}),
-    } as never,
-  );
+  const b = job.bucket;
+  const host = await browserProjectRuntime({
+    config: job.config,
+    module: job.module,
+    sqlite3,
+    pool: `cells-${run}`,
+    filesDir: `files-${run}`,
+    assetFiles,
+    loadModules: job.loadModules,
+    isolatedModules: job.isolatedModules,
+    bucket: !b
+      ? undefined
+      : "opfs" in b
+        ? { opfs: b.opfs, node: b.node, leaseTtlMs: 3_000 }
+        : {
+            s3: {
+              endpoint: b.endpoint,
+              signAs: b.signAs,
+              bucket: b.bucket,
+              prefix: b.prefix,
+              accessKeyId: b.accessKeyId,
+              secretAccessKey: b.secretAccessKey,
+            },
+            node: b.node,
+            leaseTtlMs: 3_000,
+          },
+  });
+  const { runtime, unsupported } = host;
+  const shared = host.bucket;
   if (shared && job.paths) {
     const answers: string[] = [];
     for (const path of job.paths) {
@@ -99,8 +105,7 @@ export async function runProject(job: {
       }
       answers.push(text);
     }
-    await runtime.close();
-    await shared.close();
+    await host.close();
     return { answers };
   }
   const WS = createWebSocketClass((url, p) => runtime.connectWebSocket(url, p));
