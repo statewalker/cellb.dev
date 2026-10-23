@@ -120,10 +120,34 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
     capturePages: true,
 
     async committed(cellKey, info) {
-      const image = info.image;
-      if (!image) return;
       const cell = cells.get(cellKey) ?? { epoch: info.epoch ?? 1, txid: 0n, pages: undefined };
       cells.set(cellKey, cell);
+      // The page hook (SQLite WASM) hands over exactly the changed pages: no image needed.
+      if (info.pages && cell.pages) {
+        if (!info.pages.pages.size) return;
+        const txid = cell.txid + 1n;
+        await store.put(
+          `cells/${scopeOf(cellKey)}/ltx/e${cell.epoch}/0000/${ltxFileName(txid, txid)}`,
+          encodeLtx({
+            header: {
+              pageSize: info.pages.pageSize,
+              commit: info.pages.pageCount,
+              minTXID: txid,
+              maxTXID: txid,
+              timestamp: now(),
+              preApplyChecksum: 0n,
+            },
+            pages: info.pages.pages,
+            postApplyChecksum: 0n,
+          }),
+        );
+        cell.txid = txid;
+        for (const [p, d] of info.pages.pages) cell.pages.set(p, d.slice());
+        for (const p of [...cell.pages.keys()]) if (p > info.pages.pageCount) cell.pages.delete(p);
+        return;
+      }
+      const image = typeof info.image === "function" ? info.image() : info.image;
+      if (!image) return;
       const pageSize = pageSizeOf(image);
       const commit = image.length / pageSize;
       const page = (p: number) => image.subarray((p - 1) * pageSize, p * pageSize);

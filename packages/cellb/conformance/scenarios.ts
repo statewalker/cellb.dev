@@ -354,6 +354,7 @@ export const scenarios: Record<string, Scenario> = {
       { path: "/pair" },
     ],
   },
+  "kv-values": { steps: [{ path: "/write" }, { path: "/read" }] },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
       path: `/${s}`,

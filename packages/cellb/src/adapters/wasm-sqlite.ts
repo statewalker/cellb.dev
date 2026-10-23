@@ -1,5 +1,6 @@
 import { splitSqlStatements } from "../core/sql-split.js";
 import type { OpenCellSql, SqlResult, SyncSqlDriver } from "../ports.js";
+import { type DirtyPages, installPageHook } from "./wasm-page-hook.js";
 import { type WasmSqlite3, wasmSessionCapture } from "./wasm-session.js";
 
 /** Minimal slice of the @sqlite.org/sqlite-wasm `oo1.DB` API we rely on. */
@@ -36,9 +37,13 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   captureCoversRowidTables?: boolean;
   #db: Oo1Db;
   readonly #hooks?: WasmImageHooks;
+  readonly #sqlite3?: WasmSqlite3;
+  #pageHook?: ReturnType<typeof installPageHook>;
   constructor(db: Oo1Db, hooks?: WasmImageHooks, sqlite3?: WasmSqlite3) {
     this.#db = db;
     this.#hooks = hooks;
+    this.#sqlite3 = sqlite3;
+    this.#hookPages();
     if (sqlite3?.capi?.sqlite3session_create) {
       // Transaction-log capture (session extension), following the current DB handle.
       Object.assign(
@@ -55,6 +60,30 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   snapshot(): Uint8Array {
     return this.#hooks!.snapshot(this.#db);
   }
+
+  /** Installs the page hook on the current main database file (see wasm-page-hook.ts). */
+  #hookPages(): void {
+    this.#pageHook = undefined;
+    if (!this.#sqlite3?.capi?.sqlite3_file_control) return;
+    try {
+      this.#pageHook = installPageHook(
+        this.#sqlite3,
+        (this.#db as unknown as { pointer: number }).pointer,
+      );
+    } catch {
+      this.#pageHook = undefined;
+    }
+  }
+  /** Pages written since the previous call — a committed transaction's changed pages. */
+  takeDirtyPages(): DirtyPages | undefined {
+    if (!this.#pageHook) return undefined;
+    const pageSize = Number(this.exec("PRAGMA page_size", []).rows[0][0]);
+    const pageCount = Number(this.exec("PRAGMA page_count", []).rows[0][0]);
+    return this.#pageHook.take(pageSize, pageCount);
+  }
+  discardDirtyPages(): void {
+    this.#pageHook?.discard();
+  }
   /**
    * WASM builds cannot load extensions at run time; an extension must be compiled into the
    * build (e.g. the `sqlite-vec-wasm-demo` package for "sqlite_vec"). This only checks it is.
@@ -70,6 +99,7 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   }
   restore(image: Uint8Array): void {
     this.#db = this.#hooks!.restore(this.#db, image);
+    this.#hookPages(); // a new database file behind the connection
   }
   exec(sql: string, params: unknown[]): SqlResult {
     const statements = params.length === 0 ? splitSqlStatements(sql) : [sql];
@@ -136,12 +166,14 @@ export function memoryImageHooks(sqlite3: any): WasmImageHooks {
   };
 }
 
+let memdbCounter = 0;
 export function wasmMemoryOpener(sqlite3: {
   oo1: { DB: new (path: string, mode?: string) => Oo1Db };
 }): OpenCellSql {
   return () =>
     new WasmSqliteDriver(
-      new sqlite3.oo1.DB(":memory:", "c"),
+      // memdb (not ":memory:"): an in-memory database that IS a VFS file, so the page hook works.
+      new sqlite3.oo1.DB(`file:/cells-mem-${++memdbCounter}?vfs=memdb`, "c"),
       memoryImageHooks(sqlite3),
       sqlite3 as never,
     );

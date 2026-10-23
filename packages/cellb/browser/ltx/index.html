@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8" />
+<body>
+  <script type="module">
+    window.__log = (msg) =>
+      new Promise((resolve) => {
+        const w = new Worker(new URL("./ltx-worker.ts", import.meta.url), { type: "module" });
+        const { port1, port2 } = new MessageChannel();
+        port1.onmessage = (e) => (w.terminate(), resolve(e.data));
+        w.postMessage(msg, [port2]);
+      });
+    document.body.dataset.ready = "true";
+  </script>
+</body>

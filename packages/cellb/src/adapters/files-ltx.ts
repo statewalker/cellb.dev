@@ -42,7 +42,8 @@ export function filesApiLtxLog(
   const dir = (opts.dir ?? "/cells").replace(/\/$/, "");
   // cellKey "Class/idhex" → celld's cell name "Class:idhex"
   const cellDir = (cellKey: string) => `${dir}/${cellKey.replace("/", ":")}/ltx`;
-  const last = new Map<string, { txid: bigint; image: Uint8Array; epoch: number }>();
+  // Per cell: the last TXID, its epoch, and (diff path only) the last image.
+  const last = new Map<string, { txid: bigint; image: Uint8Array | undefined; epoch: number }>();
 
   /** The files of the highest epoch, in TXID order. */
   const listFiles = async (cellKey: string) => {
@@ -101,14 +102,14 @@ export function filesApiLtxLog(
     epoch: number,
     min: bigint,
     max: bigint,
-    image: Uint8Array,
+    pageSize: number,
+    commit: number,
     pages: Map<number, Uint8Array>,
   ) => {
-    const pageSize = pageSizeOf(image);
     const bytes = encodeLtx({
       header: {
         pageSize,
-        commit: image.byteLength / pageSize,
+        commit,
         minTXID: min,
         maxTXID: max,
         timestamp: Date.now(),
@@ -125,28 +126,47 @@ export function filesApiLtxLog(
     intervalMs: opts.intervalMs,
     onError: opts.onError,
 
-    async committed(cellKey, { image, epoch: leaseEpoch }) {
-      if (!image?.byteLength) return;
+    async committed(cellKey, { image: imageOrThunk, pages: hooked, epoch: leaseEpoch }) {
       const epoch = leaseEpoch ?? opts.epoch ?? 0;
       let prev = last.get(cellKey);
       if (!prev) {
         const r = await rebuild(cellKey);
-        prev = { txid: r.txid, image: r.image ?? new Uint8Array(), epoch: r.epoch };
+        prev = { txid: r.txid, image: r.image, epoch: r.epoch };
       }
       // A new owner epoch is a new generation: it starts with a snapshot at TXID 1.
       if (prev.epoch !== epoch) prev = { txid: 0n, image: prev.image, epoch };
+      const snapshot = prev.txid === 0n;
+      const txid = prev.txid + 1n;
+      const imageNow = () => (typeof imageOrThunk === "function" ? imageOrThunk() : imageOrThunk);
+
+      // 1. The page hook gave the changed pages (SQLite WASM): O(changed pages).
+      if (hooked && !snapshot) {
+        if (!hooked.pages.size) return; // nothing written
+        await write(cellKey, epoch, txid, txid, hooked.pageSize, hooked.pageCount, hooked.pages);
+        last.set(cellKey, { txid, image: undefined, epoch });
+        return;
+      }
+      // 2. Otherwise diff the committed image against the previous one (O(database size)).
+      const image = imageNow();
+      if (!image?.byteLength) return;
       const pageSize = pageSizeOf(image);
       const changed = new Map<number, Uint8Array>();
-      const snapshot = prev.txid === 0n;
       for (let p = 1, o = 0; o < image.byteLength; p++, o += pageSize) {
         const page = image.subarray(o, o + pageSize);
-        const old = prev.image.subarray(o, o + pageSize);
-        if (snapshot || old.byteLength !== pageSize || !sameBytes(page, old))
+        const old = prev.image?.subarray(o, o + pageSize);
+        if (snapshot || !old || old.byteLength !== pageSize || !sameBytes(page, old))
           changed.set(p, page.slice());
       }
-      if (!changed.size && prev.image.byteLength === image.byteLength) return; // nothing new
-      const txid = prev.txid + 1n;
-      await write(cellKey, epoch, snapshot ? 1n : txid, txid, image, changed);
+      if (!changed.size && prev.image?.byteLength === image.byteLength) return;
+      await write(
+        cellKey,
+        epoch,
+        snapshot ? 1n : txid,
+        txid,
+        pageSize,
+        image.byteLength / pageSize,
+        changed,
+      );
       last.set(cellKey, { txid, image: image.slice(), epoch });
     },
 
@@ -160,7 +180,7 @@ export function filesApiLtxLog(
       for (let p = 1, o = 0; o < image.byteLength; p++, o += pageSize)
         pages.set(p, image.slice(o, o + pageSize));
       const before = (await listFiles(cellKey)).files;
-      await write(cellKey, epoch, 1n, cur.txid, image, pages);
+      await write(cellKey, epoch, 1n, cur.txid, pageSize, image.byteLength / pageSize, pages);
       for (const f of before)
         if (f.max <= cur.txid && !(f.min === 1n && f.max === cur.txid)) await files.remove(f.path);
     },

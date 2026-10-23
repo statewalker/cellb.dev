@@ -227,6 +227,7 @@ export class SqlStorage {
     if (!this.#inTxn) return;
     this.#inTxn = false;
     this.#driver.exec("ROLLBACK", []);
+    this.#driver.discardDirtyPages?.(); // pages a rolled-back transaction spilled are not a commit
     for (const f of this.rolledBack) f();
     if (this.#capture) {
       this.#driver.captureDiscard?.();

@@ -49,6 +49,8 @@ export default defineConfig({
       "projects/index.html",
       "isolate/isolate-worker.ts",
       "changelog/index.html",
+      "ltx/index.html",
+      "ltx/ltx-worker.ts",
       "changelog/log-worker.ts",
       "site-projects/index.html",
       "site-projects/site-worker.ts",

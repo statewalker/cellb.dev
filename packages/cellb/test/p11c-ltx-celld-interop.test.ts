@@ -229,4 +229,84 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
       await stop(celld);
     }
   }, 120_000);
+
+  // ---- stored values (V8 serialization) both ways, with the kv-values project ----
+  const valuesProject = join(__dirname, "../conformance/projects/kv-values");
+  const expectedRead = () =>
+    JSON.parse(readFileSync(join(__dirname, "../conformance/golden/kv-values.json"), "utf8"))
+      .transcript[1].body;
+  const get = async (base: string, path: string) => (await fetch(`${base}${path}`)).json();
+
+  it("values written by celld read identically in webrun-cells", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "values-a-")), "kv-values");
+    cpSync(valuesProject, dir, { recursive: true });
+    const celld = await startCelld(dir, 18_787);
+    await get("http://127.0.0.1:18787", "/write");
+    await stop(celld);
+    const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
+    const files = new MemFilesApi();
+    for (const r of bucket
+      .prepare("SELECT key, body FROM objects WHERE key LIKE 'cells/Store:%/ltx/%'")
+      .all() as {
+      key: string;
+      body: Uint8Array;
+    }[])
+      await files.write(`/${r.key}`, [new Uint8Array(r.body)]);
+    bucket.close();
+    const log = filesApiLtxLog(files, { epoch: 99 });
+    const { runtime } = await loadNodeProject(dir, {
+      openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "values-cells-"))),
+      files: new MemFilesApi(),
+      durability: log,
+      backup: log,
+    });
+    const read = await (await runtime.fetch(new Request("http://x/read"))).json();
+    expect(read).toEqual(expectedRead());
+    await runtime.close();
+  }, 120_000);
+
+  it("values written by webrun-cells read identically in celld", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "values-b-")), "kv-values");
+    cpSync(valuesProject, dir, { recursive: true });
+    // celld starts once so its bucket exists (deploy), without touching the Store cell.
+    let celld = await startCelld(dir, 18_788);
+    await stop(celld);
+    const files = new MemFilesApi();
+    const log = filesApiLtxLog(files, { epoch: 1 });
+    const { runtime } = await loadNodeProject(dir, {
+      openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "values-cells-"))),
+      files: new MemFilesApi(),
+      durability: log,
+      backup: log,
+    });
+    await runtime.fetch(new Request("http://x/write"));
+    await runtime.close();
+    const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
+    const put = bucket.prepare(
+      "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, (SELECT next_etag FROM store_sequence), ?, '[]')",
+    );
+    const bump = bucket.prepare("UPDATE store_sequence SET next_etag = next_etag + 1");
+    let cell = "";
+    for await (const e of files.list("/cells", { recursive: true })) {
+      if (e.kind !== "file") continue;
+      const chunks: Uint8Array[] = [];
+      for await (const c of files.read(e.path)) chunks.push(c);
+      put.run(e.path.slice(1), Buffer.concat(chunks), Date.now());
+      bump.run();
+      cell = e.path.split("/")[2];
+    }
+    put.run(
+      `cells/${cell}/own.json`,
+      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: 1 })),
+      Date.now(),
+    );
+    bump.run();
+    bucket.close();
+    celld = await startCelld(dir, 18_789);
+    try {
+      expect(await get("http://127.0.0.1:18789", "/read")).toEqual(expectedRead());
+    } finally {
+      await stop(celld);
+    }
+  }, 120_000);
 });

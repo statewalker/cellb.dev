@@ -36,6 +36,11 @@ export interface SyncSqlDriver {
   readonly captureCoversRowidTables?: boolean;
   /** The database file page for page (page-level logs); defaults to snapshot(). */
   pageImage?(): Uint8Array;
+  /** Pages written since the previous call, when the driver can hook its file (SQLite WASM). */
+  takeDirtyPages?():
+    | { pageSize: number; pageCount: number; pages: Map<number, Uint8Array> }
+    | undefined;
+  discardDirtyPages?(): void;
   /** Consistent image of the whole database (no transaction may be open). Needed for backups. */
   snapshot?(): Uint8Array;
   /** Replaces the whole database with an image produced by `snapshot()`. Needed for restores. */
@@ -53,7 +58,15 @@ export type OpenCellSql = (cellKey: string) => SyncSqlDriver;
 export interface CellDurability {
   committed(
     cellKey: string,
-    info: { seq: number; changes?: CommitChanges; image?: Uint8Array; epoch?: number },
+    info: {
+      seq: number;
+      changes?: CommitChanges;
+      /** The committed database image (or a thunk producing it on demand). */
+      image?: Uint8Array | (() => Uint8Array | undefined);
+      /** The transaction's changed pages, when the driver hooks its file. */
+      pages?: { pageSize: number; pageCount: number; pages: Map<number, Uint8Array> };
+      epoch?: number;
+    },
   ): Promise<void>;
   /** Asks the runtime for the whole database image after each commit (page-level logs: LTX). */
   readonly capturePages?: boolean;
