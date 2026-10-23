@@ -127,51 +127,52 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   const alarms = new AlarmScheduler({
     clock,
     openIndex: () => opts.openSql("__webrun-cells/alarms"),
-    fire: (e) => fireAlarm(e, 0),
+    fire: (e) => fireAlarm(e),
   });
-  const MAX_ALARM_RETRIES = 6; // as Cloudflare: exponential backoff from 2 s, then give up
   // One alarm() at a time per object (as on Cloudflare): a re-armed alarm that comes due
   // while the previous handler still runs waits for it.
   const alarmRuns = new Map<string, Promise<void>>();
   const ownedRetries = new Map<string, number>();
-  function fireAlarm(e: AlarmEntry, retryCount: number): Promise<void> {
+  function fireAlarm(e: AlarmEntry): Promise<void> {
     const prev = alarmRuns.get(e.cellKey) ?? Promise.resolve();
-    const next = prev.then(() => fireAlarmNow(e, retryCount));
+    const next = prev.then(() => fireAlarmNow(e));
     alarmRuns.set(e.cellKey, next);
     void next.finally(() => {
       if (alarmRuns.get(e.cellKey) === next) alarmRuns.delete(e.cellKey);
     });
     return next;
   }
-  async function fireAlarmNow(e: AlarmEntry, retryCount: number): Promise<void> {
+  /**
+   * celld's alarm lifecycle, in the cell's own storage (so it survives restarts and moves
+   * between nodes, celld included): the row stays while its handler runs (getAlarm() reads
+   * null meanwhile); success deletes it, failure reschedules it with backoff and counts the
+   * failure in the row (`retry`, `counted_retry`) — alarmInfo.retryCount is that count.
+   */
+  async function fireAlarmNow(e: AlarmEntry): Promise<void> {
     const hostFor = hostsByClass.get(e.className);
     if (!hostFor) return;
     const host = hostFor(new DurableObjectId(e.idHex));
-    let failed = false;
     try {
       await host.deliver(async (obj, state) => {
         // A wake (local timer, or an entry of the shared wake index) is a hint: the stored
-        // alarm decides. Gone (fired or deleted elsewhere) → nothing to do; moved later →
-        // wait for that time.
-        const stored = state.storage.alarmSync();
-        if (retryCount > 0) {
-          // A retry of a failed handler: the alarm was consumed when it started. A new alarm
-          // armed meanwhile replaces the retry.
-          if (stored !== null) return;
-          if (typeof obj.alarm === "function") await obj.alarm({ retryCount, isRetry: true });
+        // alarm decides. Gone → nothing to do; moved later → wait for that time.
+        const row = state.storage.alarmRowSync();
+        if (!row) return;
+        if (row.at > clock.now()) {
+          alarms.set(e, row.at);
           return;
         }
-        if (stored === null) return;
-        if (stored > clock.now()) {
-          alarms.set(e, stored);
-          return;
+        state.storage.beginAlarm(row);
+        let ok = true;
+        try {
+          if (typeof obj.alarm === "function")
+            await obj.alarm({ retryCount: row.retry, isRetry: row.retry > 0 });
+        } catch {
+          ok = false;
         }
-        // The alarm is consumed when its handler starts: getAlarm() inside it returns null
-        // unless the handler sets a new one.
-        state.storage.clearAlarmSync();
-        if (typeof obj.alarm === "function")
-          await obj.alarm({ retryCount, isRetry: retryCount > 0 });
+        state.storage.finishAlarm(row, ok, clock.now());
       });
+      ownedRetries.delete(e.cellKey);
     } catch (err) {
       // Owned by another node (celld or webrun-cells): its owner fires the alarm.
       if (isOwnedElsewhere(err)) {
@@ -184,20 +185,10 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           ownedRetries.set(e.cellKey, n);
           alarms.set(e, clock.now() + 2_000);
         } else ownedRetries.delete(e.cellKey);
-        return;
       }
-      ownedRetries.delete(e.cellKey);
-      failed = true;
+      // Any other failure (broken object, storage error): the row is unchanged; it fires again
+      // when the object is next opened or the index is polled.
     }
-    if (!failed || retryCount >= MAX_ALARM_RETRIES) return;
-    // Retry unless the handler armed a different alarm meanwhile.
-    const current = host.state.storage.alarmSync();
-    if (current !== null) return;
-    const retryAt = clock.now() + 2 ** (retryCount + 1) * 1000;
-    clock.setTimeout(
-      () => void fireAlarm({ ...e, at: retryAt }, retryCount + 1),
-      retryAt - clock.now(),
-    );
   }
 
   for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {

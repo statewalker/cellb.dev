@@ -153,19 +153,33 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
       await ensureWakeFormat();
       const cell = scopeOf(cellKey);
       const identity = `${hex16(w.epoch)}-${hex16(w.sequence)}`;
-      if (w.at == null) {
-        // cancelled: retire this identity (and everything older)
+      // 1. the new installation's entry (none for a cancelled or consumed alarm)
+      if (w.at != null) {
+        const minute = new Date(w.at).toISOString().slice(0, 16);
         await store.put(
-          `wake/retired/${cell}.json`,
-          enc.encode(JSON.stringify({ format: 2, identity, at_ms: null })),
+          `wake/entries/${minute}/${cell}/${identity}`,
+          enc.encode(JSON.stringify({ cell, due_ms: w.at, format: 2, identity })),
         );
-        return;
       }
-      const minute = new Date(w.at).toISOString().slice(0, 16);
+      // 2. the retirement certificate, once the replacement is published (celld's order):
+      //    every older identity is void, and this one too when the alarm is gone.
       await store.put(
-        `wake/entries/${minute}/${cell}/${identity}`,
-        enc.encode(JSON.stringify({ cell, due_ms: w.at, format: 2, identity })),
+        `wake/retired/${cell}.json`,
+        enc.encode(JSON.stringify({ format: 2, identity, at_ms: w.at })),
       );
+      // 3. cleanup below the certificate (celld: only below a proved frontier, which this is)
+      for (const k of await store.list("wake/entries/")) {
+        const m = /\/([0-9a-f]{16}-[0-9a-f]{16})$/.exec(k);
+        if (
+          !m ||
+          !k.includes(`/${cell}/`) ||
+          k.slice(0, -m[0].length).endsWith(`/${cell}`) === false
+        )
+          continue;
+        const id = m[1];
+        if (id < identity || (id === identity && w.at == null))
+          await store.delete?.(k).catch(() => {});
+      }
     },
 
     async wakes() {
