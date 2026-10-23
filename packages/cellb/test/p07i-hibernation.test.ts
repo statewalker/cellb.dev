@@ -69,6 +69,16 @@ const setup = () => {
   return { rt, open };
 };
 
+/** The reply can reach the client before the event's commit settles: wait until it is idle. */
+async function hibernateWhenIdle(rt: { hibernateIdle(ms: number): number }): Promise<number> {
+  for (let i = 0; i < 200; i++) {
+    const n = rt.hibernateIdle(0);
+    if (n) return n;
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  return 0;
+}
+
 describe("P07i hibernation", () => {
   it("an idle object with hibernatable sockets is dropped and re-created by the next message", async () => {
     Sleepy.constructed = 0;
@@ -83,7 +93,7 @@ describe("P07i hibernation", () => {
       sockets: 1,
     });
     expect(Sleepy.constructed).toBe(1);
-    expect(rt.hibernateIdle(0)).toBe(1);
+    expect(await hibernateWhenIdle(rt)).toBe(1);
     a.ws.send("two"); // wakes it: constructor again, in-memory state gone, storage + attachment kept
     expect(JSON.parse(await a.next())).toEqual({
       msg: "two",
@@ -101,7 +111,7 @@ describe("P07i hibernation", () => {
     const a = await open("name=bob");
     a.ws.send("x");
     await a.next();
-    expect(rt.hibernateIdle(0)).toBe(1);
+    expect(await hibernateWhenIdle(rt)).toBe(1);
     a.ws.close(4100, "bye");
     for (let i = 0; i < 100 && !Sleepy.closes.length; i++)
       await new Promise((r) => setTimeout(r, 5));
@@ -118,7 +128,7 @@ describe("P07i hibernation", () => {
     s.ws.close();
     await closed;
     await new Promise((r) => setTimeout(r, 20));
-    expect(rt.hibernateIdle(0)).toBe(1);
+    expect(await hibernateWhenIdle(rt)).toBe(1);
   });
 
   it("an object with work in flight does not hibernate", async () => {
@@ -131,6 +141,6 @@ describe("P07i hibernation", () => {
     expect(rt.hibernateIdle(0)).toBe(0);
     release();
     await inFlight;
-    expect(rt.hibernateIdle(0)).toBe(1);
+    expect(await hibernateWhenIdle(rt)).toBe(1);
   });
 });

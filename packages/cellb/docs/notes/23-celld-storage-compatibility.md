@@ -69,6 +69,17 @@ keys, no facet lease — the root's epoch — and the rescope on open). Test: a 
 whose state lives in a facet goes celld (2) → webrun-cells (3) → celld (4), parent and facet
 streams both restored on each side.
 
+## Facets of isolated loaded code
+
+A facet whose class comes from a Worker Loader runs inside its isolate (note 21). Its
+database is now logged **through the host**: the isolate's runtime gets a durability port that
+forwards each commit (changed pages; the image is fetched from the isolate only when a
+generation snapshot needs it) and a backup port whose `load()` asks the host — keyed by the
+facet's celld key under the root and written under the root's epoch (`attach`). Objects of an
+isolate's runtime are facets: their rows are rescoped on open. Tests: a fresh node continues
+an isolated facet from the host's LTX files (`p11e`); **celld's own `facets` example** (a
+Worker-Loader class as facet) goes celld (0, 1) → webrun-cells (2) → celld (3).
+
 ## Two bugs found by these tests
 
 - **WAL images.** A database restored from celld's files is in WAL mode. node:sqlite then
@@ -82,5 +93,5 @@ streams both restored on each side.
 
 - celld's `_cf_WAKE` rows (fleet wake-up bookkeeping) are created by celld on activation;
   webrun-cells creates the table and triggers but not the rows.
-- Isolated facets (classes from a Worker Loader, note 21) keep their database inside the
-  isolate and do not log it yet.
+- Browser project hosts do not configure a host log yet, so isolated facets there keep
+  their database in the isolate's OPFS pool only.

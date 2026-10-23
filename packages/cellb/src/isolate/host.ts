@@ -1,5 +1,6 @@
 import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
 import type { IsolatedClass } from "../core/handles.js";
+import type { CellBackup, CellDurability } from "../ports.js";
 
 /** Key of the isolate's class factory on a module facade (see getDurableObjectClass). */
 export const ISOLATED = Symbol.for("webrun-cells.isolated-classes");
@@ -19,6 +20,11 @@ import {
  * loader for `getDurableObjectClass` (see `workerLoader(load, { classes })`).
  */
 export function isolatedModuleLoader(opts: {
+  /**
+   * The host's storage, so facets of loaded code are logged and restored like the root's
+   * own (celld: one stream per facet under the root, the root's epoch).
+   */
+  storage?: () => { durability?: CellDurability; backup?: CellBackup };
   spawn(id: string): { port: PortLike; terminate(): void };
   prepare(id: string, code: WorkerCode): Promise<{ source?: string; url?: string }>;
 }): ModuleLoader {
@@ -33,6 +39,22 @@ export function isolatedModuleLoader(opts: {
       if (m.type === "stub") {
         const target = m.key === "__outbound" ? code.globalOutbound : env[m.key];
         return (target as any)[m.method](...m.args);
+      }
+      if (m.type === "durable") {
+        const st = opts.storage?.() ?? {};
+        if (m.op === "load") return st.backup?.load?.(m.cellKey);
+        if (m.op === "committed" && st.durability) {
+          const info = m.info;
+          const token = info.image;
+          await st.durability.committed(m.cellKey, {
+            ...info,
+            image:
+              typeof token === "number"
+                ? () => rpc.request<Uint8Array | undefined>({ type: "image", token })
+                : token,
+          });
+        }
+        return;
       }
       if (m.type === "log") {
         logs?.(m.level, m.args);
@@ -80,6 +102,8 @@ export function isolatedModuleLoader(opts: {
         rpc.request({ type: "object", op: "call", className, cellKey, method, args }),
       restart: (cellKey) => rpc.request({ type: "object", op: "restart", className, cellKey }),
       delete: (cellKey) => rpc.request({ type: "object", op: "delete", className, cellKey }),
+      attach: (cellKey, epoch) =>
+        rpc.request({ type: "object", op: "attach", className, cellKey, epoch }),
     });
     return module as Record<string, unknown>;
   };

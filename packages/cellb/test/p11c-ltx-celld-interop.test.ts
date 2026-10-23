@@ -412,4 +412,64 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
       await stop(celld);
     }
   }, 120_000);
+
+  it("celld's facets example (facet class from a Worker Loader) moves celld → webrun-cells → celld", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "facets-ex-")), "facets");
+    cpSync(join(__dirname, "../conformance/celld-examples/facets"), dir, { recursive: true });
+    const hit = async (base: string) => (await fetch(`${base}/`)).text();
+    let celld = await startCelld(dir, 18_796);
+    expect(await hit("http://127.0.0.1:18796")).toBe("0:hello, facet");
+    expect(await hit("http://127.0.0.1:18796")).toBe("1:hello, facet");
+    await stop(celld);
+    const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
+    const files = new MemFilesApi();
+    let epoch = 0;
+    let rootKey = "";
+    for (const r of bucket
+      .prepare("SELECT key, body FROM objects WHERE key LIKE 'cells/%/ltx/%'")
+      .all() as {
+      key: string;
+      body: Uint8Array;
+    }[]) {
+      await files.write(`/${r.key}`, [new Uint8Array(r.body)]);
+      if (r.key.includes("/facets/"))
+        epoch = Math.max(epoch, Number(/\/ltx\/e(\d+)\//.exec(r.key)![1]));
+      if (r.key.includes("/facets/")) rootKey = r.key.split("/")[1];
+    }
+    expect(rootKey).not.toBe("");
+    const log = filesApiLtxLog(files, { epoch: epoch + 1 });
+    const { runtime } = await loadNodeProject(dir, {
+      openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "facets-ex-cells-"))),
+      files: new MemFilesApi(),
+      durability: log,
+      backup: log,
+    });
+    expect(await (await runtime.fetch(new Request("http://x/"))).text()).toBe("2:hello, facet");
+    await runtime.close();
+    const put = bucket.prepare(
+      "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, (SELECT next_etag FROM store_sequence), ?, '[]')",
+    );
+    const bump = bucket.prepare("UPDATE store_sequence SET next_etag = next_etag + 1");
+    for await (const e of files.list("/cells", { recursive: true })) {
+      if (e.kind !== "file" || !e.path.includes(`/ltx/e${epoch + 1}/`)) continue;
+      const chunks: Uint8Array[] = [];
+      for await (const c of files.read(e.path)) chunks.push(c);
+      put.run(e.path.slice(1), Buffer.concat(chunks), Date.now());
+      bump.run();
+    }
+    put.run(
+      `cells/${rootKey}/own.json`,
+      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
+      Date.now(),
+    );
+    bump.run();
+    bucket.close();
+    rmSync(join(dir, ".celld/dev/runtime"), { recursive: true, force: true });
+    celld = await startCelld(dir, 18_797);
+    try {
+      expect(await hit("http://127.0.0.1:18797")).toBe("3:hello, facet");
+    } finally {
+      await stop(celld);
+    }
+  }, 120_000);
 });

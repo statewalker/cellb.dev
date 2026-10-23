@@ -18,6 +18,8 @@ export interface IsolatedClass {
   call(cellKey: string, method: string, args: unknown[]): Promise<unknown>;
   restart(cellKey: string): Promise<void>;
   delete(cellKey: string): Promise<void>;
+  /** Tells the isolate which root epoch the facet's log is written under. */
+  attach?(cellKey: string, epoch?: number): Promise<void>;
 }
 
 export function classHandle(resolve: ClassHandle["resolve"]): ClassHandle {

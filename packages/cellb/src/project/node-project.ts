@@ -8,6 +8,7 @@ import { type LogSink, type ModuleLoader, outboundFetch } from "../bindings/work
 import type { WorkerModule } from "../core/runtime.js";
 import { isolatedModuleLoader } from "../isolate/host.js";
 import type { PortLike } from "../isolate/protocol.js";
+import type { CellBackup, CellDurability } from "../ports.js";
 import { parseJsonc } from "./jsonc.js";
 import {
   createProjectRuntime,
@@ -170,7 +171,10 @@ export async function loadNodeProject(
   return {
     ...createProjectRuntime(config, module, {
       loadModules: nodeModuleLoader,
-      isolatedModules: nodeIsolatedLoader(), // loaded Workers in their own realm, as celld
+      isolatedModules: nodeIsolatedLoader(() => ({
+        durability: host.durability,
+        backup: host.backup,
+      })), // own realm, as celld; facets logged like the root's
       assetFiles,
       ...host,
     }),
@@ -223,8 +227,11 @@ export async function applyNodeD1Migrations(
  * data: URL; Durable Object classes for facets still load in this realm.
  */
 let isolateEntry: Promise<string> | undefined;
-export function nodeIsolatedLoader(): ModuleLoader {
+export function nodeIsolatedLoader(
+  storage?: () => { durability?: CellDurability; backup?: CellBackup },
+): ModuleLoader {
   return isolatedModuleLoader({
+    storage,
     spawn: () => {
       const port = new NodeWorker(new URL(`file://${isolateEntryPathSync()}`));
       port.unref(); // an idle isolate never keeps the process alive

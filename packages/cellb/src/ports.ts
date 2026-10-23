@@ -62,7 +62,7 @@ export interface CellDurability {
       seq: number;
       changes?: CommitChanges;
       /** The committed database image (or a thunk producing it on demand). */
-      image?: Uint8Array | (() => Uint8Array | undefined);
+      image?: Uint8Array | (() => Uint8Array | undefined | Promise<Uint8Array | undefined>);
       /** The transaction's changed pages, when the driver hooks its file. */
       pages?: { pageSize: number; pageCount: number; pages: Map<number, Uint8Array> };
       epoch?: number;

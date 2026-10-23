@@ -31,6 +31,8 @@ export interface CellRuntimeOptions {
    * worker, tab or peer); `undefined` means "host it here". Default: all local.
    */
   route?: (cellKey: string, id: DurableObjectId) => Send | undefined;
+  /** Every object of this runtime is a facet of an outer cell (an isolate's runtime). */
+  facets?: boolean;
   /** The Worker script's name (wrangler `name`): object ids derive from it, as on celld. */
   scriptName?: string;
   /** Namespace keys overriding the script-scoped default, per class (celld's fleet-wide ones). */
@@ -186,6 +188,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           backup: opts.backup,
           onAlarmChange: (at) => alarms.set({ cellKey, className, idHex: id.toString() }, at),
           exports: exportsObj,
+          facet: opts.facets,
           acquire: opts.ownership ? (key) => opts.ownership!.tryAcquire(key) : undefined,
           sqlExtensions: opts.sqlExtensions,
         });

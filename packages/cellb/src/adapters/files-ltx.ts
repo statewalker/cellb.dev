@@ -147,7 +147,7 @@ export function filesApiLtxLog(
         return;
       }
       // 2. Otherwise diff the committed image against the previous one (O(database size)).
-      const image = imageNow();
+      const image = await imageNow();
       if (!image?.byteLength) return;
       const pageSize = pageSizeOf(image);
       const changed = new Map<number, Uint8Array>();

@@ -124,7 +124,7 @@ export class ObjectHost {
     state.attachDispatcher((fn) => this.deliver(fn));
     state.exports = opts.exports ?? {};
     state.facets = createFacets(
-      opts,
+      { ...opts, epoch: () => this.#epoch },
       (name, cls, env, id) =>
         new ObjectHost({
           ...opts,
@@ -406,7 +406,7 @@ interface FacetTarget {
 }
 
 function createFacets(
-  parent: { id: DurableObjectId; env: unknown; cellKey: string },
+  parent: { id: DurableObjectId; env: unknown; cellKey: string; epoch?: () => number | undefined },
   spawn: (name: string, cls: DurableObjectClass, env: unknown, id: DurableObjectId) => ObjectHost,
 ) {
   const running = new Map<string, Promise<FacetTarget>>();
@@ -428,12 +428,17 @@ function createFacets(
     },
   });
   /** A class of isolated loaded code: the facet's instance and SQLite live in the isolate. */
-  const isolated = (iso: IsolatedClass, cellKey: string): FacetTarget => ({
-    call: (method, args) => iso.call(cellKey, method, args),
-    fetch: (req) => iso.fetch(cellKey, req),
-    restart: () => iso.restart(cellKey),
-    delete: () => iso.delete(cellKey),
-  });
+  const isolated = (iso: IsolatedClass, cellKey: string): FacetTarget => {
+    const attached = iso.attach?.(cellKey, parent.epoch?.());
+    const ready = async () => attached;
+    return {
+      call: async (method, args) => (await ready(), iso.call(cellKey, method, args)),
+      fetch: async (req) => (await ready(), iso.fetch(cellKey, req)),
+      restart: async () => (await ready(), iso.restart(cellKey)),
+      delete: async () => (await ready(), iso.delete(cellKey)),
+    };
+  };
+
   const targetOf = (name: string, start?: () => unknown): Promise<FacetTarget> => {
     let p = running.get(name);
     if (!p) {
@@ -444,7 +449,8 @@ function createFacets(
         let env = parent.env;
         if (isClassHandle(info.class)) {
           const r = await info.class.resolve();
-          if ("isolated" in r) return isolated(r.isolated, `${parent.cellKey}/facets/${name}`);
+          if ("isolated" in r)
+            return isolated(r.isolated, `${parent.cellKey}/facets/${facetSegment(name)}`);
           ({ cls, env } = r);
         } else cls = info.class as DurableObjectClass;
         const id = info.id instanceof DurableObjectIdClass ? info.id : parent.id;

@@ -146,7 +146,7 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
         for (const p of [...cell.pages.keys()]) if (p > info.pages.pageCount) cell.pages.delete(p);
         return;
       }
-      const image = typeof info.image === "function" ? info.image() : info.image;
+      const image = typeof info.image === "function" ? await info.image() : info.image;
       if (!image) return;
       const pageSize = pageSizeOf(image);
       const commit = image.length / pageSize;

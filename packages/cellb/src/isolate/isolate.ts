@@ -25,6 +25,47 @@ export function serveIsolate(
 ) {
   let module: Record<string, unknown> = {};
   const runtimes = new Map<string, CellRuntime>();
+  // Facet logging through the host: the isolate-local cell key → the facet's key in the
+  // root's storage (celld: <root>/facets/<sha>) and the root's epoch.
+  const facetKeys = new Map<string, { key: string; epoch?: number }>();
+  const images = new Map<number, () => unknown>();
+  let nextImage = 0;
+  const hostLogged = (internal: string) => facetKeys.get(internal);
+  const durability = {
+    capturePages: true,
+    async committed(cellKey: string, info: any) {
+      const f = hostLogged(cellKey);
+      if (!f) return;
+      const token = ++nextImage;
+      if (typeof info.image === "function") images.set(token, info.image);
+      try {
+        await rpc.request({
+          type: "durable",
+          op: "committed",
+          cellKey: f.key,
+          info: {
+            seq: info.seq,
+            pages: info.pages,
+            epoch: f.epoch,
+            image: typeof info.image === "function" ? token : info.image,
+          },
+        });
+      } finally {
+        images.delete(token);
+      }
+    },
+  };
+  const backup = {
+    async load(cellKey: string) {
+      const f = hostLogged(cellKey);
+      return f
+        ? ((await rpc.request({ type: "durable", op: "load", cellKey: f.key })) as
+            | Uint8Array
+            | undefined)
+        : undefined;
+    },
+    async save() {},
+  };
   let loadMsg: any;
   let sql: Promise<OpenCellSql> | undefined;
   const objectRuntime = async (className: string) => {
@@ -42,6 +83,9 @@ export function serveIsolate(
         durableObjects: { [className]: { className } },
         openSql,
         vars: env, // the loaded Worker's env: plain values and host stubs
+        durability: durability as never,
+        facets: true, // rows move to this run's scope on open, as celld does for facets
+        backup: backup as never,
       });
       runtimes.set(className, rt);
     }
@@ -83,6 +127,7 @@ export function serveIsolate(
       );
       return Object.fromEntries(Object.entries(module).map(([k, v]) => [k, typeof v]));
     }
+    if (m.type === "image") return await images.get(m.token)?.();
     if (m.type === "object") {
       // A facet of loaded code: the object lives here, named by the parent's facet cell key.
       const rt = await objectRuntime(m.className);
@@ -92,6 +137,10 @@ export function serveIsolate(
       };
       const stub = ns.getByName(m.cellKey);
       const key = `${m.className}/${ns.idFromName(m.cellKey).toString()}`;
+      if (m.op === "attach") {
+        facetKeys.set(key, { key: m.cellKey, epoch: m.epoch });
+        return;
+      }
       if (m.op === "fetch")
         return serializeResponse(await stub.fetch(deserializeRequest(m.request)));
       if (m.op === "call") return stub[m.method](...m.args);
