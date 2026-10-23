@@ -224,10 +224,27 @@ scope; the host wraps the cell class so that op sets the alarm on the cell's sto
 sent on celld is delivered by webrun-cells after the hand-over, and the reverse. The previous
 queue implementation (`src/bindings/queues.ts`) is no longer used by projects.
 
+## Workflows
+
+A workflow instance is a cell `__Workflow.<script>:<id>` — the class carries the script name
+(`deploy::workflow_class`), the id is the script-scoped key over `<workflow name>/<instance
+id>`. Its state is KV records under `__wf.` (meta, step records, events) in V8 serialization,
+plus the instance's alarm for sleeps, retries and timeouts. celld's workflow engine is
+JavaScript in `harness.js`; webrun-cells runs it unchanged (`vendor/celld/workflows.js`,
+host in `src/bindings/celld-workflows.ts`: workflow → class map, the Worker's exports and
+env, synchronous alarm writes inside `transactionSync`, the step frame used to refuse a step
+started inside another step's callback).
+
+`workflow`, `workflow-api` match celld in Node and Chromium. Hand-over: an instance sleeping
+on celld finishes on webrun-cells and one waiting for an event takes the event there — step
+`a` is not run again on the new runtime (its result is read from celld's records) — and the
+same from webrun-cells to celld. The previous workflow implementation
+(`src/bindings/workflows.ts`) is no longer used by projects.
+
 ## Remaining differences
 
 - Workflows and R2: not yet compared at the storage level.
-- Workflows and R2 still use webrun-cells' own storage layouts.
+- R2 still uses webrun-cells' own storage layout.
 - The waker role: celld elects one node to wake cells of stopped owners; every webrun-cells
   runtime polls the index itself (an entry is only a hint, so this is safe, just redundant).
 - Browser project hosts do not configure a host log yet, so isolated facets there keep

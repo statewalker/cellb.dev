@@ -403,10 +403,10 @@ const mutants = [
     "test/p09-celld-conformance.test.ts -t assets-api",
   ],
   [
-    "workflows: steps not memoized",
-    "src/bindings/workflows.ts",
-    "if (rec.done) return rec.result;\n          if (rec.retryAt",
-    "if (rec.retryAt",
+    "workflows: steps not memoized (celld's vendored code)",
+    "vendor/celld/workflows.js",
+    'const record = __wfKindCheck(await storage.get(key), "do", name);\n      if (record !== undefined && record.status === "completed") {',
+    'const record = __wfKindCheck(await storage.get(key), "do", name);\n      if (false) {',
     "test/p09-celld-conformance.test.ts -t workflow-api",
   ],
   [

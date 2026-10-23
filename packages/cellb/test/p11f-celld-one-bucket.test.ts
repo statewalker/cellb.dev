@@ -563,5 +563,104 @@ describe.skipIf(!CELLD)(
       () => handoff("webrun→celld"),
       120_000,
     );
+
+    // A workflow instance is a cell (celld's own workflow code on both sides): a sleeping or
+    // waiting instance resumes on the other runtime, with its finished steps memoized.
+    const flow = async (direction: "celld→webrun" | "webrun→celld") => {
+      const dir = join(mkdtempSync(join(tmpdir(), "workflow-handoff-")), "workflow-api");
+      cpSync(join(ours, "workflow-api"), dir, { recursive: true });
+      let celld = await celldDev(dir);
+      const webrun = async () => {
+        const st = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+        const bucket = celldBucket(st, { node: `webrun-${Date.now()}`, leaseTtlMs: 3_000 });
+        const { runtime } = await loadNodeProject(dir, {
+          openSql: nodeSqliteOpener(),
+          files: new MemFilesApi(),
+          ownership: bucket.ownership,
+          durability: bucket.durability,
+          backup: bucket.durability,
+        } as never);
+        const call = async (path: string) => {
+          for (let i = 0; i < 60; i++) {
+            const text = await (await runtime.fetch(new Request(`http://w${path}`))).text();
+            if (!text.includes("owned by another")) return JSON.parse(text);
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          throw new Error("never owned");
+        };
+        return {
+          call,
+          close: async () => (await runtime.close(), await bucket.close(), st.close()),
+        };
+      };
+      const celldCall = async (path: string) => (await fetch(`${celld.base}${path}`)).json();
+      const settle = async (call: (p: string) => Promise<any>, id: string) => {
+        let s: any;
+        for (let i = 0; i < 40; i++) {
+          s = await call(`/status?id=${id}`);
+          if (s.status === "complete" || s.status === "errored") break;
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        return s;
+      };
+      if (direction === "celld→webrun") {
+        await celldCall("/create?id=s1&kind=steps"); // step a runs, then a 2 s sleep
+        await celldCall("/create?id=e1&kind=event"); // waits for an event
+        await new Promise((r) => setTimeout(r, 600));
+        expect((await celldCall("/status?id=s1")).status).toBe("waiting");
+        await stop(celld.p);
+        const w = await webrun();
+        try {
+          // The sleep ends on webrun-cells; step a is NOT run again (memoized in celld's records:
+          // this process's run counter stays 0).
+          expect(await settle(w.call, "s1")).toEqual(
+            expect.objectContaining({ status: "complete", output: { a: 1, b: 2, stepARuns: 0 } }),
+          );
+          await w.call("/event?id=e1");
+          expect(await settle(w.call, "e1")).toEqual(
+            expect.objectContaining({
+              status: "complete",
+              output: { approved: { by: "ada" }, type: "approve" },
+            }),
+          );
+        } finally {
+          await w.close();
+        }
+      } else {
+        await stop(celld.p);
+        const w = await webrun();
+        await w.call("/create?id=s2&kind=steps");
+        await w.call("/create?id=e2&kind=event");
+        await new Promise((r) => setTimeout(r, 600));
+        expect((await w.call("/status?id=s2")).status).toBe("waiting");
+        await w.close();
+        await new Promise((r) => setTimeout(r, 3_500));
+        celld = await celldDev(dir);
+        try {
+          expect(await settle(celldCall, "s2")).toEqual(
+            expect.objectContaining({ status: "complete", output: { a: 1, b: 2, stepARuns: 0 } }),
+          );
+          await celldCall("/event?id=e2");
+          expect(await settle(celldCall, "e2")).toEqual(
+            expect.objectContaining({
+              status: "complete",
+              output: { approved: { by: "ada" }, type: "approve" },
+            }),
+          );
+        } finally {
+          await stop(celld.p);
+        }
+      }
+    };
+    it(
+      "Workflows: a sleeping and a waiting instance from celld complete in webrun-cells",
+      () => flow("celld→webrun"),
+      120_000,
+    );
+    it(
+      "Workflows: a sleeping and a waiting instance from webrun-cells complete in celld",
+      () => flow("webrun→celld"),
+      120_000,
+    );
   },
 );
