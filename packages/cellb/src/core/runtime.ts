@@ -136,20 +136,26 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   // while the previous handler still runs waits for it.
   const alarmRuns = new Map<string, Promise<void>>();
   const ownedRetries = new Map<string, number>();
-  function fireAlarm(e: AlarmEntry, retryCount: number): Promise<void> {
+  // `scheduledTime` (alarmInfo, as in workerd) is the stored alarm's time, kept across retries.
+  function fireAlarm(e: AlarmEntry, retryCount: number, scheduledTime?: number): Promise<void> {
     const prev = alarmRuns.get(e.cellKey) ?? Promise.resolve();
-    const next = prev.then(() => fireAlarmNow(e, retryCount));
+    const next = prev.then(() => fireAlarmNow(e, retryCount, scheduledTime));
     alarmRuns.set(e.cellKey, next);
     void next.finally(() => {
       if (alarmRuns.get(e.cellKey) === next) alarmRuns.delete(e.cellKey);
     });
     return next;
   }
-  async function fireAlarmNow(e: AlarmEntry, retryCount: number): Promise<void> {
+  async function fireAlarmNow(
+    e: AlarmEntry,
+    retryCount: number,
+    scheduledTime?: number,
+  ): Promise<void> {
     const hostFor = hostsByClass.get(e.className);
     if (!hostFor) return;
     const host = hostFor(new DurableObjectId(e.idHex));
     let failed = false;
+    let fired = scheduledTime;
     try {
       await host.deliver(async (obj, state) => {
         // A wake (local timer, or an entry of the shared wake index) is a hint: the stored
@@ -160,7 +166,8 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           // A retry of a failed handler: the alarm was consumed when it started. A new alarm
           // armed meanwhile replaces the retry.
           if (stored !== null) return;
-          if (typeof obj.alarm === "function") await obj.alarm({ retryCount, isRetry: true });
+          if (typeof obj.alarm === "function")
+            await obj.alarm({ retryCount, isRetry: true, scheduledTime });
           return;
         }
         if (stored === null) return;
@@ -171,8 +178,9 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
         // The alarm is consumed when its handler starts: getAlarm() inside it returns null
         // unless the handler sets a new one.
         state.storage.clearAlarmSync();
+        fired = stored;
         if (typeof obj.alarm === "function")
-          await obj.alarm({ retryCount, isRetry: retryCount > 0 });
+          await obj.alarm({ retryCount, isRetry: retryCount > 0, scheduledTime: stored });
       });
     } catch (err) {
       // Owned by another node (celld or webrun-cells): its owner fires the alarm.
@@ -197,7 +205,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     if (current !== null) return;
     const retryAt = clock.now() + 2 ** (retryCount + 1) * 1000;
     clock.setTimeout(
-      () => void fireAlarm({ ...e, at: retryAt }, retryCount + 1),
+      () => void fireAlarm({ ...e, at: retryAt }, retryCount + 1, fired),
       retryAt - clock.now(),
     );
   }

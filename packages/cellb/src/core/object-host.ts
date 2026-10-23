@@ -364,9 +364,8 @@ export class ObjectHost {
   #scheduleRestoredAlarm(onAlarmChange?: (at: number) => void): void {
     let at: unknown;
     try {
-      at = this.#driver.exec("SELECT at_ms FROM _cf_ALARM WHERE scope = ?", [
-        scopeOf(this.cellKey),
-      ]).rows[0]?.[0];
+      at = this.#driver.exec("SELECT at_ms FROM _cf_ALARM WHERE scope = ?", [scopeOf(this.cellKey)])
+        .rows[0]?.[0];
     } catch {
       return; // no alarm table: the cell never had an alarm
     }

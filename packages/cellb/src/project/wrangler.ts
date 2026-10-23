@@ -144,7 +144,8 @@ export function createProjectRuntime(
   let deleteAllPreservesAlarm = false;
   for (const f of config.compatibility_flags ?? []) {
     if (f === "delete_all_preserves_alarm") deleteAllPreservesAlarm = true;
-    else if (f === "delete_all_deletes_alarm") continue; // the default
+    else if (f === "delete_all_deletes_alarm")
+      continue; // the default
     else if (f === "sqlite_vec")
       sqlExtensions.push("sqlite_vec"); // vec0 virtual tables, as on celld
     else if (f === "nodejs_compat" || f === "nodejs_compat_v2")
