@@ -12,7 +12,12 @@ import {
 import type { ConditionalStore } from "../src/lease/conditional-store.js";
 import { FakeClock } from "./fake-clock.js";
 
-class Account extends DurableObject {}
+class Account extends DurableObject {
+  async alarm() {
+    const fired = ((await this.ctx.storage.get<number>("fired")) ?? 0) + 1;
+    await this.ctx.storage.put("fired", fired);
+  }
+}
 
 /**
  * Two "nodes" share a bucket (FilesApi for the log, conditional store for leases). Per-cell
@@ -87,5 +92,30 @@ describe("P10b per-cell ownership with lease epochs fencing the log", () => {
     for await (const f of files.list("/cells", { recursive: true }))
       if (f.path.endsWith(".seg")) segs.push(f.path.split("/").pop()!.split("-")[0]);
     expect(new Set(segs.map(Number))).toEqual(new Set([1, 2]));
+  });
+
+  it("a cell taken over with a pending alarm: the new owner fires it", async () => {
+    const clock = new FakeClock(1_000_000);
+    const files = new MemFilesApi();
+    const store = new MemoryConditionalStore();
+    const a = partitionable(store);
+    const nodeA = node("A", files, a.view, clock);
+    const nodeB = node("B", files, store, clock);
+    const cellA = (nodeA.env.ACCOUNT as any).getByName("acc-2");
+    // Due after A has lost its lease (ttl - skew = 9 s): A cannot fire it.
+    await runInDurableObject(cellA, (_o, ctx) => ctx.storage.setAlarm(clock.now() + 11_000));
+    a.cut();
+    await clock.advance(12_000);
+
+    // B takes the cell over; its restored alarm is overdue and B now owns it.
+    const cellB = (nodeB.env.ACCOUNT as any).getByName("acc-2");
+    expect(await runInDurableObject(cellB, (_o, ctx) => ctx.storage.get("fired"))).toBe(undefined);
+    await clock.advance(0);
+    expect(
+      await runInDurableObject(cellB, async (_o, ctx) => [
+        await ctx.storage.get("fired"),
+        await ctx.storage.getAlarm(),
+      ]),
+    ).toEqual([1, null]);
   });
 });
