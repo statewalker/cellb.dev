@@ -94,12 +94,72 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     restored.close();
   }, 120_000);
 
-  /*
-   * The reverse direction — celld restoring a cell from LTX files that webrun-cells wrote
-   * under a later epoch — is NOT achieved yet: celld 0.6.2 builds its restore chain from its
-   * own epoch bookkeeping (it chose e2, then reported "e2: ltx file corrupted" once our
-   * e3 files and own.json were in the bucket; deleting the local replica alone restores fine).
-   * Kept as a documented open item (note 22) rather than a test that hides the gap.
-   */
-  it.skip("webrun-cells → celld: celld restores from webrun-cells' LTX files (open)", () => {});
+  it("webrun-cells → celld: celld restores a cell from LTX files webrun-cells wrote", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "ltx-reverse-")), "counter");
+    cpSync(example, dir, { recursive: true });
+    // celld creates the cell (n = 1..3), then stops.
+    let celld = await startCelld(dir, 18_783);
+    for (let i = 0; i < 3; i++) await inc("http://127.0.0.1:18783");
+    await stop(celld);
+    const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
+    const files = new MemFilesApi();
+    let epoch = 0;
+    for (const r of bucket
+      .prepare("SELECT key, body FROM objects WHERE key LIKE 'cells/Counter:%/ltx/%'")
+      .all() as {
+      key: string;
+      body: Uint8Array;
+    }[]) {
+      await files.write(`/${r.key}`, [new Uint8Array(r.body)]);
+      epoch = Math.max(epoch, Number(/\/ltx\/e(\d+)\//.exec(r.key)![1]));
+    }
+    const cell = (
+      bucket.prepare("SELECT key FROM objects WHERE key LIKE 'cells/Counter:%/own.json'").get() as {
+        key: string;
+      }
+    ).key.split("/")[1];
+    // webrun-cells' log takes over at the next epoch and commits n := 41 (V8-serialized, as celld stores it).
+    const log = filesApiLtxLog(files, { epoch: epoch + 1 });
+    const image = await log.load!(cell.replace(":", "/"));
+    const f = join(mkdtempSync(join(tmpdir(), "ltx-edit-")), "db.sqlite");
+    writeFileSync(f, image!);
+    const db = new DatabaseSync(f);
+    db.prepare("UPDATE _cf_KV SET v = ? WHERE k = 'n'").run(v8.serialize(41));
+    db.close();
+    await log.committed(cell.replace(":", "/"), {
+      seq: 1,
+      image: new Uint8Array(readFileSync(f)),
+      epoch: epoch + 1,
+    });
+    // Its files go into celld's bucket; the ownership record names the new epoch; celld's
+    // local replica is dropped so it must restore from the bucket.
+    const put = bucket.prepare(
+      "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, (SELECT next_etag FROM store_sequence), ?, '[]')",
+    );
+    const bump = bucket.prepare("UPDATE store_sequence SET next_etag = next_etag + 1");
+    for await (const e of files.list(`/cells/${cell}/ltx/e${epoch + 1}`, { recursive: true })) {
+      if (e.kind !== "file") continue;
+      const chunks: Uint8Array[] = [];
+      for await (const c of files.read(e.path)) chunks.push(c);
+      put.run(e.path.slice(1), Buffer.concat(chunks), Date.now());
+      bump.run();
+    }
+    put.run(
+      `cells/${cell}/own.json`,
+      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
+      Date.now(),
+    );
+    bump.run();
+    bucket.close();
+    rmSync(join(dir, ".celld/dev/runtime", cell), { recursive: true, force: true });
+    celld = await startCelld(dir, 18_784);
+    try {
+      const n = await inc("http://127.0.0.1:18784").catch((e) => {
+        throw new Error(`${e.message}\n--- celld log ---\n${(celld as any).log().slice(-2500)}`);
+      });
+      expect(n).toBe(42);
+    } finally {
+      await stop(celld);
+    }
+  }, 120_000);
 });

@@ -11,7 +11,17 @@ export const CHECKSUM_FLAG = 1n << 63n;
 const HEADER_SIZE = 100;
 const PAGE_HEADER_FLAG_SIZE = 1;
 
+/** Header flag: the file carries no rolling database checksums (what celld 0.6.2 writes). */
+export const HEADER_FLAG_NO_CHECKSUM = 1 << 1;
+
 export interface LtxHeader {
+  /** Header flags; defaults to NO_CHECKSUM when both rolling checksums are 0 (celld's files). */
+  flags?: number;
+  /** WAL position the file was cut from (litestream WAL mode; 0 in journal mode). */
+  walOffset?: bigint;
+  walSize?: bigint;
+  walSalt1?: number;
+  walSalt2?: number;
   pageSize: number;
   /** Database size after the transaction, in pages. */
   commit: number;
@@ -91,14 +101,22 @@ export function encodeLtx(file: LtxFile, format: "legacy" | "block" = "legacy"):
   const header = new Uint8Array(HEADER_SIZE);
   const v = new DataView(header.buffer);
   header.set(new TextEncoder().encode("LTX1"), 0);
-  v.setUint32(4, 0); // flags: checksums on
+  // celld's validator: with checksums on, a snapshot needs a real post-apply checksum and an
+  // incremental a pre-apply one; with both at 0 the file must say NO_CHECKSUM (as celld's do).
+  const flags =
+    h.flags ??
+    (h.preApplyChecksum === 0n && file.postApplyChecksum === 0n ? HEADER_FLAG_NO_CHECKSUM : 0);
+  v.setUint32(4, flags);
   v.setUint32(8, h.pageSize);
   v.setUint32(12, h.commit);
   v.setBigUint64(16, h.minTXID);
   v.setBigUint64(24, h.maxTXID);
   v.setBigInt64(32, BigInt(h.timestamp));
   v.setBigUint64(40, h.preApplyChecksum);
-  // WAL offset/size/salts stay 0 (journal mode); node id:
+  v.setBigInt64(48, h.walOffset ?? 0n);
+  v.setBigInt64(56, h.walSize ?? 0n);
+  v.setUint32(64, h.walSalt1 ?? 0);
+  v.setUint32(68, h.walSalt2 ?? 0);
   v.setBigUint64(72, h.nodeID ?? 0n);
 
   const out: Uint8Array[] = [header];
@@ -149,6 +167,11 @@ export function decodeLtx(bytes: Uint8Array): LtxFile {
   if (new TextDecoder().decode(bytes.subarray(0, 4)) !== "LTX1") throw new Error("ltx: bad magic");
   const flags = v.getUint32(4);
   const header: LtxHeader = {
+    flags,
+    walOffset: v.getBigInt64(48),
+    walSize: v.getBigInt64(56),
+    walSalt1: v.getUint32(64),
+    walSalt2: v.getUint32(68),
     pageSize: v.getUint32(8),
     commit: v.getUint32(12),
     minTXID: v.getBigUint64(16),
