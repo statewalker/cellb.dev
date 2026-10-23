@@ -118,7 +118,7 @@ wake entry celld does not fire it (checked).
 Beyond celld dev's local store: a celld **fleet node** (`celld --bucket s3://cells/<prefix>
 --endpoint …`) and webrun-cells share one S3 bucket served by a local RustFS. The Counter
 goes celld → webrun-cells → celld, and alarms cross through the wake index in both
-directions. Needs CELLD_BIN and a RustFS (RUSTFS_ENDPOINT, default `http://127.0.0.1:9100`).
+directions. Needs CELLD_BIN and a RustFS (RUSTFS_ENDPOINT, default `http://127.0.0.1:9200`).
 Fixes it required: an S3 prefix is a directory (`s3://BUCKET/PREFIX` → keys under
 `PREFIX/`, as celld uses it); the wake index is re-read periodically (`wakePollMs`, default
 30 s) so alarms of cells whose owner went away are picked up, as celld's waker does; a wake is

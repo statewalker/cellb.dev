@@ -12,9 +12,9 @@ import { loadNodeProject } from "../src/project/node-project.js";
 // A real celld fleet node and webrun-cells on ONE S3 bucket served by a local RustFS: cells
 // move between them through celld's ownership protocol (own.json epochs, node leases), and
 // alarms through celld's wake index. Needs CELLD_BIN, ESBUILD_DIR and a running RustFS
-// (RUSTFS_ENDPOINT, default http://127.0.0.1:9100, keys rustfsadmin / rustfssecret).
+// (RUSTFS_ENDPOINT, default http://127.0.0.1:9200, keys rustfsadmin / rustfssecret).
 const CELLD = process.env.CELLD_BIN;
-const ENDPOINT = process.env.RUSTFS_ENDPOINT ?? "http://127.0.0.1:9100";
+const ENDPOINT = process.env.RUSTFS_ENDPOINT ?? "http://127.0.0.1:9200";
 const KEYS = {
   accessKeyId: process.env.RUSTFS_ACCESS_KEY ?? "rustfsadmin",
   secretAccessKey: process.env.RUSTFS_SECRET_KEY ?? "rustfssecret",
