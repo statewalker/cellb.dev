@@ -142,9 +142,37 @@ browser runs passed (and one S3 Node run had failed the same way); after: 4 of 4
 still live, the cell is looked at again every 2 s for up to 30 s (then the next index poll),
 instead of waiting 30 s.
 
+## Alarms work the way celld runs them
+
+celld keeps an alarm's whole lifecycle in its row (`storage.rs`, `logic/alarm.rs`), so it
+survives restarts and moves between nodes. webrun-cells now does the same:
+
+- `setAlarm()` writes celld's statement: counters reset, a new random `generation`.
+- While the handler runs the row stays; `getAlarm()` reads null until the handler changes the
+  alarm (generation differs).
+- Success deletes the row if it still holds the fired time; a handler's own re-arm wins.
+- Failure (unless the handler changed the alarm) reschedules it in the row:
+  `at = now + 2 s << min(retry, 6)`, `retry + 1`, `counted_retry + 1`; after 6 counted failures
+  the alarm is abandoned. `alarmInfo.retryCount` is the row's `retry`; writes made by a failed
+  attempt are kept (as celld).
+- Before, webrun-cells consumed the alarm at handler start and kept retries in memory: a retry
+  was lost on restart or hand-over, and `getAlarm()` showed null during backoff.
+
+Wake index hygiene, as celld: each publication is followed by a retirement certificate for
+the cell (older identities void; the current one too when the alarm is gone), and the entries
+it retires are deleted.
+
+Tests: new `alarm-retry` project recorded on celld (fail twice, then succeed: attempts
+[0, 1, 2]) matches in Node and Chromium; **a failing alarm's retries continue across
+runtimes** — celld's first attempt fails, webrun-cells takes the cell over and runs retries 1
+and 2 from the stored counter; `p11h` (wake index certificate and cleanup); `p07a` gained "a
+handler that re-arms and then throws keeps its new alarm" and checks the stored backoff time.
+Mutants (all killed): success not deleting, failures not rescheduled, a handler's re-arm
+overwritten, getAlarm() visible inside the handler, retired wake entries kept.
+
 ## Remaining differences
 
-- Wake-entry cleanup: celld deletes entries below a proved retirement frontier; webrun-cells
-  writes entries and retirements but leaves cleanup to celld.
+- The waker role: celld elects one node to wake cells of stopped owners; every webrun-cells
+  runtime polls the index itself (an entry is only a hint, so this is safe, just redundant).
 - Browser project hosts do not configure a host log yet, so isolated facets there keep
   their database in the isolate's OPFS pool only.

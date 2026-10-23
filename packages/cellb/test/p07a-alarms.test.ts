@@ -13,9 +13,16 @@ class Sleeper extends DurableObject {
   static failures = 0;
   static rearmMs = 0;
   static lastAt = 0;
+  /** Re-arm to this absolute time, then throw (celld: the handler's change wins over the retry). */
+  static rearmThenThrowAt = 0;
   async alarm(info: { retryCount: number; isRetry: boolean }) {
     const name = (await this.ctx.storage.get<string>("name")) ?? "?";
     Sleeper.calls.push({ name, ...info, seenAlarm: await this.ctx.storage.getAlarm() });
+    if (Sleeper.rearmThenThrowAt) {
+      await this.ctx.storage.setAlarm(Sleeper.rearmThenThrowAt);
+      Sleeper.rearmThenThrowAt = 0;
+      throw new Error("re-armed, then failed");
+    }
     if (Sleeper.failures > 0) {
       Sleeper.failures--;
       throw new Error("alarm handler failed");
@@ -46,6 +53,7 @@ const setup = (opts: { dir?: string; clock?: FakeClock } = {}) => {
   return { rt, clock, stub, arm };
 };
 const reset = () => {
+  Sleeper.rearmThenThrowAt = 0;
   Sleeper.calls = [];
   Sleeper.failures = 0;
   Sleeper.rearmMs = 0;
@@ -93,13 +101,34 @@ describe("P07a Durable Object alarms", () => {
     expect(Sleeper.calls.length).toBeGreaterThanOrEqual(3);
   });
 
+  it("a handler that re-arms and then throws keeps its new alarm (no retry overwrites it)", async () => {
+    reset();
+    const { clock, stub, arm } = setup();
+    await arm("r", 1_000);
+    const target = clock.now() + 60_000;
+    Sleeper.rearmThenThrowAt = target;
+    await clock.advance(1_000);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(Sleeper.calls).toHaveLength(1);
+    expect(await runInDurableObject(stub("r"), (_o, ctx) => ctx.storage.getAlarm())).toBe(target);
+    // no backoff retry fires in between
+    await clock.advance(10_000);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(Sleeper.calls).toHaveLength(1);
+  });
+
   it("a throwing handler is retried with exponential backoff (2 s, 4 s, …) and retryCount", async () => {
     reset();
     Sleeper.failures = 2;
-    const { clock, arm } = setup();
+    const { clock, arm, stub } = setup();
     await arm("d", 1_000);
     await clock.advance(1_000);
     await new Promise((r) => setTimeout(r, 20));
+    // celld: the failed alarm stays in the row, rescheduled 2 s later (getAlarm() shows it)
+    expect(Sleeper.calls).toHaveLength(1);
+    expect(await runInDurableObject(stub("d"), (_o, ctx) => ctx.storage.getAlarm())).toBe(
+      clock.now() + 2_000,
+    );
     await clock.advance(2_000);
     await new Promise((r) => setTimeout(r, 20));
     await clock.advance(4_000);

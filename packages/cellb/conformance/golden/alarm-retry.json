@@ -1,0 +1,26 @@
+{
+  "celld": "0.6.2",
+  "transcript": [
+    {
+      "request": "GET /arm?in=300",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "armed": true
+      }
+    },
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "attempts": [0, 1, 2],
+        "done": {
+          "retryCount": 2,
+          "isRetry": true
+        },
+        "pending": false
+      }
+    }
+  ]
+}
