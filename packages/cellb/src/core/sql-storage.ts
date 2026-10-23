@@ -20,7 +20,8 @@ export class SqlStorageCursor<T = Record<string, unknown>> implements Iterable<T
     this.rowsWritten = r.rowsWritten;
   }
   next(): IteratorResult<T> {
-    if (this.#pos >= this.#rows.length) return { done: true, value: undefined };
+    // As workerd: the final result has no `value` key ({ done: true }).
+    if (this.#pos >= this.#rows.length) return { done: true } as IteratorReturnResult<undefined>;
     return { done: false, value: this.#obj(this.#rows[this.#pos++]) };
   }
   [Symbol.iterator](): Iterator<T> {

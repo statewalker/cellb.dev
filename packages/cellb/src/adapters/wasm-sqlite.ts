@@ -43,6 +43,7 @@ export class WasmSqliteDriver implements SyncSqlDriver {
     this.#db = db;
     this.#hooks = hooks;
     this.#sqlite3 = sqlite3;
+    this.#enableDqs();
     this.#hookPages();
     if (sqlite3?.capi?.sqlite3session_create) {
       // Transaction-log capture (session extension), following the current DB handle.
@@ -59,6 +60,18 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   }
   snapshot(): Uint8Array {
     return this.#hooks!.snapshot(this.#db);
+  }
+
+  /**
+   * As celld and workerd: a double-quoted name that is no column is a string literal (SQLite's
+   * DQS misfeature, off in this build).
+   */
+  #enableDqs(): void {
+    const capi = this.#sqlite3?.capi;
+    if (!capi?.sqlite3_db_config) return;
+    const db = (this.#db as unknown as { pointer: number }).pointer;
+    capi.sqlite3_db_config(db, capi.SQLITE_DBCONFIG_DQS_DML, 1, 0);
+    capi.sqlite3_db_config(db, capi.SQLITE_DBCONFIG_DQS_DDL, 1, 0);
   }
 
   /** Installs the page hook on the current main database file (see wasm-page-hook.ts). */
@@ -108,6 +121,7 @@ export class WasmSqliteDriver implements SyncSqlDriver {
       image[19] = 1;
     }
     this.#db = this.#hooks!.restore(this.#db, image);
+    this.#enableDqs();
     this.#hookPages(); // a new database file behind the connection
   }
   exec(sql: string, params: unknown[]): SqlResult {
