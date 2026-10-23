@@ -66,9 +66,23 @@ What the upstream tests found in webrun-cells, each fixed in its own commit:
 
 ## celld vs workerd
 
-celld passes every vendored test. workerd passes its own tests at the pinned commit by
-construction; where celld does not, its answer is what is recorded, and the difference is
-listed here.
+`conformance/record-workerd.ts` runs every scenario on workerd through Miniflare 4 (pinned
+devDependency `miniflare`, 4.20260730.0), writes `conformance/golden-workerd/`, and compares
+with celld's golden. Only Durable Objects and `vars` are mapped: a project with KV, D1, R2,
+queues, workflows, assets, Worker Loaders, services, cron triggers or the celld-only
+`sqlite_vec` flag is skipped, since those are simulators (celld's, Miniflare's), not workerd.
+celld stays the target; each disagreement is pinned with a one-line `workerdDiffers`, and an
+entry that no longer differs fails the run.
+
+| Result | Projects |
+|---|---|
+| agrees | all 8 `wd-*`, hello, webapi, counter, rpc, router, body, async, alarm, alarm-retry, wsecho, wsclient, html-rewriter, html-rewriter-async, node-compat, kv-values |
+| differs (`workerdDiffers`) | `do-ids` (per-deployment id keys; message punctuation), `storage-details` (celld stores `undefined`, coerces `setAlarm(non-date)`, needs no `alarm()` handler; SQL error texts), `worker-details` (celld's JSON "Worker failed" body, non-`Response` returns accepted, no cross-isolate RPC stubs), `ws-details` (`Error` vs `TypeError`; `send()` before `accept()`) |
+| skipped | 23 projects with non-DO bindings, and `vectordb` (`sqlite_vec`) |
+
+The vendored flags drop the ones workerd refuses to see listed at our `compatibility_date`
+(defaults by then): `rpc` and `enable_ctx_exports` in `wd-sync-kv`. celld answers the same
+without them.
 
 ## Known differences from celld (not covered by an upstream test)
 

@@ -36,6 +36,8 @@ export interface Scenario {
   project?: string;
   /** A recorded celld behaviour webrun-cells does not reproduce yet (tests expect a mismatch). */
   knownGap?: string;
+  /** Why workerd (conformance/record-workerd.ts) answers differently from celld's golden. */
+  workerdDiffers?: string;
   /** Keep each distinct log line once (periodic events whose count depends on timing). */
   uniqueLogs?: boolean;
 }
@@ -371,6 +373,18 @@ export const scenarios: Record<string, Scenario> = {
 // scripts/vendor-workerd-tests.mjs): GET / runs every `test` export inside the worker and
 // answers each one's outcome. Per-project adjustments (knownGap, textMask, …) go here.
 const wdOverrides: Record<string, Partial<Scenario>> = {};
+
+// celld's deviations from workerd (conformance/record-workerd.ts); webrun-cells follows celld.
+const workerdDiffers: Record<string, string> = {
+  "do-ids":
+    "ids are keyed per deployment (other hex); celld's invalid-namespace message has no final period",
+  "storage-details":
+    "celld stores undefined, coerces setAlarm(non-date) to a number and needs no alarm() handler; other SQL error texts",
+  "worker-details":
+    "celld wraps handler failures in a JSON 'Worker failed' body, accepts non-Response returns, and refuses cross-isolate RPC stubs",
+  "ws-details": "celld rejects with Error (workerd TypeError) and allows send() before accept()",
+};
+for (const [name, why] of Object.entries(workerdDiffers)) scenarios[name].workerdDiffers = why;
 for (const name of wdProjects as string[])
   scenarios[name] = { steps: [{ path: "/" }], ...wdOverrides[name] };
 

@@ -1,0 +1,33 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 426,
+      "contentType": "text/plain;charset=UTF-8",
+      "body": "websocket upgrade required"
+    },
+    {
+      "request": "WS / [\"one\",\"two\"]",
+      "messages": [
+        {
+          "echo": "one",
+          "count": 1
+        },
+        {
+          "echo": "two",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "request": "WS / [\"three\"]",
+      "messages": [
+        {
+          "echo": "three",
+          "count": 3
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /throw",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 500,
+      "contentType": "text/plain;charset=UTF-8",
+      "body": "TypeError: handler failed\n    at async Object.fetch (file://{root}/node_modules/.pnpm/miniflare@4.20260730.0/node_modules/miniflare/dist/src/workers/core/entry.worker.js:4765:22)"
+    },
+    {
+      "request": "GET /not-response",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 500,
+      "contentType": "text/plain;charset=UTF-8",
+      "body": "TypeError: Incorrect type for Promise: the Promise did not resolve to 'Response'.\n    at async Object.fetch (file://{root}/node_modules/.pnpm/miniflare@4.20260730.0/node_modules/miniflare/dist/src/workers/core/entry.worker.js:4765:22)"
+    },
+    {
+      "request": "GET /rpc",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "boom": {
+          "name": "RangeError",
+          "message": "out of range",
+          "code": null
+        },
+        "values": {
+          "date": true,
+          "map": true,
+          "bytes": [1, 2],
+          "big": "bigint",
+          "undef": true
+        },
+        "fn": "function",
+        "target": [1, 2],
+        "missing": {
+          "name": "TypeError",
+          "message": "The RPC receiver does not implement the method \"nope\".",
+          "code": null
+        },
+        "objectThrow": {
+          "name": "Error",
+          "message": "object fetch failed",
+          "code": null
+        }
+      }
+    },
+    {
+      "request": "GET /cf",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "hasCf": "object",
+        "keys": [
+          "asOrganization",
+          "asn",
+          "botManagement",
+          "city",
+          "clientAcceptEncoding",
+          "clientQuicRtt",
+          "clientTcpRtt",
+          "colo",
+          "continent",
+          "country",
+          "edgeL4",
+          "edgeRequestKeepAliveStatus",
+          "httpProtocol",
+          "isEUCountry",
+          "latitude",
+          "longitude",
+          "postalCode",
+          "region",
+          "regionCode",
+          "requestHeaderNames",
+          "requestPriority",
+          "timezone",
+          "tlsCipher",
+          "tlsClientAuth",
+          "tlsClientCiphersSha1",
+          "tlsClientExtensionsSha1",
+          "tlsClientExtensionsSha1Le",
+          "tlsClientHelloLength",
+          "tlsClientRandom",
+          "tlsExportedAuthenticator",
+          "tlsVersion",
+          "verifiedBotCategory"
+        ]
+      }
+    },
+    {
+      "request": "GET /headers",
+      "headers": {
+        "location": null,
+        "set-cookie": "a=1, b=2",
+        "x-multi": "1, 2"
+      },
+      "status": 200,
+      "contentType": "text/plain;charset=UTF-8",
+      "body": "h"
+    },
+    {
+      "request": "GET /redirect",
+      "headers": {
+        "location": "https://example.com/target",
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 301,
+      "contentType": null,
+      "body": ""
+    },
+    {
+      "request": "GET /passthrough",
+      "headers": {
+        "location": null,
+        "set-cookie": null,
+        "x-multi": null
+      },
+      "status": 500,
+      "contentType": null,
+      "body": ""
+    }
+  ]
+}

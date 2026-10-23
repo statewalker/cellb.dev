@@ -1,0 +1,35 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "alpha": "76439f020edcd7de4d6f4f7e9a617868764a7daa89e996e5442fa45c91304899",
+        "alphaInB": "7537388386cc28be5edb3635f012cd1e8606b2e3481d4e295f31d17a2805bf5d",
+        "empty": "03371ceee6e50deb0550a47557de570add5c8b4cde4845229250416fa92330f0",
+        "unicode": "f28d97e30c1154871b2a145a9faf531cfe0772689e44d6cf4df00b9a79f29a3f",
+        "equals": true,
+        "name": "alpha",
+        "fromString": true,
+        "fromStringName": null,
+        "otherNamespace": "TypeError: Durable Object ID is not valid for this namespace.",
+        "garbage": "TypeError: Invalid Durable Object ID: must be 64 hex digits",
+        "uniqueLength": 64,
+        "uniqueValid": true,
+        "seen": {
+          "id": "76439f020edcd7de4d6f4f7e9a617868764a7daa89e996e5442fa45c91304899",
+          "name": "alpha"
+        },
+        "seenByName": {
+          "id": "76439f020edcd7de4d6f4f7e9a617868764a7daa89e996e5442fa45c91304899",
+          "name": "alpha"
+        },
+        "longName": {
+          "named": false
+        }
+      }
+    }
+  ]
+}

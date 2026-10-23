@@ -33,11 +33,13 @@ const WD_TESTS = {
     workerLoaders: [],
     skip: [],
   },
-  // Reached through ctx.exports (enable_ctx_exports); the binding only declares the class.
+  // Reached through ctx.exports; the binding only declares the class. The .wd-test also lists
+  // `enable_ctx_exports` and `rpc`: defaults at our compatibility_date (since 2025-11-17 and
+  // 2024-04-03), which workerd refuses to see listed.
   "wd-sync-kv": {
     upstream: "sync-kv-test.js",
     durableObjects: { MyActor: "MyActor" },
-    flags: ["enable_ctx_exports", "nodejs_compat", "rpc"],
+    flags: ["nodejs_compat"],
     vars: {},
     workerLoaders: [],
     skip: [],
