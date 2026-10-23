@@ -35,25 +35,78 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
   const ttl = opts.leaseTtlMs ?? 10_000;
   const lost = new AbortController();
   let renew: ReturnType<typeof setTimeout> | undefined;
+  let deadline: ReturnType<typeof setTimeout> | undefined;
   let leaseWritten: Promise<void> | undefined;
 
   /** nodes/<node>.json, renewed every ttl/3; a failed renewal stops every cell (self-fencing). */
+  // celld decodes every node record (ownership_store.rs NodeLeaseWire / NodeLoadWire): a record
+  // missing a required load field breaks its fleet posture repair. This one is complete. It
+  // reports pressure and zero placement weight, so celld never offers this node a cell — it
+  // takes cells only when a request arrives.
+  //
+  // The address must not be empty: celld treats a live owner WITHOUT an address as dead and
+  // takes its cells over (logic/lib.rs apply_node_lease_result) — a split brain. With an
+  // address celld routes a request for our cell to it; a node that does not accept celld's
+  // peer protocol (a browser) gets an unroutable placeholder, so the request fails instead.
+  const addr = opts.addr || `${opts.node}.webrun-cells.invalid:9`;
+  const generation = [...crypto.getRandomValues(new Uint8Array(32))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  let validUntil = 0;
   const writeLease = async () => {
+    const t = now();
     const body = {
       node: opts.node,
-      expires_ms: now() + ttl,
-      addr: opts.addr ?? "",
+      expires_ms: t + ttl,
+      addr,
+      probe_public_key: generation,
       peer_protocol: 5,
-      load: { owned_cells: 0 },
+      paced_handoff: false,
+      ownership_index_generation: generation,
+      load: {
+        sampled_ms: t,
+        owned_cells: owned.size,
+        placement_weight: 0,
+        bucket_format: 2,
+        resident_cells: owned.size,
+        host_websockets: 0,
+        rss_bytes: 0,
+        in_use_bytes: 0,
+        cpu_percent_x100: 0,
+        open_fds: 0,
+        fd_limit: 0,
+        pressured: true,
+        memory_headroom: false,
+        shed_cells: 0,
+        restoring: 0,
+        rebalance_paused: false,
+        draining: false,
+      },
     };
     await store.put(`nodes/${opts.node}.json`, enc.encode(JSON.stringify(body)));
+    // Our authority lasts until the record we just wrote expires — minus a margin, so a node
+    // that stalls (a paused process, a frozen tab) stops acknowledging before celld may take
+    // over: celld waits for expires_ms; we stop at expires_ms - margin.
+    validUntil = t + ttl - Math.min(1_000, ttl / 4);
   };
+  const owned = new Set<string>();
   const ensureLease = () => {
     leaseWritten ??= writeLease().then(() => {
       const tick = () => {
         renew = setTimeout(() => {
           writeLease().then(tick, (e) => lost.abort(e));
         }, ttl / 3);
+        // If renewals stop arriving (a stalled process, an unreachable bucket), every cell
+        // stops at the local deadline — before celld may take it over.
+        if (deadline) clearTimeout(deadline);
+        deadline = setTimeout(
+          () => {
+            if (now() >= validUntil)
+              lost.abort(new Error(`node ${opts.node}: lease deadline passed`));
+          },
+          Math.max(0, validUntil - now()),
+        );
+        (deadline as { unref?: () => void }).unref?.();
         (renew as { unref?: () => void }).unref?.();
       };
       tick();
@@ -67,7 +120,8 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
   };
 
   // One LTX writer (ltx-log.ts) holds each cell's epoch, TXID and page mirror.
-  const log = ltxLog(store, { now });
+  // A write is acknowledged only while our node lease is still ours (self-fencing).
+  const log = ltxLog(store, { now, authorized: () => now() < validUntil });
 
   const ownership = {
     async tryAcquire(cellKey: string) {
@@ -98,6 +152,7 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
         throw e;
       }
       log.begin(cellKey, epoch); // a new owner epoch starts a new generation
+      owned.add(cellKey);
       return {
         name: cellKey,
         epoch,
@@ -109,6 +164,7 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
               .put(key, enc.encode(JSON.stringify({ node: "", epoch })), { ifMatch: now2.etag })
               .catch(() => {});
           log.forget(cellKey);
+          owned.delete(cellKey);
         },
       };
     },
@@ -124,6 +180,7 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
     /** Clean shutdown: stop renewing and remove this node's lease record. */
     async close() {
       if (renew) clearTimeout(renew);
+      if (deadline) clearTimeout(deadline);
       if (leaseWritten) await store.delete(`nodes/${opts.node}.json`).catch(() => {});
     },
   };

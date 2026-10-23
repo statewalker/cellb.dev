@@ -27,6 +27,8 @@ export interface LtxLogOptions {
   defaultEpoch?: number;
   /** save() compacts an epoch into one snapshot file 1..N. */
   compact?: boolean;
+  /** Checked before each write: false refuses it (this node's authority has lapsed). */
+  authorized?: () => boolean;
 }
 
 const range = (key: string) => {
@@ -153,6 +155,10 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
     },
 
     async logCommit(cellKey, info) {
+      if (o.authorized && !o.authorized())
+        throw new Error(
+          `${cellKey}: this node's lease has lapsed; the write is refused (self-fencing)`,
+        );
       let cell = cells.get(cellKey);
       if (!cell) {
         // First commit of this cell in this process: continue the epoch's TXIDs if it already

@@ -291,6 +291,35 @@ runtimes through it. Tests in Chromium: through an OPFS bucket, a counter, a fac
 an R2 object with metadata continue from one browser node to the next; with a real celld
 fleet node on S3 (RustFS), the Counter, a facet and R2 objects go celld → browser → celld.
 
+## Hand-over while both are running (`test/p11i-live-handover.test.ts`)
+
+Earlier tests stopped one side before starting the other. With celld dev and webrun-cells
+up at the same time on one bucket:
+
+- each refuses a cell whose owner is live (webrun-cells: "owned by another node"; celld:
+  "The Durable Object owner is currently unreachable"), and the cell moves only when its owner
+  stops: celld's node lease expires (~10 s), or webrun-cells closes and deletes its record at
+  once. The Counter goes 1, 2 (celld) → 3, 4 (webrun-cells) → 5 (celld).
+- a webrun-cells node cut off from the bucket stops acknowledging within its lease TTL;
+  celld then takes the cell over; when the partition heals the old owner still refuses —
+  no split brain.
+
+Two bugs found by these tests, fixed:
+
+- **Our node record was not celld's.** celld decodes every `nodes/*.json` (NodeLeaseWire /
+  NodeLoadWire); ours lacked required load fields, which made celld's fleet posture repair
+  fail every second. The record is now complete — pressured and with placement weight 0, so
+  celld never pushes cells to it.
+- **An empty address meant "dead".** celld treats a live owner whose record has no address as
+  gone and takes its cells over (`apply_node_lease_result`): with a decodable record, celld
+  stole a live webrun-cells cell. The record now always carries an address — the node's real
+  one, or an unroutable placeholder (`<node>.webrun-cells.invalid:9`) for nodes that do not
+  speak celld's peer protocol (browsers) — so celld routes, fails, and refuses instead.
+
+Self-fencing: besides stopping when a renewal fails, celldBucket now refuses to acknowledge
+a write once its lease could have lapsed (`expires_ms` minus a margin), and a deadline timer
+stops every cell when renewals stop arriving (a paused process, a frozen tab).
+
 ## Remaining differences
 
 - Workflows and R2: not yet compared at the storage level.
