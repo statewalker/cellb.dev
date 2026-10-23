@@ -6,6 +6,7 @@ import type {
   SyncSqlDriver,
   ValueCodec,
 } from "../ports.js";
+import { LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE, scopeOf } from "./celld-schema.js";
 import { InputGate, OutputGate } from "./gates.js";
 import { asyncStub, type IsolatedClass, isClassHandle } from "./handles.js";
 import { type DurableObjectId, DurableObjectId as DurableObjectIdClass } from "./id.js";
@@ -102,7 +103,8 @@ export class ObjectHost {
       },
       { capture: !!opts.durability.captureChanges },
     );
-    const kv = new SyncKvStorage(this.#sql, opts.codec);
+    // The cell's scope in celld's tables ("Class:idhex"), so its database is celld's format.
+    const kv = new SyncKvStorage(this.#sql, opts.codec, scopeOf(opts.cellKey));
     const storage = new DurableObjectStorage(this.#sql, kv, this.#gate, () => this.#barrier());
     if (opts.onAlarmChange) storage.onAlarmChange = opts.onAlarmChange;
     const state = new DurableObjectState(opts.id, storage, this.#gate, opts.waitUntil, (e) =>
@@ -181,12 +183,9 @@ export class ObjectHost {
     const seq = this.#seq;
     let logSeq = 0;
     try {
-      logSeq = Number(
-        this.#driver.exec("SELECT value FROM _cf_METADATA WHERE key = 'log_seq'", [])
-          .rows[0]?.[0] ?? 0,
-      );
+      logSeq = Number(this.#driver.exec(LOG_SEQ_READ, []).rows[0]?.[0] ?? 0);
     } catch {
-      // no _cf_METADATA yet
+      // no _cf_LOG yet
     }
     const image = this.#driver.snapshot();
     this.#saving = b
@@ -289,8 +288,8 @@ export class ObjectHost {
   /** Applies log segments newer than the database's own log sequence (restore path). */
   async #replayLog(replay: NonNullable<CellBackup["replay"]>): Promise<void> {
     const d = this.#driver;
-    d.exec("CREATE TABLE IF NOT EXISTS _cf_METADATA (key TEXT PRIMARY KEY, value)", []);
-    const row = d.exec("SELECT value FROM _cf_METADATA WHERE key = 'log_seq'", []).rows[0];
+    d.exec(LOG_TABLE, []);
+    const row = d.exec(LOG_SEQ_READ, []).rows[0];
     const after = Number(row?.[0] ?? 0);
     for await (const seg of replay(this.cellKey, after)) {
       if (!d.applyChangeset)
@@ -300,9 +299,7 @@ export class ObjectHost {
         for (const ddl of seg.ddl) d.exec(ddl, []);
         d.applyChangeset(seg.changeset);
         for (const [sql, params] of seg.statements) d.exec(sql, params);
-        d.exec("INSERT OR REPLACE INTO _cf_METADATA (key, value) VALUES ('log_seq', ?)", [
-          seg.logSeq,
-        ]);
+        d.exec(LOG_SEQ_WRITE, [seg.logSeq]);
         d.exec("COMMIT", []);
       } catch (e) {
         d.exec("ROLLBACK", []);

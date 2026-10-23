@@ -6,7 +6,9 @@ import { DatabaseSync } from "node:sqlite";
 import v8 from "node:v8";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
+import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { filesApiLtxLog } from "../src/index.js";
+import { loadNodeProject } from "../src/project/node-project.js";
 
 // Both directions through celld's own storage format: the REAL celld writes a cell; webrun-
 // cells' LTX log restores that database from celld's LTX files (same bucket keys); a new
@@ -158,6 +160,71 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
         throw new Error(`${e.message}\n--- celld log ---\n${(celld as any).log().slice(-2500)}`);
       });
       expect(n).toBe(42);
+    } finally {
+      await stop(celld);
+    }
+  }, 120_000);
+
+  it("the same Counter cell continues across celld → webrun-cells → celld (the runtimes themselves)", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "ltx-runtime-")), "counter");
+    cpSync(example, dir, { recursive: true });
+    let celld = await startCelld(dir, 18_785);
+    for (let i = 0; i < 3; i++) await inc("http://127.0.0.1:18785"); // n = 3 on celld
+    await stop(celld);
+    const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
+    const files = new MemFilesApi();
+    let epoch = 0;
+    for (const r of bucket
+      .prepare("SELECT key, body FROM objects WHERE key LIKE 'cells/Counter:%/ltx/%'")
+      .all() as {
+      key: string;
+      body: Uint8Array;
+    }[]) {
+      await files.write(`/${r.key}`, [new Uint8Array(r.body)]);
+      epoch = Math.max(epoch, Number(/\/ltx\/e(\d+)\//.exec(r.key)![1]));
+    }
+    // webrun-cells runs the same project, restores the cell from celld's LTX files (same ids,
+    // same tables, V8 values) and increments it, logging LTX under the next epoch.
+    const log = filesApiLtxLog(files, { epoch: epoch + 1 });
+    const { runtime } = await loadNodeProject(dir, {
+      openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "ltx-cells-"))),
+      files: new MemFilesApi(),
+      durability: log,
+      backup: log,
+    });
+    const res = await runtime.fetch(new Request("http://x/increment?name=alpha"));
+    const body = await res.text();
+    expect(res.status, body).toBe(200);
+    expect(JSON.parse(body).n).toBe(4);
+    await runtime.close();
+    // Back to celld: its bucket gets webrun-cells' files and the epoch; it continues at 5.
+    const put = bucket.prepare(
+      "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, (SELECT next_etag FROM store_sequence), ?, '[]')",
+    );
+    const bump = bucket.prepare("UPDATE store_sequence SET next_etag = next_etag + 1");
+    let cell = "";
+    for await (const e of files.list("/cells", { recursive: true })) {
+      if (e.kind !== "file" || !e.path.includes(`/ltx/e${epoch + 1}/`)) continue;
+      const chunks: Uint8Array[] = [];
+      for await (const c of files.read(e.path)) chunks.push(c);
+      put.run(e.path.slice(1), Buffer.concat(chunks), Date.now());
+      bump.run();
+      cell = e.path.split("/")[2];
+    }
+    put.run(
+      `cells/${cell}/own.json`,
+      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
+      Date.now(),
+    );
+    bump.run();
+    bucket.close();
+    rmSync(join(dir, ".celld/dev/runtime", cell), { recursive: true, force: true });
+    celld = await startCelld(dir, 18_786);
+    try {
+      const n = await inc("http://127.0.0.1:18786").catch((e) => {
+        throw new Error(`${e.message}\n--- celld log ---\n${(celld as any).log().slice(-2500)}`);
+      });
+      expect(n).toBe(5);
     } finally {
       await stop(celld);
     }

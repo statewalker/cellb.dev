@@ -1,5 +1,4 @@
 import { deserializeError, serializeError } from "@statewalker/webrun-streams";
-import { jsonCodec } from "../core/codec.js";
 import type { DurableObjectId } from "../core/id.js";
 import {
   DurableObjectNamespace,
@@ -8,6 +7,7 @@ import {
 } from "../core/namespace.js";
 import type { CellRuntime } from "../core/runtime.js";
 import type { ValueCodec } from "../ports.js";
+import { v8Codec } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { carryWebSocketHeaders, withUpgrade } from "../ws/upgrade.js";
 
@@ -56,7 +56,7 @@ export function cellsHttpHandler(
   runtime: CellRuntime,
   opts: CellsHttpOptions = {},
 ): (req: Request) => Promise<Response> {
-  const codec = opts.codec ?? jsonCodec;
+  const codec = opts.codec ?? v8Codec; // the runtime's default: V8 serialization
   return async (incoming) => {
     const req = restoreScheme(incoming);
     const kind = req.headers.get(H.kind);
@@ -141,7 +141,7 @@ export async function remoteRuntime(
   send: Send,
   opts: CellsHttpOptions = {},
 ): Promise<RemoteRuntime> {
-  const codec = opts.codec ?? jsonCodec;
+  const codec = opts.codec ?? v8Codec; // the runtime's default: V8 serialization
   const post = postVia(send);
   const described = await post(control("describe", {}));
   const { bindings, keys } = (await described.json()) as {

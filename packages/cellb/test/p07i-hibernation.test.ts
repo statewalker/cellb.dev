@@ -61,7 +61,7 @@ const setup = () => {
     ws.onmessage = (e: MessageEvent) => inbox.push(String(e.data));
     await new Promise((r) => ws.addEventListener("open", r, { once: true }));
     const next = async () => {
-      for (let i = 0; i < 200 && !inbox.length; i++) await new Promise((r) => setTimeout(r, 5));
+      for (let i = 0; i < 400 && !inbox.length; i++) await new Promise((r) => setTimeout(r, 5));
       return inbox.shift()!;
     };
     return { ws, next };

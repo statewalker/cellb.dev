@@ -1,4 +1,5 @@
 import type { CommitChanges, SqlResult, SyncSqlDriver } from "../ports.js";
+import { LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE } from "./celld-schema.js";
 
 const FORBIDDEN_TXN = /^\s*(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
 const FORBIDDEN_INTERNAL = /\b_cf_\w*/i;
@@ -197,16 +198,10 @@ export class SqlStorage {
       this.#ddl = [];
     if (this.#capture && (this.#ddl.length || this.#totalChanges() !== this.#changesAtBegin)) {
       // The log sequence number lives in the database, inside the same transaction.
-      this.#driver.exec(
-        "CREATE TABLE IF NOT EXISTS _cf_METADATA (key TEXT PRIMARY KEY, value)",
-        [],
-      );
-      const row = this.#driver.exec("SELECT value FROM _cf_METADATA WHERE key = 'log_seq'", [])
-        .rows[0];
+      this.#driver.exec(LOG_TABLE, []);
+      const row = this.#driver.exec(LOG_SEQ_READ, []).rows[0];
       const logSeq = Number(row?.[0] ?? 0) + 1;
-      this.#driver.exec("INSERT OR REPLACE INTO _cf_METADATA (key, value) VALUES ('log_seq', ?)", [
-        logSeq,
-      ]);
+      this.#driver.exec(LOG_SEQ_WRITE, [logSeq]);
       changes = {
         logSeq,
         ddl: this.#ddl,

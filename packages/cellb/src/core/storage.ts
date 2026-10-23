@@ -1,4 +1,5 @@
 import type { ValueCodec } from "../ports.js";
+import { CELLD_SCHEMA } from "./celld-schema.js";
 import type { InputGate } from "./gates.js";
 import type { SqlStorage } from "./sql-storage.js";
 
@@ -11,29 +12,35 @@ export interface ListOptions {
   limit?: number;
 }
 
-/** Synchronous KV API of SQLite-backed objects (`ctx.storage.kv`), stored in `_cf_KV`. */
+/**
+ * Synchronous KV API of SQLite-backed objects (`ctx.storage.kv`), stored as celld stores it:
+ * `_cf_KV(scope, k, v)` with the cell's scope and V8-serialized values (celld-schema.ts).
+ */
 export class SyncKvStorage {
   #sql: SqlStorage;
   #codec: ValueCodec;
   #ready = false;
+  readonly scope: string;
 
-  constructor(sql: SqlStorage, codec: ValueCodec) {
+  constructor(sql: SqlStorage, codec: ValueCodec, scope = "") {
     this.#sql = sql;
     this.#codec = codec;
+    this.scope = scope;
     sql.rolledBack.add(() => {
       this.#ready = false; // the table may have been created inside the rolled-back transaction
     });
   }
   #init(): void {
     if (this.#ready) return;
-    this.#sql.internalExec(
-      "CREATE TABLE IF NOT EXISTS _cf_KV (key TEXT PRIMARY KEY, value BLOB) WITHOUT ROWID",
-    );
+    for (const ddl of CELLD_SCHEMA) this.#sql.internalExec(ddl);
     this.#ready = true;
   }
   get<T = unknown>(key: string): T | undefined {
     this.#init();
-    const r = this.#sql.internalExec("SELECT value FROM _cf_KV WHERE key = ?", [key]);
+    const r = this.#sql.internalExec("SELECT v FROM _cf_KV WHERE scope = ? AND k = ?", [
+      this.scope,
+      key,
+    ]);
     if (!r.rows.length) return undefined;
     return this.#codec.decode(new Uint8Array(r.rows[0][0] as ArrayBuffer)) as T;
   }
@@ -48,34 +55,38 @@ export class SyncKvStorage {
         (e as Error).message.replace(/^Failed to execute '[^']+' on '[^']+': /, ""),
       );
     }
-    this.#sql.internalExec("INSERT OR REPLACE INTO _cf_KV (key, value) VALUES (?, ?)", [
+    this.#sql.internalExec("INSERT OR REPLACE INTO _cf_KV (scope, k, v) VALUES (?, ?, ?)", [
+      this.scope,
       key,
       this.#codec.encode(value),
     ]);
   }
   delete(key: string): boolean {
     this.#init();
-    return this.#sql.internalExec("DELETE FROM _cf_KV WHERE key = ?", [key]).rowsWritten > 0;
+    return (
+      this.#sql.internalExec("DELETE FROM _cf_KV WHERE scope = ? AND k = ?", [this.scope, key])
+        .rowsWritten > 0
+    );
   }
   *list<T = unknown>(opts: ListOptions = {}): IterableIterator<[string, T]> {
     this.#init();
-    const where: string[] = [];
-    const params: unknown[] = [];
-    if (opts.start !== undefined) where.push("key >= ?"), params.push(opts.start);
-    if (opts.startAfter !== undefined) where.push("key > ?"), params.push(opts.startAfter);
-    if (opts.end !== undefined) where.push("key < ?"), params.push(opts.end);
+    const where: string[] = ["scope = ?"];
+    const params: unknown[] = [this.scope];
+    if (opts.start !== undefined) where.push("k >= ?"), params.push(opts.start);
+    if (opts.startAfter !== undefined) where.push("k > ?"), params.push(opts.startAfter);
+    if (opts.end !== undefined) where.push("k < ?"), params.push(opts.end);
     if (opts.prefix !== undefined)
-      where.push("substr(key, 1, ?) = ?"), params.push(opts.prefix.length, opts.prefix);
-    let q = "SELECT key, value FROM _cf_KV";
-    if (where.length) q += ` WHERE ${where.join(" AND ")}`;
-    q += ` ORDER BY key ${opts.reverse ? "DESC" : "ASC"}`;
+      where.push("substr(k, 1, ?) = ?"), params.push(opts.prefix.length, opts.prefix);
+    let q = "SELECT k, v FROM _cf_KV";
+    q += ` WHERE ${where.join(" AND ")}`;
+    q += ` ORDER BY k ${opts.reverse ? "DESC" : "ASC"}`;
     if (opts.limit !== undefined) (q += " LIMIT ?"), params.push(opts.limit);
     for (const [k, v] of this.#sql.internalExec(q, params).rows)
       yield [k as string, this.#codec.decode(new Uint8Array(v as ArrayBuffer)) as T];
   }
   deleteAll(): void {
     this.#init();
-    this.#sql.internalExec("DELETE FROM _cf_KV");
+    this.#sql.internalExec("DELETE FROM _cf_KV WHERE scope = ?", [this.scope]);
   }
 }
 
@@ -209,16 +220,18 @@ export class DurableObjectStorage extends AsyncKvApi {
   #metaReady = false;
   #meta(): void {
     if (this.#metaReady) return;
-    this.sql.internalExec("CREATE TABLE IF NOT EXISTS _cf_METADATA (key TEXT PRIMARY KEY, value)");
+    for (const ddl of CELLD_SCHEMA) this.sql.internalExec(ddl);
     this.#metaReady = true;
   }
   /** Synchronous read of the stored alarm (ms since epoch) or null. */
   alarmSync(): number | null {
     this.#meta();
-    const row = this.sql.internalExec("SELECT value FROM _cf_METADATA WHERE key = 'alarm'").rows[0];
+    const row = this.sql.internalExec("SELECT at_ms FROM _cf_ALARM WHERE scope = ?", [
+      this.kv.scope,
+    ]).rows[0];
     return row ? Number(row[0]) : null;
   }
-  /** One alarm per object, stored in _cf_METADATA (same transaction as the event's writes). */
+  /** One alarm per object, in celld's `_cf_ALARM` (same transaction as the event's writes). */
   getAlarm(_opts?: unknown): Promise<number | null> {
     return this.op(() => this.alarmSync());
   }
@@ -229,8 +242,8 @@ export class DurableObjectStorage extends AsyncKvApi {
     return this.op(() => {
       this.#meta();
       this.sql.internalExec(
-        "INSERT OR REPLACE INTO _cf_METADATA (key, value) VALUES ('alarm', ?)",
-        [at],
+        "INSERT INTO _cf_ALARM (scope, at_ms) VALUES (?, ?) ON CONFLICT(scope) DO UPDATE SET at_ms = excluded.at_ms, retry = 0",
+        [this.kv.scope, at],
       );
       this.onAlarmChange(at);
     });
@@ -240,7 +253,7 @@ export class DurableObjectStorage extends AsyncKvApi {
   }
   clearAlarmSync(): void {
     this.#meta();
-    this.sql.internalExec("DELETE FROM _cf_METADATA WHERE key = 'alarm'");
+    this.sql.internalExec("DELETE FROM _cf_ALARM WHERE scope = ?", [this.kv.scope]);
     this.onAlarmChange(null);
   }
 }

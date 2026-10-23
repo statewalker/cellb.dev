@@ -83,6 +83,8 @@ export {
   serveHandlerOverPort,
   serveRuntime,
 } from "./transport/port.js";
+export { v8Codec } from "./v8/codec.js";
+export { deserialize as v8Deserialize, serialize as v8Serialize } from "./v8/serialize.js";
 export {
   type CellsWebSocketClass,
   createWebSocketClass,

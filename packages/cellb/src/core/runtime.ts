@@ -1,10 +1,10 @@
 import { type Clock, systemClock } from "../lease/lease.js";
 import type { CellBackup, CellDurability, OpenCellSql, ValueCodec } from "../ports.js";
 import { httpEndpoint, postVia, type Send } from "../transport/cells-http.js";
+import { v8Codec } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
-import { jsonCodec } from "./codec.js";
 import { type ExecutionContext, WorkerEntrypoint } from "./durable-object.js";
 import { classHandle, entrypointStub } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
@@ -90,7 +90,8 @@ export interface CellRuntime {
 
 export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   const durability: CellDurability = opts.durability ?? { committed: () => Promise.resolve() };
-  const codec = opts.codec ?? jsonCodec;
+  // V8 serialization: storage values in celld's (and workerd's) format.
+  const codec = opts.codec ?? v8Codec;
   const hosts = new Map<string, ObjectHost>();
   const background = new Set<Promise<unknown>>();
   const waitUntil = (p: Promise<unknown>) => {
