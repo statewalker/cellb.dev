@@ -14,7 +14,8 @@ explains what was learned. `docs/plan.md` is the plan; `docs/notes/NN-*.md` the 
 
 ## Status
 
-273 unit tests + 8 skips (2 documented, 6 that need the celld binary) (Node, incl. worker threads and child processes),
+276 unit tests + 22 skips (Node, incl. worker threads and child processes): 21 need the celld
+binary (`CELLD_BIN`; 297 pass with it), 1 is a documented deviation of Node's own WebSocket;
 142 Chromium end-to-end tests (incl. 2 × 19 WebSocket conformance cases), mutation harnesses:
 57/57 Node mutants and 9/9 browser mutants killed — each run preceded by a passing
 baseline of the unmutated copy.
@@ -42,6 +43,7 @@ baseline of the unmutated copy.
 | Isolated loaded Workers (worker thread / Dedicated Worker per Worker), routing between nodes, nodejs_compat, HTMLRewriter (async), asset modes, cron catch-up, D1 migrations, Queues max_concurrency | `src/isolate/*`, `src/node-compat/*`, `src/bindings/{html-rewriter,d1-migrations,cron,queues}.ts` | `test/p10c-peer-routing.test.ts`, `test/p08{d,e}-*.test.ts`, conformance projects | 21 |
 | Storage compatible with celld: LTX v3 logs in celld's bucket layout, celld's internal schema, V8-serialized values, SQLite WASM page hook — a cell moves celld ↔ webrun-cells | `src/ltx/*`, `src/v8/*`, `src/core/celld-schema.ts`, `src/adapters/{files-ltx,wasm-page-hook}.ts`, `src/bucket/*` | `test/p11*.test.ts`, `test/p12-v8-serialize.test.ts`, `browser/e2e/ltx.spec.ts` | 22, 23 |
 | WebSocket conformance: 19 WHATWG cases, native vs webrun-cells, Node and Chromium | `test/ws-conformance.ts`, `test/ws-reference-server.ts` | `test/p07y-ws-conformance.test.ts`, `browser/e2e/ws-conformance.spec.ts` | 15 |
+| Upstream conformance: workerd's Durable Object contract tests, unchanged, judged against celld | `scripts/vendor-workerd-tests.mjs`, `conformance/workerd-tests/*` | `test/p09-celld-conformance.test.ts` (`wd-*` projects) | 24 |
 
 Gaps that remain (alarms, hibernation, RPC richness, Worker Loader and isolation,
 changeset replication, conformance against `celld dev`) are listed in notes 08 and 09.
