@@ -1,3 +1,10 @@
 [
-  "wd-actor-kv"
+  "wd-actor-alarms",
+  "wd-actor-alarms-delete",
+  "wd-actor-alarms-in-memory",
+  "wd-actor-kv",
+  "wd-delete-all-deletes-alarm-disabled",
+  "wd-delete-all-deletes-alarm-enabled",
+  "wd-sql-restrict-names",
+  "wd-sync-kv"
 ]

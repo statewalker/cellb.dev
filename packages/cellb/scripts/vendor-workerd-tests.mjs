@@ -33,6 +33,64 @@ const WD_TESTS = {
     workerLoaders: [],
     skip: [],
   },
+  // Reached through ctx.exports (enable_ctx_exports); the binding only declares the class.
+  "wd-sync-kv": {
+    upstream: "sync-kv-test.js",
+    durableObjects: { MyActor: "MyActor" },
+    flags: ["enable_ctx_exports", "nodejs_compat", "rpc"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
+  // One .wd-test, two configurations: the alarm outlives deleteAll() only without the flag.
+  "wd-delete-all-deletes-alarm-enabled": {
+    upstream: "delete-all-deletes-alarm-test.js",
+    durableObjects: { ns: "DurableObjectExample" },
+    flags: ["experimental", "nodejs_compat", "delete_all_deletes_alarm"],
+    vars: { EXPECT_ALARM_DELETED: "true" },
+    workerLoaders: [],
+    skip: [],
+  },
+  "wd-delete-all-deletes-alarm-disabled": {
+    upstream: "delete-all-deletes-alarm-test.js",
+    durableObjects: { ns: "DurableObjectExample" },
+    flags: ["experimental", "nodejs_compat", "delete_all_preserves_alarm"],
+    vars: { EXPECT_ALARM_DELETED: "false" },
+    workerLoaders: [],
+    skip: [],
+  },
+  "wd-sql-restrict-names": {
+    upstream: "sql-restrict-names-test.js",
+    durableObjects: { ns: "DurableObjectExample" },
+    flags: ["nodejs_compat"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
+  "wd-actor-alarms": {
+    upstream: "actor-alarms-test.js",
+    durableObjects: { ns: "DurableObjectExample" },
+    flags: ["experimental", "nodejs_compat"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
+  "wd-actor-alarms-delete": {
+    upstream: "actor-alarms-delete-test.js",
+    durableObjects: { ns: "DurableObjectExample" },
+    flags: ["experimental", "nodejs_compat"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
+  "wd-actor-alarms-in-memory": {
+    upstream: "actor-alarms-in-memory-test.js",
+    durableObjects: { clearNs: "AlarmClearObject", updateNs: "AlarmUpdateObject" },
+    flags: ["experimental", "nodejs_compat"],
+    vars: {},
+    workerLoaders: [],
+    skip: [],
+  },
 };
 
 const runner = (

@@ -1,0 +1,24 @@
+{
+  "name": "wd-sql-restrict-names",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ns",
+        "class_name": "DurableObjectExample"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "DurableObjectExample"
+      ]
+    }
+  ]
+}

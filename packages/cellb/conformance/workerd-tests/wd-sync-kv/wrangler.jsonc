@@ -1,0 +1,26 @@
+{
+  "name": "wd-sync-kv",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": [
+    "enable_ctx_exports",
+    "nodejs_compat",
+    "rpc"
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MyActor",
+        "class_name": "MyActor"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "MyActor"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "wd-actor-alarms-in-memory",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": [
+    "experimental",
+    "nodejs_compat"
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "clearNs",
+        "class_name": "AlarmClearObject"
+      },
+      {
+        "name": "updateNs",
+        "class_name": "AlarmUpdateObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "AlarmClearObject",
+        "AlarmUpdateObject"
+      ]
+    }
+  ]
+}

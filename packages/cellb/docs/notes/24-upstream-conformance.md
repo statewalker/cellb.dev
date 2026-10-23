@@ -36,11 +36,50 @@ fails p09 at once with the bundler's error, not by timing out.
 | Project | Upstream file | celld 0.6.2 | webrun-cells (Node) |
 |---|---|---|---|
 | `wd-actor-kv` | `actor-kv-test.js` | `default: ok` | same |
+| `wd-sync-kv` | `sync-kv-test.js` | `testAutoRollBackOnCriticalError: ok` | same, after the fixes below |
+| `wd-delete-all-deletes-alarm-enabled` | `delete-all-deletes-alarm-test.js` (`delete_all_deletes_alarm`) | `test: ok` | same |
+| `wd-delete-all-deletes-alarm-disabled` | same file (`delete_all_preserves_alarm`) | `test: ok` | same, after the fixes below |
+| `wd-sql-restrict-names` | `sql-restrict-names-test.js` | `default: ok` | same, after the fixes below |
+| `wd-actor-alarms` | `actor-alarms-test.js` | `test: ok` | same, after the fixes below |
+| `wd-actor-alarms-delete` | `actor-alarms-delete-test.js` | `default: ok` | same |
+| `wd-actor-alarms-in-memory` | `actor-alarms-in-memory-test.js` | `clearAfterAlarm: ok`, `updateDuringAlarm: ok` | same |
+
+What the upstream tests found in webrun-cells, each fixed in its own commit:
+
+- **`delete_all_preserves_alarm` was ignored.** `deleteAll()` always cleared the alarm; the
+  flag now flows from `wrangler.jsonc` to `ctx.storage`.
+- **DDL on `_cf_` names was allowed.** `CREATE`/`DROP` of a `_cf_*` object now throws celld's
+  `SQL error: prepare SQL cursor: not authorized`.
+- **No `scheduler` global.** `scheduler.wait(ms)` is now a worker global (Node and browser).
+- **`ctx.exports.<Class>` lacked the namespace methods** under `enable_ctx_exports`: it now
+  carries `idFromName`, `get`, `getByName` … of the bound namespace.
+- **More than one live `kv.list()` iterator.** A new `kv.list()` call now invalidates the
+  previous iterator, with workerd's message.
+- **`alarm()` got no `scheduledTime`.** `alarmInfo.scheduledTime` is now the time the alarm was
+  set for, kept across retries. p07a pins it too, so the two now overlap on retry semantics;
+  p07a stays, because it also covers the input gate and retry backoff with a fake clock, which
+  the upstream test does not.
 
 ## celld vs workerd
 
-No differences seen so far. workerd passes its own tests at the pinned commit by construction;
-where celld does not, its answer is what is recorded, and the difference is listed here.
+celld passes every vendored test. workerd passes its own tests at the pinned commit by
+construction; where celld does not, its answer is what is recorded, and the difference is
+listed here.
+
+## Known differences from celld (not covered by an upstream test)
+
+Probed by hand on celld 0.6.2 while porting `sql-restrict-names-test.js`; the upstream test
+exercises none of these, so p09 does not see them:
+
+| Statement | celld | webrun-cells |
+|---|---|---|
+| `SELECT` from `_cf_KV` | `not authorized`, naming the column (`_cf_KV.scope`) | same message, but `_cf_METADATA` reports `.key` where celld says `.scope` |
+| a column named `_cf_col` | allowed | rejected |
+| a string literal `'_cf_x'` | allowed | rejected |
+| `ALTER TABLE … RENAME TO _cf_t2` | allowed | rejected |
+
+webrun-cells is stricter in the last three; none of them changes what a Durable Object that
+keeps out of `_cf_` names sees.
 
 ## Ported with changes
 

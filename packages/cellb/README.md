@@ -14,8 +14,8 @@ explains what was learned. `docs/plan.md` is the plan; `docs/notes/NN-*.md` the 
 
 ## Status
 
-276 unit tests + 22 skips (Node, incl. worker threads and child processes): 21 need the celld
-binary (`CELLD_BIN`; 297 pass with it), 1 is a documented deviation of Node's own WebSocket;
+283 unit tests + 23 skips (Node, incl. worker threads and child processes): 22 need the celld
+binary (`CELLD_BIN`; 305 pass with it), 1 is a documented deviation of Node's own WebSocket;
 142 Chromium end-to-end tests (incl. 2 × 19 WebSocket conformance cases), mutation harnesses:
 57/57 Node mutants and 9/9 browser mutants killed — each run preceded by a passing
 baseline of the unmutated copy.
