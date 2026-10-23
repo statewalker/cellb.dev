@@ -83,6 +83,7 @@ async function roundTrip(
     ownership: bucket.ownership,
     durability: bucket.durability,
     backup: bucket.durability,
+    bucketStore: store, // R2 objects live directly in the fleet bucket
   } as never);
   const fetchW = (p: string, init?: RequestInit) =>
     runtime.fetch(new Request(`http://w${p}`, init));
@@ -95,7 +96,7 @@ async function roundTrip(
       if (!(typeof got === "string" && got.includes("owned by another"))) break;
       await new Promise((r2) => setTimeout(r2, 500));
     }
-    expect(got).toEqual(want);
+    expect(got, JSON.stringify(got)).toEqual(want);
   }
   await runtime.close();
   await bucket.close();
@@ -662,5 +663,37 @@ describe.skipIf(!CELLD)(
       () => flow("webrun→celld"),
       120_000,
     );
+
+    for (const driver of ["node", "wasm"] as const) {
+      const note = (body: string, who: string) => ({
+        body,
+        size: body.length,
+        httpMetadata: {
+          contentType: "text/x-note",
+          contentLanguage: "fr",
+          cacheExpiry: "2030-01-01T00:00:00.000Z",
+        },
+        customMetadata: { Who: who, note: "déjà vu ✓" },
+        md5: expect.stringMatching(/^[0-9a-f]{32}$/),
+        range: body.slice(1, 4),
+      });
+      it(
+        `R2: objects with their metadata move across runtimes (${driver})`,
+        () =>
+          roundTrip(join(ours, "r2-handoff"), driver, {
+            celld1: [["/put?key=a/one&body=written-by-celld&who=celld", { put: "a/one" }]],
+            webrun: [
+              ["/get?key=a/one", note("written-by-celld", "celld")],
+              ["/put?key=b/two&body=written-by-webrun&who=webrun", { put: "b/two" }],
+              ["/list", ["a/one", "b/two"]],
+            ],
+            celld2: [
+              ["/get?key=b/two", note("written-by-webrun", "webrun")],
+              ["/list", ["a/one", "b/two"]],
+            ],
+          }),
+        120_000,
+      );
+    }
   },
 );

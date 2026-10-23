@@ -19,7 +19,9 @@ export interface R2HTTPMetadata {
   cacheExpiry?: Date;
 }
 
-interface StoredMeta {
+export interface StoredMeta {
+  /** Hex MD5 of the bytes when the etag is something else (a store's own etag). */
+  md5?: string;
   key: string;
   size: number;
   etag: string;
@@ -50,7 +52,8 @@ export class R2Object {
     this.uploaded = new Date(m.uploaded);
     this.httpMetadata = { ...m.httpMetadata };
     this.customMetadata = { ...m.customMetadata };
-    const bytes = m.etag.match(/../g)?.map((h) => Number.parseInt(h, 16)) ?? [];
+    // The MD5 of the bytes: recorded separately when the etag is not it (celld's bucket).
+    const bytes = (m.md5 ?? m.etag).match(/../g)?.map((h) => Number.parseInt(h, 16)) ?? [];
     this.checksums = { md5: new Uint8Array(bytes).buffer };
     if (range) this.range = range;
   }
@@ -232,13 +235,80 @@ function conditionHolds(c: R2Conditional | undefined, m: StoredMeta | undefined)
   return true;
 }
 
-export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
+/**
+ * Where an R2 binding keeps objects: a FilesApi (webrun-cells' own layout) or a celld bucket
+ * (`r2/<bucket>/<key>` with celld's `celld-r2` record — r2-celld.ts).
+ */
+export interface R2Backend {
+  meta(key: string): Promise<StoredMeta | undefined>;
+  body(key: string): Promise<Uint8Array | undefined>;
+  /** Stores the object; the backend decides etag, version and upload time. */
+  write(
+    key: string,
+    bytes: Uint8Array,
+    m: { httpMetadata: R2HTTPMetadata; customMetadata: Record<string, string>; md5: string },
+  ): Promise<StoredMeta>;
+  remove(key: string): Promise<void>;
+  keys(): Promise<string[]>;
+  /** Scratch space for multipart uploads. */
+  scratch: {
+    write(path: string, bytes: Uint8Array): Promise<void>;
+    read(path: string): Promise<Uint8Array | undefined>;
+    removeDir(path: string): Promise<void>;
+  };
+}
+
+export function filesR2Backend(files: FilesApi, root: string): R2Backend {
   const objectPath = (key: string) => `${root}/objects/${enc(key)}`;
   const metaPath = (key: string) => `${root}/meta/${enc(key)}.json`;
-  const readMeta = async (key: string): Promise<StoredMeta | undefined> => {
-    const raw = await readAll(files, metaPath(key));
-    return raw ? (JSON.parse(new TextDecoder().decode(raw)) as StoredMeta) : undefined;
+  return {
+    async meta(key) {
+      const raw = await readAll(files, metaPath(key));
+      return raw ? (JSON.parse(new TextDecoder().decode(raw)) as StoredMeta) : undefined;
+    },
+    body: (key) => readAll(files, objectPath(key)),
+    async write(key, bytes, m) {
+      const meta: StoredMeta = {
+        key,
+        size: bytes.byteLength,
+        etag: m.md5,
+        version: crypto.randomUUID().replace(/-/g, ""),
+        uploaded: Date.now(),
+        httpMetadata: m.httpMetadata,
+        customMetadata: m.customMetadata,
+      };
+      await files.write(objectPath(key), [bytes]);
+      await files.write(metaPath(key), [new TextEncoder().encode(JSON.stringify(meta))]);
+      return meta;
+    },
+    async remove(key) {
+      await files.remove(metaPath(key));
+      await files.remove(objectPath(key));
+    },
+    async keys() {
+      const keys: string[] = [];
+      if (await files.exists(`${root}/meta`))
+        for await (const f of files.list(`${root}/meta`)) {
+          const name = f.path.split("/").pop() ?? "";
+          if (f.kind === "file" && name.endsWith(".json"))
+            keys.push(decodeURIComponent(name.slice(0, -5)));
+        }
+      return keys;
+    },
+    scratch: {
+      write: (path, bytes) => files.write(`${root}/multipart/${path}`, [bytes]).then(() => {}),
+      read: (path) => readAll(files, `${root}/multipart/${path}`),
+      removeDir: (path) => files.remove(`${root}/multipart/${path}`).then(() => {}),
+    },
   };
+}
+
+export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
+  return r2BucketOn(filesR2Backend(files, root), binding);
+}
+
+export function r2BucketOn(backend: R2Backend, binding = "BUCKET") {
+  const readMeta = (key: string) => backend.meta(key);
   // celld's messages: "R2 <op> (binding <name>): a key is 1 to 1024 bytes, not <n>".
   const checkKey = (key: string, op = "get") => {
     const n = new TextEncoder().encode(String(key)).byteLength;
@@ -265,7 +335,7 @@ export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
       if (!m) return null;
       // A failed condition returns the object's metadata without a body.
       if (!conditionHolds(conditionOf(options.onlyIf), m)) return new R2Object(m);
-      const bytes = (await readAll(files, objectPath(key))) ?? new Uint8Array();
+      const bytes = (await backend.body(key)) ?? new Uint8Array();
       let r = options.range;
       if (r instanceof Headers) {
         const h = /^bytes=(\d*)-(\d*)$/.exec(r.get("range") ?? "");
@@ -313,17 +383,11 @@ export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
             `R2 put: the md5 checksum of the body is ${etag}, not the ${expected} the caller asserted`,
           );
       }
-      const meta: StoredMeta = {
-        key,
-        size: bytes.byteLength,
-        etag,
-        version: crypto.randomUUID().replace(/-/g, ""),
-        uploaded: Date.now(),
+      const meta = await backend.write(key, bytes, {
         httpMetadata: httpMetadataOf(options.httpMetadata),
         customMetadata: { ...options.customMetadata },
-      };
-      await files.write(objectPath(key), [bytes]);
-      await files.write(metaPath(key), [new TextEncoder().encode(JSON.stringify(meta))]);
+        md5: etag,
+      });
       return new R2Object(meta);
     },
 
@@ -336,7 +400,8 @@ export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
     ) {
       checkKey(key, "createMultipartUpload");
       const uploadId = crypto.randomUUID().replace(/-/g, "");
-      await files.write(`${root}/multipart/${uploadId}/upload.json`, [
+      await backend.scratch.write(
+        `${uploadId}/upload.json`,
         new TextEncoder().encode(
           JSON.stringify({
             key,
@@ -344,16 +409,16 @@ export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
             customMetadata: options.customMetadata ?? {},
           }),
         ),
-      ]);
+      );
       return this.resumeMultipartUpload(key, uploadId);
     },
 
     /** A handle on an open upload; parts live under {root}/multipart/{uploadId}/ until complete or abort. */
     resumeMultipartUpload(key: string, uploadId: string) {
-      const dir = `${root}/multipart/${uploadId}`;
+      const dir = uploadId;
       const bucket = this;
       const info = async () => {
-        const raw = await readAll(files, `${dir}/upload.json`);
+        const raw = await backend.scratch.read(`${dir}/upload.json`);
         if (!raw)
           throw new Error(
             "completeMultipartUpload: The specified multipart upload does not exist. (10024)",
@@ -373,18 +438,17 @@ export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
           await info();
           const bytes = await toBytes(value);
           const etag = bytesToHex(md5(bytes));
-          await files.write(`${dir}/${String(partNumber).padStart(5, "0")}.part`, [bytes]);
+          await backend.scratch.write(`${dir}/${String(partNumber).padStart(5, "0")}.part`, bytes);
           return { partNumber, etag };
         },
         async abort() {
-          await files.remove(dir);
+          await backend.scratch.removeDir(dir);
         },
         async complete(parts: { partNumber: number; etag: string }[]) {
           const u = await info();
           const chunks: Uint8Array[] = [];
           for (const p of parts) {
-            const bytes = await readAll(
-              files,
+            const bytes = await backend.scratch.read(
               `${dir}/${String(p.partNumber).padStart(5, "0")}.part`,
             );
             if (!bytes || bytesToHex(md5(bytes)) !== p.etag)
@@ -403,7 +467,7 @@ export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
             httpMetadata: u.httpMetadata,
             customMetadata: u.customMetadata,
           })) as R2Object;
-          await files.remove(dir);
+          await backend.scratch.removeDir(dir);
           return obj;
         },
       };
@@ -417,22 +481,14 @@ export function r2Bucket(files: FilesApi, root: string, binding = "BUCKET") {
         );
       for (const key of list) {
         checkKey(key, "delete");
-        await files.remove(metaPath(key));
-        await files.remove(objectPath(key));
+        await backend.remove(key);
       }
     },
 
     async list(options: R2ListOptions = {}) {
       // celld: a limit above 1000 is clamped, and 0 (or less) means the default 1000.
       const limit = !options.limit || options.limit < 1 ? 1000 : Math.min(options.limit, 1000);
-      const keys: string[] = [];
-      if (await files.exists(`${root}/meta`))
-        for await (const f of files.list(`${root}/meta`)) {
-          const name = f.path.split("/").pop() ?? "";
-          if (f.kind === "file" && name.endsWith(".json"))
-            keys.push(decodeURIComponent(name.slice(0, -5)));
-        }
-      keys.sort();
+      const keys = (await backend.keys()).sort();
       const after = options.cursor ?? options.startAfter;
       const prefixes = new Set<string>();
       const objects: R2Object[] = [];

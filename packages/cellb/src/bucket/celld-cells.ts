@@ -326,6 +326,8 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
   return {
     ownership,
     durability,
+    /** The fleet bucket itself (R2 objects live directly in it, under `r2/<bucket>/`). */
+    store,
     /** Clean shutdown: stop renewing and remove this node's lease record. */
     async close() {
       if (renew) clearTimeout(renew);

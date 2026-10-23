@@ -7,6 +7,24 @@
 export interface StoredObject {
   body: Uint8Array;
   etag: string;
+  /** Content headers and user metadata, as the bucket keeps them beside the bytes. */
+  attrs?: ObjectAttributes;
+  /** Last modification, ms since the epoch (R2's `uploaded`). */
+  modifiedMs?: number;
+}
+
+/**
+ * What a bucket stores beside an object's bytes (celld's BlobAttributes): the five content
+ * headers, and flat user metadata (S3 `x-amz-meta-*`). celld's R2 record lives in the
+ * user-metadata entry `celld-r2`.
+ */
+export interface ObjectAttributes {
+  contentType?: string;
+  contentLanguage?: string;
+  contentDisposition?: string;
+  contentEncoding?: string;
+  cacheControl?: string;
+  metadata?: Record<string, string>;
 }
 
 export interface PutConditions {
@@ -19,7 +37,12 @@ export interface PutConditions {
 export interface ObjectStore {
   get(key: string): Promise<StoredObject | undefined>;
   /** Returns the new etag; throws PreconditionFailedError when a condition fails. */
-  put(key: string, body: Uint8Array, cond?: PutConditions): Promise<string>;
+  put(
+    key: string,
+    body: Uint8Array,
+    cond?: PutConditions,
+    attrs?: ObjectAttributes,
+  ): Promise<string>;
   /** Keys under a prefix, ascending. */
   list(prefix: string): Promise<string[]>;
   delete(key: string): Promise<void>;
@@ -45,10 +68,15 @@ export function memoryObjectStore(): ObjectStore {
     async get(key) {
       return objects.get(key);
     },
-    async put(key, body, cond) {
+    async put(key, body, cond, attrs) {
       checkConditions(key, objects.get(key), cond);
       const etag = String(++n);
-      objects.set(key, { body: body.slice(), etag });
+      objects.set(key, {
+        body: body.slice(),
+        etag,
+        attrs: attrs ? structuredClone(attrs) : undefined,
+        modifiedMs: Date.now(),
+      });
       return etag;
     },
     async list(prefix) {
@@ -71,6 +99,7 @@ export function filesApiObjectStore(
 ): ObjectStore {
   const path = (key: string) => `${root}/${key}`;
   const etagPath = (key: string) => `${root}/.etags/${key}`;
+  const attrsPath = (key: string) => `${root}/.attrs/${key}.json`;
   const read = async (p: string) => {
     if (!(await files.exists(p))) return undefined;
     const chunks: Uint8Array[] = [];
@@ -93,17 +122,28 @@ export function filesApiObjectStore(
     async get(key) {
       const body = await read(path(key));
       if (!body) return undefined;
+      const side = await read(attrsPath(key));
+      const extra = side
+        ? (JSON.parse(new TextDecoder().decode(side)) as {
+            attrs?: ObjectAttributes;
+            modifiedMs?: number;
+          })
+        : {};
       return {
         body,
         etag: new TextDecoder().decode((await read(etagPath(key))) ?? new Uint8Array()),
+        ...extra,
       };
     },
-    put(key, body, cond) {
+    put(key, body, cond, attrs) {
       return serial(async () => {
         checkConditions(key, await this.get(key), cond);
         const etag = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
         await files.write(path(key), [body]);
         await files.write(etagPath(key), [new TextEncoder().encode(etag)]);
+        await files.write(attrsPath(key), [
+          new TextEncoder().encode(JSON.stringify({ attrs, modifiedMs: Date.now() })),
+        ]);
         return etag;
       });
     },
@@ -113,13 +153,15 @@ export function filesApiObjectStore(
       for await (const f of files.list(root, { recursive: true }))
         if (f.kind === "file") {
           const key = f.path.slice(root.length + 1);
-          if (!key.startsWith(".etags/") && key.startsWith(prefix)) out.push(key);
+          if (!key.startsWith(".etags/") && !key.startsWith(".attrs/") && key.startsWith(prefix))
+            out.push(key);
         }
       return out.sort();
     },
     async delete(key) {
       await files.remove(path(key));
       await files.remove(etagPath(key));
+      await files.remove(attrsPath(key));
     },
   };
 }

@@ -241,10 +241,30 @@ on celld finishes on webrun-cells and one waiting for an event takes the event t
 same from webrun-cells to celld. The previous workflow implementation
 (`src/bindings/workflows.ts`) is no longer used by projects.
 
+## R2
+
+celld keeps R2 objects **directly in the fleet bucket**, not in a cell (`r2_store.rs`): one
+object per R2 object at `r2/<bucket_name>/<key>`, the five content headers as the object's
+own headers, and everything else — case-sensitive custom metadata, `cacheExpiry`, checksums,
+storage class — as one JSON record escaped to ASCII under the user metadata name `celld-r2`.
+etag and upload time are the store's own; an object without the record still reads (its user
+metadata becomes customMetadata).
+
+webrun-cells: the object stores now carry content headers and user metadata (`ObjectAttributes`:
+S3 headers and `x-amz-meta-*`, celld dev's `attributes` column, a side file for a FilesApi);
+the R2 binding works on a backend interface, with the FilesApi layout as before and
+`celldR2Backend(store, bucket)` in celld's layout (multipart parts under
+`r2-uploads/<bucket>/<uploadId>/`). A project given the fleet bucket (`bucketStore`, e.g.
+`celldBucket(...).store`) keeps R2 there. The R2 checksum comes from the record, since the etag
+is the store's.
+
+Tests: the four R2 conformance projects pass again in celld's layout (over a memory store);
+`r2-handoff` — bytes, httpMetadata with cacheExpiry, non-ASCII custom metadata, MD5,
+ranges, listing — goes celld → webrun-cells → celld on both drivers.
+
 ## Remaining differences
 
 - Workflows and R2: not yet compared at the storage level.
-- R2 still uses webrun-cells' own storage layout.
 - The waker role: celld elects one node to wake cells of stopped owners; every webrun-cells
   runtime polls the index itself (an entry is only a hint, so this is safe, just redundant).
 - Browser project hosts do not configure a host log yet, so isolated facets there keep

@@ -1,5 +1,5 @@
 import type { ObjectStore } from "./object-store.js";
-import { PreconditionFailedError } from "./object-store.js";
+import { type ObjectAttributes, PreconditionFailedError } from "./object-store.js";
 
 /**
  * An S3-compatible bucket over fetch with AWS Signature V4 (WebCrypto): Amazon S3, R2,
@@ -117,10 +117,32 @@ export function s3ObjectStore(o: S3Options): ObjectStore {
       const r = await call("GET", new URL(`${base}/${uriEncode(full(key))}`));
       if (r.status === 404) return undefined;
       if (!r.ok) throw new Error(`S3 GET ${key}: ${r.status} ${await r.text()}`);
-      return { body: new Uint8Array(await r.arrayBuffer()), etag: r.headers.get("etag") ?? "" };
+      const attrs: ObjectAttributes = {};
+      for (const [field, header] of S3_HEADERS) {
+        const v = r.headers.get(header);
+        if (v !== null) attrs[field] = v;
+      }
+      for (const [h, v] of r.headers)
+        if (h.startsWith("x-amz-meta-")) {
+          attrs.metadata = attrs.metadata ?? {};
+          attrs.metadata[h.slice("x-amz-meta-".length)] = v;
+        }
+      const modified = r.headers.get("last-modified");
+      return {
+        body: new Uint8Array(await r.arrayBuffer()),
+        etag: r.headers.get("etag") ?? "",
+        attrs,
+        modifiedMs: modified ? Date.parse(modified) : undefined,
+      };
     },
-    async put(key, body, cond) {
+    async put(key, body, cond, attrs) {
       const headers: Record<string, string> = {};
+      // Content headers as headers, user metadata as x-amz-meta-* (celld's R2 record is
+      // the ASCII-escaped JSON under x-amz-meta-celld-r2).
+      for (const [field, header] of S3_HEADERS)
+        if (attrs?.[field]) headers[header] = attrs[field] as string;
+      for (const [name, value] of Object.entries(attrs?.metadata ?? {}))
+        headers[`x-amz-meta-${name.toLowerCase()}`] = value;
       if (cond?.ifNoneMatch) headers["if-none-match"] = "*";
       if (cond?.ifMatch !== undefined) headers["if-match"] = cond.ifMatch;
       const r = await call("PUT", new URL(`${base}/${uriEncode(full(key))}`), headers, body);
@@ -162,3 +184,14 @@ const unxml = (s: string) =>
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, "&");
+
+const S3_HEADERS: [
+  "contentType" | "contentLanguage" | "contentDisposition" | "contentEncoding" | "cacheControl",
+  string,
+][] = [
+  ["contentType", "content-type"],
+  ["contentLanguage", "content-language"],
+  ["contentDisposition", "content-disposition"],
+  ["contentEncoding", "content-encoding"],
+  ["cacheControl", "cache-control"],
+];

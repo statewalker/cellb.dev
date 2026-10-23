@@ -10,7 +10,8 @@ import {
   type QueueDispatcher,
   queueProducer,
 } from "../bindings/queues.js";
-import { r2Bucket } from "../bindings/r2.js";
+import { r2Bucket, r2BucketOn } from "../bindings/r2.js";
+import { celldR2Backend } from "../bindings/r2-celld.js";
 import { type ModuleLoader, workerLoader } from "../bindings/worker-loader.js";
 import { makeWorkflowCell, type WorkflowConfig, workflowBinding } from "../bindings/workflows.js";
 import { entrypointStub } from "../core/handles.js";
@@ -63,6 +64,8 @@ export interface ProjectHost
   > {
   /** Files of `assets.directory` (path "/a/b.html" → bytes), loaded by the host. */
   assetFiles?: AssetFiles;
+  /** A celld fleet bucket shared with celld nodes: R2 bindings store objects in it (celld's layout). */
+  bucketStore?: import("../bucket/object-store.js").ObjectStore;
   /** Runs each loaded Worker in its own realm (celld isolates); classes still use `loadModules`. */
   isolatedModules?: ModuleLoader;
   /** Compiles code given to a Worker Loader binding (esbuild on Node, webrun-modules in browsers). */
@@ -261,8 +264,11 @@ export function createProjectRuntime(
     else env[s.binding] = entrypointStub(target, env, s.props);
   }
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
+  // With a celld fleet bucket, R2 objects live in it as celld keeps them; else in the FilesApi.
   for (const r2 of config.r2_buckets ?? [])
-    env[r2.binding] = r2Bucket(host.files, `/r2/${r2.bucket_name}`, r2.binding);
+    env[r2.binding] = host.bucketStore
+      ? r2BucketOn(celldR2Backend(host.bucketStore, r2.bucket_name), r2.binding)
+      : r2Bucket(host.files, `/r2/${r2.bucket_name}`, r2.binding);
   for (const d1 of config.d1_databases ?? [])
     env[d1.binding] = celldExec(
       makeD1Binding({

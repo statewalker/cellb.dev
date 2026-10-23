@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import type { ObjectStore } from "./object-store.js";
+import type { ObjectAttributes, ObjectStore } from "./object-store.js";
 import { PreconditionFailedError } from "./object-store.js";
 
 const { DatabaseSync } = createRequire(import.meta.url)(
@@ -23,12 +23,21 @@ export function sqliteObjectStore(file: string): ObjectStore & { close(): void }
   db.exec("PRAGMA busy_timeout = 5000");
   return {
     async get(key) {
-      const r = db.prepare("SELECT body, etag FROM objects WHERE key = ?").get(key) as
-        | { body: Uint8Array; etag: number }
+      const r = db
+        .prepare("SELECT body, etag, modified_ms, attributes FROM objects WHERE key = ?")
+        .get(key) as
+        | { body: Uint8Array; etag: number; modified_ms: number; attributes: string }
         | undefined;
-      return r ? { body: new Uint8Array(r.body), etag: String(r.etag) } : undefined;
+      return r
+        ? {
+            body: new Uint8Array(r.body),
+            etag: String(r.etag),
+            modifiedMs: Number(r.modified_ms),
+            attrs: fromAttributes(r.attributes),
+          }
+        : undefined;
     },
-    async put(key, body, cond) {
+    async put(key, body, cond, attrs) {
       db.exec("BEGIN IMMEDIATE");
       try {
         const cur = db.prepare("SELECT etag FROM objects WHERE key = ?").get(key) as
@@ -46,8 +55,8 @@ export function sqliteObjectStore(file: string): ObjectStore & { close(): void }
           next_etag + 1,
         );
         db.prepare(
-          "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, ?, ?, '[]')",
-        ).run(key, body, next_etag, Date.now());
+          "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, ?, ?, ?)",
+        ).run(key, body, next_etag, Date.now(), toAttributes(attrs));
         db.exec("COMMIT");
         return String(next_etag);
       } catch (e) {
@@ -71,4 +80,49 @@ export function sqliteObjectStore(file: string): ObjectStore & { close(): void }
       db.close();
     },
   };
+}
+
+// celld dev's `attributes` column: a JSON array of {kind, name, value} — "metadata" entries
+// (user metadata, name = key) and one entry per content header ("content-type", …).
+type HeaderField =
+  | "contentType"
+  | "contentLanguage"
+  | "contentDisposition"
+  | "contentEncoding"
+  | "cacheControl";
+const HEADERS: [HeaderField, string][] = [
+  ["contentType", "content-type"],
+  ["contentLanguage", "content-language"],
+  ["contentDisposition", "content-disposition"],
+  ["contentEncoding", "content-encoding"],
+  ["cacheControl", "cache-control"],
+];
+function toAttributes(attrs?: ObjectAttributes): string {
+  const out: { kind: string; name: string | null; value: string }[] = [];
+  for (const [name, value] of Object.entries(attrs?.metadata ?? {}))
+    out.push({ kind: "metadata", name, value });
+  for (const [field, kind] of HEADERS) {
+    const v = attrs?.[field];
+    if (typeof v === "string") out.push({ kind, name: null, value: v });
+  }
+  return JSON.stringify(out);
+}
+function fromAttributes(raw: string): ObjectAttributes | undefined {
+  let list: { kind: string; name: string | null; value: string }[];
+  try {
+    list = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(list) || !list.length) return undefined;
+  const attrs: ObjectAttributes = {};
+  for (const e of list) {
+    if (e.kind === "metadata" && e.name) {
+      attrs.metadata = attrs.metadata ?? {};
+      attrs.metadata[e.name] = e.value;
+    }
+    const h = HEADERS.find(([, kind]) => kind === e.kind);
+    if (h) (attrs as Record<string, unknown>)[h[0]] = e.value;
+  }
+  return attrs;
 }

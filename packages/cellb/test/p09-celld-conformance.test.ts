@@ -13,6 +13,7 @@ import {
   withContentLength,
 } from "../conformance/scenarios.js";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
+import { memoryObjectStore, type ObjectStore } from "../src/bucket/object-store.js";
 import { createWebSocketClass } from "../src/index.js";
 import { loadNodeProject } from "../src/project/node-project.js";
 import { startReferenceServer } from "./ws-reference-server.js";
@@ -22,10 +23,14 @@ import { startReferenceServer } from "./ws-reference-server.js";
 const golden = (name: string) =>
   JSON.parse(readFileSync(join(__dirname, `../conformance/golden/${name}.json`), "utf8"));
 
-async function target(name: string): Promise<Target & { unsupported: string[] }> {
+async function target(
+  name: string,
+  bucketStore?: ObjectStore,
+): Promise<Target & { unsupported: string[] }> {
   const { runtime, unsupported } = await loadNodeProject(projectDir(name), {
     openSql: nodeSqliteOpener(),
     files: new MemFilesApi(),
+    bucketStore,
   });
   const WS = createWebSocketClass((url, p) => runtime.connectWebSocket(url, p));
   return {
@@ -52,6 +57,17 @@ async function target(name: string): Promise<Target & { unsupported: string[] }>
 }
 
 describe("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.2", () => {
+  // The R2 projects once more with objects in celld's bucket layout (r2-celld.ts): the same
+  // answers whichever store R2 uses.
+  for (const name of Object.keys(scenarios).filter((n) => n.startsWith("r2")))
+    it(`${name} — R2 in celld's bucket layout`, async () => {
+      const t = await target(name, memoryObjectStore());
+      const transcript = await runScenario(t, scenarios[name]);
+      const expected = golden(name);
+      expect(alignDocumentedDifferences(transcript, expected.transcript)).toEqual(
+        expected.transcript,
+      );
+    }, 30_000);
   for (const name of Object.keys(scenarios)) {
     const scenario = scenarios[name];
     const wait =
