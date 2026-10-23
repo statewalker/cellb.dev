@@ -35,4 +35,28 @@ describe("P11d SQLite WASM page hook", () => {
     d.exec("INSERT INTO t VALUES ('after restore')", []);
     expect(d.takeDirtyPages!()!.pages.size).toBeGreaterThan(0);
   });
+
+  it("node:sqlite with pageCapture reads a commit's pages from the WAL, equal to the database", async () => {
+    const { nodeSqliteOpener } = await import("../src/adapters/node-sqlite.js");
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const d = nodeSqliteOpener(mkdtempSync(join(tmpdir(), "walcap-")), { pageCapture: true })(
+      "cell",
+    );
+    d.exec("CREATE TABLE t (v TEXT)", []);
+    for (let i = 0; i < 300; i++) d.exec("INSERT INTO t VALUES (?)", [`row ${i} `.repeat(20)]);
+    d.takeDirtyPages!();
+    d.exec("UPDATE t SET v = 'changed' WHERE rowid = 150", []);
+    const dirty = d.takeDirtyPages!()!;
+    const image = d.pageImage!();
+    expect(dirty.pages.size).toBeGreaterThan(0);
+    expect(dirty.pages.size).toBeLessThanOrEqual(3);
+    expect(dirty.pageCount).toBe(image.length / dirty.pageSize);
+    for (const [pgno, bytes] of dirty.pages)
+      expect(bytes).toEqual(image.subarray((pgno - 1) * dirty.pageSize, pgno * dirty.pageSize));
+    // after the checkpoint pageImage() made, capture continues from the new WAL
+    d.exec("INSERT INTO t VALUES ('after checkpoint')", []);
+    expect(d.takeDirtyPages!()!.pages.size).toBeGreaterThan(0);
+  });
 });

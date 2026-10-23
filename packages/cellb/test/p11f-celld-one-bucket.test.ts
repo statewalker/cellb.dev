@@ -50,7 +50,7 @@ const wasm = async (): Promise<OpenCellSql> =>
 /** celld (steps) → webrun-cells (steps) → celld (steps); each step's answer is compared. */
 async function roundTrip(
   project: string,
-  driver: "node" | "wasm",
+  driver: "node" | "wasm" | "node-wal",
   steps: { celld1: [string, unknown][]; webrun: [string, unknown][]; celld2: [string, unknown][] },
 ) {
   const dir = join(mkdtempSync(join(tmpdir(), "one-bucket-")), "p");
@@ -78,7 +78,12 @@ async function roundTrip(
   const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
   const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
   const { runtime } = await loadNodeProject(dir, {
-    openSql: driver === "node" ? nodeSqliteOpener() : await wasm(),
+    openSql:
+      driver === "node"
+        ? nodeSqliteOpener()
+        : driver === "node-wal" // file-backed, WAL page capture
+          ? nodeSqliteOpener(mkdtempSync(join(tmpdir(), "wal-cells-")), { pageCapture: true })
+          : await wasm(),
     files: new MemFilesApi(),
     ownership: bucket.ownership,
     durability: bucket.durability,
@@ -131,7 +136,7 @@ const valuesRead = () =>
 describe.skipIf(!CELLD)(
   "P11f celld ⇄ webrun-cells through one bucket (celld's ownership protocol)",
   () => {
-    for (const driver of ["node", "wasm"] as const) {
+    for (const driver of ["node", "wasm", "node-wal"] as const) {
       it(
         `counter (${driver})`,
         () =>
@@ -664,7 +669,7 @@ describe.skipIf(!CELLD)(
       120_000,
     );
 
-    for (const driver of ["node", "wasm"] as const) {
+    for (const driver of ["node", "wasm", "node-wal"] as const) {
       const note = (body: string, who: string) => ({
         body,
         size: body.length,
