@@ -33,6 +33,13 @@ export interface TailEvent {
   diagnosticsChannelEvents: unknown[];
 }
 
+/** One `WorkerCode.modules` entry as ES module source; text and JSON become a default export. */
+export function moduleText(m: WorkerCode["modules"][string]): string {
+  return typeof m === "string"
+    ? m
+    : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
+}
+
 /**
  * The `fetch` loaded code sees, from `WorkerCode.globalOutbound`: omitted → the loader's own
  * (undefined: no override); `null` → every fetch throws; a Fetcher → each fetch goes through it.

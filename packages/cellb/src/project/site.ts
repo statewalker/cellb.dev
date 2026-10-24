@@ -5,6 +5,7 @@ import { SiteBuilder, type SiteHandler } from "@statewalker/webrun-site-builder"
 import {
   type LogSink,
   type ModuleLoader,
+  moduleText,
   outboundFetch,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
@@ -142,11 +143,10 @@ export function siteModuleLoader(baseUrl: string): ModuleLoader {
   return async (id: string, code: WorkerCode, logs?: LogSink) => {
     const dir = encodeURIComponent(id);
     for (const [name, m] of Object.entries(code.modules)) {
-      const text =
-        typeof m === "string"
-          ? m
-          : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
-      const res = await fetch(`${base}loaded-src/${dir}/${name}`, { method: "PUT", body: text });
+      const res = await fetch(`${base}loaded-src/${dir}/${name}`, {
+        method: "PUT",
+        body: moduleText(m),
+      });
       if (!res.ok) throw new Error(`Worker Loader: cannot store ${id}/${name}: ${res.status}`);
     }
     const outbound = outboundFetch(code);

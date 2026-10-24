@@ -1,4 +1,4 @@
-import type { ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
+import { type ModuleLoader, moduleText, type WorkerCode } from "../bindings/worker-loader.js";
 import type { CellBackup, CellDurability } from "../ports.js";
 import { isolatedModuleLoader } from "./host.js";
 import type { PortLike } from "./protocol.js";
@@ -35,11 +35,7 @@ export function browserIsolatedLoader(opts: {
       const base = opts.siteBaseUrl.endsWith("/") ? opts.siteBaseUrl : `${opts.siteBaseUrl}/`;
       const dir = encodeURIComponent(`isolate-${id}`);
       for (const [name, m] of Object.entries(code.modules)) {
-        const text =
-          typeof m === "string"
-            ? m
-            : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
-        await fetch(`${base}loaded-src/${dir}/${name}`, { method: "PUT", body: text });
+        await fetch(`${base}loaded-src/${dir}/${name}`, { method: "PUT", body: moduleText(m) });
       }
       return {
         url: `${base}loaded/${dir}/~/${code.mainModule}`,

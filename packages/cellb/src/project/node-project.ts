@@ -4,7 +4,12 @@ import { join, resolve } from "node:path";
 import { Worker as NodeWorker } from "node:worker_threads";
 import { build } from "esbuild";
 import { applyD1Migrations } from "../bindings/d1-migrations.js";
-import { type LogSink, type ModuleLoader, outboundFetch } from "../bindings/worker-loader.js";
+import {
+  type LogSink,
+  type ModuleLoader,
+  moduleText,
+  outboundFetch,
+} from "../bindings/worker-loader.js";
 import type { WorkerModule } from "../core/runtime.js";
 import { isolatedModuleLoader } from "../isolate/host.js";
 import type { PortLike } from "../isolate/protocol.js";
@@ -143,11 +148,7 @@ export async function bundleWorker(
 export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
   const outbound = outboundFetch(code);
   const modules: Record<string, string> = {};
-  for (const [name, m] of Object.entries(code.modules))
-    modules[name] =
-      typeof m === "string"
-        ? m
-        : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
+  for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
   return (await bundleWorker({ modules, main: code.mainModule }, logs, outbound)) as Record<
     string,
     unknown
@@ -241,11 +242,7 @@ export function nodeIsolatedLoader(
       isolateEntry ??= buildIsolateEntry();
       await isolateEntry;
       const modules: Record<string, string> = {};
-      for (const [name, m] of Object.entries(code.modules))
-        modules[name] =
-          typeof m === "string"
-            ? m
-            : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
+      for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
       const out = await build({
         entryPoints: [`memory:${code.mainModule}`],
         write: false,

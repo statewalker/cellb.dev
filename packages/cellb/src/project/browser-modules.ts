@@ -1,6 +1,7 @@
 import {
   type LogSink,
   type ModuleLoader,
+  moduleText,
   outboundFetch,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
@@ -47,9 +48,7 @@ export function browserModuleLoader(workersModuleShim: string): ModuleLoader {
     const source = (name: string) => {
       const m = code.modules[name];
       if (m === undefined) throw new Error(`Worker Loader: module "${name}" not found`);
-      return typeof m === "string"
-        ? m
-        : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
+      return moduleText(m);
     };
     const urlOf = (name: string): string => {
       const known = urls.get(name);
