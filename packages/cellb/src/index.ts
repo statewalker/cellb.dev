@@ -17,7 +17,6 @@ export {
   R2ObjectBody,
   r2Bucket,
 } from "./bindings/r2.js";
-export { jsonCodec } from "./core/codec.js";
 export { DurableObject, type ExecutionContext, WorkerEntrypoint } from "./core/durable-object.js";
 export { InputGate, OutputGate } from "./core/gates.js";
 export { DurableObjectId } from "./core/id.js";
@@ -52,7 +51,6 @@ export {
 } from "./lease/conditional-store.js";
 export { acquire, type Clock, type Lease, type LeaseHandle, systemClock } from "./lease/lease.js";
 export { decodeLtx, encodeLtx, type LtxFile, type LtxHeader, ltxFileName } from "./ltx/ltx.js";
-export type { BackupInfo, CellBackup } from "./ports.js";
 export * from "./ports.js";
 export { parseJsonc } from "./project/jsonc.js";
 export {
@@ -67,7 +65,6 @@ export {
   type CellsHttpOptions,
   cellsHttpHandler,
   errorResponse,
-  H as CELLS_HEADERS,
   httpEndpoint,
   postVia,
   type RemoteRuntime,
@@ -84,7 +81,6 @@ export {
   serveRuntime,
 } from "./transport/port.js";
 export { v8Codec } from "./v8/codec.js";
-export { deserialize as v8Deserialize, serialize as v8Serialize } from "./v8/serialize.js";
 export {
   type CellsWebSocketClass,
   createWebSocketClass,
