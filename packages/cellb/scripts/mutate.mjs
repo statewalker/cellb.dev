@@ -87,27 +87,6 @@ const mutants = [
     "p05 p07x",
   ],
   [
-    "lease: taker ignores the skew margin",
-    "src/lease/cas-lease.ts",
-    "now <= rec.expiresAt + skewMarginMs",
-    "now <= rec.expiresAt",
-    "p05",
-  ],
-  [
-    "lease: holder has no local deadline",
-    "src/lease/cas-lease.ts",
-    "    armDeadline();\n    timer = clock.setTimeout(renew, renewEveryMs);",
-    "    timer = clock.setTimeout(renew, renewEveryMs);",
-    "p05",
-  ],
-  [
-    "lease: claim does not bump the manifest",
-    "src/lease/cas-lease.ts",
-    'await this.store.put(this.key, body, cur ? { ifMatch: cur.etag } : { ifNoneMatch: "*" })',
-    'cur ? { etag: cur.etag } : await this.store.put(this.key, body, { ifNoneMatch: "*" })',
-    "p05",
-  ],
-  [
     "file lease: normal locking mode",
     "src/adapters/sqlite-lease.ts",
     "PRAGMA locking_mode = EXCLUSIVE;",

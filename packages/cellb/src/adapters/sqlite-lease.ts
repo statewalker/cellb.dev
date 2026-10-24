@@ -1,11 +1,5 @@
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import type { DatabaseSync as DatabaseSyncT } from "node:sqlite";
-import {
-  type ConditionalStore,
-  PreconditionFailedError,
-  type Versioned,
-} from "../lease/conditional-store.js";
 import type { Lease, LeaseHandle } from "../ports.js";
 
 const { DatabaseSync } = createRequire(import.meta.url)(
@@ -54,51 +48,5 @@ export class SqliteFileLease implements Lease {
       if (/locked|busy/i.test(String((e as Error).message))) return undefined;
       throw e;
     }
-  }
-}
-
-/**
- * ConditionalStore on a shared SQLite file: CAS with a single conditional
- * statement. Works across processes on one host; same contract as S3, so the
- * CasLease/FencedManifest logic is exercised without a bucket.
- */
-export class SqliteConditionalStore implements ConditionalStore {
-  readonly #db: DatabaseSyncT;
-  constructor(path: string) {
-    this.#db = new DatabaseSync(path);
-    this.#db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-    this.#db.exec(
-      "CREATE TABLE IF NOT EXISTS objects (key TEXT PRIMARY KEY, body TEXT NOT NULL, version INTEGER NOT NULL)",
-    );
-  }
-  async get(key: string): Promise<Versioned | undefined> {
-    const r = this.#db.prepare("SELECT body, version FROM objects WHERE key = ?").get(key) as
-      | { body: string; version: number }
-      | undefined;
-    return r && { body: r.body, etag: `"${r.version}"` };
-  }
-  async put(
-    key: string,
-    body: string,
-    cond: { ifMatch: string } | { ifNoneMatch: "*" },
-  ): Promise<{ etag: string }> {
-    let changes: number | bigint;
-    if ("ifNoneMatch" in cond) {
-      changes = this.#db
-        .prepare(
-          "INSERT INTO objects (key, body, version) VALUES (?, ?, 1) ON CONFLICT(key) DO NOTHING",
-        )
-        .run(key, body).changes;
-    } else {
-      const v = Number(cond.ifMatch.replace(/"/g, ""));
-      changes = this.#db
-        .prepare("UPDATE objects SET body = ?, version = version + 1 WHERE key = ? AND version = ?")
-        .run(body, key, v).changes;
-    }
-    if (Number(changes) === 0) throw new PreconditionFailedError(key);
-    return { etag: (await this.get(key))!.etag };
-  }
-  close(): void {
-    this.#db.close();
   }
 }

@@ -43,12 +43,6 @@ export {
   type ListOptions,
   SyncKvStorage,
 } from "./core/storage.js";
-export { CasLease, type CasLeaseOptions, FencedError, FencedManifest } from "./lease/cas-lease.js";
-export {
-  type ConditionalStore,
-  MemoryConditionalStore,
-  type Versioned,
-} from "./lease/conditional-store.js";
 export { acquire } from "./lease/lease.js";
 export { decodeLtx, encodeLtx, type LtxFile, type LtxHeader, ltxFileName } from "./ltx/ltx.js";
 export * from "./ports.js";

@@ -30,7 +30,7 @@ baseline of the unmutated copy.
 | Cells behind a port (worker thread / Dedicated Worker) | `src/transport/{port,cells-http}.ts` | `test/p04-port-host.test.ts`, `browser/e2e/cells.spec.ts` | 04, 05 |
 | One HTTP surface on webrun-wire (streaming, scheme, errors) | `src/transport/cells-http.ts` | `test/p04-port-host.test.ts` | 05 |
 | Shards, `CellRouter`, Web Locks, dead-owner detection | `src/router/*`, `browser/sharded/*` | `test/p05-router.test.ts`, `browser/e2e/sharded.spec.ts` | 06, 07 |
-| Server leases: SQLite file lock, S3-style CAS + fencing | `src/lease/*`, `src/adapters/sqlite-lease.ts` | `test/p05c-lease.test.ts`, `test/p05c-exclusive-cells.test.ts` | 07 |
+| Server leases: SQLite file lock | `src/adapters/sqlite-lease.ts` | `test/p05c-lease.test.ts`, `test/p05c-exclusive-cells.test.ts` | 07 |
 | Server ownership as in Miniflare 4 (heartbeat registry) | `src/adapters/registry-lease.ts` | `test/p05d-registry-lease.test.ts` | 10 |
 | Durability: periodic backup callback, FilesApi, restore on open | `src/core/object-host.ts`, `src/adapters/files-backup.ts` | `test/p06a-backup.test.ts`, `browser/e2e/backup.spec.ts` | 11, 14 |
 | WebSockets over MessagePorts, injected via webrun-modules `~deps` | `src/ws/{client,server,frames}.ts` | `test/p07w-websocket.test.ts` | 12 |
@@ -82,7 +82,7 @@ src/core        runtime, stubs, storage, gates (runtime-agnostic)
 src/adapters    node:sqlite, sqlite-wasm (memory, OPFS), leases, FilesApi backup
 src/transport   HTTP surface and port links (webrun-rpc, webrun-http-streams)
 src/router      CellRouter, shard host
-src/lease       Lease port, CAS lease, fenced manifest
+src/lease       acquire(): polls a Lease (the port is in src/ports.ts)
 src/ws          WebSocket client/server over ports, control channel, Upgrade helper
 test/           unit tests per aspect (p01 … p07x), worker-thread/child-process fixtures
 browser/        demo pages, ServiceWorker, shard workers, Playwright specs (browser/e2e)

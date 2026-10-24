@@ -4,14 +4,13 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { afterEach, describe, expect, it } from "vitest";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
-  CasLease,
   type CellRuntime,
   cellsHttpHandler,
   createCellRuntime,
   DurableObject,
   filesApiChangeLog,
-  MemoryConditionalStore,
 } from "../src/index.js";
+import { MemoryLeases } from "./memory-lease.js";
 
 class Counter extends DurableObject {
   async fetch(req: Request) {
@@ -53,20 +52,11 @@ async function serveLink(runtime: () => CellRuntime): Promise<string> {
 describe("P10c routing between nodes (celld-style peer forwarding)", () => {
   it("a request on a node that does not own the cell is served by the owner; ownership moves on close", async () => {
     const files = new MemFilesApi();
-    const store = new MemoryConditionalStore();
+    const leases = new MemoryLeases();
     const log = filesApiChangeLog(files);
     const addresses = new Map<string, string>();
     const nodes = new Map<string, CellRuntime>();
-    const leases = new Map<string, CasLease>();
     const node = (name: string) => {
-      const lease = new CasLease({
-        store,
-        owner: name,
-        ttlMs: 10_000,
-        renewEveryMs: 3_000,
-        skewMarginMs: 1_000,
-      });
-      leases.set(name, lease);
       const rt = createCellRuntime({
         worker: {
           Counter,
@@ -78,9 +68,9 @@ describe("P10c routing between nodes (celld-style peer forwarding)", () => {
         openSql: nodeSqliteOpener(),
         durability: log,
         backup: log,
-        ownership: lease,
+        ownership: leases.for(name),
         peers: {
-          ownerOf: (cellKey) => lease.holder(cellKey),
+          ownerOf: (cellKey) => Promise.resolve(leases.holder(cellKey)),
           link: (owner) => async (req) => {
             const headers = new Headers(req.headers);
             headers.set("x-fleet-secret", SECRET);
@@ -116,8 +106,6 @@ describe("P10c routing between nodes (celld-style peer forwarding)", () => {
     // A shuts down: its lease is released; B takes the cell over and restores it from the log.
     await a.close();
     expect(await (await b.fetch(new Request("http://app/"))).json()).toEqual({ n: 3, body: null });
-    expect(
-      await leases.get("B")!.holder("Counter/" + (b.env.COUNTER as any).idFromName("shared")),
-    ).toBe("B");
+    expect(leases.holder("Counter/" + (b.env.COUNTER as any).idFromName("shared"))).toBe("B");
   });
 });

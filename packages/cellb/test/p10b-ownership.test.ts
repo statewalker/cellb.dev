@@ -2,15 +2,13 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
-  CasLease,
   createCellRuntime,
   DurableObject,
   filesApiChangeLog,
-  MemoryConditionalStore,
   runInDurableObject,
 } from "../src/index.js";
-import type { ConditionalStore } from "../src/lease/conditional-store.js";
 import { FakeClock } from "./fake-clock.js";
+import { MemoryLeases } from "./memory-lease.js";
 
 class Account extends DurableObject {
   async alarm() {
@@ -20,11 +18,11 @@ class Account extends DurableObject {
 }
 
 /**
- * Two "nodes" share a bucket (FilesApi for the log, conditional store for leases). Per-cell
+ * Two "nodes" share a bucket (FilesApi for the log, leases beside it). Per-cell
  * ownership as in celld: a lease per cell, its epoch fencing the log; a takeover restores the
  * cell from the log and continues; the old owner stops serving when its lease is lost.
  */
-function node(name: string, files: MemFilesApi, store: ConditionalStore, clock: FakeClock) {
+function node(name: string, files: MemFilesApi, leases: MemoryLeases, clock: FakeClock) {
   const log = filesApiChangeLog(files);
   return createCellRuntime({
     worker: { Account, default: {} },
@@ -32,40 +30,18 @@ function node(name: string, files: MemFilesApi, store: ConditionalStore, clock: 
     openSql: nodeSqliteOpener(), // each node has its own (empty) local disk
     durability: log,
     backup: log,
-    ownership: new CasLease({
-      store,
-      owner: name,
-      clock,
-      ttlMs: 10_000,
-      renewEveryMs: 3_000,
-      skewMarginMs: 1_000,
-    }),
+    ownership: leases.for(name),
     clock,
   });
-}
-
-/** A store that can be cut off from one node (network partition / crash). */
-function partitionable(store: ConditionalStore) {
-  let down = false;
-  const view = new Proxy(store, {
-    get(t, p, r) {
-      const v = Reflect.get(t, p, r);
-      return typeof v === "function"
-        ? (...a: unknown[]) => (down ? Promise.reject(new Error("partitioned")) : v.apply(t, a))
-        : v;
-    },
-  });
-  return { view, cut: () => (down = true) };
 }
 
 describe("P10b per-cell ownership with lease epochs fencing the log", () => {
   it("one owner per cell; takeover after the lease expires restores from the log and continues", async () => {
     const clock = new FakeClock(1_000_000);
     const files = new MemFilesApi();
-    const store = new MemoryConditionalStore();
-    const a = partitionable(store);
-    const nodeA = node("A", files, a.view, clock);
-    const nodeB = node("B", files, store, clock);
+    const leases = new MemoryLeases();
+    const nodeA = node("A", files, leases, clock);
+    const nodeB = node("B", files, leases, clock);
     const cellA = (nodeA.env.ACCOUNT as any).getByName("acc-1");
     const cellB = (nodeB.env.ACCOUNT as any).getByName("acc-1");
 
@@ -75,9 +51,8 @@ describe("P10b per-cell ownership with lease epochs fencing the log", () => {
       runInDurableObject(cellB, (_o, ctx) => ctx.storage.get("balance")),
     ).rejects.toThrow(/owned by another node/);
 
-    // A is partitioned: it cannot renew; after ttl - skew it must stop serving.
-    a.cut();
-    await clock.advance(12_000);
+    // A is partitioned: its lease is lost, so it must stop serving.
+    leases.partition("A");
     await expect(
       runInDurableObject(cellA, (_o, ctx) => ctx.storage.put("balance", 0)),
     ).rejects.toThrow(/lease .* lost|owned by another node|partitioned/);
@@ -97,14 +72,13 @@ describe("P10b per-cell ownership with lease epochs fencing the log", () => {
   it("a cell taken over with a pending alarm: the new owner fires it", async () => {
     const clock = new FakeClock(1_000_000);
     const files = new MemFilesApi();
-    const store = new MemoryConditionalStore();
-    const a = partitionable(store);
-    const nodeA = node("A", files, a.view, clock);
-    const nodeB = node("B", files, store, clock);
+    const leases = new MemoryLeases();
+    const nodeA = node("A", files, leases, clock);
+    const nodeB = node("B", files, leases, clock);
     const cellA = (nodeA.env.ACCOUNT as any).getByName("acc-2");
-    // Due after A has lost its lease (ttl - skew = 9 s): A cannot fire it.
+    // Due after A has lost its lease: A cannot fire it.
     await runInDurableObject(cellA, (_o, ctx) => ctx.storage.setAlarm(clock.now() + 11_000));
-    a.cut();
+    leases.partition("A");
     await clock.advance(12_000);
 
     // B takes the cell over; its restored alarm is overdue and B now owns it.
