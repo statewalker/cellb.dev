@@ -6,9 +6,8 @@ import {
   cellsHttpHandler,
   type RemoteRuntime,
   remoteRuntime,
-  type Send,
-  withScheme,
 } from "./cells-http.js";
+import { type Send, withScheme } from "./cells-link.js";
 
 /**
  * A DEDICATED message pipe (MessagePort, or a worker_threads port). Don't pass a

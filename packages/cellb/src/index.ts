@@ -65,14 +65,11 @@ export {
   type CellsHttpOptions,
   cellsHttpHandler,
   errorResponse,
-  httpEndpoint,
-  postVia,
   type RemoteRuntime,
   remoteRuntime,
-  type Send,
   stripControl,
-  withScheme,
 } from "./transport/cells-http.js";
+export { httpEndpoint, postVia, type Send, withScheme } from "./transport/cells-link.js";
 export {
   type CellPort,
   connectRuntime,

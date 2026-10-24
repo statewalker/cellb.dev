@@ -1,6 +1,6 @@
 import { type CellRuntime, type CellRuntimeOptions, createCellRuntime } from "../core/runtime.js";
 import { shardOf } from "../core/shard.js";
-import { H, type Send } from "../transport/cells-http.js";
+import { H, type Send } from "../transport/cells-link.js";
 import { type CellPort, linkOverPort, serveRuntime } from "../transport/port.js";
 import { type ControlMessage, type ControlPort, PortRendezvous } from "../ws/control.js";
 import { CellsResponse, CfWebSocket } from "../ws/server.js";

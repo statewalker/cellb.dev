@@ -1,6 +1,6 @@
 import { type Clock, systemClock } from "../lease/lease.js";
 import type { CellBackup, CellDurability, OpenCellSql, ValueCodec } from "../ports.js";
-import { httpEndpoint, postVia, type Send } from "../transport/cells-http.js";
+import { httpEndpoint, postVia, type Send } from "../transport/cells-link.js";
 import { v8Codec } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";

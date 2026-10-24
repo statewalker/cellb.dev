@@ -1,6 +1,7 @@
 import { idFromName, namespaceKey } from "../core/id.js";
 import { shardOf } from "../core/shard.js";
-import { errorResponse, H, type Send, stripControl } from "../transport/cells-http.js";
+import { errorResponse, stripControl } from "../transport/cells-http.js";
+import { H, type Send } from "../transport/cells-link.js";
 import {
   type ControlMessage,
   type ControlPort,
