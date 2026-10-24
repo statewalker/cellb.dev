@@ -1,7 +1,8 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { projectDir } from "../conformance/projects.js";
 import {
   alignDocumentedDifferences,
@@ -56,7 +57,26 @@ async function target(
   };
 }
 
-describe("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.3", () => {
+// The scenarios run 4 at a time, so cron's 65 s overlaps the rest. Each has its own runtime
+// (in-memory SQLite and files); what user code logs goes to the scenario whose async context
+// logged it (cell_console lines, as celld prints them).
+vi.setConfig({ maxConcurrency: 4 });
+const scenarioLogs = new AsyncLocalStorage<string[]>();
+const methods = ["log", "info", "warn", "error", "debug"] as const;
+const originals = methods.map((m) => console[m]);
+beforeAll(() => {
+  for (const [i, m] of methods.entries())
+    console[m] = (...args: unknown[]) => {
+      const logs = scenarioLogs.getStore();
+      if (logs) logs.push(formatLog(args));
+      else originals[i](...args);
+    };
+});
+afterAll(() => {
+  for (const [i, m] of methods.entries()) console[m] = originals[i];
+});
+
+describe.concurrent("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.3", () => {
   // The R2 projects once more with objects in celld's bucket layout (r2-celld.ts): the same
   // answers whichever store R2 uses.
   for (const name of Object.keys(scenarios).filter((n) => n.startsWith("r2")))
@@ -78,21 +98,18 @@ describe("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.3", ()
       async () => {
         const expected = golden(name);
         const ref = scenario.wsServer ? await startReferenceServer() : undefined;
-        // User logs, formatted as celld prints them (cell_console lines).
         const logs: string[] = [];
-        const methods = ["log", "info", "warn", "error", "debug"] as const;
-        const originals = methods.map((m) => console[m]);
-        for (const m of methods)
-          console[m] = (...args: unknown[]) => void logs.push(formatLog(args));
         try {
-          const t = await target(name);
-          t.wsServer = ref ? `ws://127.0.0.1:${ref.port}` : undefined;
-          const transcript = await Promise.race([
-            runScenario(t, scenario),
-            new Promise<never>((_, rej) =>
-              setTimeout(() => rej(new Error("scenario timed out")), wait + 15_000),
-            ),
-          ]);
+          const transcript = await scenarioLogs.run(logs, async () => {
+            const t = await target(name);
+            t.wsServer = ref ? `ws://127.0.0.1:${ref.port}` : undefined;
+            return Promise.race([
+              runScenario(t, scenario),
+              new Promise<never>((_, rej) =>
+                setTimeout(() => rej(new Error("scenario timed out")), wait + 15_000),
+              ),
+            ]);
+          });
           expect(alignDocumentedDifferences(transcript, expected.transcript)).toEqual(
             expected.transcript,
           );
@@ -101,7 +118,6 @@ describe("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.3", ()
             expect(normalizeLogs(logs, scenario)).toEqual(expected.logs);
           }
         } finally {
-          for (const [i, m] of methods.entries()) console[m] = originals[i];
           await ref?.close();
         }
       },
