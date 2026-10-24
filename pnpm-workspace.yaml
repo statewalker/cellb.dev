@@ -1,0 +1,16 @@
+packages:
+  - "packages/*"
+
+catalog:
+  "@biomejs/biome": 2.5.15
+  "@statewalker/webrun-http-browser": "^0.6.0"
+  "@statewalker/webrun-modules": ^0.3.5
+  "@statewalker/webrun-site-builder": "^0.2.0"
+  "@statewalker/webrun-site-host": "^0.2.1"
+  "@types/node": ^26.6.4
+  "@types/ws": ^8.18.2
+  turbo: ^2.11.7
+  typescript: ^7.0.2
+  vite: ^8.3.2
+  vitest: ^5.0.3
+  ws: ^8.22.0

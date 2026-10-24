@@ -5,10 +5,8 @@ name: webrun-cells interop (celld)
 # scripts/interop-env.sh fetches the pinned celld and RustFS releases.
 on:
   push:
-    branches: [webrun-cells]
-    paths: ["apps/webrun-cells/**", ".github/workflows/webrun-cells-interop.yml"]
+    branches: [main]
   pull_request:
-    paths: ["apps/webrun-cells/**", ".github/workflows/webrun-cells-interop.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +19,7 @@ jobs:
     timeout-minutes: 45
     defaults:
       run:
-        working-directory: apps/webrun-cells
+        working-directory: packages/cellb
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -47,4 +45,4 @@ jobs:
           name: interop-logs
           path: |
             ~/.cache/webrun-cells-interop/rustfs.log
-            apps/webrun-cells/test-results/
+            packages/cellb/test-results/

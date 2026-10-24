@@ -1,5 +1,5 @@
 {
-  "name": "@statewalker/webrun-cells",
+  "name": "@statewalker/cellb",
   "version": "0.0.1",
   "description": "webrun-cells: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers \u2014 prototypes P01\u2013P07",
   "type": "module",

@@ -52,8 +52,8 @@ changeset replication, conformance against `celld dev`) are listed in notes 08 a
 ## Using it
 
 ```ts
-import { createCellRuntime } from "@statewalker/webrun-cells";
-import { nodeSqliteOpener } from "@statewalker/webrun-cells/src/adapters/node-sqlite.js";
+import { createCellRuntime } from "@statewalker/cellb";
+import { nodeSqliteOpener } from "@statewalker/cellb/src/adapters/node-sqlite.js";
 import * as worker from "./worker.js"; // export default { fetch } + Durable Object classes
 
 const rt = createCellRuntime({

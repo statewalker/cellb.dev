@@ -1,0 +1,34 @@
+{
+  "name": "@statewalker/cellb-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.16.1",
+  "description": "cellb: an isomorphic Durable Objects runtime (celld/Cloudflare-compatible) for browsers and servers.",
+  "homepage": "https://github.com/statewalker/cellb.dev#readme",
+  "bugs": {
+    "url": "https://github.com/statewalker/cellb.dev/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/statewalker/cellb.dev.git"
+  },
+  "author": {
+    "name": "Mikhail Kotelnikov",
+    "email": "mikhail.kotelnikov@gmail.com"
+  },
+  "license": "MIT",
+  "scripts": {
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "biome check --write .",
+    "lint:check": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/node": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
