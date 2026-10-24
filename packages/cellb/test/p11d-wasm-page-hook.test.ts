@@ -11,9 +11,9 @@ describe("P11d SQLite WASM page hook", () => {
     const d = wasmMemoryOpener(await sqlite())("cell");
     d.exec("CREATE TABLE t (v TEXT)", []);
     for (let i = 0; i < 300; i++) d.exec("INSERT INTO t VALUES (?)", [`row ${i} `.repeat(20)]);
-    d.takeDirtyPages!(); // everything so far
+    d.takeDirtyPages(); // everything so far
     d.exec("UPDATE t SET v = 'changed' WHERE rowid = 150", []);
-    const dirty = d.takeDirtyPages!()!;
+    const dirty = d.takeDirtyPages()!;
     const image = d.snapshot!();
     expect(dirty.pages.size).toBeGreaterThan(0);
     expect(dirty.pages.size).toBeLessThanOrEqual(3); // header page + the row's leaf (+ maybe one)
@@ -25,15 +25,15 @@ describe("P11d SQLite WASM page hook", () => {
   it("a rolled-back transaction's spilled pages are discarded; the hook survives restore()", async () => {
     const d = wasmMemoryOpener(await sqlite())("cell2");
     d.exec("CREATE TABLE t (v TEXT)", []);
-    d.takeDirtyPages!();
+    d.takeDirtyPages();
     d.exec("BEGIN", []);
     d.exec("INSERT INTO t VALUES ('x')", []);
     d.exec("ROLLBACK", []);
     d.discardDirtyPages!();
-    expect(d.takeDirtyPages!()!.pages.size).toBe(0);
+    expect(d.takeDirtyPages()!.pages.size).toBe(0);
     d.restore!(d.snapshot!());
     d.exec("INSERT INTO t VALUES ('after restore')", []);
-    expect(d.takeDirtyPages!()!.pages.size).toBeGreaterThan(0);
+    expect(d.takeDirtyPages()!.pages.size).toBeGreaterThan(0);
   });
 
   it("node:sqlite with pageCapture reads a commit's pages from the WAL, equal to the database", async () => {
@@ -46,9 +46,9 @@ describe("P11d SQLite WASM page hook", () => {
     );
     d.exec("CREATE TABLE t (v TEXT)", []);
     for (let i = 0; i < 300; i++) d.exec("INSERT INTO t VALUES (?)", [`row ${i} `.repeat(20)]);
-    d.takeDirtyPages!();
+    d.takeDirtyPages();
     d.exec("UPDATE t SET v = 'changed' WHERE rowid = 150", []);
-    const dirty = d.takeDirtyPages!()!;
+    const dirty = d.takeDirtyPages()!;
     const image = d.pageImage!();
     expect(dirty.pages.size).toBeGreaterThan(0);
     expect(dirty.pages.size).toBeLessThanOrEqual(3);
@@ -57,6 +57,6 @@ describe("P11d SQLite WASM page hook", () => {
       expect(bytes).toEqual(image.subarray((pgno - 1) * dirty.pageSize, pgno * dirty.pageSize));
     // after the checkpoint pageImage() made, capture continues from the new WAL
     d.exec("INSERT INTO t VALUES ('after checkpoint')", []);
-    expect(d.takeDirtyPages!()!.pages.size).toBeGreaterThan(0);
+    expect(d.takeDirtyPages()!.pages.size).toBeGreaterThan(0);
   });
 });

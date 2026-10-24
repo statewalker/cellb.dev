@@ -22,7 +22,7 @@ export interface SyncSqlDriver {
   databaseSize(): number;
   close(): void;
   /** Loads a named SQLite extension (e.g. "sqlite_vec" for celld's `sqlite_vec` flag). */
-  loadExtension?(name: string): void;
+  loadExtension(name: string): void;
   /**
    * Change capture for transaction logs (SQLite session extension): `captureStart()` at
    * BEGIN, `captureTake()` after COMMIT returns the transaction's changeset (empty if none),
@@ -37,7 +37,7 @@ export interface SyncSqlDriver {
   /** The database file page for page (page-level logs); defaults to snapshot(). */
   pageImage?(): Uint8Array;
   /** Pages written since the previous call, when the driver can hook its file (SQLite WASM). */
-  takeDirtyPages?():
+  takeDirtyPages():
     | { pageSize: number; pageCount: number; pages: Map<number, Uint8Array> }
     | undefined;
   discardDirtyPages?(): void;

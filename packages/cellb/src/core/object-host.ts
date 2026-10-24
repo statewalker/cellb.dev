@@ -91,8 +91,6 @@ export class ObjectHost {
     this.#epoch = opts.epoch;
     this.#opts = opts;
     for (const ext of opts.sqlExtensions ?? []) {
-      if (!this.#driver.loadExtension)
-        throw new Error(`SQLite extension "${ext}" is not available on this host`);
       this.#driver.loadExtension(ext);
     }
     this.#sql = new SqlStorage(
@@ -102,7 +100,7 @@ export class ObjectHost {
         // Page-level logs (LTX): the changed pages straight from the page hook when the driver
         // has one; the image only on demand (a generation's first snapshot, or no hook).
         const d = this.#driver;
-        const pages = opts.durability.capturePages ? d.takeDirtyPages?.() : undefined;
+        const pages = opts.durability.capturePages ? d.takeDirtyPages() : undefined;
         const image = opts.durability.capturePages
           ? () => d.pageImage?.() ?? d.snapshot?.()
           : undefined;
