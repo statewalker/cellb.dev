@@ -161,7 +161,7 @@ files in a `git mv` commit (import paths only), then changes code in the next co
 - [ ] Move `Lease`, `LeaseHandle` and `Clock` into `ports.ts`, and type `CellRuntimeOptions.ownership?: Lease`.
 - [ ] `SyncSqlDriver`: keep optional only the members that one driver really lacks
   (`pageImage`, `discardDirtyPages`).
-- [ ] Decide D5. If CAS stays, keep `CasLease` and `ConditionalStore` out of every entry point.
+- [ ] D5: delete `CasLease`, `ConditionalStore`, `MemoryConditionalStore` and `SqliteConditionalStore` with their tests; keep `Lease`, `SqliteFileLease`, `RegistryLease` if still used, otherwise delete them too (deletion test).
 
 ### R3 `CellStorage`, one bundle instead of five hand-wired fields
 - [ ] `CellStorage = { durability, backup?, ownership?, objects?, close() }`.
@@ -186,8 +186,8 @@ files in a `git mv` commit (import paths only), then changes code in the next co
   headers, the `application/x-webrun-cells-values` content type, `webrun-cells.internal`, the
   `webrun-cells:*` module specifiers, `Symbol.for("webrun-cells…")`, the `__cells*` globals, page
   titles, CI name, cache directory, error messages and prose.
-- [ ] Persisted and protocol names, per D7: database names, OPFS pools, Web Lock names, the
-  `.invalid` peer address.
+- [ ] Persisted and protocol names (D7: rename, no migration): database names, OPFS pools, Web Lock
+  names, the `.invalid` peer address.
 
 ### R6 documentation
 - [ ] **Grilling session** on the vocabulary (scenarios in §5). Write `CONTEXT.md` term by term as
@@ -203,14 +203,14 @@ files in a `git mv` commit (import paths only), then changes code in the next co
 - [ ] Move the notes, `plan.md` and the plans to `docs/history/` with `git mv`.
 - [ ] Root README: drop the "still uses the old name" paragraph.
 
-## 4. Decisions needed
+## 4. Decisions (answered 2026-10-24)
 
-| # | Question | Recommendation |
+| # | Question | Decision |
 |---|---|---|
-| D5 | CAS lease + ConditionalStore (test-only, duplicates `ObjectStore.put(ifMatch)`) | keep as a tested alternative, not exported |
-| D7 | Persisted/protocol names (DB names, OPFS pools, Web Locks, peer address) | rename now: nothing is deployed, the repo is private; no migration code |
-| D8 | Glossary-driven code renames (e.g. `ObjectHost` → instance host, qualified leases) | glossary first; code renames only where a name is actively misleading |
-| D9 | ADRs (9 candidates: celld format native; vendored celld JS; celld as oracle; gates without ALS; fixed-N shards; WS over MessagePorts; isolate per Worker; sync `idFromName`; leases by deployment) | write all nine — each is hard to reverse, surprising, a real trade-off |
+| D5 | CAS lease + ConditionalStore (test-only, duplicates `ObjectStore.put(ifMatch)`) | **delete** (`lease/cas-lease.ts`, `lease/conditional-store.ts`, `SqliteConditionalStore`, their tests); celld's ownership protocol is the multi-host story |
+| D7 | Persisted/protocol names (DB names, OPFS pools, Web Locks, peer address) | **rename now**, no migration code: nothing is deployed |
+| D8 | Glossary-driven code renames | **glossary first**: CONTEXT.md via grilling; code renames only where a name actively misleads, as separate reviewed commits |
+| D9 | ADRs | **all nine** |
 
 ## 5. Grilling scenarios (domain-modeling)
 
