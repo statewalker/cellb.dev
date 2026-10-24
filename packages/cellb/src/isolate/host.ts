@@ -1,10 +1,6 @@
 import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
-import type { IsolatedClass } from "../core/handles.js";
+import { ISOLATED, type IsolatedClass } from "../core/handles.js";
 import type { CellBackup, CellDurability } from "../ports.js";
-
-/** Key of the isolate's class factory on a module facade (see getDurableObjectClass). */
-export const ISOLATED = Symbol.for("webrun-cells.isolated-classes");
-
 import {
   deserializeResponse,
   type PortLike,
