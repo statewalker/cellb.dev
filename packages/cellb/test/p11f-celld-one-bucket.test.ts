@@ -3,7 +3,7 @@ import { cpSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { celldBucket } from "../src/bucket/celld-cells.js";
@@ -17,7 +17,12 @@ import { loadNodeProject } from "../src/project/node-project.js";
 // celld again; the state continues on each side.
 const CELLD = process.env.CELLD_BIN;
 const ESBUILD_DIR = process.env.ESBUILD_DIR ?? "";
-let port = 18_830;
+// The tests run 4 at a time: each has its own project dir, so its own bucket
+// (.celld/dev/objects.sqlite3), node records and leases, and its own celld port — 19000+,
+// clear of the other celld files running in parallel (p11c 187xx-188xx, p11i/p11j 1886x-1887x,
+// p11g 1888x+).
+vi.setConfig({ maxConcurrency: 4 });
+let port = 19_000;
 
 async function celldDev(
   dir: string,
@@ -135,6 +140,7 @@ const valuesRead = () =>
 
 describe.skipIf(!CELLD)(
   "P11f celld ⇄ webrun-cells through one bucket (celld's ownership protocol)",
+  { concurrent: true },
   () => {
     for (const driver of ["node", "wasm", "node-wal"] as const) {
       it(
