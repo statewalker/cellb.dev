@@ -1,5 +1,7 @@
 # cellb.dev monorepo: extract webrun-cells with its history, then reorganise it into deep modules
 
+> **Status:** Phase A done (statewalker/cellb.dev, 2026-10-24). Phase B superseded, see §4.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (or
 > superpowers:executing-plans) to carry this out task by task. Steps use checkbox (`- [ ]`) syntax.
 
@@ -185,7 +187,7 @@ and trigger on `main`.
 - [ ] Move the local layout to `~/workspace-statewalker/cellb.dev/.git-bare/cellb.dev`, with worktrees
   under `worktrees/`. The old cellb worktrees are all merged and can be pruned, after asking.
 
-## 4. Phase B: reorganise into deep modules (each commit green, `git mv` before edits)
+## 4. Phase B: reorganise into deep modules (SUPERSEDED by `docs/superpowers/plans/2026-10-24-cellb-restructure.md`: one package, three entry points) (each commit green, `git mv` before edits)
 
 Every task follows the same rule: one commit **moves** files (`git mv`, no content change except
 import paths). The next commit, if needed, **changes** code. Run the unit + Chromium + typecheck +
