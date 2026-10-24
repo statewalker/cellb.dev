@@ -30,7 +30,7 @@ import { withUpgrade } from "../ws/upgrade.js";
 const PROTOCOL = "5";
 const DOMAIN = "cells-peer-request-v1";
 const CLOCK_WINDOW_MS = 30_000;
-const H = {
+const PEER_HEADERS = {
   version: "x-cells-peer-version",
   source: "x-cells-peer-source",
   target: "x-cells-peer-target",
@@ -100,13 +100,13 @@ export function signPeerRequest(
     nonce,
   }).toString("hex");
   return {
-    [H.version]: PROTOCOL,
-    [H.source]: source,
-    [H.target]: target,
-    [H.timestamp]: ts,
-    [H.nonce]: nonce,
-    [H.bodySha]: bodySha,
-    [H.signature]: signature,
+    [PEER_HEADERS.version]: PROTOCOL,
+    [PEER_HEADERS.source]: source,
+    [PEER_HEADERS.target]: target,
+    [PEER_HEADERS.timestamp]: ts,
+    [PEER_HEADERS.nonce]: nonce,
+    [PEER_HEADERS.bodySha]: bodySha,
+    [PEER_HEADERS.signature]: signature,
   };
 }
 
@@ -121,17 +121,17 @@ export function verifyPeerRequest(
   seen: Map<string, number>,
 ): { status: number; message: string; stale?: boolean } | undefined {
   const h = (n: string) => (typeof headers[n] === "string" ? (headers[n] as string) : undefined);
-  const version = h(H.version);
+  const version = h(PEER_HEADERS.version);
   if (version === undefined) return { status: 401, message: "peer authentication failed" };
   if (version !== PROTOCOL)
     return { status: 426, message: "peer protocol version is incompatible" };
   const [source, target, ts, nonce, bodySha, signature] = [
-    H.source,
-    H.target,
-    H.timestamp,
-    H.nonce,
-    H.bodySha,
-    H.signature,
+    PEER_HEADERS.source,
+    PEER_HEADERS.target,
+    PEER_HEADERS.timestamp,
+    PEER_HEADERS.nonce,
+    PEER_HEADERS.bodySha,
+    PEER_HEADERS.signature,
   ].map(h);
   if (!source || !target || !ts || !nonce || !bodySha || !signature)
     return { status: 401, message: "peer authentication failed" };
@@ -183,7 +183,7 @@ function reply(
   headers: Record<string, string>,
   body?: Uint8Array | string,
 ) {
-  res.writeHead(status, { [H.version]: PROTOCOL, ...headers });
+  res.writeHead(status, { [PEER_HEADERS.version]: PROTOCOL, ...headers });
   res.end(body);
 }
 const stale = (res: ServerResponse) =>
@@ -295,7 +295,7 @@ export async function startCelldPeerServer(opts: {
     const fail = (status: number, body: string, extra: Record<string, string> = {}) => {
       const lines = [
         `HTTP/1.1 ${status} ${status === 409 ? "Conflict" : "Error"}`,
-        `${H.version}: ${PROTOCOL}`,
+        `${PEER_HEADERS.version}: ${PROTOCOL}`,
         `content-length: ${Buffer.byteLength(body)}`,
         "connection: close",
       ];
@@ -397,7 +397,7 @@ export async function startCelldPeerServer(opts: {
     const refuse = (status: number, message: string, extra: Record<string, string> = {}) => {
       const lines = [
         `HTTP/1.1 ${status} ${message}`,
-        `${H.version}: ${PROTOCOL}`,
+        `${PEER_HEADERS.version}: ${PROTOCOL}`,
         "connection: close",
         "content-length: 0",
       ];
@@ -430,7 +430,7 @@ export async function startCelldPeerServer(opts: {
         "upgrade: celld-tunnel",
         "connection: upgrade",
         "x-cells-tunnel-version: 5",
-        `${H.version}: ${PROTOCOL}`,
+        `${PEER_HEADERS.version}: ${PROTOCOL}`,
       ].join("\r\n") + "\r\n\r\n",
     );
     if (head?.length) socket.unshift(head);

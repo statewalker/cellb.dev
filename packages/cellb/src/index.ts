@@ -4,7 +4,7 @@ export {
   encodeSegment,
   filesApiChangeLog,
 } from "./adapters/files-changelog.js";
-export { filesApiLtxLog, type LtxLogOptions } from "./adapters/files-ltx.js";
+export { type FilesApiLtxLogOptions, filesApiLtxLog } from "./adapters/files-ltx.js";
 export {
   applyD1Migrations,
   listAppliedMigrations,

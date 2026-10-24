@@ -1,4 +1,5 @@
 import { bytesToHex } from "@noble/hashes/utils";
+import { scopeOf } from "../core/celld-schema.js";
 import { decodeLtx, encodeLtx, ltxFileName } from "../ltx/ltx.js";
 import type { BackupInfo, CellBackup, CellDurability } from "../ports.js";
 import { ltxLog } from "./ltx-log.js";
@@ -30,7 +31,6 @@ export interface CelldBucketOptions {
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
-export const scopeOf = (cellKey: string) => cellKey.replace("/", ":");
 export const pad16 = (n: bigint) => n.toString(16).padStart(16, "0");
 
 /** celld 0.6.3: how long a node refuses a cell whose ownership record it found lost. */
