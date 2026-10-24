@@ -16,10 +16,10 @@ import {
   type WorkerModule,
 } from "../core/runtime.js";
 import { splitSqlStatements } from "../core/sql-split.js";
-import { systemClock } from "../lease/lease.js";
 import { filesApiBlobService } from "../miniflare-compat/blob-service.js";
 import { simulatorFetcher } from "../miniflare-compat/simulator-fetcher.js";
 import { D1DatabaseObject, makeD1Binding } from "../miniflare-compat/vendored.js";
+import { systemClock } from "../ports.js";
 
 /** The subset of wrangler.json(c) that celld deploys (and webrun-cells reads). */
 export interface WranglerConfig {

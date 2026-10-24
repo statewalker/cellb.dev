@@ -1,5 +1,4 @@
-import type { Clock } from "../lease/lease.js";
-import type { SyncSqlDriver } from "../ports.js";
+import type { Clock, SyncSqlDriver } from "../ports.js";
 
 export interface AlarmEntry {
   cellKey: string;

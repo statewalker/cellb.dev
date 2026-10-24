@@ -4,6 +4,7 @@ import type {
   BackupInfo,
   CellBackup,
   CellDurability,
+  Lease,
   OpenCellSql,
   SyncSqlDriver,
   ValueCodec,
@@ -82,9 +83,7 @@ export class ObjectHost {
     epoch?: number;
     /** A facet: on open its rows move to this run's scope, as celld does. */
     facet?: boolean;
-    acquire?: (
-      cellKey: string,
-    ) => Promise<{ epoch: number; lost: AbortSignal; release?: () => Promise<void> } | undefined>;
+    acquire?: Lease["tryAcquire"];
   }) {
     this.#backup = opts.backup;
     this.cellKey = opts.cellKey;

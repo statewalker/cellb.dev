@@ -1,5 +1,5 @@
+import { type Clock, type Lease, type LeaseHandle, systemClock } from "../ports.js";
 import { type ConditionalStore, PreconditionFailedError } from "./conditional-store.js";
-import { type Clock, type Lease, type LeaseHandle, systemClock } from "./lease.js";
 
 interface Record_ {
   owner: string;

@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { type Clock, type Lease, type LeaseHandle, systemClock } from "../lease/lease.js";
+import { type Clock, type Lease, type LeaseHandle, systemClock } from "../ports.js";
 
 export interface RegistryLeaseOptions {
   /** Registry root shared by all processes (Miniflare: ~/.wrangler/registry). */

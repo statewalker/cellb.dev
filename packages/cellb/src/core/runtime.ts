@@ -1,5 +1,12 @@
-import { type Clock, systemClock } from "../lease/lease.js";
-import type { CellBackup, CellDurability, OpenCellSql, ValueCodec } from "../ports.js";
+import {
+  type CellBackup,
+  type CellDurability,
+  type Clock,
+  type Lease,
+  type OpenCellSql,
+  systemClock,
+  type ValueCodec,
+} from "../ports.js";
 import { httpEndpoint, postVia, type Send } from "../transport/cells-link.js";
 import { v8Codec } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
@@ -42,9 +49,7 @@ export interface CellRuntimeOptions {
   /** Periodic backup of cell databases to a separate store (e.g. a FilesApi); restore on open. */
   backup?: CellBackup;
   /** Per-cell ownership: each object takes this lease before it opens (fencing epoch → log). */
-  ownership?: {
-    tryAcquire(name: string): Promise<{ epoch: number; lost: AbortSignal } | undefined>;
-  };
+  ownership?: Lease;
   /**
    * Routing between nodes (celld's peer routing): when this node cannot own a cell
    * (`CellOwnedElsewhereError`), the call goes to the owner's node over an internal link

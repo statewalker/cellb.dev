@@ -6,7 +6,7 @@ import {
   PreconditionFailedError,
   type Versioned,
 } from "../lease/conditional-store.js";
-import type { Lease, LeaseHandle } from "../lease/lease.js";
+import type { Lease, LeaseHandle } from "../ports.js";
 
 const { DatabaseSync } = createRequire(import.meta.url)(
   "node:sqlite",
