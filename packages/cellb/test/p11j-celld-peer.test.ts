@@ -232,11 +232,11 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
   it("a WebSocket opened at webrun-cells to a cell celld owns crosses the tunnel", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-ws-out-")), "wsecho");
     cpSync(join(examples, "wsecho"), dir, { recursive: true });
-    const celld = await celldDev(dir, 18_884);
+    const celld = await celldDev(dir, 18_875); // 1888x+ is p11g's
     try {
       // celld takes the cell: one socket, one message
       const { WebSocket: Ws } = await import("ws");
-      const first = new Ws("ws://127.0.0.1:18884/");
+      const first = new Ws("ws://127.0.0.1:18875/");
       await new Promise<void>((r) =>
         first.on("open", () => first.send("from celld")).on("message", () => r()),
       );

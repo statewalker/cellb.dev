@@ -64,95 +64,100 @@ const until = async <T>(f: () => Promise<T>, ok: (v: T) => boolean, ms: number) 
   }
 };
 
-describe.skipIf(!CELLD)("P11i live hand-over between celld and webrun-cells", () => {
-  it("each refuses a live owner's cell; the cell moves when its owner stops; celld reads our node record", async () => {
-    const dir = join(mkdtempSync(join(tmpdir(), "live-")), "counter");
-    cpSync(counter, dir, { recursive: true });
-    const c1 = await celldDev(dir, 18_860);
-    expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 1 });
-    const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-    const w = await webrun(dir, store, "webrun-live");
-    expect(await w.inc()).toEqual({ refused: expect.stringContaining("owned by another") }); // celld is live
-    expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 2 }); // celld keeps serving
-    await stop(c1.p);
-    // celld's node lease expires (~10 s), then webrun-cells takes the cell over.
-    expect(
-      await until(
-        () => w.inc(),
-        (r) => "n" in r,
-        20_000,
-      ),
-    ).toEqual({ n: 3 });
-    const c2 = await celldDev(dir, 18_862);
-    try {
-      const refused = await inc((u) => fetch(c2.base + u)); // webrun-cells is live: celld refuses
-      expect(refused, JSON.stringify(refused)).toEqual({
-        refused: expect.stringContaining("owner is currently unreachable"),
-      });
-      expect(await w.inc()).toEqual({ n: 4 });
-      await w.close(); // releases the lease record: celld may take over at once
-      expect(
-        await until(
-          () => inc((u) => fetch(c2.base + u)),
-          (r) => "n" in r,
-          15_000,
-        ),
-      ).toEqual({ n: 5 });
-      // our node record decodes in celld (a malformed one breaks its fleet posture repair)
-      expect(c2.log()).not.toMatch(/posture repair failed error=decode/);
-    } finally {
-      await stop(c2.p);
-      store.close();
-    }
-  }, 120_000);
-
-  it("a webrun-cells node cut off from the bucket fences itself; celld takes the cell over, no split brain", async () => {
-    const dir = join(mkdtempSync(join(tmpdir(), "partition-")), "counter");
-    cpSync(counter, dir, { recursive: true });
-    const c0 = await celldDev(dir, 18_864);
-    await stop(c0.p); // the bucket exists; celld's own lease will expire
-    const real = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-    let partitioned = false;
-    const store: ObjectStore = {
-      get: (k) => (partitioned ? Promise.reject(new Error("partition")) : real.get(k)),
-      put: (k, b, c, a) =>
-        partitioned ? Promise.reject(new Error("partition")) : real.put(k, b, c, a),
-      list: (p) => (partitioned ? Promise.reject(new Error("partition")) : real.list(p)),
-      delete: (k) => (partitioned ? Promise.reject(new Error("partition")) : real.delete(k)),
-    };
-    const w = await webrun(dir, store, "webrun-cut");
-    expect(
-      await until(
-        () => w.inc(),
-        (r) => "n" in r,
-        20_000,
-      ),
-    ).toEqual({ n: 1 });
-    partitioned = true;
-    // Within the lease TTL (3 s) every cell stops: nothing more is acknowledged.
-    await new Promise((r) => setTimeout(r, 3_500));
-    expect(await w.inc()).toEqual({ refused: expect.any(String) });
-    const c1 = await celldDev(dir, 18_866);
-    try {
-      expect(
-        await until(
-          () => inc((u) => fetch(c1.base + u)),
-          (r) => "n" in r,
-          15_000,
-        ),
-      ).toEqual({ n: 2 });
-      partitioned = false; // the partition heals: the old owner still refuses (celld owns it)
-      expect(await w.inc()).toEqual({ refused: expect.any(String) });
-      expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 3 });
-    } finally {
-      await w.close().catch(() => {});
+// The celld tests run at once: each has its own project dir (bucket), node name and ports.
+describe.skipIf(!CELLD)(
+  "P11i live hand-over between celld and webrun-cells",
+  { concurrent: true },
+  () => {
+    it("each refuses a live owner's cell; the cell moves when its owner stops; celld reads our node record", async () => {
+      const dir = join(mkdtempSync(join(tmpdir(), "live-")), "counter");
+      cpSync(counter, dir, { recursive: true });
+      const c1 = await celldDev(dir, 18_860);
+      expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 1 });
+      const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+      const w = await webrun(dir, store, "webrun-live");
+      expect(await w.inc()).toEqual({ refused: expect.stringContaining("owned by another") }); // celld is live
+      expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 2 }); // celld keeps serving
       await stop(c1.p);
-      real.close();
-    }
-  }, 120_000);
-});
+      // celld's node lease expires (~10 s), then webrun-cells takes the cell over.
+      expect(
+        await until(
+          () => w.inc(),
+          (r) => "n" in r,
+          20_000,
+        ),
+      ).toEqual({ n: 3 });
+      const c2 = await celldDev(dir, 18_862);
+      try {
+        const refused = await inc((u) => fetch(c2.base + u)); // webrun-cells is live: celld refuses
+        expect(refused, JSON.stringify(refused)).toEqual({
+          refused: expect.stringContaining("owner is currently unreachable"),
+        });
+        expect(await w.inc()).toEqual({ n: 4 });
+        await w.close(); // releases the lease record: celld may take over at once
+        expect(
+          await until(
+            () => inc((u) => fetch(c2.base + u)),
+            (r) => "n" in r,
+            15_000,
+          ),
+        ).toEqual({ n: 5 });
+        // our node record decodes in celld (a malformed one breaks its fleet posture repair)
+        expect(c2.log()).not.toMatch(/posture repair failed error=decode/);
+      } finally {
+        await stop(c2.p);
+        store.close();
+      }
+    }, 120_000);
 
-describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", () => {
+    it("a webrun-cells node cut off from the bucket fences itself; celld takes the cell over, no split brain", async () => {
+      const dir = join(mkdtempSync(join(tmpdir(), "partition-")), "counter");
+      cpSync(counter, dir, { recursive: true });
+      const c0 = await celldDev(dir, 18_864);
+      await stop(c0.p); // the bucket exists; celld's own lease will expire
+      const real = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+      let partitioned = false;
+      const store: ObjectStore = {
+        get: (k) => (partitioned ? Promise.reject(new Error("partition")) : real.get(k)),
+        put: (k, b, c, a) =>
+          partitioned ? Promise.reject(new Error("partition")) : real.put(k, b, c, a),
+        list: (p) => (partitioned ? Promise.reject(new Error("partition")) : real.list(p)),
+        delete: (k) => (partitioned ? Promise.reject(new Error("partition")) : real.delete(k)),
+      };
+      const w = await webrun(dir, store, "webrun-cut");
+      expect(
+        await until(
+          () => w.inc(),
+          (r) => "n" in r,
+          20_000,
+        ),
+      ).toEqual({ n: 1 });
+      partitioned = true;
+      // Within the lease TTL (3 s) every cell stops: nothing more is acknowledged.
+      await new Promise((r) => setTimeout(r, 3_500));
+      expect(await w.inc()).toEqual({ refused: expect.any(String) });
+      const c1 = await celldDev(dir, 18_866);
+      try {
+        expect(
+          await until(
+            () => inc((u) => fetch(c1.base + u)),
+            (r) => "n" in r,
+            15_000,
+          ),
+        ).toEqual({ n: 2 });
+        partitioned = false; // the partition heals: the old owner still refuses (celld owns it)
+        expect(await w.inc()).toEqual({ refused: expect.any(String) });
+        expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 3 });
+      } finally {
+        await w.close().catch(() => {});
+        await stop(c1.p);
+        real.close();
+      }
+    }, 120_000);
+  },
+);
+
+describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", { concurrent: true }, () => {
   it("both refuse a cell whose own.json is gone while its LTX remains; the released-record repair restores it", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "lost-")), "counter");
     cpSync(counter, dir, { recursive: true });

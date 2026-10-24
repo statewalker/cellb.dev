@@ -145,8 +145,10 @@ async function webrun(project: string, prefix: string) {
 const examples = resolve(__dirname, "../conformance/celld-examples");
 const json = async (r: Response) => JSON.parse(await r.text());
 
+// The tests run at once: each has its own bucket prefix, node name, project dir and ports.
 describe.skipIf(!CELLD)(
   "P11g celld fleet node ⇄ webrun-cells on a local RustFS bucket",
+  { concurrent: true },
   async () => {
     const up = await rustfsUp();
     it.skipIf(!up)(
