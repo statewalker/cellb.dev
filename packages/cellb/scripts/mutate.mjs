@@ -87,13 +87,6 @@ const mutants = [
     "p05 p07x",
   ],
   [
-    "file lease: normal locking mode",
-    "src/adapters/sqlite-lease.ts",
-    "PRAGMA locking_mode = EXCLUSIVE;",
-    "PRAGMA locking_mode = NORMAL;",
-    "p05",
-  ],
-  [
     "router ignores watchOwner",
     "src/router/cell-router.ts",
     "if (token !== undefined && this.#opts.watchOwner)",
@@ -112,27 +105,6 @@ const mutants = [
     "src/adapters/node-sqlite.ts",
     "if (opts.exclusive) this.#db.exec",
     "if (false) this.#db.exec",
-    "p05",
-  ],
-  [
-    "registry: youngest candidate owns",
-    "src/adapters/registry-lease.ts",
-    "a.registeredAt - b.registeredAt ||",
-    "b.registeredAt - a.registeredAt ||",
-    "p05",
-  ],
-  [
-    "registry: stale entries never expire",
-    "src/adapters/registry-lease.ts",
-    "if (age > this.#o.staleMs) {",
-    "if (false) {",
-    "p05",
-  ],
-  [
-    "registry: paused owner keeps ownership",
-    "src/adapters/registry-lease.ts",
-    "if (!ok) return ac.abort(",
-    "if (false) return ac.abort(",
     "p05",
   ],
   [

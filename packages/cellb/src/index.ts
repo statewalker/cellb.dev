@@ -43,7 +43,6 @@ export {
   type ListOptions,
   SyncKvStorage,
 } from "./core/storage.js";
-export { acquire } from "./lease/lease.js";
 export { decodeLtx, encodeLtx, type LtxFile, type LtxHeader, ltxFileName } from "./ltx/ltx.js";
 export * from "./ports.js";
 export { parseJsonc } from "./project/jsonc.js";

@@ -3,7 +3,7 @@
 Prototype of an **isomorphic Durable Objects runtime**: Cloudflare/celld-style Workers and
 Durable Objects (SQLite storage, gates, stubs and RPC, WebSockets) running **entirely in the
 browser** — a ServiceWorker as the single server, one Dedicated Worker per shard, SQLite on
-OPFS — and the **same core on a server** (Node, `node:sqlite`, worker threads, file leases).
+OPFS — and the **same core on a server** (Node, `node:sqlite`, worker threads, exclusive cell files).
 
 It is built on the statewalker stack: `webrun-rpc` + `webrun-http-streams` (HTTP over
 MessagePorts), `webrun-http-browser` (ServiceWorker ingress), `webrun-files` (backup store),
@@ -30,8 +30,7 @@ baseline of the unmutated copy.
 | Cells behind a port (worker thread / Dedicated Worker) | `src/transport/{port,cells-http}.ts` | `test/p04-port-host.test.ts`, `browser/e2e/cells.spec.ts` | 04, 05 |
 | One HTTP surface on webrun-wire (streaming, scheme, errors) | `src/transport/cells-http.ts` | `test/p04-port-host.test.ts` | 05 |
 | Shards, `CellRouter`, Web Locks, dead-owner detection | `src/router/*`, `browser/sharded/*` | `test/p05-router.test.ts`, `browser/e2e/sharded.spec.ts` | 06, 07 |
-| Server leases: SQLite file lock | `src/adapters/sqlite-lease.ts` | `test/p05c-lease.test.ts`, `test/p05c-exclusive-cells.test.ts` | 07 |
-| Server ownership as in Miniflare 4 (heartbeat registry) | `src/adapters/registry-lease.ts` | `test/p05d-registry-lease.test.ts` | 10 |
+| Server fencing: cell SQLite files in EXCLUSIVE locking mode | `src/adapters/node-sqlite.ts` | `test/p05c-exclusive-cells.test.ts` | 07 |
 | Durability: periodic backup callback, FilesApi, restore on open | `src/core/object-host.ts`, `src/adapters/files-backup.ts` | `test/p06a-backup.test.ts`, `browser/e2e/backup.spec.ts` | 11, 14 |
 | WebSockets over MessagePorts, injected via webrun-modules `~deps` | `src/ws/{client,server,frames}.ts` | `test/p07w-websocket.test.ts` | 12 |
 | WebSocket routing (SW ⇄ shards, cross-shard), heartbeat, webrun-modules in the SW | `src/ws/{control,sw-connector,upgrade}.ts`, `browser/sharded/modules.ts` | `test/p07x-websocket-routing.test.ts`, `browser/e2e/websocket.spec.ts` | 13 |
@@ -79,10 +78,9 @@ const res = await rt.fetch(new Request("http://local/counter/a"));
 
 ```
 src/core        runtime, stubs, storage, gates (runtime-agnostic)
-src/adapters    node:sqlite, sqlite-wasm (memory, OPFS), leases, FilesApi backup
+src/adapters    node:sqlite, sqlite-wasm (memory, OPFS), FilesApi backup
 src/transport   HTTP surface and port links (webrun-rpc, webrun-http-streams)
 src/router      CellRouter, shard host
-src/lease       acquire(): polls a Lease (the port is in src/ports.ts)
 src/ws          WebSocket client/server over ports, control channel, Upgrade helper
 test/           unit tests per aspect (p01 … p07x), worker-thread/child-process fixtures
 browser/        demo pages, ServiceWorker, shard workers, Playwright specs (browser/e2e)
