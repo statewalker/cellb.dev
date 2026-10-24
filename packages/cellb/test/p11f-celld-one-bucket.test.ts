@@ -110,8 +110,7 @@ async function roundTrip(
   }
   await runtime.close();
   await bucket.close();
-  store.close();
-  await new Promise((r) => setTimeout(r, 3_500)); // webrun-test's node lease expires
+  store.close(); // a clean close: celld takes the cells at once
 
   celld = await celldDev(dir);
   try {
@@ -221,7 +220,6 @@ describe.skipIf(!CELLD)(
       await bucket.close();
       expect((await store.list("wake/entries/")).length).toBeGreaterThan(0);
       store.close();
-      await new Promise((r) => setTimeout(r, 3_500));
       celld = await celldDev(dir);
       try {
         let got: any;
@@ -395,6 +393,8 @@ describe.skipIf(!CELLD)(
         await runtime.close();
         await bucket.close();
         store.close();
+        // b is due before celld starts: celld waking a message webrun-cells left NOT yet due
+        // is the intermittent case of the handoff test below, not what this test is about.
         await new Promise((r) => setTimeout(r, 3_500));
         celld = await celldDev(dir);
         try {
@@ -461,7 +461,6 @@ describe.skipIf(!CELLD)(
         await runtime.close();
         await bucket.close();
         store.close();
-        await new Promise((r) => setTimeout(r, 3_500));
         celld = await celldDev(dir);
         try {
           let st2: any;
@@ -540,7 +539,6 @@ describe.skipIf(!CELLD)(
         await new Promise((r) => setTimeout(r, 2_500));
         expect(await w.call("/")).toEqual([{ body: "now", attempts: 1 }]);
         await w.close();
-        await new Promise((r) => setTimeout(r, 3_500));
         celld = await celldDev(dir);
         try {
           let got: unknown[] = [];
@@ -646,7 +644,6 @@ describe.skipIf(!CELLD)(
         await new Promise((r) => setTimeout(r, 600));
         expect((await w.call("/status?id=s2")).status).toBe("waiting");
         await w.close();
-        await new Promise((r) => setTimeout(r, 3_500));
         celld = await celldDev(dir);
         try {
           expect(await settle(celldCall, "s2")).toEqual(
