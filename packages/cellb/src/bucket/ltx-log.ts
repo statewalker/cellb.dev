@@ -1,7 +1,7 @@
 import { scopeOf } from "../core/celld-schema.js";
 import { decodeLtx, encodeLtx, ltxFileName } from "../ltx/ltx.js";
 import type { BackupInfo, CellBackup, CellDurability } from "../ports.js";
-import { equal, pad16, pageSizeOf, toRollback } from "./celld-cells.js";
+import { equal, pad16, pageSizeOf, toRollback } from "./celld-format.js";
 import type { ObjectStore } from "./object-store.js";
 
 const enc = new TextEncoder();

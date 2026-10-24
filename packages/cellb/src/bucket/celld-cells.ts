@@ -2,6 +2,7 @@ import { bytesToHex } from "@noble/hashes/utils";
 import { scopeOf } from "../core/celld-schema.js";
 import { decodeLtx, encodeLtx, ltxFileName } from "../ltx/ltx.js";
 import type { BackupInfo, CellBackup, CellDurability } from "../ports.js";
+import { equal, pad16, pageSizeOf, toRollback } from "./celld-format.js";
 import { ltxLog } from "./ltx-log.js";
 import { type ObjectStore, PreconditionFailedError } from "./object-store.js";
 
@@ -31,7 +32,6 @@ export interface CelldBucketOptions {
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
-export const pad16 = (n: bigint) => n.toString(16).padStart(16, "0");
 
 /** celld 0.6.3: how long a node refuses a cell whose ownership record it found lost. */
 export const LOST_RECORD_RECHECK_MS = 10_000;
@@ -303,25 +303,3 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
     },
   };
 }
-
-export const equal = (a: Uint8Array, b: Uint8Array) => {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-  return true;
-};
-export const pageSizeOf = (image: Uint8Array) => {
-  const v = (image[16] << 8) | image[17];
-  return v === 1 ? 65536 : v;
-};
-/**
- * celld's cells run in WAL mode (header bytes 18–19 = 2); a restored image is switched to a
- * rollback journal (1/1) so any driver can open it from memory; SQLite rewrites them when a
- * runtime sets WAL again.
- */
-export const toRollback = (image: Uint8Array) => {
-  if (image.length > 19 && image[18] === 2) {
-    image[18] = 1;
-    image[19] = 1;
-  }
-  return image;
-};
