@@ -134,28 +134,31 @@ await app.close();                       // closes runtime, then storage, in ord
 
 ## 3. Tasks
 
-Order: cleanup → cycles → ports → storage bundle → entry points → names → docs. Each task moves
+Order: cleanup → cycles → ports → **test time (R7)** → storage bundle → entry points → names → docs.
+R7 changes tests only and goes right after R2, so every later task verifies in ~2 min, not ~7. Each task moves
 files in a `git mv` commit (import paths only), then changes code in the next commit if needed.
 
-### R0 cleanup (no interface change except deletions of unused names)
-- [ ] Delete `x.db` and `browser/probe2/`.
-- [ ] Delete `core/codec.ts`, and the `jsonCodec`, `CELLS_HEADERS`, `v8Serialize` and
+### R0 cleanup (no interface change except deletions of unused names) — done `c95f66f..5a99cbe`
+- [x] Delete `x.db` and `browser/probe2/`.
+- [x] Delete `core/codec.ts`, and the `jsonCodec`, `CELLS_HEADERS`, `v8Serialize` and
   `v8Deserialize` exports (no consumers).
-- [ ] **Bug, TDD:** first a failing test that a bucket store's conflict is
+- [x] **Bug, TDD:** first a failing test that a bucket store's conflict is
   `instanceof PreconditionFailedError` as exported. Then keep the `bucket/object-store` class and
   make `lease/conditional-store` import it.
-- [ ] Extract the shared module-text helper, `WORKERS_MODULE_SHIM` and the Workers-globals list into
+- [x] Extract the shared module-text helper, `WORKERS_MODULE_SHIM` and the Workers-globals list into
   one module each. Use `bytesToHex` from `@noble/hashes` for both `hex` copies.
-- [ ] Rename the same-name pairs: `H` (cells-http vs peer), `scopeOf`, `LtxLogOptions`.
+- [x] Rename the same-name pairs: `H` (cells-http vs peer), `scopeOf`, `LtxLogOptions`.
 
-### R1 cut the cycles (no interface change)
-- [ ] Move `ISOLATED` into `core/handles.ts`, next to `IsolatedClass`.
-- [ ] Add `project/workers-globals-module.ts` as the `cellb:ws` globals aggregator, and drop the
+### R1 cut the cycles (no interface change) — done `bd73947..a511d51`
+The guard (`test/import-cycles.test.ts`) found a fourth cycle, `core/handles` ⇄ `core/object-host`,
+removed by moving `DurableObjectClass` into `core/handles` (`09fe55f`).
+- [x] Move `ISOLATED` into `core/handles.ts`, next to `IsolatedClass`.
+- [x] Add `project/workers-globals-module.ts` as the `cellb:ws` globals aggregator, and drop the
   re-exports from `ws/server.ts:171,174`.
-- [ ] Split `transport/cells-http.ts`: a client leaf `transport/cells-link.ts`
+- [x] Split `transport/cells-http.ts`: a client leaf `transport/cells-link.ts`
   (`postVia`, `httpEndpoint`, `withScheme`, headers) that imports core types only.
-- [ ] Move the shared helpers of `bucket/celld-cells.ts` and `ltx-log.ts` into `bucket/celld-format.ts`.
-- [ ] Guard: a test, or a `madge --circular` script in `package.json`, that fails on any new cycle.
+- [x] Move the shared helpers of `bucket/celld-cells.ts` and `ltx-log.ts` into `bucket/celld-format.ts`.
+- [x] Guard: a test, or a `madge --circular` script in `package.json`, that fails on any new cycle.
 
 ### R2 one declaration per port
 - [ ] Move `Lease`, `LeaseHandle` and `Clock` into `ports.ts`, and type `CellRuntimeOptions.ownership?: Lease`.
@@ -203,6 +206,32 @@ files in a `git mv` commit (import paths only), then changes code in the next co
 - [ ] Move the notes, `plan.md` and the plans to `docs/history/` with `git mv`.
 - [ ] Root README: drop the "still uses the old name" paragraph.
 
+### R7 test time: ~400 s → ~130 s for the unit suite (tests only, no behaviour change)
+Measured on `a511d51` (vitest JSON report): the suite takes 397 s and **one file sets it**,
+`test/p11f-celld-one-bucket.test.ts` (397 s, 30 tests, ~13 s each, run one after another).
+Next: `p09-celld-conformance` 129 s (`cron` alone 67 s: a fixed `waitMs: 65_000` for a real
+minute boundary), `p11g-celld-rustfs` 111 s, `p11i-live-handover` 90 s; every other file < 15 s.
+Each p11f test is mostly waiting: start `celld dev` and poll for "ready"; after stopping it, retry
+cellb's steps every 500 ms until celld's node lease lapses (`p11f…:95-103`); a fixed 3.5 s for
+cellb's own 3 s node lease (`:109`); start celld again.
+
+- [ ] p11f: run the tests concurrently (`describe.concurrent`, a bounded pool of 4). Each test
+  already has its own project dir; give each its own celld port and bucket prefix (`cells/<test>/`),
+  so no two share a node record or a lease. Success: p11f ≤ 120 s, 30/30 green, run 3× in a row.
+- [ ] p11f: drop the fixed 3.5 s wait. First a failing test that `bucket.close()` leaves cellb's
+  node record released (celld then takes the cell at once); then make `close()` release it if it
+  does not. Keep the retry loop after stopping celld — celld's own lease lapsing is part of what the
+  test proves (hand-over with no manual step).
+- [ ] p09: run the scenarios concurrently (bounded pool), so `cron`'s 65 s overlaps the others
+  instead of adding to them; the transcripts are per project and do not share state. Success:
+  p09 ≤ 75 s. (A fake `CronClock` — `bindings/cron.ts:182` already takes one — would also work for
+  cellb's side but not for the recorded celld golden, so overlap is the honest fix.)
+- [ ] p11g, p11i: same bounded concurrency where the tests use distinct cells/prefixes; otherwise
+  leave them (they are under the new p09 bound).
+- [ ] Verify: whole unit suite ≤ 150 s wall time, counts unchanged (363 / 7 expected fail / 1 skip,
+  minus R2's deletions), and the intermittent p11f delayed-queue test (§6) watched: if concurrency
+  makes it flakier, that is new information about its cause — record it, do not retry it away.
+
 ## 4. Decisions (answered 2026-10-24)
 
 | # | Question | Decision |
@@ -211,6 +240,7 @@ files in a `git mv` commit (import paths only), then changes code in the next co
 | D7 | Persisted/protocol names (DB names, OPFS pools, Web Locks, peer address) | **rename now**, no migration code: nothing is deployed |
 | D8 | Glossary-driven code renames | **glossary first**: CONTEXT.md via grilling; code renames only where a name actively misleads, as separate reviewed commits |
 | D9 | ADRs | **all nine** |
+| D10 | RPC target: celld (refuses stubs across isolates) or workerd (passes them) — see §7 | **open**, needed before F3 |
 
 ## 5. Grilling scenarios (domain-modeling)
 
@@ -230,3 +260,78 @@ files in a `git mv` commit (import paths only), then changes code in the next co
 - A build step and npm publishing (the package stays `private`).
 - Splitting into several packages.
 - Python Workers, and the intermittent p11f delayed-queue test (tracked separately).
+
+## 7. RPC: what the statewalker packages give (review of 2026-10-25)
+
+**The gap, measured.** cellb refuses an `RpcTarget` across a stub (`core/namespace.ts:16`), and a
+loaded Worker's isolate talks to the host through a hand-rolled `rpcPort`
+(`isolate/protocol.ts:55`): request/response with ids, errors reduced to `name` + `message`, bodies
+buffered whole (`serializeRequest/Response` call `arrayBuffer()`), env values that cannot be
+cloned become stubs **by env key only** (`splitEnv`). So a function or stub can be an env binding,
+but never an argument, result or `props` value across the isolate.
+
+**celld refuses the same things.** The recorded celld transcript `conformance/golden/wd-worker-loader-gaps.json`
+says `DataCloneError: function () {} could not be cloned.` (`basics`), `Worker Loader env supports
+only Service Binding capabilities.` (`doStubViaEnv`), `#<Object> could not be cloned.`
+(`doStubViaProps`); `wd-stub-storage` fails on celld too. Matching celld — the conformance target —
+therefore means *keeping* the refusal. Passing stubs is **workerd** parity, judged against
+`conformance/golden-workerd/`, and it would make those cases disagree with celld. That is D10.
+
+**`@statewalker/webrun-rpc` (webrun-wire, 0.4.3, MIT, published) — useful as the transport, not
+as the RPC model.** cellb already depends on it (`transport/port.ts`: `connect`/`serve`/`overPipe`
+carry cells-http over one port, with backpressure). It offers port multiplexing, streams with
+backpressure and cancellation, and a typed-JSON call tier (`callPort`/`listenPort`, `NO_TIMEOUT`,
+abort signals, close signals). It has **no object references**: no stubs or functions as values,
+no `RpcTarget`, no pipelining, no disposal. It can replace `rpcPort` and the buffered bodies; it
+cannot close the stub gap by itself.
+
+**`@statewalker/service-rpc` (statewalker-sandbox) — not useful here.** Private, unpublished,
+described by its own README as "Experimental / internal … Future uncertain". It is Comlink plus a
+descriptor message and a stream protocol for async generators, over `MessagePort` or a WebSocket.
+Comlink passes a reference only where the *caller* wraps the value in `comlink.proxy()`; every
+property access on a proxy is async; it has no promise pipelining, and release is manual
+(`releaseProxy`). Workers RPC needs references found by type (functions, `RpcTarget`, stubs) on
+synchronous-looking stubs, so Comlink's model does not fit, and the stream tier duplicates
+webrun-rpc's.
+
+**What would close the gap if D10 = workerd.** Two options, both on a webrun-rpc port:
+- *Cap'n Web* (`capnweb`, Cloudflare, MIT): the JavaScript implementation of exactly Workers RPC —
+  `RpcTarget`, stubs both ways, promise pipelining, `using`/`Symbol.dispose`, a MessagePort
+  transport. To verify at implementation: version, size, and that its serialization keeps
+  structured-clone types cellb passes today (Date, Map, ArrayBuffer).
+- *A reference table* in `isolate/protocol.ts` (~150 lines): functions, `RpcTarget` and stubs in
+  arguments/results become `{ ref: id }`; the far side gets a proxy whose calls come back;
+  release on `Symbol.dispose` and a `FinalizationRegistry`. No pipelining.
+Recommendation: Cap'n Web if D10 = workerd (pipelining and disposal semantics are hard to get
+right twice); nothing if D10 = celld.
+
+## 8. Follow-up phase F (after R6; separate branch, one plan task each)
+
+Each task is proven by a conformance case changing state (a `knownGap` removed, or a new step
+recorded on celld/workerd), never by a test of the mechanism alone.
+
+- [ ] **F1 isolate port on webrun-rpc** (D10-independent). Replace `rpcPort` with
+  `callPort`/`listenPort` (`NO_TIMEOUT`) on a `multiplexPort` channel per direction. Errors keep
+  their own properties (`code`), as stub calls in one isolate already do. Proof: a step in the
+  `isolation-api` project throwing an error with `code` from a loaded Worker, recorded on celld;
+  red today (`code` is lost at `protocol.ts:75`). Deletes ~50 lines.
+- [ ] **F2 streamed bodies across the isolate** (D10-independent). Route the isolate's `fetch` through
+  the cells-http-over-port path cellb already has (`transport/port.ts`) instead of
+  `arrayBuffer()` copies. Proof: a loaded Worker streams a response whose first chunk arrives
+  before its last is produced — a new step, recorded on celld.
+- [ ] **F3 stubs by reference** (only if D10 = workerd). Cap'n Web over the isolate port and over
+  `ObjectEndpoint.call`; `RpcTarget`, functions and stubs as arguments, results, env and `props`.
+  Proof: `wd-stub-storage` and the `basics`/`doStubVia*` exports of `wd-worker-loader-gaps`
+  judged against `golden-workerd` (new `judge: "workerd"` field in the scenario), green.
+- [ ] **F4 small known gaps** (D10-independent), one commit each, each removing a `knownGap`
+  or adding a recorded step: WebSocket `binaryType` per project (`websocket_standard_binary_type`,
+  the three global paths); `WorkerCode` data/wasm module types; `ctx.exports.<Entrypoint>`.
+  `sql.ingest()` only if wanted — celld stops at an ingest error anyway.
+- [ ] **F5 idle databases**: `hibernateIdle` closes the SQLite handle after a second, longer idle
+  time and reopens on the next event. Proof: a test counting open handles, and p07i still green.
+- [ ] **F6 storage round trips for Workflows and R2**, celld → cellb → celld, as p11f does for KV,
+  D1 and Queues.
+- [ ] **F7 Firefox and WebKit**: add the Playwright projects; record what fails (module
+  ServiceWorkers, OPFS sync handles, Web Locks) in `docs/gaps.md` before fixing anything.
+- Stays out, written in `docs/gaps.md` with the reason: limits per object, opaque-origin iframes
+  for untrusted code, celld's log tier and `/peer/handoff`, Python Workers.
