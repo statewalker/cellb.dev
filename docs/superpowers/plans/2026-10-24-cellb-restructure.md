@@ -208,7 +208,7 @@ their tests). p10b/p10c now run on `test/memory-lease.ts`; unit 363 → 348 (p05
 - [ ] Move the notes, `plan.md` and the plans to `docs/history/` with `git mv`.
 - [ ] Root README: drop the "still uses the old name" paragraph.
 
-### R7 test time: ~400 s → ~130 s for the unit suite (tests only, no behaviour change)
+### R7 test time: ~400 s → ~130 s for the unit suite (tests only, no behaviour change) — done `9a12f0a..9d6ce12`
 Measured on `a511d51` (vitest JSON report): the suite takes 397 s and **one file sets it**,
 `test/p11f-celld-one-bucket.test.ts` (397 s, 30 tests, ~13 s each, run one after another).
 Next: `p09-celld-conformance` 129 s (`cron` alone 67 s: a fixed `waitMs: 65_000` for a real
@@ -217,22 +217,47 @@ Each p11f test is mostly waiting: start `celld dev` and poll for "ready"; after 
 cellb's steps every 500 ms until celld's node lease lapses (`p11f…:95-103`); a fixed 3.5 s for
 cellb's own 3 s node lease (`:109`); start celld again.
 
-- [ ] p11f: run the tests concurrently (`describe.concurrent`, a bounded pool of 4). Each test
+Result: the unit suite 417 s → 83 s wall time (3 runs: 82.8 / 83.9 / 84.8 s, each 348 passed,
+7 expected fail, 1 skipped). Per file, before (one run on `8d9ac0b`) → after (3 runs): p11f 417 →
+82-84 s, p09 129 → 70 s, p11g 111 → 37-38 s, p11i 88 → 43-44 s; the rest unchanged (p11c 15 s).
+`describe.concurrent.skipIf()` drops the concurrent flag in vitest 5.0.5; the celld files use
+`describe.skipIf(!CELLD)(name, { concurrent: true }, …)`, and `vi.setConfig({ maxConcurrency: 4 })`
+per file.
+
+- [x] p11f: run the tests concurrently (`describe.concurrent`, a bounded pool of 4). Each test
   already has its own project dir; give each its own celld port and bucket prefix (`cells/<test>/`),
   so no two share a node record or a lease. Success: p11f ≤ 120 s, 30/30 green, run 3× in a row.
-- [ ] p11f: drop the fixed 3.5 s wait. First a failing test that `bucket.close()` leaves cellb's
+  — 101 s, 3× green (`9a12f0a`). The project dir is already the isolation key (celld dev's bucket
+  is `<dir>/.celld/dev/objects.sqlite3`), so no prefix was needed; the ports moved to 19000+,
+  because 18830+ ran into p11i/p11j/p11g's ports.
+- [x] p11f: drop the fixed 3.5 s wait. First a failing test that `bucket.close()` leaves cellb's
   node record released (celld then takes the cell at once); then make `close()` release it if it
   does not. Keep the retry loop after stopping celld — celld's own lease lapsing is part of what the
-  test proves (hand-over with no manual step).
-- [ ] p09: run the scenarios concurrently (bounded pool), so `cron`'s 65 s overlaps the others
+  test proves (hand-over with no manual step). — The test passed as is (`close()` already deletes
+  `nodes/<node>.json`; it failed when that line was removed), so no source change; the waits are
+  gone and the hand-overs, whose celld side does not retry, guard it (`462894d`, p11f → 82 s).
+  One wait stays, in "Queues: … and back": without it celld starts before webrun-cells' delayed
+  message is due, and that test failed 2 of 12 runs (0 of 12 with the wait).
+- [x] p09: run the scenarios concurrently (bounded pool), so `cron`'s 65 s overlaps the others
   instead of adding to them; the transcripts are per project and do not share state. Success:
   p09 ≤ 75 s. (A fake `CronClock` — `bindings/cron.ts:182` already takes one — would also work for
-  cellb's side but not for the recorded celld golden, so overlap is the honest fix.)
-- [ ] p11g, p11i: same bounded concurrency where the tests use distinct cells/prefixes; otherwise
-  leave them (they are under the new p09 bound).
-- [ ] Verify: whole unit suite ≤ 150 s wall time, counts unchanged (363 / 7 expected fail / 1 skip,
+  cellb's side but not for the recorded celld golden, so overlap is the honest fix.) — 70 s
+  (`a72f866`). The one shared thing was the console capture of user logs: one patch now routes
+  each line to the scenario whose `AsyncLocalStorage` context logged it.
+- [x] p11g, p11i: same bounded concurrency where the tests use distinct cells/prefixes; otherwise
+  leave them (they are under the new p09 bound). — Both distinct; 37 s and 44 s (`9d6ce12`). p11j's
+  WebSocket test moved from port 18884 (in p11g's range) to 18875: with p11g's nodes starting
+  together it collided (celld dev did not bind, the socket got p11g's 503, a 120 s timeout).
+- [x] Verify: whole unit suite ≤ 150 s wall time, counts unchanged (363 / 7 expected fail / 1 skip,
   minus R2's deletions), and the intermittent p11f delayed-queue test (§6) watched: if concurrency
   makes it flakier, that is new information about its cause — record it, do not retry it away.
+  — 3× green at 83-85 s, 348 / 7 / 1. The delayed-queue test ("… sent on webrun-cells is
+  delivered by celld") also failed in the unchanged baseline run. New information: the failing
+  case is celld waking a message that webrun-cells left NOT yet due. Removing the wait in
+  "Queues: … and back" put that test on the same path, and it failed the same way (celld never
+  delivers `b-from-webrun`; both drivers failed in the same run). Under concurrency the handoff
+  test itself passed in all 12 runs that included it (6 of p11f alone, 6 of the full suite), so it
+  did not get flakier.
 
 ## 4. Decisions (answered 2026-10-24)
 
