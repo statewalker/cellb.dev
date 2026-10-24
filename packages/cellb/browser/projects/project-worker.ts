@@ -5,7 +5,7 @@
 import { cellsCaches } from "../../src/bindings/cache.js";
 import { browserIsolatedLoader } from "../../src/isolate/browser.js";
 import { installNodeGlobals } from "../../src/node-compat/install.js";
-import { browserModuleLoader } from "../../src/project/browser-modules.js";
+import { browserModuleLoader, WORKERS_MODULE_SHIM } from "../../src/project/browser-modules.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import type { WranglerConfig } from "../../src/project/wrangler.js";
 import {
@@ -17,9 +17,6 @@ import {
 import { captureLogs, runProject } from "./run-project.js";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
-const WORKERS_MODULE_SHIM =
-  "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
-
 scope.onmessage = async (e) => {
   const reply = (v: unknown) => (e.ports[0] as MessagePort).postMessage(v);
   const { project, scenario, wsServer, bucket, paths } = e.data as {

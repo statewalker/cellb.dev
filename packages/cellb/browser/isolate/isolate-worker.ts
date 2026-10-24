@@ -6,7 +6,7 @@ import { sahpoolOpener } from "../../src/adapters/wasm-sqlite.js";
 import { cellsCaches } from "../../src/bindings/cache.js";
 import { serveIsolate } from "../../src/isolate/isolate.js";
 import type { PortLike } from "../../src/isolate/protocol.js";
-import { browserModuleLoader } from "../../src/project/browser-modules.js";
+import { browserModuleLoader, WORKERS_MODULE_SHIM } from "../../src/project/browser-modules.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import { workersHostRegistry } from "../../src/project/site.js";
 import {
@@ -15,9 +15,6 @@ import {
   WebSocketPair,
   WebSocketRequestResponsePair,
 } from "../../src/ws/server.js";
-
-const WORKERS_MODULE_SHIM =
-  "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
 
 (globalThis as Record<string, unknown>).__cellsWorkersModule = workersModule;
 workersHostRegistry({

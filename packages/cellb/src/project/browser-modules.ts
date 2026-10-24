@@ -6,6 +6,10 @@ import {
   type WorkerCode,
 } from "../bindings/worker-loader.js";
 
+/** `cloudflare:workers` for loaded code: the runtime's classes from `globalThis.__cellsWorkersModule`. */
+export const WORKERS_MODULE_SHIM =
+  "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
+
 /**
  * Worker Loader in a browser realm: each module of a WorkerCode becomes a Blob-URL ES
  * module. `cloudflare:workers` resolves to a shim reading the runtime's own classes from
