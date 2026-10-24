@@ -44,8 +44,15 @@ if ! curl -fs -o /dev/null "$ENDPOINT/health"; then
   for _ in $(seq 1 60); do curl -fs -o /dev/null "$ENDPOINT/health" && break; sleep 0.5; done
   curl -fs -o /dev/null "$ENDPOINT/health" || { echo "RustFS did not start; see $ROOT/rustfs.log" >&2; exit 1; }
 fi
-# the tests' bucket ("cells"); creating an existing bucket is harmless (409)
-curl -s -o /dev/null --aws-sigv4 "aws:amz:us-east-1:s3" --user rustfsadmin:rustfssecret -X PUT "$ENDPOINT/cells" || true
+# the tests' bucket ("cells"); creating an existing bucket is harmless (409). A fresh RustFS
+# answers /health before it accepts S3 requests, so retry until the bucket is there.
+for _ in $(seq 1 60); do
+  CODE="$(curl -s -o /dev/null -w '%{http_code}' --aws-sigv4 "aws:amz:us-east-1:s3" \
+    --user rustfsadmin:rustfssecret -X PUT "$ENDPOINT/cells" || true)"
+  case "$CODE" in 200 | 409) break ;; esac
+  sleep 0.5
+done
+case "$CODE" in 200 | 409) ;; *) echo "RustFS bucket 'cells' not created (HTTP $CODE); see $ROOT/rustfs.log" >&2; exit 1 ;; esac
 
 export CELLD_BIN="$CELLD" ESBUILD_DIR RUSTFS_ENDPOINT="$ENDPOINT"
 if [ $# -gt 0 ]; then
