@@ -11,6 +11,7 @@ import {
 } from "../bindings/worker-loader.js";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
 import { SCHEDULER_EXPRESSION } from "./scheduler.js";
+import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
 
 /**
  * A project served by an in-browser "HTTP server" (webrun-site-builder handler, hosted in a
@@ -49,11 +50,7 @@ export function createProjectSite(opts: {
     ])
       provided[name] = (opts.nodeModules?.[name] as object) ?? {};
   const globals = {
-    Response: `${host}("Response")`,
-    WebSocketPair: `${host}("WebSocketPair")`,
-    caches: `${host}("caches")`,
-    HTMLRewriter: `${host}("HTMLRewriter")`,
-    WebSocketRequestResponsePair: `${host}("WebSocketRequestResponsePair")`,
+    ...Object.fromEntries(WORKERS_GLOBAL_NAMES.map((n) => [n, `${host}(${JSON.stringify(n)})`])),
     scheduler: SCHEDULER_EXPRESSION,
     ...(opts.nodeCompat ? { Buffer: `${host}("Buffer")`, process: `${host}("process")` } : {}),
   };
@@ -119,11 +116,7 @@ export function workersHostRegistry(entries: {
 }): void {
   const map = new Map<string, unknown>([
     ["cloudflare:workers", entries.workersModule],
-    ["Response", entries.Response],
-    ["WebSocketPair", entries.WebSocketPair],
-    ["caches", entries.caches],
-    ["HTMLRewriter", entries.HTMLRewriter],
-    ["WebSocketRequestResponsePair", entries.WebSocketRequestResponsePair],
+    ...WORKERS_GLOBAL_NAMES.map((n) => [n, entries[n]] as const),
     ...Object.entries(entries.node ?? {}),
   ]);
   (globalThis as Record<string, unknown>).__webrunHostRegistry = {
