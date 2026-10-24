@@ -1,3 +1,7 @@
+import { PreconditionFailedError } from "../bucket/object-store.js";
+
+export { PreconditionFailedError };
+
 /**
  * The one primitive a cross-host lease needs: compare-and-swap on a key.
  * S3 / R2 / MinIO: GET returns an ETag; PUT with `If-None-Match: *` (create
@@ -7,13 +11,6 @@
 export interface Versioned {
   body: string;
   etag: string;
-}
-
-export class PreconditionFailedError extends Error {
-  constructor(key: string) {
-    super(`Precondition failed for "${key}"`);
-    this.name = "PreconditionFailedError";
-  }
 }
 
 export interface ConditionalStore {

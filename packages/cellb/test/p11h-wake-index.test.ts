@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { celldBucket } from "../src/bucket/celld-cells.js";
 import { memoryObjectStore } from "../src/bucket/object-store.js";
+import { PreconditionFailedError } from "../src/index.js";
 
 // celld's wake index (logic/wake.rs): one immutable entry per alarm installation, a
 // per-cell retirement certificate, and cleanup of everything the certificate retires.
@@ -83,5 +84,15 @@ describe("P11h wake index hygiene", () => {
     const lease = await b.ownership.tryAcquire(cell);
     expect(lease?.epoch).toBe(4); // the next epoch, restored from the bucket
     await b.close();
+  });
+});
+
+describe("P11h object store conditional writes", () => {
+  it("a conflict is the PreconditionFailedError the package exports", async () => {
+    const store = memoryObjectStore();
+    await store.put("k", new Uint8Array([1]));
+    await expect(store.put("k", new Uint8Array([2]), { ifNoneMatch: "*" })).rejects.toBeInstanceOf(
+      PreconditionFailedError,
+    );
   });
 });

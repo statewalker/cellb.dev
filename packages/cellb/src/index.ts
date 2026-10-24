@@ -17,6 +17,7 @@ export {
   R2ObjectBody,
   r2Bucket,
 } from "./bindings/r2.js";
+export { PreconditionFailedError } from "./bucket/object-store.js";
 export { DurableObject, type ExecutionContext, WorkerEntrypoint } from "./core/durable-object.js";
 export { InputGate, OutputGate } from "./core/gates.js";
 export { DurableObjectId } from "./core/id.js";
@@ -46,7 +47,6 @@ export { CasLease, type CasLeaseOptions, FencedError, FencedManifest } from "./l
 export {
   type ConditionalStore,
   MemoryConditionalStore,
-  PreconditionFailedError,
   type Versioned,
 } from "./lease/conditional-store.js";
 export { acquire, type Clock, type Lease, type LeaseHandle, systemClock } from "./lease/lease.js";
