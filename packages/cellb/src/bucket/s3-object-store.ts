@@ -1,3 +1,4 @@
+import { bytesToHex } from "@noble/hashes/utils";
 import type { ObjectStore } from "./object-store.js";
 import { type ObjectAttributes, PreconditionFailedError } from "./object-store.js";
 
@@ -25,13 +26,13 @@ export interface S3Options {
 }
 
 const enc = new TextEncoder();
-const hex = (b: ArrayBuffer | Uint8Array) =>
-  [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 const sha256 = async (data: Uint8Array | string) =>
-  hex(
-    await crypto.subtle.digest(
-      "SHA-256",
-      typeof data === "string" ? enc.encode(data) : (data as BufferSource),
+  bytesToHex(
+    new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        typeof data === "string" ? enc.encode(data) : (data as BufferSource),
+      ),
     ),
   );
 const hmac = async (key: Uint8Array | ArrayBuffer, data: string) => {
@@ -87,7 +88,7 @@ export async function signV4(
   const toSign = ["AWS4-HMAC-SHA256", amzDate, scope, await sha256(canonical)].join("\n");
   let key: Uint8Array = await hmac(enc.encode(`AWS4${o.secretAccessKey}`), day);
   for (const part of [region, "s3", "aws4_request"]) key = await hmac(key, part);
-  const signature = hex(await hmac(key, toSign));
+  const signature = bytesToHex(await hmac(key, toSign));
   h.authorization = `AWS4-HMAC-SHA256 Credential=${o.accessKeyId}/${scope}, SignedHeaders=${names.join(";")}, Signature=${signature}`;
   delete h.host; // set by fetch
   return h;

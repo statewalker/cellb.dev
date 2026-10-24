@@ -1,3 +1,4 @@
+import { bytesToHex } from "@noble/hashes/utils";
 import { decodeLtx, encodeLtx, ltxFileName } from "../ltx/ltx.js";
 import type { BackupInfo, CellBackup, CellDurability } from "../ports.js";
 import { ltxLog } from "./ltx-log.js";
@@ -66,8 +67,7 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
   // celld's per-process generation is its signed-probe public key (Ed25519, peer_probe.rs):
   // `probe_public_key` = `ownership_index_generation`. A real key lets `celld diagnose --peer`
   // verify that a probe reached this node.
-  const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
-  let generation = hex(crypto.getRandomValues(new Uint8Array(32)));
+  let generation = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
   let probeKey: CryptoKey | undefined;
   const probeKeyReady = (async () => {
     try {
@@ -76,7 +76,7 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
         "verify",
       ])) as CryptoKeyPair;
       probeKey = pair.privateKey;
-      generation = hex(new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey)));
+      generation = bytesToHex(new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey)));
     } catch {
       // no Ed25519 in this WebCrypto: the record keeps a random generation (probes then fail)
     }
@@ -283,7 +283,13 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
       const signature = new Uint8Array(
         await crypto.subtle.sign("Ed25519", probeKey, new TextEncoder().encode(payload)),
       );
-      return { version: 1, node: opts.node, advertise: addr, challenge, signature: hex(signature) };
+      return {
+        version: 1,
+        node: opts.node,
+        advertise: addr,
+        challenge,
+        signature: bytesToHex(signature),
+      };
     },
     async advertise(address: string) {
       addr = address;
