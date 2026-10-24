@@ -160,11 +160,13 @@ removed by moving `DurableObjectClass` into `core/handles` (`09fe55f`).
 - [x] Move the shared helpers of `bucket/celld-cells.ts` and `ltx-log.ts` into `bucket/celld-format.ts`.
 - [x] Guard: a test, or a `madge --circular` script in `package.json`, that fails on any new cycle.
 
-### R2 one declaration per port
-- [ ] Move `Lease`, `LeaseHandle` and `Clock` into `ports.ts`, and type `CellRuntimeOptions.ownership?: Lease`.
-- [ ] `SyncSqlDriver`: keep optional only the members that one driver really lacks
+### R2 one declaration per port — done `0bf4707..a612c08`
+Also deleted by the deletion test: `SqliteFileLease`, `RegistryLease`, `acquire` (no user outside
+their tests). p10b/p10c now run on `test/memory-lease.ts`; unit 363 → 348 (p05c 8, p05d 7 tests).
+- [x] Move `Lease`, `LeaseHandle` and `Clock` into `ports.ts`, and type `CellRuntimeOptions.ownership?: Lease`.
+- [x] `SyncSqlDriver`: keep optional only the members that one driver really lacks
   (`pageImage`, `discardDirtyPages`).
-- [ ] D5: delete `CasLease`, `ConditionalStore`, `MemoryConditionalStore` and `SqliteConditionalStore` with their tests; keep `Lease`, `SqliteFileLease`, `RegistryLease` if still used, otherwise delete them too (deletion test).
+- [x] D5: delete `CasLease`, `ConditionalStore`, `MemoryConditionalStore` and `SqliteConditionalStore` with their tests; keep `Lease`, `SqliteFileLease`, `RegistryLease` if still used, otherwise delete them too (deletion test).
 
 ### R3 `CellStorage`, one bundle instead of five hand-wired fields
 - [ ] `CellStorage = { durability, backup?, ownership?, objects?, close() }`.
