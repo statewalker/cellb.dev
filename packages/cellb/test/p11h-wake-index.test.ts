@@ -60,4 +60,28 @@ describe("P11h wake index hygiene", () => {
     await a.close();
     await b.close();
   });
+
+  it("celld 0.6.3: a cell whose own.json is lost but whose LTX exists is refused, not restarted empty", async () => {
+    let t = 1_000_000;
+    const store = memoryObjectStore();
+    const b = celldBucket(store, { node: "n", now: () => t });
+    const cell = "Agent/" + "c".repeat(64);
+    const scope = `Agent:${"c".repeat(64)}`;
+    await store.put(
+      `cells/${scope}/ltx/e3/0000/0000000000000001-0000000000000001.ltx`,
+      new Uint8Array([1]),
+    );
+    await expect(b.ownership.tryAcquire(cell)).rejects.toThrow(/ownership record lost/);
+    // the repair (celld's guarantees.md): a released record at the newest epoch …
+    await store.put(
+      `cells/${scope}/own.json`,
+      new TextEncoder().encode(JSON.stringify({ node: "", epoch: 3 })),
+    );
+    // … takes effect only after the 10 s refusal
+    await expect(b.ownership.tryAcquire(cell)).rejects.toThrow(/ownership record lost/);
+    t += 10_001;
+    const lease = await b.ownership.tryAcquire(cell);
+    expect(lease?.epoch).toBe(4); // the next epoch, restored from the bucket
+    await b.close();
+  });
 });

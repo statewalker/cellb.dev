@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { cpSync, mkdtempSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
@@ -148,6 +148,71 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and webrun-cells", ()
       await w.close().catch(() => {});
       await stop(c1.p);
       real.close();
+    }
+  }, 120_000);
+});
+
+describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", () => {
+  it("both refuse a cell whose own.json is gone while its LTX remains; the released-record repair restores it", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "lost-")), "counter");
+    cpSync(counter, dir, { recursive: true });
+    const c1 = await celldDev(dir, 18_868);
+    expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 1 });
+    expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 2 });
+    await stop(c1.p);
+    const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+    const own = (await store.list("cells/Counter:")).find((k) => k.endsWith("/own.json"))!;
+    const scope = own.split("/")[1];
+    await store.delete(own); // e.g. a bucket lifecycle rule
+    rmSync(join(dir, ".celld/dev/runtime"), { recursive: true, force: true });
+    // webrun-cells refuses, as celld 0.6.3 does …
+    const w = await webrun(dir, store, "webrun-lost");
+    try {
+      expect(await w.inc()).toEqual({ refused: expect.stringContaining("ownership record lost") });
+      // … and celld itself: `celld dev` reports the lost record (and, the cell refused, does
+      // not become ready)
+      const c2 = await celldDev(dir, 18_869);
+      const asked = await inc((u) =>
+        fetch(c2.base + u, { signal: AbortSignal.timeout(8_000) }).catch(
+          (e) => new Response(String(e)),
+        ),
+      );
+      expect(asked).toEqual({ refused: expect.any(String) });
+      for (let i = 0; i < 100 && !/celld ownership record lost/.test(c2.log()); i++)
+        await new Promise((r) => setTimeout(r, 200));
+      expect(c2.log()).toMatch(/celld ownership record lost/);
+      await stop(c2.p);
+      // the repair in celld's guarantees.md: a released record at the newest epoch
+      const newest = Math.max(
+        ...(await store.list(`cells/${scope}/ltx/`)).map((k) =>
+          Number(/\/ltx\/e(\d+)\//.exec(k)![1]),
+        ),
+      );
+      await store.put(own, new TextEncoder().encode(JSON.stringify({ node: "", epoch: newest })));
+      // after the 10 s refusal, a node takes the cell at the next epoch, with its state
+      await new Promise((r) => setTimeout(r, 10_500));
+      expect(
+        await until(
+          () => w.inc(),
+          (r) => "n" in r,
+          10_000,
+        ),
+      ).toEqual({ n: 3 });
+    } finally {
+      await w.close();
+    }
+    const c3 = await celldDev(dir, 18_867);
+    try {
+      expect(
+        await until(
+          () => inc((u) => fetch(c3.base + u)),
+          (r) => "n" in r,
+          15_000,
+        ),
+      ).toEqual({ n: 4 });
+    } finally {
+      await stop(c3.p);
+      store.close();
     }
   }, 120_000);
 });

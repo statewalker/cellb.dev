@@ -13,6 +13,13 @@ import { projectDir } from "./projects.ts";
 import { normalizeLogs, runScenario, scenarios } from "./scenarios.ts";
 
 const celld = process.env.CELLD_BIN ?? "celld";
+/** The version the goldens are recorded with ("celld 0.6.3" → "0.6.3"). */
+const celldVersion = (await import("node:child_process"))
+  .execFileSync(celld, ["--version"])
+  .toString()
+  .trim()
+  .split(/\s+/)
+  .pop();
 const here = import.meta.dirname;
 const names = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(scenarios);
 let port = 18_700;
@@ -57,7 +64,7 @@ for (const name of names) {
     }
     writeFileSync(
       resolve(here, "golden", `${name}.json`),
-      `${JSON.stringify({ celld: "0.6.2", transcript, ...(logs ? { logs } : {}) }, null, 2)}\n`,
+      `${JSON.stringify({ celld: celldVersion, transcript, ...(logs ? { logs } : {}) }, null, 2)}\n`,
     );
     console.log(
       `✓ ${name}: ${transcript.length} exchanges${logs ? `, ${logs.length} log lines` : ""}`,

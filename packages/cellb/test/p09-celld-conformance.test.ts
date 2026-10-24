@@ -19,7 +19,7 @@ import { loadNodeProject } from "../src/project/node-project.js";
 import { startReferenceServer } from "./ws-reference-server.js";
 
 // celld's own examples, unchanged, from their own wrangler.jsonc, must answer exactly as
-// the real celld 0.6.2 answered (conformance/golden, recorded by conformance/record-celld.ts).
+// the real celld 0.6.3 answered (conformance/golden, recorded by conformance/record-celld.ts).
 const golden = (name: string) =>
   JSON.parse(readFileSync(join(__dirname, `../conformance/golden/${name}.json`), "utf8"));
 
@@ -56,7 +56,7 @@ async function target(
   };
 }
 
-describe("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.2", () => {
+describe("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.3", () => {
   // The R2 projects once more with objects in celld's bucket layout (r2-celld.ts): the same
   // answers whichever store R2 uses.
   for (const name of Object.keys(scenarios).filter((n) => n.startsWith("r2")))

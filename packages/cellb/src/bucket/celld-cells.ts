@@ -32,6 +32,18 @@ const dec = new TextDecoder();
 export const scopeOf = (cellKey: string) => cellKey.replace("/", ":");
 export const pad16 = (n: bigint) => n.toString(16).padStart(16, "0");
 
+/** celld 0.6.3: how long a node refuses a cell whose ownership record it found lost. */
+export const LOST_RECORD_RECHECK_MS = 10_000;
+const lostRecordError = (scope: string) =>
+  Object.assign(
+    new Error(
+      `ownership record lost: cells/${scope}/own.json is missing, but the bucket holds LTX under ` +
+        `cells/${scope}/ltx/; refusing to claim ${scope} as a new cell (celld docs/guarantees.md: ` +
+        `write a released record {"node": "", "epoch": <newest epoch>} to restore it)`,
+    ),
+    { name: "OwnershipRecordLostError" },
+  );
+
 export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
   const now = opts.now ?? (() => Date.now());
   const ttl = opts.leaseTtlMs ?? 10_000;
@@ -107,6 +119,8 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
     validUntil = t + ttl - Math.min(1_000, ttl / 4);
   };
   const owned = new Set<string>();
+  /** Cells whose ownership record was found lost, with the time their refusal ends. */
+  const lostRecords = new Map<string, number>();
   const ensureLease = () => {
     leaseWritten ??= probeKeyReady.then(writeLease).then(() => {
       const tick = () => {
@@ -145,7 +159,19 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
       await ensureLease();
       const scope = scopeOf(cellKey);
       const key = `cells/${scope}/own.json`;
-      const cur = await readJson<{ node: string; epoch: number }>(key);
+      const t0 = now();
+      if ((lostRecords.get(scope) ?? 0) > t0) throw lostRecordError(scope); // still refused
+      let cur = await readJson<{ node: string; epoch: number }>(key);
+      // celld 0.6.3 (actor.rs read_owner_for_claim): a missing record next to LTX means the
+      // record was LOST (e.g. a lifecycle rule) — claiming epoch 1 would start the cell empty.
+      // Read once more, then refuse the cell for 10 s without asking the bucket again.
+      if (!cur && (await store.list(`cells/${scope}/ltx`)).length > 0) {
+        cur = await readJson<{ node: string; epoch: number }>(key);
+        if (!cur) {
+          lostRecords.set(scope, t0 + LOST_RECORD_RECHECK_MS);
+          throw lostRecordError(scope);
+        }
+      }
       let epoch: number;
       try {
         if (!cur) {

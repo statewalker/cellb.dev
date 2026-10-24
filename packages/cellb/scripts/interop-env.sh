@@ -7,7 +7,7 @@
 #   scripts/interop-env.sh pnpm playwright test e2e/celld-bucket
 # Versions are pinned (bump them together with the recorded goldens).
 set -euo pipefail
-CELLD_VERSION="${CELLD_VERSION:-0.6.2}"
+CELLD_VERSION="${CELLD_VERSION:-0.6.3}"
 RUSTFS_VERSION="${RUSTFS_VERSION:-1.0.3}"
 RUSTFS_PORT="${RUSTFS_PORT:-9200}"
 ROOT="${INTEROP_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/webrun-cells-interop}"

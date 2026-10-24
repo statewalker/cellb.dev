@@ -34,7 +34,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/webrun-cells-interop/bin
-          key: interop-bin-celld-0.6.2-rustfs-1.0.3
+          key: interop-bin-celld-0.6.3-rustfs-1.0.3
       - run: pnpm run typecheck
       - name: Node — celld conformance and interop
         run: pnpm run interop

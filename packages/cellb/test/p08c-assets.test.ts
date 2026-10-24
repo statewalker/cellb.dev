@@ -13,7 +13,7 @@ const get = (path: string, headers: HeadersInit = {}) =>
 
 // Behaviour beyond what celld's corpus pins down (assets-api covers the rest against celld).
 describe("P08c static assets", () => {
-  it("serves a nested index at dir/ (Cloudflare; celld 0.6.2 falls through here — a celld bug, note 18)", async () => {
+  it("serves a nested index at dir/ (Cloudflare; celld 0.6.2–0.6.3 fall through here — a celld bug, note 18)", async () => {
     const a = createAssets(files, {}, false);
     const r = a.route(get("/docs/"))!;
     expect([r.status, await r.text()]).toEqual([200, "docs"]);
@@ -39,7 +39,7 @@ describe("P08c static assets", () => {
     expect(createAssets(files, { run_worker_first: true }, true).route(get("/"))).toBeUndefined();
   });
 
-  it("force-trailing-slash: pages live at /x/ (celld 0.6.2 404s there — bug)", async () => {
+  it("force-trailing-slash: pages live at /x/ (celld 0.6.2–0.6.3 404 there — bug)", async () => {
     const f = new Map([...files, ["/about.html", enc("about")]]);
     const a = createAssets(f, { html_handling: "force-trailing-slash" }, false);
     const about = a.route(get("/about/"))!;
@@ -49,7 +49,7 @@ describe("P08c static assets", () => {
     expect(a.route(get("/about"))!.headers.get("location")).toBe("/about/");
   });
 
-  it("drop-trailing-slash: /x/ redirects to /x (celld 0.6.2 404s — bug)", () => {
+  it("drop-trailing-slash: /x/ redirects to /x (celld 0.6.2–0.6.3 404 — bug)", () => {
     const f = new Map([...files, ["/about.html", enc("about")]]);
     const a = createAssets(f, { html_handling: "drop-trailing-slash" }, false);
     const r = a.route(get("/about/"))!;

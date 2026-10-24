@@ -212,7 +212,7 @@ export const scenarios: Record<string, Scenario> = {
       { path: "/about.html" },
       { path: "/about/" },
       { path: "/docs" },
-      // "/docs/" omitted: celld 0.6.2 does not serve nested index files (bug; see note 18).
+      // "/docs/" omitted: celld 0.6.2–0.6.3 does not serve nested index files (bug; see note 18).
       { path: "/style.css" },
       { path: "/data.unknownext", headers: { range: "bytes=2-5" } },
       { path: "/data.unknownext", headers: { range: "bytes=50-60" } },
@@ -299,7 +299,7 @@ export const scenarios: Record<string, Scenario> = {
   },
   "node-compat": { steps: [{ path: "/" }] },
   "assets-force": {
-    steps: // "/about/" and "/docs/" omitted: celld 0.6.2 answers 404 for every path ending in "/"
+    steps: // "/about/" and "/docs/" omitted: celld 0.6.2–0.6.3 answer 404 for every path ending in "/"
       // except the root (bug; see note 18) — unit-tested against Cloudflare's behaviour instead.
       [
         "/",
@@ -315,7 +315,7 @@ export const scenarios: Record<string, Scenario> = {
     headers: ["location"],
   },
   "assets-drop": {
-    steps: // "/about/" and "/docs/" omitted: celld 0.6.2 answers 404 for every path ending in "/"
+    steps: // "/about/" and "/docs/" omitted: celld 0.6.2–0.6.3 answer 404 for every path ending in "/"
       // except the root (bug; see note 18) — unit-tested against Cloudflare's behaviour instead.
       [
         "/",
@@ -617,7 +617,7 @@ function normalizeHeader(name: string, value: string | null, origin: string): st
 }
 
 /**
- * Documented difference, not hidden: celld 0.6.2 sends NO Content-Type for
+ * Documented difference, not hidden: celld (0.6.2–0.6.3) sends NO Content-Type for
  * `new Response("text")`, while the Fetch standard (browsers, Node, workerd) sets
  * "text/plain;charset=UTF-8". Only that exact pair is aligned.
  */
