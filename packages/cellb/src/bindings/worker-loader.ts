@@ -1,5 +1,10 @@
-import { classHandle, entrypointStub, ISOLATED, type IsolatedClass } from "../core/handles.js";
-import type { DurableObjectClass } from "../core/object-host.js";
+import {
+  classHandle,
+  type DurableObjectClass,
+  entrypointStub,
+  ISOLATED,
+  type IsolatedClass,
+} from "../core/handles.js";
 
 /** What `env.LOADER.get(id, () => code)` returns from its callback (workerd's WorkerCode). */
 export interface WorkerCode {

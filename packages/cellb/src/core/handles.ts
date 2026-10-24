@@ -1,4 +1,6 @@
-import type { DurableObjectClass } from "./object-host.js";
+import type { DurableObjectState } from "./state.js";
+
+export type DurableObjectClass = new (ctx: DurableObjectState, env: any) => any;
 
 /**
  * A class handle — what `worker.getDurableObjectClass(name)` (Worker Loader) and

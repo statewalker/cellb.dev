@@ -6,7 +6,7 @@ import makeD1BindingJs from "../../vendor/miniflare/d1-api.js";
 import { D1DatabaseObject as D1Js } from "../../vendor/miniflare/d1-database.js";
 // @ts-expect-error — generated JS, no declarations
 import { KVNamespaceObject as KVJs } from "../../vendor/miniflare/kv-namespace.js";
-import type { DurableObjectClass } from "../core/object-host.js";
+import type { DurableObjectClass } from "../core/handles.js";
 
 /** Miniflare's KV simulator object (workers-sdk, unchanged). */
 export const KVNamespaceObject = KVJs as DurableObjectClass;

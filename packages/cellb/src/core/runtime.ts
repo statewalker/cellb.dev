@@ -6,10 +6,10 @@ import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
 import { type ExecutionContext, WorkerEntrypoint } from "./durable-object.js";
-import { classHandle, entrypointStub } from "./handles.js";
+import { classHandle, type DurableObjectClass, entrypointStub } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
 import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./namespace.js";
-import { CellOwnedElsewhereError, type DurableObjectClass, ObjectHost } from "./object-host.js";
+import { CellOwnedElsewhereError, ObjectHost } from "./object-host.js";
 
 export interface WorkerModule {
   default: { fetch?(req: Request, env: any, ctx: ExecutionContext): Response | Promise<Response> };

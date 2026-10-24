@@ -10,13 +10,16 @@ import type {
 } from "../ports.js";
 import { CELLD_SCHEMA, LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE, scopeOf } from "./celld-schema.js";
 import { InputGate, OutputGate } from "./gates.js";
-import { asyncStub, type IsolatedClass, isClassHandle } from "./handles.js";
+import {
+  asyncStub,
+  type DurableObjectClass,
+  type IsolatedClass,
+  isClassHandle,
+} from "./handles.js";
 import { type DurableObjectId, DurableObjectId as DurableObjectIdClass } from "./id.js";
 import { SqlStorage } from "./sql-storage.js";
 import { DurableObjectState } from "./state.js";
 import { DurableObjectStorage, SyncKvStorage } from "./storage.js";
-
-export type DurableObjectClass = new (ctx: DurableObjectState, env: any) => any;
 
 export class BrokenObjectError extends Error {
   constructor(cause: unknown, reason = "its storage failed to commit durably") {
