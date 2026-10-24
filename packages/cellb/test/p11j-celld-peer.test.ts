@@ -9,6 +9,7 @@ import { celldBucket } from "../src/bucket/celld-cells.js";
 import { sqliteObjectStore } from "../src/bucket/sqlite-object-store.js";
 import { celldPeers, startCelldPeerServer } from "../src/peer/celld-peer.js";
 import { loadNodeProject } from "../src/project/node-project.js";
+import { createWebSocketClass } from "../src/ws/client.js";
 
 // A mixed fleet: a webrun-cells node in Node speaks celld's peer protocol, so when it owns a
 // cell, celld ROUTES that cell's requests (fetch and JS RPC) to it through /peer/tunnel instead
@@ -225,6 +226,59 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
     } finally {
       await stop(celld.p);
       await w.close();
+    }
+  }, 120_000);
+
+  it("a WebSocket opened at webrun-cells to a cell celld owns crosses the tunnel", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "peer-ws-out-")), "wsecho");
+    cpSync(join(examples, "wsecho"), dir, { recursive: true });
+    const celld = await celldDev(dir, 18_884);
+    try {
+      // celld takes the cell: one socket, one message
+      const { WebSocket: Ws } = await import("ws");
+      const first = new Ws("ws://127.0.0.1:18884/");
+      await new Promise<void>((r) =>
+        first.on("open", () => first.send("from celld")).on("message", () => r()),
+      );
+      first.close();
+      const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+      const node = "webrun-ws-caller";
+      const bucket = celldBucket(store, { node, leaseTtlMs: 3_000 });
+      const { runtime } = await loadNodeProject(dir, {
+        openSql: nodeSqliteOpener(),
+        files: new MemFilesApi(),
+        ownership: bucket.ownership,
+        durability: bucket.durability,
+        backup: bucket.durability,
+        bucketStore: store,
+        peers: celldPeers({ store, node }),
+      } as never);
+      try {
+        const WS = createWebSocketClass((url, p) => runtime.connectWebSocket(url, p));
+        const ws = new WS("ws://w/") as WebSocket;
+        const got: string[] = [];
+        await new Promise<void>((resolve, reject) => {
+          ws.onopen = () => (ws.send("hello"), ws.send("again"));
+          ws.onmessage = (e) => {
+            got.push(String(e.data));
+            if (got.length === 2) resolve();
+          };
+          ws.onerror = () => reject(new Error("websocket error"));
+          setTimeout(() => reject(new Error(`timeout; got ${got}`)), 15_000);
+        });
+        ws.close();
+        // the count lives in celld's cell: it continues from celld's own message
+        expect(got.map((g) => JSON.parse(g))).toEqual([
+          { echo: "hello", count: 2 },
+          { echo: "again", count: 3 },
+        ]);
+      } finally {
+        await runtime.close();
+        await bucket.close();
+        store.close();
+      }
+    } finally {
+      await stop(celld.p);
     }
   }, 120_000);
 });

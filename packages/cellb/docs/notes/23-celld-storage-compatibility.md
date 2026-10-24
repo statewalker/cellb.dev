@@ -371,9 +371,34 @@ follower: it acknowledges writes only once they are in the bucket) and capacity 
 (`/peer/handoff`): the node record reports pressure and placement weight 0, so celld never
 offers it cells — a webrun-cells node owns the cells requested through it.
 
+## celld 0.6.3
+
+celld 0.6.3 changes one behaviour: a cell whose `own.json` is missing while LTX exists under
+`cells/<cell>/ltx/` has LOST its record (a lifecycle rule, an operator) — claiming it at epoch 1
+would restart it empty. celld then refuses the cell, writes `celld ownership record lost`, and
+does not read the bucket again for that cell for 10 s; the repair is a released record
+`{"node": "", "epoch": <newest LTX epoch>}` (docs/guarantees.md). webrun-cells' celldBucket
+does the same (`LOST_RECORD_RECHECK_MS`). Test with the real celld: both refuse; after the
+repair webrun-cells continues the cell (3) and celld after it (4). (`celld dev` with a lost record
+reports it and does not become ready.)
+
+Everything else is unchanged: the JavaScript webrun-cells vendors (KV, Queues, Workflows) is
+byte-identical apart from the version line, and all 65 goldens re-recorded on 0.6.3 are equal
+to the 0.6.2 ones (now labelled 0.6.3). The asset bugs (nested index, paths ending in `/`) are
+still there. The interop environment pins celld 0.6.3.
+
+## WebSockets in both directions, and the host page
+
+The tunnel now also carries WebSockets from webrun-cells to a cell celld owns: the client
+handshake crosses a `do` tunnel, `ws` speaks the frames on it, and the caller gets a 101 with a
+WebSocketPair end bridged to it (test: webrun-cells' Worker opens a socket to celld's `wsecho`
+cell; the echo count continues celld's). The host page's form is tested as a person uses it
+(folder picker, bucket choice, app in the iframe, owned cells), and `docs/browser-host-s3.md`
+explains the S3 setup: CORS rules or a same-origin proxy with `signAs`.
+
 ## Running the interop suite anywhere
 
-`scripts/interop-env.sh` makes the environment reproducible: it fetches the pinned celld and
+`scripts/interop-env.sh` makes the environment reproducible: it fetches the pinned celld (0.6.3) and
 RustFS releases (cached), starts RustFS detached with fresh data on port 9200, and runs a
 command with `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` set. `pnpm run interop` /
 `pnpm run interop:browser` use it, and the workflow `webrun-cells-interop.yml` runs both on

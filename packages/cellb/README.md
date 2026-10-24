@@ -36,7 +36,7 @@ baseline of the unmutated copy.
 | WebSockets over MessagePorts, injected via webrun-modules `~deps` | `src/ws/{client,server,frames}.ts` | `test/p07w-websocket.test.ts` | 12 |
 | WebSocket routing (SW ⇄ shards, cross-shard), heartbeat, webrun-modules in the SW | `src/ws/{control,sw-connector,upgrade}.ts`, `browser/sharded/modules.ts` | `test/p07x-websocket-routing.test.ts`, `browser/e2e/websocket.spec.ts` | 13 |
 | Reuse of Miniflare 4 simulators (KV, D1) and workerd's D1 client, unchanged | `scripts/vendor-miniflare.mjs`, `src/miniflare-compat/*`, `vendor/miniflare/*` | `test/p08a-miniflare-kv.test.ts`, `test/p08b-miniflare-d1.test.ts`, `browser/e2e/miniflare.spec.ts` | 16 |
-| Parity with celld: wrangler projects, differential tests against the real celld 0.6.2 (44 projects, all match in Node and in Chromium) | `src/project/*`, `src/bindings/{r2,r2-celld,celld-kv,celld-queues,celld-workflows,worker-loader}.ts`, `vendor/celld/*`, `src/core/{alarms,handles}.ts`, `conformance/*` | `test/p09-celld-conformance.test.ts`, `test/p07a-alarms.test.ts`, `test/p07h-websocket-hibernation.test.ts` | 17 |
+| Parity with celld: wrangler projects, differential tests against the real celld 0.6.3 (44 projects, all match in Node and in Chromium) | `src/project/*`, `src/bindings/{r2,r2-celld,celld-kv,celld-queues,celld-workflows,worker-loader}.ts`, `vendor/celld/*`, `src/core/{alarms,handles}.ts`, `conformance/*` | `test/p09-celld-conformance.test.ts`, `test/p07a-alarms.test.ts`, `test/p07h-websocket-hibernation.test.ts` | 17 |
 | The celld projects in Chromium (Dedicated Worker, OPFS, browser Worker Loader, sqlite-vec WASM) | `conformance/browser-bundle.ts`, `browser/projects/*`, `src/project/browser-modules.ts` | `browser/e2e/celld-projects.spec.ts` | 18 |
 | Projects served by an in-browser HTTP server (webrun-site-builder + webrun-site-host + webrun-modules), Worker Loader and facets over it | `src/project/site.ts`, `browser/site-projects/*` | `browser/e2e/site-projects.spec.ts` | 19 |
 | Transaction log (SQLite changesets on a FilesApi, RPO 0, snapshot + replay, epoch fencing), per-cell ownership, hibernation, more runtime APIs | `src/adapters/{files-changelog,wasm-session}.ts`, `src/bindings/{cache,html-rewriter}.ts`, `src/core/{sql-storage,object-host}.ts` | `test/p10-change-log.test.ts`, `test/p10b-ownership.test.ts`, `test/p07i-hibernation.test.ts`, `browser/e2e/changelog.spec.ts` | 20 |
@@ -94,7 +94,7 @@ probes/         hypothesis probes
 ## Interop with celld
 
 `pnpm run interop` (Node) and `pnpm run interop:browser` (Chromium) run the suites against the
-real celld: `scripts/interop-env.sh` downloads the pinned celld (0.6.2) and RustFS (1.0.3)
+real celld: `scripts/interop-env.sh` downloads the pinned celld (0.6.3) and RustFS (1.0.3)
 releases into `~/.cache/webrun-cells-interop`, starts RustFS on 127.0.0.1:9200, and exports
 `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT`. Without them those tests skip. CI:
 `.github/workflows/webrun-cells-interop.yml`.
@@ -104,4 +104,5 @@ releases into `~/.cache/webrun-cells-interop`, starts RustFS on 127.0.0.1:9200, 
 `pnpm run browser:dev`, then open `/host/`: load a Workers project folder, choose a fleet bucket
 (OPFS, or S3 shared with celld nodes), and the project runs in a worker of this browser, served
 at its own URL through the ServiceWorker (`browser/host/`, `src/project/browser-host.ts`).
+S3 setup (CORS or a same-origin proxy): `docs/browser-host-s3.md`.
 

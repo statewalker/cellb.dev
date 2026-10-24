@@ -5,7 +5,7 @@ import type { ObjectStore } from "../bucket/object-store.js";
 import type { CellRuntime } from "../core/runtime.js";
 import { deserialize, serialize } from "../v8/serialize.js";
 import { createWebSocketClass } from "../ws/client.js";
-import { type CfWebSocket, takeClientPort } from "../ws/server.js";
+import { CellsResponse, type CfWebSocket, takeClientPort, WebSocketPair } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
 
 /**
@@ -454,13 +454,13 @@ export async function startCelldPeerServer(opts: {
  * through it — `fetch` on a `do` tunnel, JS RPC on an `rpc` tunnel (V8-serialized arguments;
  * the reply decoded as celld encodes it, a callee exception rethrown with its properties).
  */
-async function tunnelCall(
+/** A signed `celld-tunnel` upgrade to the owner node: the raw connection after its 101. */
+async function openTunnel(
   key: Uint8Array,
   source: string,
   owner: { node: string; addr: string },
   kind: "do" | "rpc",
-  inner: { method: string; path: string; headers: Record<string, string>; body?: Uint8Array },
-): Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }> {
+): Promise<import("node:net").Socket> {
   const { request } = await import("node:http");
   const [host, port] = [
     owner.addr.slice(0, owner.addr.lastIndexOf(":")),
@@ -491,6 +491,18 @@ async function tunnelCall(
     req.on("error", reject);
     req.end();
   });
+  return socket;
+}
+
+async function tunnelCall(
+  key: Uint8Array,
+  source: string,
+  owner: { node: string; addr: string },
+  kind: "do" | "rpc",
+  inner: { method: string; path: string; headers: Record<string, string>; body?: Uint8Array },
+): Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }> {
+  const { request } = await import("node:http");
+  const socket = await openTunnel(key, source, owner, kind);
   try {
     return await new Promise((resolve, reject) => {
       const req = request(
@@ -556,9 +568,56 @@ export function celldPeers(opts: { store: ObjectStore; node: string }) {
         "x-cells-scope": scope,
         ...(name !== undefined ? { "x-cells-do-name": name } : {}),
       });
+      // A WebSocket to a cell celld owns: the client handshake crosses a `do` tunnel and `ws`
+      // speaks the frames on it; the caller gets a 101 with a WebSocketPair end bridged to it.
+      const tunnelWebSocket = async (req: Request, url: URL) => {
+        const socket = await openTunnel(k, opts.node, target, "do");
+        const { WebSocket: WsClient } = await import("ws");
+        const protocols = req.headers
+          .get("sec-websocket-protocol")
+          ?.split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
+        const remote = new WsClient(`ws://${url.host}${url.pathname}${url.search}`, protocols, {
+          createConnection: () => socket,
+          headers: control({}),
+        });
+        await new Promise<void>((resolve, reject) => {
+          remote.once("open", () => resolve());
+          remote.once(
+            "unexpected-response",
+            (_q: unknown, res: { statusCode?: number; headers: Record<string, unknown> }) =>
+              reject(
+                res.headers["x-cells-route-error"] === "stale-owner"
+                  ? staleError(cellKey)
+                  : new Error(`WebSocket through the tunnel refused: ${res.statusCode}`),
+              ),
+          );
+          remote.once("error", reject);
+        });
+        const pair = new WebSocketPair();
+        const [client, server] = [pair[0], pair[1]];
+        server.accept();
+        server.addEventListener("message", (e) => remote.send((e as MessageEvent).data));
+        remote.on("message", (d: Buffer, isBinary: boolean) =>
+          server.send(isBinary ? new Uint8Array(d) : d.toString()),
+        );
+        const code = (c: number) => (c >= 1000 && c !== 1005 && c !== 1006 ? c : 1000);
+        server.addEventListener("close", (e) =>
+          remote.close(code((e as CloseEvent).code), (e as CloseEvent).reason),
+        );
+        remote.on("close", (c: number, reason: Buffer) => server.close(code(c), reason.toString()));
+        return new CellsResponse(null, {
+          status: 101,
+          webSocket: client,
+          headers: remote.protocol ? { "Sec-WebSocket-Protocol": remote.protocol } : {},
+        }) as Response;
+      };
       return {
         async fetch(req: Request) {
           const url = new URL(req.url);
+          if (req.headers.get("upgrade")?.toLowerCase() === "websocket")
+            return tunnelWebSocket(req, url);
           const headers: Record<string, string> = {};
           req.headers.forEach((v, h) => {
             if (!h.startsWith("x-cells-")) headers[h] = v;

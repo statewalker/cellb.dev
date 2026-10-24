@@ -56,3 +56,32 @@ test("a project served over HTTP from the browser, its cells continuing across n
   const b = await run("browser-b");
   expect(b.answers.map((x: { n: number }) => x.n)).toEqual([3, 4]);
 });
+
+// The page itself, as a person uses it: choose the project folder, a node name and the OPFS
+// bucket, press Start; the app appears in the iframe and the owned cells are listed.
+test("the host page: folder picker, bucket choice, app in the iframe, owned cells", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.goto("/host/");
+  await page.waitForFunction(() => document.body.dataset.ready === "true");
+  await page.setInputFiles("#project", join(examples, "counter"));
+  await page.fill("#node", "browser-form");
+  await page.selectOption("#bucket-kind", "opfs");
+  await page.fill("#opfs", `form-fleet-${Date.now().toString(36)}`);
+  await page.click("button[type=submit]");
+  await expect(page.locator("#status")).toHaveText(/^running/, { timeout: 30_000 });
+  const appUrl = await page.locator("#app-link").getAttribute("href");
+  expect(appUrl).toMatch(/^http:\/\/localhost:\d+\//);
+  // the iframe shows the app's own page; requests go to it over HTTP
+  await page
+    .locator("#app")
+    .evaluate((f: HTMLIFrameElement, u) => (f.src = `${u}increment?name=form`), appUrl);
+  await expect(page.frameLocator("#app").locator("body")).toContainText('"n":1', {
+    timeout: 15_000,
+  });
+  await page.click("#refresh-owned");
+  await expect(page.locator("#owned")).toContainText(/Counter:[0-9a-f]{64}/);
+  await page.click("#stop");
+  await expect(page.locator("#status")).toHaveText("stopped");
+});
