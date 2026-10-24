@@ -4,17 +4,13 @@
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { sahpoolOpener } from "../../src/adapters/wasm-sqlite.js";
 import { cellsCaches } from "../../src/bindings/cache.js";
+import { HTMLRewriter } from "../../src/bindings/html-rewriter.js";
 import { serveIsolate } from "../../src/isolate/isolate.js";
 import type { PortLike } from "../../src/isolate/protocol.js";
 import { browserModuleLoader, WORKERS_MODULE_SHIM } from "../../src/project/browser-modules.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import { workersHostRegistry } from "../../src/project/site.js";
-import {
-  CellsResponse,
-  HTMLRewriter,
-  WebSocketPair,
-  WebSocketRequestResponsePair,
-} from "../../src/ws/server.js";
+import { CellsResponse, WebSocketPair, WebSocketRequestResponsePair } from "../../src/ws/server.js";
 
 (globalThis as Record<string, unknown>).__cellsWorkersModule = workersModule;
 workersHostRegistry({

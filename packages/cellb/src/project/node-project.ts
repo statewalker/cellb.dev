@@ -117,7 +117,7 @@ export async function bundleWorker(
             external: true,
           }));
           b.onResolve({ filter: /^webrun-cells:ws$/ }, () => ({
-            path: resolve(import.meta.dirname, "../ws/server.ts"),
+            path: resolve(import.meta.dirname, "workers-globals-module.ts"),
             external: true,
           }));
           if (!memory) return;

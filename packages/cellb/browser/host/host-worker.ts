@@ -3,18 +3,14 @@
 // optionally on a celld fleet bucket, and answers HTTP requests the page forwards to it.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { cellsCaches } from "../../src/bindings/cache.js";
+import { HTMLRewriter } from "../../src/bindings/html-rewriter.js";
 import { browserIsolatedLoader } from "../../src/isolate/browser.js";
 import { installNodeGlobals } from "../../src/node-compat/install.js";
 import { type BrowserBucket, browserProjectRuntime } from "../../src/project/browser-host.js";
 import * as workersModule from "../../src/project/cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "../../src/project/site.js";
 import type { WranglerConfig } from "../../src/project/wrangler.js";
-import {
-  CellsResponse,
-  HTMLRewriter,
-  WebSocketPair,
-  WebSocketRequestResponsePair,
-} from "../../src/ws/server.js";
+import { CellsResponse, WebSocketPair, WebSocketRequestResponsePair } from "../../src/ws/server.js";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 let host: Awaited<ReturnType<typeof browserProjectRuntime>> | undefined;
