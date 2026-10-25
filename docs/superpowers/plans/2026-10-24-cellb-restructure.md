@@ -169,7 +169,8 @@ their tests). p10b/p10c now run on `test/memory-lease.ts`; unit 363 → 348 (p05
 - [x] D5: delete `CasLease`, `ConditionalStore`, `MemoryConditionalStore` and `SqliteConditionalStore` with their tests; keep `Lease`, `SqliteFileLease`, `RegistryLease` if still used, otherwise delete them too (deletion test).
 
 ### R3 `CellStorage`, one bundle instead of five hand-wired fields — done `2ff7a94`
-Shape: `{ durability, backup?, ownership?, objects?, close() }` in `ports.ts`; 19 `as never` casts
+Shape: `{ durability?, backup?, ownership?, objects?, close?() }` in `ports.ts` (both optional:
+backup-only and in-process bundles have neither); 19 `as never` casts
 removed, none storage-related left; `runtime.close()` backs up, closes databases, then storage.
 - [x] `CellStorage = { durability, backup?, ownership?, objects?, close() }`.
 - [x] `celldBucket()` returns it, and so do `filesApiChangeLog` and `filesApiLtxLog`.
