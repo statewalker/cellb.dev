@@ -110,7 +110,8 @@ packages/cellb/
 │  ├─ index.ts      isomorphic (~30 names): DurableObject, WorkerEntrypoint, createCellRuntime,
 │  │                createProjectRuntime, CellStorage, port types, serveRuntime/linkOverPort/connectRuntime,
 │  │                CellRouter, createShardHost, WebSocket client/pair, errors embedders catch
-│  ├─ node.ts       loadNodeProject, nodeSqliteOpener, sqliteObjectStore, s3ObjectStore, celldBucket, celld peers
+│  │                (celldBucket, s3ObjectStore and memoryObjectStore are isomorphic, so they live here)
+│  ├─ node.ts       loadNodeProject, applyNodeD1Migrations, nodeSqliteOpener, sqliteObjectStore, celld peers
 │  └─ browser.ts    browserProjectRuntime (installs Workers/node globals itself), sahpoolOpener,
 │                   createProjectSite, serviceWorkerConnector
 ├─ CONTEXT.md       glossary (domain-modeling), no implementation detail
@@ -126,10 +127,11 @@ packages/cellb/
 
 ```ts
 // Node, fleet bucket: 2 calls instead of ~7
-import { loadNodeProject, celldBucket, sqliteObjectStore } from "@statewalker/cellb/node";
+import { celldBucket } from "@statewalker/cellb";
+import { loadNodeProject, sqliteObjectStore } from "@statewalker/cellb/node";
 const app = await loadNodeProject(dir, { storage: celldBucket(sqliteObjectStore(file), { node }) });
 await app.runtime.fetch(req);
-await app.close();                       // closes runtime, then storage, in order
+await app.runtime.close();               // closes runtime, then storage, in order
 ```
 
 ## 3. Tasks
@@ -180,14 +182,19 @@ removed, none storage-related left; `runtime.close()` backs up, closes databases
 - [x] Seam test: the p11f hand-over through the new 2-call setup. The existing tests are moved, not
   duplicated.
 
-### R4 three entry points
-- [ ] `package.json` `exports` with `.`, `./node` and `./browser`, plus `src/node.ts` and
+### R4 three entry points — done `782631a..a04e03e`
+index 50 names (+ `ports.ts`), node 7, browser 6; 42 unused names dropped from the index, no
+implementation orphaned. `browserProjectRuntime({ code: { bundle } | { site }, isolateScript? })`;
+the isolate worker still sets up its own realm. Self-reference resolves in Node, vitest, tsc and
+Vite. Unit 352 / 7 / 1, Chromium 181 / 14. The snippet above closes through `app.runtime.close()`
+(no `close()` added to `loadNodeProject`'s result).
+- [x] `package.json` `exports` with `.`, `./node` and `./browser`, plus `src/node.ts` and
   `src/browser.ts`. Trim `index.ts` to the embedder set.
-- [ ] `browserProjectRuntime` performs the globals and isolate setup itself (the 7 steps become 1),
+- [x] `browserProjectRuntime` performs the globals and isolate setup itself (the 7 steps become 1),
   and the site worker uses the same path.
-- [ ] Tests and fixtures that exercise public behaviour import from the entry points. Tests of
+- [x] Tests and fixtures that exercise public behaviour import from the entry points. Tests of
   internals keep deep imports, because internal seams are allowed.
-- [ ] Seam test: one import test per entry point that runs a counter through it (Node and Chromium).
+- [x] Seam test: one import test per entry point that runs a counter through it (Node and Chromium).
 
 ### R5 one name: cellb
 - [ ] Wire and internal names (switched freely, since both ends ship together): `x-webrun-cells-*`
