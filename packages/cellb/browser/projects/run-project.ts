@@ -9,10 +9,11 @@ import {
   type Target,
   withContentLength,
 } from "../../conformance/scenarios.js";
-import type { ModuleLoader } from "../../src/bindings/worker-loader.js";
-import type { WorkerModule } from "../../src/core/runtime.js";
 import { createWebSocketClass } from "../../src/index.js";
-import { browserProjectRuntime } from "../../src/project/browser-host.js";
+import {
+  type BrowserProjectOptions,
+  browserProjectRuntime,
+} from "../../src/project/browser-host.js";
 import type { WranglerConfig } from "../../src/project/wrangler.js";
 
 /** Captures the realm's console as celld prints user logs (call before running user code). */
@@ -32,11 +33,10 @@ export async function runProject(job: {
   name: string;
   scenario: string;
   config: WranglerConfig;
-  module: Record<string, unknown>;
+  code: BrowserProjectOptions["code"];
+  isolateScript: URL;
   assets: [string, string][];
   wsServer?: string;
-  loadModules: ModuleLoader;
-  isolatedModules?: ModuleLoader;
   logs: string[];
   /**
    * A celld fleet bucket (browser-host.ts): on S3 shared with celld nodes (`endpoint` …), or in
@@ -68,13 +68,12 @@ export async function runProject(job: {
   const b = job.bucket;
   const host = await browserProjectRuntime({
     config: job.config,
-    module: job.module,
+    code: job.code,
+    isolateScript: job.isolateScript,
     sqlite3,
     pool: `cells-${run}`,
     filesDir: `files-${run}`,
     assetFiles,
-    loadModules: job.loadModules,
-    isolatedModules: job.isolatedModules,
     bucket: !b
       ? undefined
       : "opfs" in b

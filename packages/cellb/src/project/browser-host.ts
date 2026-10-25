@@ -1,11 +1,18 @@
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
 import { sahpoolOpener } from "../adapters/wasm-sqlite.js";
 import type { AssetFiles } from "../bindings/assets.js";
-import type { ModuleLoader } from "../bindings/worker-loader.js";
+import { cellsCaches } from "../bindings/cache.js";
+import { HTMLRewriter } from "../bindings/html-rewriter.js";
 import { celldBucket } from "../bucket/celld-cells.js";
 import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js";
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
 import type { WorkerModule } from "../core/runtime.js";
+import { browserIsolatedLoader } from "../isolate/browser.js";
+import { installNodeGlobals } from "../node-compat/install.js";
+import { CellsResponse, WebSocketPair, WebSocketRequestResponsePair } from "../ws/server.js";
+import { browserModuleLoader, WORKERS_MODULE_SHIM } from "./browser-modules.js";
+import * as workersModule from "./cloudflare-workers.js";
+import { siteModuleLoader, workersHostRegistry } from "./site.js";
 import { createProjectRuntime, type WranglerConfig } from "./wrangler.js";
 
 /**
@@ -42,7 +49,21 @@ export type BrowserBucket =
 
 export interface BrowserProjectOptions {
   config: WranglerConfig;
-  module: Record<string, unknown>;
+  /**
+   * The project's Worker code, imported in this realm once its Workers globals (and with
+   * nodejs_compat `Buffer` and `process`) are installed:
+   * - `bundle`: one ES module built for browsers, whose `cloudflare:workers` is
+   *   `WORKERS_MODULE_SHIM` and whose Workers globals read `globalThis.__cellsGlobals`
+   *   (`null`: the project has no `main`). Worker Loader code becomes Blob-URL modules.
+   * - `site`: the base URL of the project's site (`createProjectSite`, hosted by
+   *   webrun-site-host). `main` and Worker Loader code are imported from it.
+   */
+  code: { bundle: string | null } | { site: string };
+  /**
+   * A Dedicated Worker script that serves one loaded Worker (`serveIsolate`): Worker Loader
+   * code then runs isolated, one Dedicated Worker per loaded Worker, as celld's isolates.
+   */
+  isolateScript?: URL;
   /** An initialized SQLite WASM module (`@sqlite.org/sqlite-wasm`). */
   sqlite3: unknown;
   /** OPFS sahpool name for this host's SQLite files (one pool per worker). */
@@ -50,8 +71,6 @@ export interface BrowserProjectOptions {
   /** OPFS directory for the project's FilesApi (Workers' fs-like bindings, R2 without bucket). */
   filesDir: string;
   assetFiles?: AssetFiles;
-  loadModules?: ModuleLoader;
-  isolatedModules?: ModuleLoader;
   bucket?: BrowserBucket;
 }
 
@@ -65,8 +84,51 @@ async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
   );
 }
 
-/** A project's runtime in this worker; `close()` also releases the node's bucket lease. */
+/** Installs the Workers globals the code reads, then imports its `main`. */
+async function importWorkerCode(
+  config: WranglerConfig,
+  code: BrowserProjectOptions["code"],
+): Promise<WorkerModule> {
+  const nodeCompat = (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
+  if (nodeCompat) installNodeGlobals();
+  const globals = {
+    Response: CellsResponse,
+    WebSocketPair,
+    caches: cellsCaches,
+    HTMLRewriter,
+    WebSocketRequestResponsePair,
+  };
+  if ("site" in code) {
+    workersHostRegistry({
+      workersModule,
+      ...globals,
+      // Loaded on demand, after installNodeGlobals(): the npm `util` polyfill reads `process`
+      // when it is imported.
+      node: nodeCompat
+        ? (await import("../node-compat/browser-registry.js")).nodeRegistryEntries
+        : undefined,
+    });
+    return config.main
+      ? await import(/* @vite-ignore */ `${code.site}modules/~/${config.main}`)
+      : { default: {} };
+  }
+  const g = globalThis as Record<string, unknown>;
+  g.__cellsWorkersModule = workersModule;
+  g.__cellsGlobals = globals;
+  return code.bundle
+    ? await import(
+        /* @vite-ignore */ URL.createObjectURL(new Blob([code.bundle], { type: "text/javascript" }))
+      )
+    : { default: {} };
+}
+
+/**
+ * A project's runtime in this worker: installs the Workers globals, imports the code and
+ * builds its Worker Loader; `close()` also releases the node's bucket lease.
+ */
 export async function browserProjectRuntime(opts: BrowserProjectOptions) {
+  const module = await importWorkerCode(opts.config, opts.code);
+  const site = "site" in opts.code ? opts.code.site : undefined;
   const openSql = await sahpoolOpener(opts.sqlite3 as never, {
     name: opts.pool,
     initialCapacity: 32,
@@ -80,12 +142,18 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
     opts.bucket && store
       ? celldBucket(store, { node: opts.bucket.node, leaseTtlMs: opts.bucket.leaseTtlMs })
       : undefined;
-  const { runtime, unsupported } = createProjectRuntime(opts.config, opts.module as WorkerModule, {
+  const { runtime, unsupported } = createProjectRuntime(opts.config, module, {
     openSql,
     files,
     assetFiles: opts.assetFiles,
-    loadModules: opts.loadModules,
-    isolatedModules: opts.isolatedModules,
+    loadModules: site ? siteModuleLoader(site) : browserModuleLoader(WORKERS_MODULE_SHIM),
+    isolatedModules: opts.isolateScript
+      ? browserIsolatedLoader({
+          isolateScript: opts.isolateScript,
+          siteBaseUrl: site,
+          storagePrefix: `${opts.pool}-iso`,
+        })
+      : undefined,
     storage: shared, // R2 objects in the fleet bucket too, as celld keeps them
   });
   return {

@@ -2,15 +2,8 @@
 // The host app's worker: runs one project long-lived (browser-host.ts) on SQLite WASM in OPFS,
 // optionally on a celld fleet bucket, and answers HTTP requests the page forwards to it.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { cellsCaches } from "../../src/bindings/cache.js";
-import { HTMLRewriter } from "../../src/bindings/html-rewriter.js";
-import { browserIsolatedLoader } from "../../src/isolate/browser.js";
-import { installNodeGlobals } from "../../src/node-compat/install.js";
 import { type BrowserBucket, browserProjectRuntime } from "../../src/project/browser-host.js";
-import * as workersModule from "../../src/project/cloudflare-workers.js";
-import { siteModuleLoader, workersHostRegistry } from "../../src/project/site.js";
 import type { WranglerConfig } from "../../src/project/wrangler.js";
-import { CellsResponse, WebSocketPair, WebSocketRequestResponsePair } from "../../src/ws/server.js";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 let host: Awaited<ReturnType<typeof browserProjectRuntime>> | undefined;
@@ -43,28 +36,11 @@ scope.onmessage = async (e) => {
   try {
     if (m.type === "start") {
       nodeName = m.bucket?.node ?? "";
-      const nodeCompat = (m.config.compatibility_flags ?? []).some((f) =>
-        f.startsWith("nodejs_compat"),
-      );
-      if (nodeCompat) installNodeGlobals();
-      workersHostRegistry({
-        workersModule,
-        Response: CellsResponse,
-        WebSocketPair,
-        caches: cellsCaches,
-        HTMLRewriter,
-        WebSocketRequestResponsePair,
-        node: nodeCompat
-          ? (await import("../../src/node-compat/browser-registry.js")).nodeRegistryEntries
-          : undefined,
-      });
-      const module = m.config.main
-        ? await import(/* @vite-ignore */ `${m.baseUrl}modules/~/${m.config.main}`)
-        : { default: {} };
       const sqlite3 = await (sqlite3InitModule as any)({ print() {}, printErr() {} });
       host = await browserProjectRuntime({
         config: m.config,
-        module,
+        code: { site: m.baseUrl },
+        isolateScript: new URL("../isolate/isolate-worker.ts", import.meta.url),
         sqlite3,
         pool: m.pool,
         filesDir: `${m.pool}-files`,
@@ -73,12 +49,6 @@ scope.onmessage = async (e) => {
             ([p, b64]) => [p, Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))] as const,
           ),
         ),
-        loadModules: siteModuleLoader(m.baseUrl),
-        isolatedModules: browserIsolatedLoader({
-          isolateScript: new URL("../isolate/isolate-worker.ts", import.meta.url),
-          siteBaseUrl: m.baseUrl,
-          storagePrefix: `${m.pool}-iso`,
-        }),
         bucket: m.bucket,
       });
       return reply({ ok: true, unsupported: host.unsupported });
