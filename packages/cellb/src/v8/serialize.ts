@@ -1,6 +1,6 @@
 /**
  * The V8 ValueSerializer wire format (version 15) in TypeScript — what celld stores as the
- * values of Durable Object KV storage (`_cf_KV.v`), so webrun-cells can read celld's cells
+ * values of Durable Object KV storage (`_cf_KV.v`), so cellb can read celld's cells
  * and write cells celld reads, in browsers too (they have no `v8.serialize`).
  *
  * Covers: undefined, null, booleans, numbers (Smi / double), BigInt, strings (Latin-1 and

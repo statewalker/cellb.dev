@@ -74,7 +74,7 @@ afterAll(() => {
   for (const [i, m] of methods.entries()) console[m] = originals[i];
 });
 
-describe.concurrent("P09 celld examples on webrun-cells (Node) vs recorded celld 0.6.3", () => {
+describe.concurrent("P09 celld examples on cellb (Node) vs recorded celld 0.6.3", () => {
   // The R2 projects once more with objects in celld's bucket layout (r2-celld.ts): the same
   // answers whichever store R2 uses.
   for (const name of Object.keys(scenarios).filter((n) => n.startsWith("r2")))

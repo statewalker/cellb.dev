@@ -15,7 +15,7 @@ export interface ClassHandle {
 }
 
 /** Key of the isolate's class factory on a module facade (see getDurableObjectClass). */
-export const ISOLATED = Symbol.for("webrun-cells.isolated-classes");
+export const ISOLATED = Symbol.for("cellb.isolated-classes");
 
 /** A Durable Object class that runs in an isolate: its instances and storage live there. */
 export interface IsolatedClass {

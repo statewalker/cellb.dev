@@ -1,6 +1,6 @@
 import { CellsCloseEvent, checkClose, type Frame, toFrameData } from "./frames.js";
 
-const kPort = Symbol("webrun-cells.ws.port");
+const kPort = Symbol("cellb.ws.port");
 
 /**
  * Cloudflare Workers' server-side WebSocket (one end of a WebSocketPair):

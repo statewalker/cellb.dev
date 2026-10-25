@@ -195,7 +195,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       });
       ownedRetries.delete(e.cellKey);
     } catch (err) {
-      // Owned by another node (celld or webrun-cells): its owner fires the alarm.
+      // Owned by another node (celld or cellb): its owner fires the alarm.
       if (isOwnedElsewhere(err)) {
         hosts.get(e.cellKey)?.close();
         hosts.delete(e.cellKey);

@@ -9,7 +9,7 @@ import {
 } from "../../conformance/scenarios.ts";
 import { startReferenceServer } from "../../test/ws-reference-server.ts";
 
-// The same 25 projects as test/p09 (celld's examples and ours), run on webrun-cells INSIDE
+// The same 25 projects as test/p09 (celld's examples and ours), run on cellb INSIDE
 // Chromium — Dedicated Worker, SQLite on OPFS, browser fetch/WebSocket/Request — and compared
 // with the transcripts and logs recorded from the real celld 0.6.2.
 const golden = (name: string) =>

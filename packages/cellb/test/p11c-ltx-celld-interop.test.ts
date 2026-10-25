@@ -10,10 +10,10 @@ import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { filesApiLtxLog } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
-// Both directions through celld's own storage format: the REAL celld writes a cell; webrun-
-// cells' LTX log restores that database from celld's LTX files (same bucket keys); a new
-// write is logged by webrun-cells as an LTX file under the next epoch; the real celld then
-// restores the cell from webrun-cells' files and continues from the value written there.
+// Both directions through celld's own storage format: the REAL celld writes a cell; cellb's
+// LTX log restores that database from celld's LTX files (same bucket keys); a new
+// write is logged by cellb as an LTX file under the next epoch; the real celld then
+// restores the cell from cellb's files and continues from the value written there.
 // Needs the celld binary (CELLD_BIN) and esbuild (ESBUILD_DIR); skipped otherwise.
 const CELLD = process.env.CELLD_BIN;
 const example = join(__dirname, "../conformance/celld-examples/counter");
@@ -48,7 +48,7 @@ const inc = async (base: string) => {
 };
 
 describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)", () => {
-  it("celld → webrun-cells: celld's LTX files restore byte-identical pages (same tables and rows)", async () => {
+  it("celld → cellb: celld's LTX files restore byte-identical pages (same tables and rows)", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "ltx-interop-")), "counter");
     cpSync(example, dir, { recursive: true });
     // 1. celld writes the cell (n = 1, 2, 3).
@@ -70,7 +70,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
       epoch = Math.max(epoch, Number(/\/ltx\/e(\d+)\//.exec(r.key)![1]));
     }
 
-    // 3. webrun-cells' LTX log restores celld's database from celld's files (same keys):
+    // 3. cellb's LTX log restores celld's database from celld's files (same keys):
     //    byte-identical pages, so the same tables and rows as celld's own copy.
     const cellKey = (
       bucket.prepare("SELECT key FROM objects WHERE key LIKE 'cells/Counter:%/own.json'").get() as {
@@ -96,7 +96,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     restored.close();
   }, 120_000);
 
-  it("webrun-cells → celld: celld restores a cell from LTX files webrun-cells wrote", async () => {
+  it("cellb → celld: celld restores a cell from LTX files cellb wrote", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "ltx-reverse-")), "counter");
     cpSync(example, dir, { recursive: true });
     // celld creates the cell (n = 1..3), then stops.
@@ -120,7 +120,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
         key: string;
       }
     ).key.split("/")[1];
-    // webrun-cells' log takes over at the next epoch and commits n := 41 (V8-serialized, as celld stores it).
+    // cellb's log takes over at the next epoch and commits n := 41 (V8-serialized, as celld stores it).
     const log = filesApiLtxLog(files, { epoch: epoch + 1 });
     const image = await log.backup.load!(cell.replace(":", "/"));
     const f = join(mkdtempSync(join(tmpdir(), "ltx-edit-")), "db.sqlite");
@@ -166,7 +166,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
   }, 120_000);
 
   for (const driver of ["node:sqlite", "SQLite WASM"] as const)
-    it(`the same Counter cell continues across celld → webrun-cells (${driver}) → celld`, async () => {
+    it(`the same Counter cell continues across celld → cellb (${driver}) → celld`, async () => {
       const dir = join(mkdtempSync(join(tmpdir(), "ltx-runtime-")), "counter");
       cpSync(example, dir, { recursive: true });
       const port = driver === "node:sqlite" ? 18_785 : 18_792;
@@ -185,7 +185,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
         await files.write(`/${r.key}`, [new Uint8Array(r.body)]);
         epoch = Math.max(epoch, Number(/\/ltx\/e(\d+)\//.exec(r.key)![1]));
       }
-      // webrun-cells runs the same project, restores the cell from celld's LTX files (same ids,
+      // cellb runs the same project, restores the cell from celld's LTX files (same ids,
       // same tables, V8 values) and increments it, logging LTX under the next epoch.
       const log = filesApiLtxLog(files, { epoch: epoch + 1 });
       const { runtime } = await loadNodeProject(dir, {
@@ -206,7 +206,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
       expect(res.status, body).toBe(200);
       expect(JSON.parse(body).n).toBe(4);
       await runtime.close();
-      // Back to celld: its bucket gets webrun-cells' files and the epoch; it continues at 5.
+      // Back to celld: its bucket gets cellb's files and the epoch; it continues at 5.
       const put = bucket.prepare(
         "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, (SELECT next_etag FROM store_sequence), ?, '[]')",
       );
@@ -246,7 +246,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
       .transcript[1].body;
   const get = async (base: string, path: string) => (await fetch(`${base}${path}`)).json();
 
-  it("values written by celld read identically in webrun-cells", async () => {
+  it("values written by celld read identically in cellb", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "values-a-")), "kv-values");
     cpSync(valuesProject, dir, { recursive: true });
     const celld = await startCelld(dir, 18_787);
@@ -273,7 +273,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     await runtime.close();
   }, 120_000);
 
-  it("values written by webrun-cells read identically in celld", async () => {
+  it("values written by cellb read identically in celld", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "values-b-")), "kv-values");
     cpSync(valuesProject, dir, { recursive: true });
     // celld starts once so its bucket exists (deploy), without touching the Store cell.
@@ -317,7 +317,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     }
   }, 120_000);
 
-  it("a Durable Object with a facet moves celld → webrun-cells → celld (facet streams too)", async () => {
+  it("a Durable Object with a facet moves celld → cellb → celld (facet streams too)", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "facet-store-")), "facet-store");
     cpSync(join(__dirname, "../conformance/projects/facet-store"), dir, { recursive: true });
     const visit = async (base: string) => (await fetch(`${base}/`)).json();
@@ -337,7 +337,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
       await files.write(`/${r.key}`, [new Uint8Array(r.body)]);
       epoch = Math.max(epoch, Number(/\/ltx\/e(\d+)\//.exec(r.key)![1]));
     }
-    // webrun-cells: the parent's stream AND the facet's stream (cells/<parent>/facets/<sha>/…).
+    // cellb: the parent's stream AND the facet's stream (cells/<parent>/facets/<sha>/…).
     const log = filesApiLtxLog(files, { epoch: epoch + 1 });
     const { runtime } = await loadNodeProject(dir, {
       openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "facet-cells-"))),
@@ -408,7 +408,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     }
   }, 120_000);
 
-  it("celld's facets example (facet class from a Worker Loader) moves celld → webrun-cells → celld", async () => {
+  it("celld's facets example (facet class from a Worker Loader) moves celld → cellb → celld", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "facets-ex-")), "facets");
     cpSync(join(__dirname, "../conformance/celld-examples/facets"), dir, { recursive: true });
     const hit = async (base: string) => (await fetch(`${base}/`)).text();

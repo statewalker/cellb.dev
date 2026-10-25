@@ -1,7 +1,7 @@
 /**
  * Globals of the Workers runtime that browsers/Node lack or implement differently,
  * substituted into user bundles (esbuild `inject` on the server, webrun-modules `~deps`
- * in the browser) — the real globals are untouched. "webrun-cells:ws" is resolved as an
+ * in the browser) — the real globals are untouched. "cellb:ws" is resolved as an
  * EXTERNAL module (workers-globals-module.ts): if it were bundled, the injected `Response` would
  * also replace the `Response` that CellsResponse itself extends.
  */
@@ -11,7 +11,7 @@ export {
   HTMLRewriter,
   WebSocketPair,
   WebSocketRequestResponsePair,
-} from "webrun-cells:ws";
+} from "cellb:ws";
 
 /** workerd's `scheduler`: `await scheduler.wait(ms)` is a promise-based setTimeout. */
 export const scheduler = {

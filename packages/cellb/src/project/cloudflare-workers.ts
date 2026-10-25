@@ -1,5 +1,5 @@
 /**
- * The `cloudflare:workers` module for Worker code run by webrun-cells (mapped by the
+ * The `cloudflare:workers` module for Worker code run by cellb (mapped by the
  * bundler / webrun-modules). Exposes the classes Workers code imports.
  */
 export { DurableObject, WorkerEntrypoint } from "../core/durable-object.js";

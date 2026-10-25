@@ -77,7 +77,7 @@ const impls: Record<string, () => Promise<{ env: WsEnv; stop(): Promise<void> }>
       stop: () => srv.close(),
     };
   },
-  async "webrun-cells, in-process runtime"() {
+  async "cellb, in-process runtime"() {
     const rt = createCellRuntime({
       worker,
       durableObjects: { COUNTER: { className: "Counter" }, ROOM: { className: "Room" } },
@@ -94,7 +94,7 @@ const impls: Record<string, () => Promise<{ env: WsEnv; stop(): Promise<void> }>
       stop: () => rt.close(),
     };
   },
-  async "webrun-cells, router + 3 worker-thread shards (local and cross-shard)"() {
+  async "cellb, router + 3 worker-thread shards (local and cross-shard)"() {
     const SHARDS = 3;
     const dir = mkdtempSync(join(tmpdir(), "cells-wsc-"));
     const bundle = join(dir, "shard-worker.mjs");

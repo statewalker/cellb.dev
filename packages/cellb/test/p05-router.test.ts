@@ -86,7 +86,7 @@ describe("P05a one router, several shard workers over MessagePorts", () => {
     const r = await router.ingress(
       new Request(`http://x/counter/ing${Date.now()}/inc`, {
         method: "POST",
-        headers: { "x-webrun-cells": "rpc", "x-webrun-cells-method": "increment" },
+        headers: { "x-cellb": "rpc", "x-cellb-method": "increment" },
       }),
     );
     expect(await r.json()).toEqual({ n: 1 }); // went through the Worker's routing, not a forged RPC

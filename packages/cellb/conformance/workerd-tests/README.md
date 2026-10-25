@@ -15,8 +15,8 @@ Each `wd-<name>/` is a wrangler project:
   over 5 s answers `"timeout"` and the others still run. `GET /?skip=a,b` leaves exports out.
 
 Every Durable Object class gets SQLite storage, even where the `.wd-test` asks for
-`durableObjectStorage = (inMemory)`: celld and webrun-cells have no other kind.
+`durableObjectStorage = (inMemory)`: celld and cellb have no other kind.
 
 The expected answer is not the upstream assertion but what the real celld 0.6.2 answers for
 the same project (`conformance/golden/wd-*.json`, recorded by `conformance/record-celld.ts`);
-`test/p09-celld-conformance.test.ts` requires webrun-cells to answer the same.
+`test/p09-celld-conformance.test.ts` requires cellb to answer the same.

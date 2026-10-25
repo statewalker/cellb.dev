@@ -23,7 +23,7 @@ Object.assign(window, {
   __CellsWebSocket: (globalThis as any).__webrunHostRegistry.get("WebSocket"),
   /**
    * Runs one case of test/ws-conformance.ts in this page against the native browser
-   * WebSocket (talking to a real server at `nativeBase`) or webrun-cells sockets
+   * WebSocket (talking to a real server at `nativeBase`) or cellb sockets
    * (SW router → shard workers → Room Durable Object).
    */
   __wsCase: async (impl: "native" | "cells", name: string, nativeBase: string) => {

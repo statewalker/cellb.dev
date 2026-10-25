@@ -110,7 +110,7 @@ export type DurableObjectStub = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 } & Record<string, any>;
 
-const kEndpoint = Symbol("webrun-cells.endpoint");
+const kEndpoint = Symbol("cellb.endpoint");
 
 /**
  * Test hook (same idea as vitest-pool-workers' runInDurableObject): runs `fn`
@@ -122,8 +122,7 @@ export function runInDurableObject<T>(
 ): Promise<T> {
   const ep = (stub as any)[kEndpoint] as (() => ObjectEndpoint) | undefined;
   const local = ep?.().local;
-  if (!local)
-    throw new TypeError("runInDurableObject needs a stub of an in-process webrun-cells object");
+  if (!local) throw new TypeError("runInDurableObject needs a stub of an in-process cellb object");
   return local.deliver(fn);
 }
 

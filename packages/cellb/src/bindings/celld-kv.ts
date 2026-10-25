@@ -5,7 +5,7 @@ import { DurableObject } from "../core/durable-object.js";
 
 /**
  * KV exactly as celld implements it: celld's own `services/kv.js` (namespace cell + binding
- * client, Apache-2.0) on a webrun-cells host. The limits are celld_logic::kv's constants;
+ * client, Apache-2.0) on a cellb host. The limits are celld_logic::kv's constants;
  * values above 1 MiB go to a FilesApi (celld: the fleet bucket) through the same
  * prepare / put / get / sweep protocol.
  */

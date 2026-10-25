@@ -9,7 +9,7 @@ const { DatabaseSync } = createRequire(import.meta.url)(
 /**
  * celld dev's local bucket: `<project>/.celld/dev/objects.sqlite3` (objects(key, body, etag
  * INTEGER, modified_ms, attributes) + store_sequence). Reading and writing it lets a
- * webrun-cells node and `celld dev` share one bucket — the migration path of note 22.
+ * cellb node and `celld dev` share one bucket — the migration path of note 22.
  * Conditional writes are real (one SQLite transaction).
  */
 export function sqliteObjectStore(file: string): ObjectStore & { close(): void } {

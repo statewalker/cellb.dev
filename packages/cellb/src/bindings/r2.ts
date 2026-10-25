@@ -236,7 +236,7 @@ function conditionHolds(c: R2Conditional | undefined, m: StoredMeta | undefined)
 }
 
 /**
- * Where an R2 binding keeps objects: a FilesApi (webrun-cells' own layout) or a celld bucket
+ * Where an R2 binding keeps objects: a FilesApi (cellb's own layout) or a celld bucket
  * (`r2/<bucket>/<key>` with celld's `celld-r2` record — r2-celld.ts).
  */
 export interface R2Backend {

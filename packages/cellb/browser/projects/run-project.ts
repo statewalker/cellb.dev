@@ -1,4 +1,4 @@
-// Shared by the project workers: builds a webrun-cells runtime for a project in a
+// Shared by the project workers: builds a cellb runtime for a project in a
 // Dedicated Worker (SQLite on OPFS, OPFS FilesApi), runs its scenario, captures user logs.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import {

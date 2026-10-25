@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 import { celldBucket } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
 
-// Moves a Durable Object between the real celld and webrun-cells through ONE bucket (celld
-// dev's local objects.sqlite3): celld → webrun-cells → celld, each side restoring the
+// Moves a Durable Object between the real celld and cellb through ONE bucket (celld
+// dev's local objects.sqlite3): celld → cellb → celld, each side restoring the
 // other's LTX files under celld's keys, ownership passed with epochs.
 const CELLD = process.env.CELLD_BIN;
 const ESBUILD_DIR = process.env.ESBUILD_DIR ?? "";
@@ -41,56 +41,53 @@ const bump = async (url: string) => {
   }
 };
 
-describe.skipIf(!CELLD)(
-  "P11c moving a Durable Object between celld and webrun-cells (one bucket)",
-  () => {
-    it("celld → webrun-cells → celld keeps the object's state", async () => {
-      const dir = join(mkdtempSync(join(tmpdir(), "migrate-")), "sql-counter");
-      cpSync(resolve(__dirname, "../conformance/projects/sql-counter"), dir, { recursive: true });
+describe.skipIf(!CELLD)("P11c moving a Durable Object between celld and cellb (one bucket)", () => {
+  it("celld → cellb → celld keeps the object's state", async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "migrate-")), "sql-counter");
+    cpSync(resolve(__dirname, "../conformance/projects/sql-counter"), dir, { recursive: true });
 
-      // 1. celld owns the cell.
-      let celld = await celldDev(dir, 18_811);
-      expect(await bump("http://127.0.0.1:18811/")).toBe(1);
-      expect(await bump("http://127.0.0.1:18811/")).toBe(2);
+    // 1. celld owns the cell.
+    let celld = await celldDev(dir, 18_811);
+    expect(await bump("http://127.0.0.1:18811/")).toBe(1);
+    expect(await bump("http://127.0.0.1:18811/")).toBe(2);
+    await stop(celld);
+
+    // 2. cellb takes it over from the same bucket once celld's node lease expires.
+    const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+    const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
+    const { runtime } = await loadNodeProject(dir, {
+      openSql: nodeSqliteOpener(),
+      files: new MemFilesApi(),
+      storage: bucket,
+    });
+    let n = 0;
+    for (let i = 0; i < 40 && !n; i++) {
+      const r = await runtime.fetch(new Request("http://w/"));
+      if (r.ok) n = ((await r.json()) as { n: number }).n;
+      else await new Promise((r2) => setTimeout(r2, 500)); // celld's lease is still live
+    }
+    expect(n).toBe(3);
+    expect(
+      ((await (await runtime.fetch(new Request("http://w/"))).json()) as { n: number }).n,
+    ).toBe(4);
+    await runtime.close(); // releases the cell, closes the bucket and its store
+    const after = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+    const keys = await after.list("cells/");
+    process.stdout.write(`KEYS ${JSON.stringify(keys)}\n`);
+    for (const k of keys.filter((k) => k.endsWith("own.json")))
+      process.stdout.write(`OWN ${k} ${new TextDecoder().decode((await after.get(k))!.body)}\n`);
+    after.close();
+    expect(
+      keys.some((k) => /\/ltx\/e\d+\/0000\/0000000000000001-0000000000000001\.ltx$/.test(k)),
+    ).toBe(true);
+    await new Promise((r) => setTimeout(r, 3_500)); // let webrun-test's node lease expire
+
+    // 3. celld takes it back and continues from cellb's writes.
+    celld = await celldDev(dir, 18_812);
+    try {
+      expect(await bump("http://127.0.0.1:18812/")).toBe(5);
+    } finally {
       await stop(celld);
-
-      // 2. webrun-cells takes it over from the same bucket once celld's node lease expires.
-      const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-      const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
-      const { runtime } = await loadNodeProject(dir, {
-        openSql: nodeSqliteOpener(),
-        files: new MemFilesApi(),
-        storage: bucket,
-      });
-      let n = 0;
-      for (let i = 0; i < 40 && !n; i++) {
-        const r = await runtime.fetch(new Request("http://w/"));
-        if (r.ok) n = ((await r.json()) as { n: number }).n;
-        else await new Promise((r2) => setTimeout(r2, 500)); // celld's lease is still live
-      }
-      expect(n).toBe(3);
-      expect(
-        ((await (await runtime.fetch(new Request("http://w/"))).json()) as { n: number }).n,
-      ).toBe(4);
-      await runtime.close(); // releases the cell, closes the bucket and its store
-      const after = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-      const keys = await after.list("cells/");
-      process.stdout.write(`KEYS ${JSON.stringify(keys)}\n`);
-      for (const k of keys.filter((k) => k.endsWith("own.json")))
-        process.stdout.write(`OWN ${k} ${new TextDecoder().decode((await after.get(k))!.body)}\n`);
-      after.close();
-      expect(
-        keys.some((k) => /\/ltx\/e\d+\/0000\/0000000000000001-0000000000000001\.ltx$/.test(k)),
-      ).toBe(true);
-      await new Promise((r) => setTimeout(r, 3_500)); // let webrun-test's node lease expire
-
-      // 3. celld takes it back and continues from webrun-cells' writes.
-      celld = await celldDev(dir, 18_812);
-      try {
-        expect(await bump("http://127.0.0.1:18812/")).toBe(5);
-      } finally {
-        await stop(celld);
-      }
-    }, 120_000);
-  },
-);
+    }
+  }, 120_000);
+});

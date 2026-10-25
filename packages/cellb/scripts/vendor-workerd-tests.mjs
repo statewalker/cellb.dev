@@ -1,5 +1,5 @@
 // Copies workerd's own Durable Object tests, unchanged, into wrangler projects that celld and
-// webrun-cells both run (conformance/workerd-tests/<project>/):
+// cellb both run (conformance/workerd-tests/<project>/):
 //
 //   WORKERD_SRC=/path/to/workerd node scripts/vendor-workerd-tests.mjs
 //
@@ -23,7 +23,7 @@ const commit = execSync("git rev-parse HEAD", { cwd: src }).toString().trim();
 
 // Project name (wd-<upstream basename without -test.js>) → how to build it. Only what the
 // .wd-test declares for the main worker: tail workers and TEST_TMPDIR disks are workerd's own
-// instrumentation, and every Durable Object class gets SQLite storage (celld and webrun-cells
+// instrumentation, and every Durable Object class gets SQLite storage (celld and cellb
 // have no other kind), whatever `durableObjectStorage` says.
 const WD_TESTS = {
   "wd-actor-kv": {
@@ -211,7 +211,7 @@ const WD_TESTS = {
       "doStubAsTail",
       // the test's own globalOutbound (an entrypoint of itself): not expressible in wrangler
       "inheritGlobalOutbound",
-      // webrun-cells ignores WorkerCode.globalOutbound, so this would really fetch
+      // cellb ignores WorkerCode.globalOutbound, so this would really fetch
       // https://example.com (a known gap, see note 24)
       "overrideGlobalOutbound",
     ],

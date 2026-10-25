@@ -1,10 +1,10 @@
 /**
  * WebSocket conformance cases — one list, run against several implementations:
  *   - native WebSocket (browser / Node) ⇄ reference `ws` server,
- *   - webrun-cells sockets ⇄ Room Durable Object (in-process, worker-thread shards,
+ *   - cellb sockets ⇄ Room Durable Object (in-process, worker-thread shards,
  *     browser ServiceWorker + shard workers, local and cross-shard).
  * The cases encode the WHATWG WebSocket behaviour; a difference between the native
- * run and a cells run is a bug in webrun-cells (or a documented platform difference).
+ * run and a cells run is a bug in cellb (or a documented platform difference).
  * No Node or DOM-only imports: this module is loaded by vitest AND by the browser page.
  */
 
@@ -12,7 +12,7 @@
 export type WSClass = any;
 
 export interface WsEnv {
-  /** Implementation under test (native or webrun-cells class). */
+  /** Implementation under test (native or cellb class). */
   WS: WSClass;
   /** URL of a room (fresh name per call is the caller's job). */
   room(name: string): string;

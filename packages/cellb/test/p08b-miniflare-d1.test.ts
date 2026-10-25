@@ -8,7 +8,7 @@ import makeD1Binding from "../vendor/miniflare/d1-api.js";
 
 // Hypothesis: a complete D1 binding needs NO new code — workerd's own TypeScript client
 // (src/cloudflare/internal/d1-api.ts) talks to Miniflare's D1 simulator object, both
-// unchanged, with the simulator running on webrun-cells' synchronous SQLite.
+// unchanged, with the simulator running on cellb's synchronous SQLite.
 function setup() {
   const rt = createCellRuntime({
     worker: { D1DatabaseObject, default: {} },

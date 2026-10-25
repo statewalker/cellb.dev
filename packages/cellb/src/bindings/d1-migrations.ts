@@ -3,7 +3,7 @@
  * ASCII case-insensitive) in `migrations_dir` (default `migrations/`), applied in the order of
  * their numeric prefixes, each recorded in `migrations_table` (default `d1_migrations`, the
  * table and columns `wrangler d1 migrations` uses). celld runs this from its CLI against a
- * fleet; webrun-cells exposes it as a function on the D1 binding, for any host.
+ * fleet; cellb exposes it as a function on the D1 binding, for any host.
  */
 export interface D1Like {
   exec(sql: string): Promise<unknown>;

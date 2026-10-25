@@ -8,7 +8,7 @@ import { nodeSqliteOpener } from "../src/node.js";
 import { KVNamespaceObject } from "../vendor/miniflare/kv-namespace.js";
 
 // Hypothesis: Miniflare 4's KV simulator — a Durable Object written for workerd, on
-// ctx.storage.sql + a blob service — runs UNCHANGED inside webrun-cells, so the KV
+// ctx.storage.sql + a blob service — runs UNCHANGED inside cellb, so the KV
 // binding needs no reimplementation: only a TS client for the wire protocol, a blob
 // service on a FilesApi, and a few workerd shims.
 function setup(files = new MemFilesApi()) {
@@ -34,7 +34,7 @@ function setup(files = new MemFilesApi()) {
   return { rt, files, kv: kvNamespaceBinding(rt.env.KV_OBJECTS as any, "my-namespace") };
 }
 
-describe("P08a Miniflare 4 KV simulator (unchanged) inside webrun-cells", () => {
+describe("P08a Miniflare 4 KV simulator (unchanged) inside cellb", () => {
   it("put / get (text, json, arrayBuffer) / delete", async () => {
     const { kv } = setup();
     await kv.put("a", "alpha");

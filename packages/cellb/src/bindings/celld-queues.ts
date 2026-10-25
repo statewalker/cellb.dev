@@ -4,9 +4,9 @@ import { deserialize, serialize } from "../v8/serialize.js";
 
 /**
  * Queues exactly as celld implements them: celld's own queue cell, producer binding and
- * consumer batch (harness.js, vendored unchanged, Apache-2.0) on a webrun-cells host. The
+ * consumer batch (harness.js, vendored unchanged, Apache-2.0) on a cellb host. The
  * queue cell's SQLite layout (`__queue_messages`, `__queue_stats`, …) is therefore celld's, so
- * a queue's pending messages move between celld and webrun-cells with its cell.
+ * a queue's pending messages move between celld and cellb with its cell.
  *
  * What the host supplies, as celld's engine does:
  * - `__queue_policy`: celld_logic::queue (Rust) ported below — every deadline and lease rule;

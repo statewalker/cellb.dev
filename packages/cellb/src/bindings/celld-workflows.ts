@@ -4,10 +4,10 @@ import { serialize } from "../v8/serialize.js";
 
 /**
  * Workflows exactly as celld implements them: celld's own instance cell and binding
- * (harness.js, vendored unchanged, Apache-2.0) on a webrun-cells host. An instance is a cell
+ * (harness.js, vendored unchanged, Apache-2.0) on a cellb host. An instance is a cell
  * `__Workflow.<script>:<id of "<workflow>/<instance>">` whose state is celld's KV records
  * (`__wf.meta`, `__wf.<generation>.step.<n>.<name>`, V8-serialized) plus its alarm — so a
- * running or sleeping instance moves between celld and webrun-cells with its cell.
+ * running or sleeping instance moves between celld and cellb with its cell.
  */
 export function celldWorkflows(opts: {
   script: string;

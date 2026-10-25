@@ -30,6 +30,4 @@ each sandbox SHA to its SHA here, and `tools/migrate/rewrite-claude-alone.py` is
 
 ## What will surprise you
 
-- Names inside the package (`webrun-cells` in prose, the `~/.cache/webrun-cells-interop` cache, CI
-  job names) still use the old name. Only the npm name is `@statewalker/cellb` so far.
 - A sandbox SHA quoted in an old note cannot be found here. Look it up in `commit-map.txt`.

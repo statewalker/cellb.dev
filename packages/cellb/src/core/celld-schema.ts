@@ -2,7 +2,7 @@
  * celld's internal tables, statement for statement (read from a database celld 0.6.2
  * wrote): Durable Object KV in `_cf_KV(scope, k, v)` with V8-serialized values, the alarm in
  * `_cf_ALARM`, the object's name in `_cf_METADATA(scope, actor_name)`, facets and wake-up
- * bookkeeping. webrun-cells uses the same tables, so a cell's database (and its LTX log)
+ * bookkeeping. cellb uses the same tables, so a cell's database (and its LTX log)
  * reads the same in both. `scope` is celld's cell name, `<Class>:<id hex>`.
  */
 export const CELLD_SCHEMA = [
@@ -26,11 +26,11 @@ export const CELLD_SCHEMA = [
              END`,
 ];
 
-/** webrun-cells' own bookkeeping (not in celld): the transaction-log sequence number. */
+/** cellb's own bookkeeping (not in celld): the transaction-log sequence number. */
 export const LOG_TABLE =
   "CREATE TABLE IF NOT EXISTS _cf_LOG (id INTEGER PRIMARY KEY CHECK (id = 1), seq INTEGER NOT NULL)";
 export const LOG_SEQ_READ = "SELECT seq FROM _cf_LOG WHERE id = 1";
 export const LOG_SEQ_WRITE = "INSERT OR REPLACE INTO _cf_LOG (id, seq) VALUES (1, ?)";
 
-/** celld's cell name for a webrun-cells cell key ("Class/idhex" → "Class:idhex"). */
+/** celld's cell name for a cellb cell key ("Class/idhex" → "Class:idhex"). */
 export const scopeOf = (cellKey: string) => cellKey.replace("/", ":");

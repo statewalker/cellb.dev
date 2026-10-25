@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
 import { bundleProjectForBrowser } from "../../conformance/browser-bundle.ts";
 import { s3ObjectStore } from "../../src/index.ts";
 
-// A real celld fleet node and webrun-cells IN CHROMIUM (SQLite WASM on OPFS) share one S3
+// A real celld fleet node and cellb IN CHROMIUM (SQLite WASM on OPFS) share one S3
 // bucket (a local RustFS, reached from the page through the dev server's /s3 proxy): cells
 // move between them through celld's ownership protocol and LTX logs. Needs CELLD_BIN,
 // ESBUILD_DIR and RustFS at RUSTFS_ENDPOINT (default http://127.0.0.1:9200); skipped otherwise.
@@ -123,7 +123,7 @@ async function roundTrip(
   return answers;
 }
 
-test.describe("celld fleet node ⇄ webrun-cells in Chromium on one S3 bucket", () => {
+test.describe("celld fleet node ⇄ cellb in Chromium on one S3 bucket", () => {
   test.beforeEach(async () => {
     test.skip(!CELLD, "needs CELLD_BIN");
     test.skip(!(await rustfsUp()), "needs RustFS");

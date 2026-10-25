@@ -8,9 +8,9 @@ import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { celldBucket, type OpenCellSql } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
 
-// Interop the way it is meant to be used: celld and webrun-cells share ONE bucket (celld dev's
+// Interop the way it is meant to be used: celld and cellb share ONE bucket (celld dev's
 // objects.sqlite3) and hand cells over through celld's own ownership protocol — own.json
-// epochs, node leases — with no manual step. Each project: celld, then webrun-cells, then
+// epochs, node leases — with no manual step. Each project: celld, then cellb, then
 // celld again; the state continues on each side.
 const CELLD = process.env.CELLD_BIN;
 const ESBUILD_DIR = process.env.ESBUILD_DIR ?? "";
@@ -49,7 +49,7 @@ const wasm = async (): Promise<OpenCellSql> =>
     await ((await import("@sqlite.org/sqlite-wasm")).default as any)({ print() {}, printErr() {} }),
   );
 
-/** celld (steps) → webrun-cells (steps) → celld (steps); each step's answer is compared. */
+/** celld (steps) → cellb (steps) → celld (steps); each step's answer is compared. */
 async function roundTrip(
   project: string,
   driver: "node" | "wasm" | "node-wal",
@@ -131,7 +131,7 @@ const valuesRead = () =>
     .transcript[1].body;
 
 describe.skipIf(!CELLD)(
-  "P11f celld ⇄ webrun-cells through one bucket (celld's ownership protocol)",
+  "P11f celld ⇄ cellb through one bucket (celld's ownership protocol)",
   { concurrent: true },
   () => {
     for (const driver of ["node", "wasm", "node-wal"] as const) {
@@ -184,7 +184,7 @@ describe.skipIf(!CELLD)(
     }
 
     // Alarms cross through celld's wake index: an alarm armed on one side fires on the other.
-    it("an alarm armed in webrun-cells fires in celld", async () => {
+    it("an alarm armed in cellb fires in celld", async () => {
       const dir = join(mkdtempSync(join(tmpdir(), "alarm-a-")), "alarm");
       cpSync(join(examples, "alarm"), dir, { recursive: true });
       let celld = await celldDev(dir); // creates the bucket (deploy), no alarm yet
@@ -234,7 +234,7 @@ describe.skipIf(!CELLD)(
       }
     }, 120_000);
 
-    it("an alarm armed in celld fires in webrun-cells", async () => {
+    it("an alarm armed in celld fires in cellb", async () => {
       const dir = join(mkdtempSync(join(tmpdir(), "alarm-b-")), "alarm");
       cpSync(join(examples, "alarm"), dir, { recursive: true });
       const celld = await celldDev(dir);
@@ -277,7 +277,7 @@ describe.skipIf(!CELLD)(
         pending: true,
       });
       await stop(celld.p);
-      // webrun-cells finds the retry in the wake index and continues the count.
+      // cellb finds the retry in the wake index and continues the count.
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
@@ -330,9 +330,9 @@ describe.skipIf(!CELLD)(
             celld1: [["PUT /greeting hello from celld", ""]],
             webrun: [
               ["/greeting", "hello from celld"],
-              ["PUT /greeting hello from webrun-cells", ""],
+              ["PUT /greeting hello from cellb", ""],
             ],
-            celld2: [["/greeting", "hello from webrun-cells"]],
+            celld2: [["/greeting", "hello from cellb"]],
           }),
         120_000,
       );
@@ -341,7 +341,7 @@ describe.skipIf(!CELLD)(
     // Delayed messages are pending in the queue cell when it changes hands: the other side
     // delivers them (celld's queue schema and code on both sides).
     for (const driver of ["node", "wasm"] as const) {
-      it(`Queues: messages sent on celld are delivered by webrun-cells, and back (${driver})`, async () => {
+      it(`Queues: messages sent on celld are delivered by cellb, and back (${driver})`, async () => {
         const dir = join(mkdtempSync(join(tmpdir(), "queue-handoff-")), "queue-handoff");
         cpSync(join(ours, "queue-handoff"), dir, { recursive: true });
         let celld = await celldDev(dir);
@@ -369,14 +369,14 @@ describe.skipIf(!CELLD)(
           await new Promise((r) => setTimeout(r, 500));
         }
         expect(got).toEqual([{ body: "a-from-celld", attempts: 1 }]);
-        // and the other way: sent on webrun-cells (delayed), delivered by celld
+        // and the other way: sent on cellb (delayed), delivered by celld
         let sent = "";
         for (let i = 0; i < 40 && !sent.includes("sent"); i++)
           sent = await (
             await runtime.fetch(new Request("http://w/send?body=b-from-webrun&delay=4"))
           ).text();
         await runtime.close();
-        // b is due before celld starts: celld waking a message webrun-cells left NOT yet due
+        // b is due before celld starts: celld waking a message cellb left NOT yet due
         // is the intermittent case of the handoff test below, not what this test is about.
         await new Promise((r) => setTimeout(r, 3_500));
         celld = await celldDev(dir);
@@ -400,7 +400,7 @@ describe.skipIf(!CELLD)(
     // A Workflow instance sleeping when its cell changes hands: the other side finishes it
     // from celld's records (finished steps are not run again: their counter stays 0 there).
     for (const driver of ["node", "wasm"] as const) {
-      it(`Workflows: an instance started on celld finishes on webrun-cells, and back (${driver})`, async () => {
+      it(`Workflows: an instance started on celld finishes on cellb, and back (${driver})`, async () => {
         const dir = join(mkdtempSync(join(tmpdir(), "wf-handoff-")), "workflow-api");
         cpSync(join(ours, "workflow-api"), dir, { recursive: true });
         let celld = await celldDev(dir);
@@ -538,12 +538,12 @@ describe.skipIf(!CELLD)(
       }
     };
     it(
-      "Queues: a delayed message sent on celld is delivered by webrun-cells",
+      "Queues: a delayed message sent on celld is delivered by cellb",
       () => handoff("celld→webrun"),
       120_000,
     );
     it(
-      "Queues: a delayed message sent on webrun-cells is delivered by celld",
+      "Queues: a delayed message sent on cellb is delivered by celld",
       () => handoff("webrun→celld"),
       120_000,
     );
@@ -594,7 +594,7 @@ describe.skipIf(!CELLD)(
         await stop(celld.p);
         const w = await webrun();
         try {
-          // The sleep ends on webrun-cells; step a is NOT run again (memoized in celld's records:
+          // The sleep ends on cellb; step a is NOT run again (memoized in celld's records:
           // this process's run counter stays 0).
           expect(await settle(w.call, "s1")).toEqual(
             expect.objectContaining({ status: "complete", output: { a: 1, b: 2, stepARuns: 0 } }),
@@ -635,12 +635,12 @@ describe.skipIf(!CELLD)(
       }
     };
     it(
-      "Workflows: a sleeping and a waiting instance from celld complete in webrun-cells",
+      "Workflows: a sleeping and a waiting instance from celld complete in cellb",
       () => flow("celld→webrun"),
       120_000,
     );
     it(
-      "Workflows: a sleeping and a waiting instance from webrun-cells complete in celld",
+      "Workflows: a sleeping and a waiting instance from cellb complete in celld",
       () => flow("webrun→celld"),
       120_000,
     );

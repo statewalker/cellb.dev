@@ -10,7 +10,7 @@ set -euo pipefail
 CELLD_VERSION="${CELLD_VERSION:-0.6.3}"
 RUSTFS_VERSION="${RUSTFS_VERSION:-1.0.3}"
 RUSTFS_PORT="${RUSTFS_PORT:-9200}"
-ROOT="${INTEROP_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/webrun-cells-interop}"
+ROOT="${INTEROP_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/cellb-interop}"
 APP="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$ROOT/bin"
 

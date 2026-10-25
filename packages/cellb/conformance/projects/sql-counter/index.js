@@ -1,4 +1,4 @@
-// A counter on the SQL API only (user tables are the same bytes on celld and webrun-cells).
+// A counter on the SQL API only (user tables are the same bytes on celld and cellb).
 import { DurableObject } from "cloudflare:workers";
 
 export class Counter extends DurableObject {

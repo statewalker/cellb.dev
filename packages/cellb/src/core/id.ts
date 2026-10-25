@@ -22,7 +22,7 @@ export class DurableObjectId {
 
 /**
  * Ids as celld derives them (engine_api.rs), so one name reaches the same object id on
- * celld and on webrun-cells: namespace key `cells:v1:<len(script)>:<script>:<class>`;
+ * celld and on cellb: namespace key `cells:v1:<len(script)>:<script>:<class>`;
  * key = SHA-256(namespace key); id = HMAC(key, name)[0..16] ‖ HMAC(key, first half)[0..16].
  * The second half authenticates the first, so idFromString() rejects ids of other namespaces.
  */

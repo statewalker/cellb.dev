@@ -9,7 +9,7 @@ import { CellsResponse, type CfWebSocket, takeClientPort, WebSocketPair } from "
 import { withUpgrade } from "../ws/upgrade.js";
 
 /**
- * celld's peer protocol (peer_auth.rs, main/peer_tunnel.rs, protocol 5) for a webrun-cells node
+ * celld's peer protocol (peer_auth.rs, main/peer_tunnel.rs, protocol 5) for a cellb node
  * hosted in Node, so celld nodes can route a cell's requests to it when it owns the cell.
  *
  * Authentication: every peer request carries an HMAC-SHA-256 over
@@ -253,7 +253,7 @@ export async function startCelldPeerServer(opts: {
     const structured = req.headers["content-type"] === "application/octet-stream";
     let args: unknown[];
     if (structured) {
-      if (raw[0] !== 0xff) return reply(res, 501, {}, "RPC stubs cannot cross to webrun-cells");
+      if (raw[0] !== 0xff) return reply(res, 501, {}, "RPC stubs cannot cross to cellb");
       args = deserialize(raw) as unknown[];
     } else args = JSON.parse(new TextDecoder().decode(raw)) as unknown[];
     try {
@@ -670,7 +670,7 @@ export function celldPeers(opts: { store: ObjectStore; node: string }) {
             if (error instanceof Error) Object.assign(error, props, { remote: true });
             throw error;
           }
-          throw new Error("RPC stubs cannot cross from celld to webrun-cells");
+          throw new Error("RPC stubs cannot cross from celld to cellb");
         },
       };
     },

@@ -63,7 +63,7 @@ export class Counter extends DurableObject<Env> {
     if (url.pathname.endsWith("/whoami"))
       return Response.json({
         url: req.url,
-        internal: [...req.headers.keys()].filter((h) => h.startsWith("x-webrun-cells")),
+        internal: [...req.headers.keys()].filter((h) => h.startsWith("x-cellb")),
       });
     return Response.json({ n: this.value(), id: this.ctx.id.toString(), name: this.ctx.id.name });
   }
@@ -72,7 +72,7 @@ export class Counter extends DurableObject<Env> {
 /**
  * Echo room with Cloudflare-style WebSockets — the protocol shared with the reference
  * `ws` server (test/ws-reference-server.ts) so the same conformance cases run against
- * native WebSockets and webrun-cells sockets:
+ * native WebSockets and cellb sockets:
  *   text → broadcast to every socket of the room; binary → reversed bytes to the sender;
  *   "where?" → "where:shard<N>"; "count?" → "count:<sockets>"; "big:<n>" → n × "x";
  *   "bye" → server closes 4000 "bye bye"; "relay:<room>:<text>" → see relay();

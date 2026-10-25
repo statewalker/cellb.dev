@@ -33,7 +33,7 @@ export function readWranglerConfig(dir: string): WranglerConfig {
 
 /**
  * Node host: bundles `main` with esbuild (as `celld deploy` does) and builds the runtime.
- * `cloudflare:workers` resolves to webrun-cells' module so user classes extend the
+ * `cloudflare:workers` resolves to cellb's module so user classes extend the
  * runtime's own DurableObject / WorkerEntrypoint.
  */
 /** Bundles Worker code (a file, or in-memory modules) with the runtime's module mappings, then imports it. */
@@ -86,21 +86,21 @@ export async function bundleWorker(
     logLevel: "silent",
     inject: [
       resolve(import.meta.dirname, "workers-globals.ts"),
-      ...(logs ? ["webrun-cells:console"] : []),
-      ...(outbound ? ["webrun-cells:fetch"] : []),
+      ...(logs ? ["cellb:console"] : []),
+      ...(outbound ? ["cellb:fetch"] : []),
     ],
     plugins: [
       {
         name: "cells-modules",
         setup(b) {
-          b.onResolve({ filter: /^webrun-cells:console$/ }, () => ({
+          b.onResolve({ filter: /^cellb:console$/ }, () => ({
             path: "console",
             namespace: "cells-console",
           }));
           // nodejs_compat on a Node host: `node:*` are the real Node.js modules.
           if (opts.nodeCompat)
             b.onResolve({ filter: /^node:/ }, (a) => ({ path: a.path, external: true }));
-          b.onResolve({ filter: /^webrun-cells:fetch$/ }, () => ({
+          b.onResolve({ filter: /^cellb:fetch$/ }, () => ({
             path: "fetch",
             namespace: "cells-fetch",
           }));
@@ -116,7 +116,7 @@ export async function bundleWorker(
             path: cfWorkers,
             external: true,
           }));
-          b.onResolve({ filter: /^webrun-cells:ws$/ }, () => ({
+          b.onResolve({ filter: /^cellb:ws$/ }, () => ({
             path: resolve(import.meta.dirname, "workers-globals-module.ts"),
             external: true,
           }));

@@ -1,4 +1,4 @@
-// Authored exactly as for Cloudflare Workers / celld — no webrun-cells imports.
+// Authored exactly as for Cloudflare Workers / celld — no cellb imports.
 // Served by webrun-modules: `WebSocketPair`, `Response` and "cloudflare:workers" are
 // rewritten to ~deps proxies bound to the host registry of the realm that imports it.
 import { DurableObject } from "cloudflare:workers";

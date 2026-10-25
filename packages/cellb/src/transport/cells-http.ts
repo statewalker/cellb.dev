@@ -27,7 +27,7 @@ import {
  * `runtime.fetch` directly, never this handler, or clients could address
  * objects without going through the Worker's own routing.
  */
-const CT_VALUES = "application/x-webrun-cells-values";
+const CT_VALUES = "application/x-cellb-values";
 
 export interface CellsHttpOptions {
   codec?: ValueCodec;
@@ -103,7 +103,7 @@ export function cellsHttpHandler(
           headers: { "content-type": CT_VALUES },
         });
       }
-      throw new Error(`Unknown webrun-cells request kind "${kind}"`);
+      throw new Error(`Unknown cellb request kind "${kind}"`);
     } catch (e) {
       return errorResponse(e);
     }

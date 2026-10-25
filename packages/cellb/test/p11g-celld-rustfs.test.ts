@@ -8,7 +8,7 @@ import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { celldBucket, s3ObjectStore } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, startCelldPeerServer } from "../src/node.js";
 
-// A real celld fleet node and webrun-cells on ONE S3 bucket served by a local RustFS: cells
+// A real celld fleet node and cellb on ONE S3 bucket served by a local RustFS: cells
 // move between them through celld's ownership protocol (own.json epochs, node leases), and
 // alarms through celld's wake index. Needs CELLD_BIN, ESBUILD_DIR and a running RustFS
 // (RUSTFS_ENDPOINT, default http://127.0.0.1:9200, keys rustfsadmin / rustfssecret).
@@ -78,7 +78,7 @@ async function celldNode(
     throw new Error(`celld node did not start:\n${log.slice(-2000)}`);
   return { p, base: `http://127.0.0.1:${at}`, log: () => log };
 }
-/** celld's WARN/ERROR lines, for diagnosing what it disliked in webrun-cells' writes. */
+/** celld's WARN/ERROR lines, for diagnosing what it disliked in cellb's writes. */
 const complaints = (log: string) =>
   log
     .split("\n")
@@ -141,12 +141,12 @@ const json = async (r: Response) => JSON.parse(await r.text());
 
 // The tests run at once: each has its own bucket prefix, node name, project dir and ports.
 describe.skipIf(!CELLD)(
-  "P11g celld fleet node ⇄ webrun-cells on a local RustFS bucket",
+  "P11g celld fleet node ⇄ cellb on a local RustFS bucket",
   { concurrent: true },
   async () => {
     const up = await rustfsUp();
     it.skipIf(!up)(
-      "the Counter moves celld → webrun-cells → celld through S3",
+      "the Counter moves celld → cellb → celld through S3",
       async () => {
         const prefix = `t${Date.now().toString(36)}a`;
         const dir = join(mkdtempSync(join(tmpdir(), "rustfs-")), "counter");
@@ -189,7 +189,7 @@ describe.skipIf(!CELLD)(
         const dir = join(mkdtempSync(join(tmpdir(), "rustfs-")), "alarm");
         cpSync(join(examples, "alarm"), dir, { recursive: true });
         await run(["deploy", ".", "--bucket", bucketUrl(prefix), "--endpoint", ENDPOINT], dir);
-        // celld arms; webrun-cells fires it.
+        // celld arms; cellb fires it.
         let node = await celldNode(prefix);
         expect((await json(await fetch(`${node.base}/arm`))).armed).toBe(true);
         await stop(node.p);
@@ -201,7 +201,7 @@ describe.skipIf(!CELLD)(
           await new Promise((r) => setTimeout(r, 500));
         }
         expect(got).toEqual({ fires: 1, pendingAlarm: null });
-        // webrun-cells arms; celld fires it.
+        // cellb arms; celld fires it.
         expect((await w.call("/arm")).armed).toBe(true);
         await w.close();
         await new Promise((r) => setTimeout(r, 3_500));
@@ -231,7 +231,7 @@ describe.skipIf(!CELLD)(
     );
 
     it.skipIf(!up)(
-      "a facet's state moves celld → webrun-cells → celld through S3",
+      "a facet's state moves celld → cellb → celld through S3",
       async () => {
         const prefix = `t${Date.now().toString(36)}f`;
         const dir = join(mkdtempSync(join(tmpdir(), "rustfs-")), "facet-store");
@@ -274,7 +274,7 @@ describe.skipIf(!CELLD)(
     );
 
     it.skipIf(!up)(
-      "celld diagnose --peer verifies a webrun-cells node's signed probe",
+      "celld diagnose --peer verifies a cellb node's signed probe",
       async () => {
         const prefix = `t${Date.now().toString(36)}p`;
         const dir = join(mkdtempSync(join(tmpdir(), "rustfs-")), "counter");

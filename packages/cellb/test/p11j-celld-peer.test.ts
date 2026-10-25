@@ -13,7 +13,7 @@ import {
   startCelldPeerServer,
 } from "../src/node.js";
 
-// A mixed fleet: a webrun-cells node in Node speaks celld's peer protocol, so when it owns a
+// A mixed fleet: a cellb node in Node speaks celld's peer protocol, so when it owns a
 // cell, celld ROUTES that cell's requests (fetch and JS RPC) to it through /peer/tunnel instead
 // of refusing — one fleet, two runtimes.
 const CELLD = process.env.CELLD_BIN;
@@ -57,8 +57,8 @@ async function webrunPeer(dir: string) {
   };
 }
 
-describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () => {
-  it("celld routes requests for a cell webrun-cells owns to it (fetch)", async () => {
+describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
+  it("celld routes requests for a cell cellb owns to it (fetch)", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-fetch-")), "counter");
     cpSync(join(examples, "counter"), dir, { recursive: true });
     const c0 = await celldDev(dir, 18_870); // creates the bucket and the fleet secret
@@ -66,7 +66,7 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
     const w = await webrunPeer(dir);
     const celld = await celldDev(dir, 18_871);
     try {
-      expect(JSON.parse(await w.get("/increment?name=a")).n).toBe(1); // webrun-cells owns the cell
+      expect(JSON.parse(await w.get("/increment?name=a")).n).toBe(1); // cellb owns the cell
       const viaCelld = await (await fetch(`${celld.base}/increment?name=a`)).text();
       expect(
         viaCelld,
@@ -84,7 +84,7 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
     }
   }, 120_000);
 
-  it("celld routes JS RPC to a cell webrun-cells owns", async () => {
+  it("celld routes JS RPC to a cell cellb owns", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-rpc-")), "rpc");
     cpSync(join(examples, "rpc"), dir, { recursive: true });
     const c0 = await celldDev(dir, 18_872);
@@ -94,8 +94,8 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
     try {
       const post = async (f: (u: string, init: RequestInit) => Promise<Response>) =>
         (await f("/", { method: "POST" })).text();
-      expect(await post((u, init) => Promise.resolve(w.fetch(u, init)))).toBe('{"count":1}'); // webrun-cells owns it
-      // celld's Worker calls counter.increment(1): the RPC crosses the tunnel to webrun-cells
+      expect(await post((u, init) => Promise.resolve(w.fetch(u, init)))).toBe('{"count":1}'); // cellb owns it
+      // celld's Worker calls counter.increment(1): the RPC crosses the tunnel to cellb
       const viaCelld = await post((u, init) => fetch(celld.base + u, init));
       expect(
         viaCelld,
@@ -113,7 +113,7 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
     }
   }, 120_000);
 
-  it("webrun-cells routes requests and RPC for a cell celld owns to celld (the other direction)", async () => {
+  it("cellb routes requests and RPC for a cell celld owns to celld (the other direction)", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-out-")), "rpc");
     cpSync(join(examples, "rpc"), dir, { recursive: true });
     const celld = await celldDev(dir, 18_874);
@@ -129,7 +129,7 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
         peers: celldPeers({ store, node }),
       });
       try {
-        // webrun-cells' Worker calls counter.increment(1): the cell is celld's, so the RPC goes there
+        // cellb's Worker calls counter.increment(1): the cell is celld's, so the RPC goes there
         const r = await (await runtime.fetch(new Request("http://w/", { method: "POST" }))).text();
         expect(r).toBe('{"count":2}');
         expect(await (await fetch(`${celld.base}/`)).text()).toBe('{"count":2}');
@@ -141,7 +141,7 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
     }
   }, 120_000);
 
-  it("webrun-cells routes a stub.fetch() for a cell celld owns to celld", async () => {
+  it("cellb routes a stub.fetch() for a cell celld owns to celld", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-out-fetch-")), "counter");
     cpSync(join(examples, "counter"), dir, { recursive: true });
     const celld = await celldDev(dir, 18_876);
@@ -170,7 +170,7 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
     }
   }, 120_000);
 
-  it("a WebSocket opened at celld to a cell webrun-cells owns crosses the tunnel", async () => {
+  it("a WebSocket opened at celld to a cell cellb owns crosses the tunnel", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-ws-")), "wsecho");
     cpSync(join(examples, "wsecho"), dir, { recursive: true });
     const c0 = await celldDev(dir, 18_878);
@@ -178,7 +178,7 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
     const w = await webrunPeer(dir);
     const celld = await celldDev(dir, 18_879);
     try {
-      // webrun-cells takes the cell (one plain request makes it the owner)
+      // cellb takes the cell (one plain request makes it the owner)
       expect(await w.get("/")).toBe("websocket upgrade required");
       const { WebSocket } = await import("ws");
       const ws = new WebSocket(`ws://127.0.0.1:18879/`);
@@ -216,7 +216,7 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
     }
   }, 120_000);
 
-  it("a WebSocket opened at webrun-cells to a cell celld owns crosses the tunnel", async () => {
+  it("a WebSocket opened at cellb to a cell celld owns crosses the tunnel", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-ws-out-")), "wsecho");
     cpSync(join(examples, "wsecho"), dir, { recursive: true });
     const celld = await celldDev(dir, 18_875); // 1888x+ is p11g's

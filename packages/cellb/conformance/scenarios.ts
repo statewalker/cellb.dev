@@ -2,7 +2,7 @@ import wdProjects from "./workerd-tests/projects.json" with { type: "json" };
 
 /**
  * Request scripts for the celld examples (conformance/celld-examples). The same script runs
- * against celld (recorded into golden/) and against webrun-cells; transcripts must match.
+ * against celld (recorded into golden/) and against cellb; transcripts must match.
  * Steps run sequentially. Fields named in `mask` (anywhere in JSON bodies) are replaced by
  * their type, because they hold times or generated ids that differ between runs.
  */
@@ -34,7 +34,7 @@ export interface Scenario {
   textMask?: [string, string][];
   /** Project directory name when it differs from the scenario name. */
   project?: string;
-  /** A recorded celld behaviour webrun-cells does not reproduce yet (tests expect a mismatch). */
+  /** A recorded celld behaviour cellb does not reproduce yet (tests expect a mismatch). */
   knownGap?: string;
   /** Why workerd (conformance/record-workerd.ts) answers differently from celld's golden. */
   workerdDiffers?: string;
@@ -396,7 +396,7 @@ const WS_CONSTRUCTOR_OTHERS = [
   "invalidProtocolToken",
   "singleProtocolString",
 ];
-// worker-loader-test.js exports webrun-cells answers as celld does; the rest is a known gap.
+// worker-loader-test.js exports cellb answers as celld does; the rest is a known gap.
 const WL_AGREE = [
   "asyncCodeLoader",
   "codeLoaderException",
@@ -434,7 +434,7 @@ const wdOverrides: Record<string, Partial<Scenario>> = {
     knownGap: "no ctx.exports.<Entrypoint>({ props }) stubs to store; celld refuses to clone them",
   },
   "wd-websocket-hibernation": {
-    knownGap: "celld fails this test ('got '); webrun-cells passes it, as workerd does",
+    knownGap: "celld fails this test ('got '); cellb passes it, as workerd does",
   },
   "wd-websocket-constructor": { steps: [{ path: `/?skip=${WS_GAPS.join(",")}` }] },
   "wd-worker-loader": { steps: [{ path: `/?skip=${WL_GAPS.join(",")}` }] },
@@ -455,7 +455,7 @@ scenarios["miniflare2-details-relative-url"] = {
   project: "miniflare2-details",
   steps: [{ path: "/stub-relative" }],
   knownGap:
-    "a stub's fetch() of a relative URL: celld passes it to the object and rejects with its stack frames in the message; webrun-cells rejects at the stub, as workerd",
+    "a stub's fetch() of a relative URL: celld passes it to the object and rejects with its stack frames in the message; cellb rejects at the stub, as workerd",
 };
 scenarios["wd-sql-default"] = {
   project: "wd-sql",
@@ -468,7 +468,7 @@ scenarios["wd-sql-default"] = {
     "sql.ingest() (experimental) is missing; celld itself stops at an ingest syntax-error message",
 };
 
-// celld's deviations from workerd (conformance/record-workerd.ts); webrun-cells follows celld.
+// celld's deviations from workerd (conformance/record-workerd.ts); cellb follows celld.
 const workerdDiffers: Record<string, string> = {
   "do-ids":
     "ids are keyed per deployment (other hex); celld's invalid-namespace message has no final period",

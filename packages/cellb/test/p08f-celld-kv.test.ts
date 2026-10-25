@@ -5,9 +5,9 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
-// celld's own KV (vendor/celld/kv.js) on webrun-cells: the large-value path (> 1 MiB)
+// celld's own KV (vendor/celld/kv.js) on cellb: the large-value path (> 1 MiB)
 // goes to the host's FilesApi through celld's prepare/put/get protocol.
-describe("P08f celld's KV service on webrun-cells", () => {
+describe("P08f celld's KV service on cellb", () => {
   it("values above 1 MiB live in the FilesApi; streams and metadata round-trip", async () => {
     const dir = mkdtempSync(join(tmpdir(), "celldkv-"));
     writeFileSync(

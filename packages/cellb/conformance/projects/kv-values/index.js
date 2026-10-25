@@ -1,5 +1,5 @@
 // Values of every kind written with ctx.storage.put and described when read back — used to
-// check that celld and webrun-cells read each other's stored values (V8 serialization).
+// check that celld and cellb read each other's stored values (V8 serialization).
 import { DurableObject } from "cloudflare:workers";
 
 const describe = (v) => {

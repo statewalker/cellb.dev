@@ -1,6 +1,6 @@
-name: webrun-cells interop (celld)
+name: cellb interop (celld)
 
-# webrun-cells against the real celld: storage format, LTX logs, ownership hand-over, alarms,
+# cellb against the real celld: storage format, LTX logs, ownership hand-over, alarms,
 # every binding, a celld fleet node on S3 (RustFS), and Chromium on the shared bucket.
 # scripts/interop-env.sh fetches the pinned celld and RustFS releases.
 on:
@@ -31,7 +31,7 @@ jobs:
         working-directory: .
       - uses: actions/cache@v4
         with:
-          path: ~/.cache/webrun-cells-interop/bin
+          path: ~/.cache/cellb-interop/bin
           key: interop-bin-celld-0.6.3-rustfs-1.0.3
       - run: pnpm run typecheck
       - name: Node — celld conformance and interop
@@ -44,5 +44,5 @@ jobs:
         with:
           name: interop-logs
           path: |
-            ~/.cache/webrun-cells-interop/rustfs.log
+            ~/.cache/cellb-interop/rustfs.log
             packages/cellb/test-results/

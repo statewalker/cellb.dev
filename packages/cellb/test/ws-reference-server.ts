@@ -4,7 +4,7 @@ import { type WebSocket, WebSocketServer } from "ws";
 /**
  * Reference implementation of the echo-room protocol (see `Room` in fixtures.ts) on a
  * REAL WebSocket server (`ws`). Native WebSockets (browser, Node) run the conformance
- * cases against it; webrun-cells sockets run the same cases against the Room DO.
+ * cases against it; cellb sockets run the same cases against the Room DO.
  * Paths: /room/<name> upgrades; anything else is refused with 404.
  */
 export async function startReferenceServer(

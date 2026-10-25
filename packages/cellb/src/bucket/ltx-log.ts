@@ -8,7 +8,7 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 /**
- * THE LTX writer of webrun-cells, in celld's bucket layout, on any ObjectStore:
+ * THE LTX writer of cellb, in celld's bucket layout, on any ObjectStore:
  *
  *   cells/<Class>:<idHex>/ltx/e<epoch>/<level>/<min>-<max>.ltx   LTX v3 (src/ltx)
  *   wake/entries/…, wake/retired/…                               celld's alarm wake index

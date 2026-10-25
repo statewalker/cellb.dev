@@ -1,4 +1,4 @@
-// Workflow semantics that celld and webrun-cells must share: replayed steps, sleep,
+// Workflow semantics that celld and cellb must share: replayed steps, sleep,
 // waitForEvent + sendEvent (also buffered before the wait), retries, errors, controls.
 import { WorkflowEntrypoint } from "cloudflare:workers";
 

@@ -1,5 +1,5 @@
 // A Durable Object whose state lives in a facet (a child object with its own database),
-// to check that facet storage moves between celld and webrun-cells.
+// to check that facet storage moves between celld and cellb.
 import { DurableObject } from "cloudflare:workers";
 
 export class Child extends DurableObject {

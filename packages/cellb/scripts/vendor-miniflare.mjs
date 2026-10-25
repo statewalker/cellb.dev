@@ -1,5 +1,5 @@
 // Builds Miniflare's simulator Durable Objects (TypeScript written for workerd) into
-// browser/Node-compatible ES modules for webrun-cells.
+// browser/Node-compatible ES modules for cellb.
 //
 //   MINIFLARE_SRC=/path/to/workers-sdk/packages/miniflare node scripts/vendor-miniflare.mjs
 //

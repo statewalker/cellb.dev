@@ -1,7 +1,7 @@
 // Vendors celld's portable service code (Apache-2.0) as ES modules:
 //   CELLD_SRC=/path/to/denoland/celld node scripts/vendor-celld.mjs
 // services/kv.js declares `function kvService(host)` for both of celld's engines (its V8
-// harness and workerd); webrun-cells is a third host (src/bindings/celld-kv.ts).
+// harness and workerd); cellb is a third host (src/bindings/celld-kv.ts).
 import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";

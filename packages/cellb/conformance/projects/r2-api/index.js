@@ -1,5 +1,5 @@
 // Exercises the R2 binding API and returns what it sees as JSON, so the same project can
-// be compared between celld and webrun-cells (conformance/projects are ours, not celld's).
+// be compared between celld and cellb (conformance/projects are ours, not celld's).
 const view = (o) =>
   o && {
     key: o.key,

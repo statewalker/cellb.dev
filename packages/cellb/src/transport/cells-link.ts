@@ -6,20 +6,20 @@ import { carryWebSocketHeaders } from "../ws/upgrade.js";
 
 /** Control headers that mark internal requests on a cells-http link (see cells-http.ts). */
 export const H = {
-  kind: "x-webrun-cells", // "describe" | "fetch" | "rpc" | "error" (response)
-  binding: "x-webrun-cells-binding",
-  target: "x-webrun-cells-target", // "name:<n>" | "id:<hex>"
-  method: "x-webrun-cells-method",
-  proto: "x-webrun-cells-proto", // original scheme (the HTTP/1.1 wire drops it)
-  ws: "x-webrun-cells-ws", // request: id under which the caller awaits a WebSocket port
-  wsAccepted: "x-webrun-cells-ws-accepted", // response: the port was handed over (control channel)
-  upgrade: "x-webrun-cells-upgrade", // `Upgrade` is hop-by-hop: dropped by the HTTP/1.1 wire, carried here
-  wsProtocol: "x-webrun-cells-ws-protocol", // `Sec-WebSocket-Protocol` is forbidden in browser Requests
+  kind: "x-cellb", // "describe" | "fetch" | "rpc" | "error" (response)
+  binding: "x-cellb-binding",
+  target: "x-cellb-target", // "name:<n>" | "id:<hex>"
+  method: "x-cellb-method",
+  proto: "x-cellb-proto", // original scheme (the HTTP/1.1 wire drops it)
+  ws: "x-cellb-ws", // request: id under which the caller awaits a WebSocket port
+  wsAccepted: "x-cellb-ws-accepted", // response: the port was handed over (control channel)
+  upgrade: "x-cellb-upgrade", // `Upgrade` is hop-by-hop: dropped by the HTTP/1.1 wire, carried here
+  wsProtocol: "x-cellb-ws-protocol", // `Sec-WebSocket-Protocol` is forbidden in browser Requests
 } as const;
 
 export type Send = (req: Request) => Promise<Response>;
 
-/** A `send` that carries the scheme and turns `x-webrun-cells: error` responses back into exceptions. */
+/** A `send` that carries the scheme and turns `x-cellb: error` responses back into exceptions. */
 export function postVia(send: Send): Send {
   return async (req) => {
     const res = await send(withScheme(req));
@@ -50,7 +50,7 @@ export function httpEndpoint(
 }
 
 export function control(kind: string, headers: Record<string, string>, body?: Uint8Array): Request {
-  return new Request("http://webrun-cells.internal/", {
+  return new Request("http://cellb.internal/", {
     method: body ? "POST" : "GET",
     headers: { [H.kind]: kind, ...headers },
     body: body as BodyInit | undefined,

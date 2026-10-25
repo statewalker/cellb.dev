@@ -21,7 +21,7 @@ import { simulatorFetcher } from "../miniflare-compat/simulator-fetcher.js";
 import { D1DatabaseObject, makeD1Binding } from "../miniflare-compat/vendored.js";
 import { systemClock } from "../ports.js";
 
-/** The subset of wrangler.json(c) that celld deploys (and webrun-cells reads). */
+/** The subset of wrangler.json(c) that celld deploys (and cellb reads). */
 export interface WranglerConfig {
   name?: string;
   main?: string;
@@ -76,7 +76,7 @@ export interface ProjectHost
 
 export interface ProjectRuntime {
   runtime: CellRuntime;
-  /** Configuration entries webrun-cells does not support yet (reported, not silently ignored). */
+  /** Configuration entries cellb does not support yet (reported, not silently ignored). */
   unsupported: string[];
 }
 

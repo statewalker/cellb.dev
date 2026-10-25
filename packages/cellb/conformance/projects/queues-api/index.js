@@ -1,4 +1,4 @@
-// Queues behaviour that celld and webrun-cells must share: delivery, attempts, retry,
+// Queues behaviour that celld and cellb must share: delivery, attempts, retry,
 // dead-lettering, delays, producer validation. The consumer records each delivery in a
 // Durable Object; the log is returned sorted (celld guarantees no order).
 import { DurableObject } from "cloudflare:workers";

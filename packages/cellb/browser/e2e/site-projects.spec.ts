@@ -12,7 +12,7 @@ import { startReferenceServer } from "../../test/ws-reference-server.ts";
 // The celld projects served by an IN-BROWSER HTTP SERVER: the page mounts a
 // webrun-site-builder handler (sources compiled to ESM by webrun-modules) with
 // webrun-site-host in the ServiceWorker; a Dedicated Worker `import()`s the code from those
-// URLs and runs it on webrun-cells; the Worker Loader uploads loaded code to the same server.
+// URLs and runs it on cellb; the Worker Loader uploads loaded code to the same server.
 // Results must equal the transcripts and logs recorded from the real celld 0.6.2.
 const golden = (name: string) =>
   JSON.parse(

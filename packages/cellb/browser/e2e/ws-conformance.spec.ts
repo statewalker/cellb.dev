@@ -4,7 +4,7 @@ import { startReferenceServer } from "../../test/ws-reference-server.ts";
 
 // Every case of test/ws-conformance.ts, in Chromium, against:
 //   native  — the browser's own WebSocket ⇄ a real `ws` server (the reference behaviour),
-//   cells   — webrun-cells sockets: page → ServiceWorker router → shard workers → Room DO
+//   cells   — cellb sockets: page → ServiceWorker router → shard workers → Room DO
 //             (ingress alternates between shards, so rooms are reached locally and cross-shard).
 let server: Awaited<ReturnType<typeof startReferenceServer>>;
 test.beforeAll(async () => {
