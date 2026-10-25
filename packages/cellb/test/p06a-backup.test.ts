@@ -36,7 +36,7 @@ describe.each(drivers)("P06a periodic backup callback [%s]", (_n, opener) => {
       worker,
       durableObjects: { COUNTER: { className: "Counter" } },
       openSql: opener(),
-      backup,
+      storage: { backup },
       clock,
     }),
   });
@@ -90,6 +90,23 @@ describe.each(drivers)("P06a periodic backup callback [%s]", (_n, opener) => {
     await r1.close();
     const { rt: r2 } = rt(filesApiBackup(files));
     expect(await counter(r2, "z").value()).toBe(3);
+  });
+
+  it("close() takes the final backups, then closes the storage", async () => {
+    const events: string[] = [];
+    const backup: CellBackup = {
+      intervalMs: 60_000,
+      save: async () => void events.push("save"),
+    };
+    const r = createCellRuntime({
+      worker,
+      durableObjects: { COUNTER: { className: "Counter" } },
+      openSql: opener(),
+      storage: { backup, close: async () => void events.push("close") },
+    });
+    await counter(r, "c").increment(1);
+    await r.close();
+    expect(events).toEqual(["save", "close"]);
   });
 
   it("a failing save is reported, does not break the object, and is retried next interval", async () => {

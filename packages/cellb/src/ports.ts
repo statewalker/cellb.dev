@@ -3,6 +3,8 @@
  * Everything in `core/` depends on these interfaces and nothing else.
  */
 
+import type { ObjectStore } from "./bucket/object-store.js";
+
 /** Result of one SQL statement, in array-of-arrays form (cheap to copy across ports). */
 export interface SqlResult {
   columnNames: string[];
@@ -157,4 +159,20 @@ export interface CellBackup {
   replay?(cellKey: string, afterLogSeq: number): AsyncIterable<CommitChanges>;
   intervalMs?: number;
   onError?(cellKey: string, error: unknown): void;
+}
+
+/**
+ * Where a runtime keeps its cells beyond the local SQLite files, as one bundle: a celld fleet
+ * bucket (`celldBucket`) or a log on a FilesApi (`filesApiChangeLog`, `filesApiLtxLog`) fills
+ * the members it has. The runtime owns it: `runtime.close()` takes the final backups first,
+ * then calls `close()`.
+ */
+export interface CellStorage {
+  durability?: CellDurability;
+  backup?: CellBackup;
+  /** Per-cell ownership: each object takes this lease before it opens (fencing epoch → log). */
+  ownership?: Lease;
+  /** Where R2 bindings keep their objects (a celld fleet bucket, in celld's layout). */
+  objects?: ObjectStore;
+  close?(): Promise<void>;
 }

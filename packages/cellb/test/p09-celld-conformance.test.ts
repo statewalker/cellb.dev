@@ -31,7 +31,7 @@ async function target(
   const { runtime, unsupported } = await loadNodeProject(projectDir(name), {
     openSql: nodeSqliteOpener(),
     files: new MemFilesApi(),
-    bucketStore,
+    storage: { objects: bucketStore },
   });
   const WS = createWebSocketClass((url, p) => runtime.connectWebSocket(url, p));
   return {

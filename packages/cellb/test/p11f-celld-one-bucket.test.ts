@@ -80,8 +80,6 @@ async function roundTrip(
     expect(await answer((p, init) => fetch(celld.base + p, init), path)).toEqual(want);
   await stop(celld.p);
 
-  const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-  const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
   const { runtime } = await loadNodeProject(dir, {
     openSql:
       driver === "node"
@@ -90,11 +88,11 @@ async function roundTrip(
           ? nodeSqliteOpener(mkdtempSync(join(tmpdir(), "wal-cells-")), { pageCapture: true })
           : await wasm(),
     files: new MemFilesApi(),
-    ownership: bucket.ownership,
-    durability: bucket.durability,
-    backup: bucket.durability,
-    bucketStore: store, // R2 objects live directly in the fleet bucket
-  } as never);
+    storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
+      node: "webrun-test",
+      leaseTtlMs: 3_000,
+    }),
+  });
   const fetchW = (p: string, init?: RequestInit) =>
     runtime.fetch(new Request(`http://w${p}`, init));
   // celld's node lease may still be live for a moment: a refused step ("owned by another
@@ -108,9 +106,7 @@ async function roundTrip(
     }
     expect(got, JSON.stringify(got)).toEqual(want);
   }
-  await runtime.close();
-  await bucket.close();
-  store.close(); // a clean close: celld takes the cells at once
+  await runtime.close(); // then the bucket and its store: a clean close, celld takes the cells at once
 
   celld = await celldDev(dir);
   try {
@@ -200,15 +196,14 @@ describe.skipIf(!CELLD)(
         pendingAlarm: null,
       });
       await stop(celld.p);
-      const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-      const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
-        ownership: bucket.ownership,
-        durability: bucket.durability,
-        backup: bucket.durability,
-      } as never);
+        storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
+          node: "webrun-test",
+          leaseTtlMs: 3_000,
+        }),
+      });
       let armed: any;
       for (let i = 0; i < 40; i++) {
         armed = await (await runtime.fetch(new Request("http://w/arm"))).text();
@@ -216,10 +211,10 @@ describe.skipIf(!CELLD)(
         await new Promise((r) => setTimeout(r, 500));
       }
       expect(JSON.parse(armed).armed).toBe(true);
-      await runtime.close(); // before the alarm is due
-      await bucket.close();
-      expect((await store.list("wake/entries/")).length).toBeGreaterThan(0);
-      store.close();
+      await runtime.close(); // before the alarm is due; closes the bucket and its store
+      const after = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+      expect((await after.list("wake/entries/")).length).toBeGreaterThan(0);
+      after.close();
       celld = await celldDev(dir);
       try {
         let got: any;
@@ -248,15 +243,14 @@ describe.skipIf(!CELLD)(
       const celld = await celldDev(dir);
       expect((await (await fetch(`${celld.base}/arm`)).json()).armed).toBe(true);
       await stop(celld.p); // before the alarm is due (2 s)
-      const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-      const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
-        ownership: bucket.ownership,
-        durability: bucket.durability,
-        backup: bucket.durability,
-      } as never);
+        storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
+          node: "webrun-test",
+          leaseTtlMs: 3_000,
+        }),
+      });
       try {
         let got: any;
         for (let i = 0; i < 40; i++) {
@@ -269,8 +263,6 @@ describe.skipIf(!CELLD)(
         expect(got).toEqual({ fires: 1, pendingAlarm: null });
       } finally {
         await runtime.close();
-        await bucket.close();
-        store.close();
       }
     }, 120_000);
 
@@ -289,15 +281,14 @@ describe.skipIf(!CELLD)(
       });
       await stop(celld.p);
       // webrun-cells finds the retry in the wake index and continues the count.
-      const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-      const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
-        ownership: bucket.ownership,
-        durability: bucket.durability,
-        backup: bucket.durability,
-      } as never);
+        storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
+          node: "webrun-test",
+          leaseTtlMs: 3_000,
+        }),
+      });
       try {
         let got: any;
         for (let i = 0; i < 60; i++) {
@@ -314,8 +305,6 @@ describe.skipIf(!CELLD)(
         });
       } finally {
         await runtime.close();
-        await bucket.close();
-        store.close();
       }
     }, 120_000);
 
@@ -361,15 +350,14 @@ describe.skipIf(!CELLD)(
         let celld = await celldDev(dir);
         await fetch(`${celld.base}/send?body=a-from-celld&delay=3`);
         await stop(celld.p);
-        const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-        const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
         const { runtime } = await loadNodeProject(dir, {
           openSql: driver === "node" ? nodeSqliteOpener() : await wasm(),
           files: new MemFilesApi(),
-          ownership: bucket.ownership,
-          durability: bucket.durability,
-          backup: bucket.durability,
-        } as never);
+          storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
+            node: "webrun-test",
+            leaseTtlMs: 3_000,
+          }),
+        });
         const logW = async () => {
           for (let i = 0; i < 60; i++) {
             const text = await (await runtime.fetch(new Request("http://w/"))).text();
@@ -391,8 +379,6 @@ describe.skipIf(!CELLD)(
             await runtime.fetch(new Request("http://w/send?body=b-from-webrun&delay=4"))
           ).text();
         await runtime.close();
-        await bucket.close();
-        store.close();
         // b is due before celld starts: celld waking a message webrun-cells left NOT yet due
         // is the intermittent case of the handoff test below, not what this test is about.
         await new Promise((r) => setTimeout(r, 3_500));
@@ -426,15 +412,14 @@ describe.skipIf(!CELLD)(
         });
         await new Promise((r) => setTimeout(r, 300)); // step "a" done, sleeping 2 s
         await stop(celld.p);
-        const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-        const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
         const { runtime } = await loadNodeProject(dir, {
           openSql: driver === "node" ? nodeSqliteOpener() : await wasm(),
           files: new MemFilesApi(),
-          ownership: bucket.ownership,
-          durability: bucket.durability,
-          backup: bucket.durability,
-        } as never);
+          storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
+            node: "webrun-test",
+            leaseTtlMs: 3_000,
+          }),
+        });
         const status = async (id: string) => {
           for (let i = 0; i < 60; i++) {
             const text = await (
@@ -459,8 +444,6 @@ describe.skipIf(!CELLD)(
           ).text();
         await new Promise((r) => setTimeout(r, 300));
         await runtime.close();
-        await bucket.close();
-        store.close();
         celld = await celldDev(dir);
         try {
           let st2: any;
@@ -483,15 +466,11 @@ describe.skipIf(!CELLD)(
       let celld = await celldDev(dir);
       const store = () => sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
       const webrun = async () => {
-        const st = store();
-        const bucket = celldBucket(st, { node: `webrun-${Date.now()}`, leaseTtlMs: 3_000 });
         const { runtime } = await loadNodeProject(dir, {
           openSql: nodeSqliteOpener(),
           files: new MemFilesApi(),
-          ownership: bucket.ownership,
-          durability: bucket.durability,
-          backup: bucket.durability,
-        } as never);
+          storage: celldBucket(store(), { node: `webrun-${Date.now()}`, leaseTtlMs: 3_000 }),
+        });
         const call = async (path: string) => {
           for (let i = 0; i < 60; i++) {
             const text = await (await runtime.fetch(new Request(`http://w${path}`))).text();
@@ -504,8 +483,6 @@ describe.skipIf(!CELLD)(
           call,
           close: async () => {
             await runtime.close();
-            await bucket.close();
-            st.close();
           },
         };
       };
@@ -581,15 +558,14 @@ describe.skipIf(!CELLD)(
       cpSync(join(ours, "workflow-api"), dir, { recursive: true });
       let celld = await celldDev(dir);
       const webrun = async () => {
-        const st = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-        const bucket = celldBucket(st, { node: `webrun-${Date.now()}`, leaseTtlMs: 3_000 });
         const { runtime } = await loadNodeProject(dir, {
           openSql: nodeSqliteOpener(),
           files: new MemFilesApi(),
-          ownership: bucket.ownership,
-          durability: bucket.durability,
-          backup: bucket.durability,
-        } as never);
+          storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
+            node: `webrun-${Date.now()}`,
+            leaseTtlMs: 3_000,
+          }),
+        });
         const call = async (path: string) => {
           for (let i = 0; i < 60; i++) {
             const text = await (await runtime.fetch(new Request(`http://w${path}`))).text();
@@ -600,7 +576,7 @@ describe.skipIf(!CELLD)(
         };
         return {
           call,
-          close: async () => (await runtime.close(), await bucket.close(), st.close()),
+          close: () => runtime.close(),
         };
       };
       const celldCall = async (path: string) => (await fetch(`${celld.base}${path}`)).json();

@@ -45,7 +45,8 @@ const lostRecordError = (scope: string) =>
     { name: "OwnershipRecordLostError" },
   );
 
-export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
+/** The bucket's `close()` also closes `store` (when it has a `close`): pass a store of its own. */
+export function celldBucket(store: ObjectStore & { close?(): void }, opts: CelldBucketOptions) {
   const now = opts.now ?? (() => Date.now());
   const ttl = opts.leaseTtlMs ?? 10_000;
   const lost = new AbortController();
@@ -265,8 +266,9 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
   return {
     ownership,
     durability,
+    backup: durability,
     /** The fleet bucket itself (R2 objects live directly in it, under `r2/<bucket>/`). */
-    store,
+    objects: store,
     /**
      * The address celld nodes reach this node at (its celld peer server): published in the
      * node record now, so celld routes requests for our cells here instead of refusing them.
@@ -295,11 +297,12 @@ export function celldBucket(store: ObjectStore, opts: CelldBucketOptions) {
       addr = address;
       if (leaseWritten) await writeLease();
     },
-    /** Clean shutdown: stop renewing and remove this node's lease record. */
+    /** Clean shutdown: stop renewing, remove this node's lease record, close the store. */
     async close() {
       if (renew) clearTimeout(renew);
       if (deadline) clearTimeout(deadline);
       if (leaseWritten) await store.delete(`nodes/${opts.node}.json`).catch(() => {});
+      store.close?.();
     },
   };
 }

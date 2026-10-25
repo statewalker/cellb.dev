@@ -35,7 +35,7 @@ export function probeRuntime(opts: { openSql?: OpenCellSql; durability?: CellDur
     worker: { Probe, default: {} },
     durableObjects: { PROBE: { className: "Probe" } },
     openSql: opts.openSql ?? nodeSqliteOpener(),
-    durability: opts.durability,
+    storage: { durability: opts.durability },
   });
   const ns = rt.env.PROBE as any;
   /** Runs `fn(ctx)` inside object `name`, through the gates. */

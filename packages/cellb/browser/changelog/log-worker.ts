@@ -51,8 +51,7 @@ self.onmessage = async (e) => {
       worker: { Notes, default: {} },
       durableObjects: { NOTES: { className: "Notes" } },
       openSql,
-      durability: log,
-      backup: log,
+      storage: log,
     });
     const stub = (rt.env.NOTES as any).getByName("n");
     if (op === "add")

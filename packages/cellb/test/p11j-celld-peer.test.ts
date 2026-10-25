@@ -40,11 +40,8 @@ async function webrunPeer(dir: string) {
   const { runtime } = await loadNodeProject(dir, {
     openSql: nodeSqliteOpener(),
     files: new MemFilesApi(),
-    ownership: bucket.ownership,
-    durability: bucket.durability,
-    backup: bucket.durability,
-    bucketStore: store,
-  } as never);
+    storage: bucket,
+  });
   const peer = await startCelldPeerServer({ runtime, store, node });
   await bucket.advertise(peer.addr);
   return {
@@ -54,8 +51,6 @@ async function webrunPeer(dir: string) {
     close: async () => {
       await peer.close();
       await runtime.close();
-      await bucket.close();
-      store.close();
     },
   };
 }
@@ -128,12 +123,9 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
-        ownership: bucket.ownership,
-        durability: bucket.durability,
-        backup: bucket.durability,
-        bucketStore: store,
+        storage: bucket,
         peers: celldPeers({ store, node }),
-      } as never);
+      });
       try {
         // webrun-cells' Worker calls counter.increment(1): the cell is celld's, so the RPC goes there
         const r = await (await runtime.fetch(new Request("http://w/", { method: "POST" }))).text();
@@ -141,8 +133,6 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
         expect(await (await fetch(`${celld.base}/`)).text()).toBe('{"count":2}');
       } finally {
         await runtime.close();
-        await bucket.close();
-        store.close();
       }
     } finally {
       await stop(celld.p);
@@ -161,12 +151,9 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
-        ownership: bucket.ownership,
-        durability: bucket.durability,
-        backup: bucket.durability,
-        bucketStore: store,
+        storage: bucket,
         peers: celldPeers({ store, node }),
-      } as never);
+      });
       try {
         const r = JSON.parse(
           await (await runtime.fetch(new Request("http://w/increment?name=a"))).text(),
@@ -175,8 +162,6 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
         expect(JSON.parse(await (await fetch(`${celld.base}/increment?name=a`)).text()).n).toBe(3);
       } finally {
         await runtime.close();
-        await bucket.close();
-        store.close();
       }
     } finally {
       await stop(celld.p);
@@ -247,12 +232,9 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
-        ownership: bucket.ownership,
-        durability: bucket.durability,
-        backup: bucket.durability,
-        bucketStore: store,
+        storage: bucket,
         peers: celldPeers({ store, node }),
-      } as never);
+      });
       try {
         const WS = createWebSocketClass((url, p) => runtime.connectWebSocket(url, p));
         const ws = new WS("ws://w/") as WebSocket;
@@ -274,8 +256,6 @@ describe.skipIf(!CELLD)("P11j webrun-cells as a celld peer (mixed fleet)", () =>
         ]);
       } finally {
         await runtime.close();
-        await bucket.close();
-        store.close();
       }
     } finally {
       await stop(celld.p);

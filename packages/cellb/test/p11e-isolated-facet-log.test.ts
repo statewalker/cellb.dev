@@ -18,8 +18,7 @@ const run = async (files: MemFilesApi) => {
     await loadNodeProject(project, {
       openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "iso-facet-"))),
       files: new MemFilesApi(),
-      durability: log,
-      backup: log,
+      storage: log,
     })
   ).runtime;
 };

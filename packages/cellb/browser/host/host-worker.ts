@@ -100,7 +100,7 @@ scope.onmessage = async (e) => {
     }
     if (m.type === "owned") {
       // the cells this node owns in the fleet bucket (own.json naming this node)
-      const store = host?.bucket?.store;
+      const store = host?.bucket?.objects;
       if (!store) return reply({ owned: [] });
       const owned: string[] = [];
       for (const key of await store.list("cells/"))

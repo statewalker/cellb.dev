@@ -48,8 +48,7 @@ const runtime = (openSql: OpenCellSql, log: ReturnType<typeof filesApiChangeLog>
     worker: { Ledger, default: {} },
     durableObjects: { LEDGER: { className: "Ledger" } },
     openSql,
-    durability: log,
-    backup: log,
+    storage: log,
   });
 
 for (const [driverName, makeOpener] of [

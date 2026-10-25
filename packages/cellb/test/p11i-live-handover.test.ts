@@ -45,14 +45,11 @@ async function webrun(dir: string, store: ObjectStore, node: string) {
   const { runtime } = await loadNodeProject(dir, {
     openSql: nodeSqliteOpener(),
     files: new MemFilesApi(),
-    ownership: bucket.ownership,
-    durability: bucket.durability,
-    backup: bucket.durability,
-    bucketStore: store,
-  } as never);
+    storage: bucket,
+  });
   return {
     inc: () => inc((u) => runtime.fetch(new Request(`http://w${u}`))),
-    close: async () => (await runtime.close(), await bucket.close()),
+    close: () => runtime.close(),
   };
 }
 const until = async <T>(f: () => Promise<T>, ok: (v: T) => boolean, ms: number) => {
@@ -106,7 +103,6 @@ describe.skipIf(!CELLD)(
         expect(c2.log()).not.toMatch(/posture repair failed error=decode/);
       } finally {
         await stop(c2.p);
-        store.close();
       }
     }, 120_000);
 
@@ -217,7 +213,6 @@ describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", { concurren
       ).toEqual({ n: 4 });
     } finally {
       await stop(c3.p);
-      store.close();
     }
   }, 120_000);
 });
@@ -243,9 +238,7 @@ describe("P11i self-fencing at the lease deadline", () => {
       worker: { Counter, default: {} },
       durableObjects: { C: { className: "Counter" } },
       openSql: nodeSqliteOpener(),
-      ownership: bucket.ownership,
-      durability: bucket.durability,
-      backup: bucket.durability,
+      storage: bucket,
     });
     const stub = (rt.env.C as any).getByName("c");
     expect(await runInDurableObject(stub, (o: Counter) => o.bump())).toBe(1);
@@ -254,6 +247,5 @@ describe("P11i self-fencing at the lease deadline", () => {
       /lapsed|deadline|lost/,
     );
     await rt.close();
-    await bucket.close();
   });
 });

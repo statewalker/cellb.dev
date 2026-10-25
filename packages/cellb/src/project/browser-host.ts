@@ -80,32 +80,18 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
     opts.bucket && store
       ? celldBucket(store, { node: opts.bucket.node, leaseTtlMs: opts.bucket.leaseTtlMs })
       : undefined;
-  const { runtime, unsupported } = createProjectRuntime(
-    opts.config,
-    opts.module as WorkerModule,
-    {
-      openSql,
-      files,
-      assetFiles: opts.assetFiles,
-      loadModules: opts.loadModules,
-      isolatedModules: opts.isolatedModules,
-      ...(shared
-        ? {
-            ownership: shared.ownership,
-            durability: shared.durability,
-            backup: shared.durability,
-            bucketStore: shared.store, // R2 objects in the fleet bucket, as celld keeps them
-          }
-        : {}),
-    } as never,
-  );
+  const { runtime, unsupported } = createProjectRuntime(opts.config, opts.module as WorkerModule, {
+    openSql,
+    files,
+    assetFiles: opts.assetFiles,
+    loadModules: opts.loadModules,
+    isolatedModules: opts.isolatedModules,
+    storage: shared, // R2 objects in the fleet bucket too, as celld keeps them
+  });
   return {
     runtime,
     unsupported,
     bucket: shared,
-    async close() {
-      await runtime.close();
-      await shared?.close();
-    },
+    close: () => runtime.close(),
   };
 }

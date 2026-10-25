@@ -20,9 +20,9 @@ export interface FilesApiLtxLogOptions {
 export function filesApiLtxLog(files: FilesApi, opts: FilesApiLtxLogOptions = {}) {
   const dir = (opts.dir ?? "/cells").replace(/\/$/, "");
   const root = dir.endsWith("/cells") ? dir.slice(0, -"/cells".length) : dir;
-  const log = ltxLog(filesApiObjectStore(files, root), {
-    defaultEpoch: opts.epoch ?? 0,
-    compact: true,
-  });
-  return Object.assign(log, { intervalMs: opts.intervalMs, onError: opts.onError });
+  const log = Object.assign(
+    ltxLog(filesApiObjectStore(files, root), { defaultEpoch: opts.epoch ?? 0, compact: true }),
+    { intervalMs: opts.intervalMs, onError: opts.onError },
+  );
+  return { durability: log, backup: log };
 }

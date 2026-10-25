@@ -28,9 +28,7 @@ function node(name: string, files: MemFilesApi, leases: MemoryLeases, clock: Fak
     worker: { Account, default: {} },
     durableObjects: { ACCOUNT: { className: "Account" } },
     openSql: nodeSqliteOpener(), // each node has its own (empty) local disk
-    durability: log,
-    backup: log,
-    ownership: leases.for(name),
+    storage: { ...log, ownership: leases.for(name) },
     clock,
   });
 }

@@ -30,7 +30,7 @@ scope.onmessage = async (e) => {
         worker,
         durableObjects: { COUNTER: { className: "Counter" } },
         openSql,
-        backup: m.backup ? filesApiBackup(files, { intervalMs: 60_000 }) : undefined,
+        storage: m.backup ? { backup: filesApiBackup(files, { intervalMs: 60_000 }) } : undefined,
       });
       reply({ ok: true });
     } else if (m.op === "inc") reply({ ok: true, v: await counter(m.name).increment(m.by ?? 1) });

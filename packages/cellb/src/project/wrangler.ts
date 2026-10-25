@@ -63,14 +63,9 @@ interface QueueDispatcher {
 }
 
 export interface ProjectHost
-  extends Pick<
-    CellRuntimeOptions,
-    "openSql" | "durability" | "backup" | "clock" | "ownership" | "peers"
-  > {
+  extends Pick<CellRuntimeOptions, "openSql" | "storage" | "clock" | "peers"> {
   /** Files of `assets.directory` (path "/a/b.html" → bytes), loaded by the host. */
   assetFiles?: AssetFiles;
-  /** A celld fleet bucket shared with celld nodes: R2 bindings store objects in it (celld's layout). */
-  bucketStore?: import("../bucket/object-store.js").ObjectStore;
   /** Runs each loaded Worker in its own realm (celld isolates); classes still use `loadModules`. */
   isolatedModules?: ModuleLoader;
   /** Compiles code given to a Worker Loader binding (esbuild on Node, webrun-modules in browsers). */
@@ -186,10 +181,8 @@ export function createProjectRuntime(
       __D1Database: "cells:v1:d1:__D1Database",
       __Queue: "cells:v1:queue:__Queue",
     },
-    durability: host.durability,
-    backup: host.backup,
+    storage: host.storage,
     clock: host.clock,
-    ownership: host.ownership,
     peers: host.peers,
   });
   const env = runtime.env as Record<string, unknown>;
@@ -271,8 +264,8 @@ export function createProjectRuntime(
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
   // With a celld fleet bucket, R2 objects live in it as celld keeps them; else in the FilesApi.
   for (const r2 of config.r2_buckets ?? [])
-    env[r2.binding] = host.bucketStore
-      ? r2BucketOn(celldR2Backend(host.bucketStore, r2.bucket_name), r2.binding)
+    env[r2.binding] = host.storage?.objects
+      ? r2BucketOn(celldR2Backend(host.storage.objects, r2.bucket_name), r2.binding)
       : r2Bucket(host.files, `/r2/${r2.bucket_name}`, r2.binding);
   for (const d1 of config.d1_databases ?? [])
     env[d1.binding] = celldExec(

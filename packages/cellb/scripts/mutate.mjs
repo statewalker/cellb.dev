@@ -370,8 +370,8 @@ const mutants = [
   [
     "isolation: shared realm",
     "src/project/node-project.ts",
-    "isolatedModules: nodeIsolatedLoader(() => ({",
-    "isolatedModules: undefined && nodeIsolatedLoader(() => ({",
+    "isolatedModules: nodeIsolatedLoader(() => host.storage),",
+    "isolatedModules: undefined && nodeIsolatedLoader(() => host.storage),",
     "test/p09-celld-conformance.test.ts -t isolation-api",
   ],
   [

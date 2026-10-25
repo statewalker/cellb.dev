@@ -42,8 +42,7 @@ const runtime = (openSql: OpenCellSql, log: ReturnType<typeof filesApiLtxLog>) =
     worker: { Notes, default: {} },
     durableObjects: { NOTES: { className: "Notes" } },
     openSql,
-    durability: log,
-    backup: log,
+    storage: log,
   });
 const ltxFiles = async (files: MemFilesApi) => {
   const out: { path: string; bytes: Uint8Array }[] = [];

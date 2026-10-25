@@ -13,7 +13,7 @@ import {
 import type { WorkerModule } from "../core/runtime.js";
 import { isolatedModuleLoader } from "../isolate/host.js";
 import type { PortLike } from "../isolate/protocol.js";
-import type { CellBackup, CellDurability } from "../ports.js";
+import type { CellStorage } from "../ports.js";
 import { parseJsonc } from "./jsonc.js";
 import {
   createProjectRuntime,
@@ -172,10 +172,8 @@ export async function loadNodeProject(
   return {
     ...createProjectRuntime(config, module, {
       loadModules: nodeModuleLoader,
-      isolatedModules: nodeIsolatedLoader(() => ({
-        durability: host.durability,
-        backup: host.backup,
-      })), // own realm, as celld; facets logged like the root's
+      // own realm, as celld; facets logged like the root's
+      isolatedModules: nodeIsolatedLoader(() => host.storage),
       assetFiles,
       ...host,
     }),
@@ -228,9 +226,7 @@ export async function applyNodeD1Migrations(
  * data: URL; Durable Object classes for facets still load in this realm.
  */
 let isolateEntry: Promise<string> | undefined;
-export function nodeIsolatedLoader(
-  storage?: () => { durability?: CellDurability; backup?: CellBackup },
-): ModuleLoader {
+export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): ModuleLoader {
   return isolatedModuleLoader({
     storage,
     spawn: () => {

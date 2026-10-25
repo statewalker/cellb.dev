@@ -1,6 +1,6 @@
 import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
 import { ISOLATED, type IsolatedClass } from "../core/handles.js";
-import type { CellBackup, CellDurability } from "../ports.js";
+import type { CellStorage } from "../ports.js";
 import {
   deserializeResponse,
   type PortLike,
@@ -20,7 +20,7 @@ export function isolatedModuleLoader(opts: {
    * The host's storage, so facets of loaded code are logged and restored like the root's
    * own (celld: one stream per facet under the root, the root's epoch).
    */
-  storage?: () => { durability?: CellDurability; backup?: CellBackup };
+  storage?: () => CellStorage | undefined;
   spawn(id: string): { port: PortLike; terminate(): void };
   prepare(id: string, code: WorkerCode): Promise<{ source?: string; url?: string }>;
 }): ModuleLoader {

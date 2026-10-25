@@ -66,9 +66,7 @@ describe("P10c routing between nodes (celld-style peer forwarding)", () => {
         },
         durableObjects: { COUNTER: { className: "Counter" } },
         openSql: nodeSqliteOpener(),
-        durability: log,
-        backup: log,
-        ownership: leases.for(name),
+        storage: { ...log, ownership: leases.for(name) },
         peers: {
           ownerOf: (cellKey) => Promise.resolve(leases.holder(cellKey)),
           link: (owner) => async (req) => {

@@ -114,10 +114,8 @@ async function webrun(project: string, prefix: string) {
           )
         : nodeSqliteOpener(),
     files: new MemFilesApi(),
-    ownership: bucket.ownership,
-    durability: bucket.durability,
-    backup: bucket.durability,
-  } as never);
+    storage: bucket,
+  });
   const call = async (path: string) => {
     for (let i = 0; i < 60; i++) {
       const text = await (await runtime.fetch(new Request(`http://w${path}`))).text();
@@ -137,7 +135,6 @@ async function webrun(project: string, prefix: string) {
     store,
     close: async () => {
       await runtime.close();
-      await bucket.close();
     },
   };
 }
@@ -300,11 +297,8 @@ describe.skipIf(!CELLD)(
         const { runtime } = await loadNodeProject(dir, {
           openSql: nodeSqliteOpener(),
           files: new MemFilesApi(),
-          ownership: bucket.ownership,
-          durability: bucket.durability,
-          backup: bucket.durability,
-          bucketStore: store,
-        } as never);
+          storage: bucket,
+        });
         const peer = await startCelldPeerServer({
           runtime,
           store,
@@ -350,7 +344,6 @@ describe.skipIf(!CELLD)(
         } finally {
           await peer.close();
           await runtime.close();
-          await bucket.close();
         }
       },
       120_000,

@@ -60,7 +60,7 @@ export function decodeSegment(bytes: Uint8Array): CommitChanges & { epoch: numbe
 export function filesApiChangeLog(
   files: FilesApi,
   opts: ChangeLogOptions = {},
-): CellDurability & CellBackup {
+): { durability: CellDurability; backup: CellBackup } {
   const dir = (opts.dir ?? "/cells").replace(/\/$/, "");
   const epoch = opts.epoch ?? 0;
   const cellDir = (cellKey: string) =>
@@ -88,7 +88,7 @@ export function filesApiChangeLog(
     return valid.sort((a, b) => a.logSeq - b.logSeq || b.epoch - a.epoch);
   };
 
-  return {
+  const log: CellDurability & CellBackup = {
     captureChanges: true,
     intervalMs: opts.intervalMs,
     onError: opts.onError,
@@ -130,4 +130,5 @@ export function filesApiChangeLog(
       }
     },
   };
+  return { durability: log, backup: log };
 }

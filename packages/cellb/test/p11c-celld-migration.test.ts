@@ -62,10 +62,8 @@ describe.skipIf(!CELLD)(
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
-        ownership: bucket.ownership,
-        durability: bucket.durability,
-        backup: bucket.durability,
-      } as never);
+        storage: bucket,
+      });
       let n = 0;
       for (let i = 0; i < 40 && !n; i++) {
         const r = await runtime.fetch(new Request("http://w/"));
@@ -76,13 +74,13 @@ describe.skipIf(!CELLD)(
       expect(
         ((await (await runtime.fetch(new Request("http://w/"))).json()) as { n: number }).n,
       ).toBe(4);
-      await runtime.close(); // releases the cell
-      await bucket.close();
-      const keys = await store.list("cells/");
+      await runtime.close(); // releases the cell, closes the bucket and its store
+      const after = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
+      const keys = await after.list("cells/");
       process.stdout.write(`KEYS ${JSON.stringify(keys)}\n`);
       for (const k of keys.filter((k) => k.endsWith("own.json")))
-        process.stdout.write(`OWN ${k} ${new TextDecoder().decode((await store.get(k))!.body)}\n`);
-      store.close();
+        process.stdout.write(`OWN ${k} ${new TextDecoder().decode((await after.get(k))!.body)}\n`);
+      after.close();
       expect(
         keys.some((k) => /\/ltx\/e\d+\/0000\/0000000000000001-0000000000000001\.ltx$/.test(k)),
       ).toBe(true);

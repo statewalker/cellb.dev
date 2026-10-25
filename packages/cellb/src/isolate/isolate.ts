@@ -83,9 +83,8 @@ export function serveIsolate(
         durableObjects: { [className]: { className } },
         openSql,
         vars: env, // the loaded Worker's env: plain values and host stubs
-        durability: durability as never,
+        storage: { durability, backup },
         facets: true, // rows move to this run's scope on open, as celld does for facets
-        backup: backup as never,
       });
       runtimes.set(className, rt);
     }

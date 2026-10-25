@@ -1,8 +1,7 @@
 import {
-  type CellBackup,
   type CellDurability,
+  type CellStorage,
   type Clock,
-  type Lease,
   type OpenCellSql,
   systemClock,
   type ValueCodec,
@@ -31,7 +30,8 @@ export interface CellRuntimeOptions {
   /** Plain vars / other bindings merged into env. */
   vars?: Record<string, unknown>;
   openSql: OpenCellSql;
-  durability?: CellDurability;
+  /** Durability, backup and ownership of the cells; closed by `close()`, after the runtime. */
+  storage?: CellStorage;
   codec?: ValueCodec;
   /**
    * Placement: return a `send` when the cell lives elsewhere (another shard
@@ -46,10 +46,6 @@ export interface CellRuntimeOptions {
   scriptName?: string;
   /** Namespace keys overriding the script-scoped default, per class (celld's fleet-wide ones). */
   namespaceKeys?: Record<string, string>;
-  /** Periodic backup of cell databases to a separate store (e.g. a FilesApi); restore on open. */
-  backup?: CellBackup;
-  /** Per-cell ownership: each object takes this lease before it opens (fencing epoch → log). */
-  ownership?: Lease;
   /**
    * Routing between nodes (celld's peer routing): when this node cannot own a cell
    * (`CellOwnedElsewhereError`), the call goes to the owner's node over an internal link
@@ -107,12 +103,14 @@ export interface CellRuntime {
   hibernateIdle(idleMs?: number): number;
   /** Replaces one object's instance with a fresh one on the same storage (facet abort). */
   restartObject(cellKey: string): void;
-  /** Final backup of changed cells, then stops timers and closes every database. */
+  /** Final backup of changed cells, then stops timers, closes every database and the storage. */
   close(): Promise<void>;
 }
 
 export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
-  const durability: CellDurability = opts.durability ?? { committed: () => Promise.resolve() };
+  const storage = opts.storage ?? {};
+  const { backup, ownership } = storage;
+  const durability: CellDurability = storage.durability ?? { committed: () => Promise.resolve() };
   // V8 serialization: storage values in celld's (and workerd's) format.
   const codec = opts.codec ?? v8Codec;
   const hosts = new Map<string, ObjectHost>();
@@ -232,11 +230,11 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           durability,
           codec,
           waitUntil,
-          backup: opts.backup,
+          backup,
           onAlarmChange: (at) => alarms.set({ cellKey, className, idHex: id.toString() }, at),
           exports: exportsObj,
           facet: opts.facets,
-          acquire: opts.ownership ? (key) => opts.ownership!.tryAcquire(key) : undefined,
+          acquire: ownership ? (key) => ownership.tryAcquire(key) : undefined,
           sqlExtensions: opts.sqlExtensions,
           deleteAllPreservesAlarm: opts.deleteAllPreservesAlarm,
         });
@@ -318,14 +316,14 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   // is still due at that time.
   // The index is read at start and then every `wakePollMs` (default 30 s), so alarms of cells
   // whose owner went away are picked up — celld's waker does the same.
-  const wakes = opts.durability?.wakes;
+  const wakes = storage.durability?.wakes;
   let wakeTimer: unknown;
   let wakesStopped = false;
   if (wakes) {
     const known = new Set(Object.values(bindingClasses));
     const poll = async () => {
       try {
-        for (const w of await wakes.call(opts.durability))
+        for (const w of await wakes.call(storage.durability))
           if (known.has(w.className) && !alarmRuns.has(w.cellKey))
             alarms.set(
               { cellKey: w.cellKey, className: w.className, idHex: w.cellKey.split("/")[1] },
@@ -355,10 +353,10 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   let timer: unknown;
   let closed = false;
   const schedule = () => {
-    if (!opts.backup || closed) return;
+    if (!backup || closed) return;
     timer = clock.setTimeout(() => {
       void backupAll("interval").finally(schedule);
-    }, opts.backup.intervalMs ?? 30_000);
+    }, backup.intervalMs ?? 30_000);
   };
   schedule();
 
@@ -407,6 +405,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       await backupAll("close");
       for (const h of hosts.values()) h.close();
       hosts.clear();
+      await storage.close?.();
     },
     async fetch(req) {
       const handler = opts.worker.default?.fetch;

@@ -81,7 +81,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
       .split("/")[1]
       .replace(":", "/");
     const log = filesApiLtxLog(files, { epoch: epoch + 1 });
-    const image = await log.load!(cellKey);
+    const image = await log.backup.load!(cellKey);
     expect(image).toBeDefined();
     const restoredFile = join(mkdtempSync(join(tmpdir(), "ltx-restored-")), "db.sqlite");
     writeFileSync(restoredFile, image!);
@@ -123,13 +123,13 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     ).key.split("/")[1];
     // webrun-cells' log takes over at the next epoch and commits n := 41 (V8-serialized, as celld stores it).
     const log = filesApiLtxLog(files, { epoch: epoch + 1 });
-    const image = await log.load!(cell.replace(":", "/"));
+    const image = await log.backup.load!(cell.replace(":", "/"));
     const f = join(mkdtempSync(join(tmpdir(), "ltx-edit-")), "db.sqlite");
     writeFileSync(f, image!);
     const db = new DatabaseSync(f);
     db.prepare("UPDATE _cf_KV SET v = ? WHERE k = 'n'").run(v8.serialize(41));
     db.close();
-    await log.committed(cell.replace(":", "/"), {
+    await log.durability.committed(cell.replace(":", "/"), {
       seq: 1,
       image: new Uint8Array(readFileSync(f)),
       epoch: epoch + 1,
@@ -200,8 +200,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
                 }),
               ),
         files: new MemFilesApi(),
-        durability: log,
-        backup: log,
+        storage: log,
       });
       const res = await runtime.fetch(new Request("http://x/increment?name=alpha"));
       const body = await res.text();
@@ -268,8 +267,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     const { runtime } = await loadNodeProject(dir, {
       openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "values-cells-"))),
       files: new MemFilesApi(),
-      durability: log,
-      backup: log,
+      storage: log,
     });
     const read = await (await runtime.fetch(new Request("http://x/read"))).json();
     expect(read).toEqual(expectedRead());
@@ -287,8 +285,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     const { runtime } = await loadNodeProject(dir, {
       openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "values-cells-"))),
       files: new MemFilesApi(),
-      durability: log,
-      backup: log,
+      storage: log,
     });
     await runtime.fetch(new Request("http://x/write"));
     await runtime.close();
@@ -346,8 +343,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     const { runtime } = await loadNodeProject(dir, {
       openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "facet-cells-"))),
       files: new MemFilesApi(),
-      durability: log,
-      backup: log,
+      storage: log,
     });
     const r = await runtime.fetch(new Request("http://x/"));
     const text = await r.text();
@@ -377,7 +373,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
         .slice(2, 5)
         .join("/")
         .replace(":", "/");
-      const img = await log.load!(fkey);
+      const img = await log.backup.load!(fkey);
       const f = join(mkdtempSync(join(tmpdir(), "dbg-")), "f.sqlite");
       writeFileSync(f, img!);
       const d = new DatabaseSync(f);
@@ -441,8 +437,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     const { runtime } = await loadNodeProject(dir, {
       openSql: nodeSqliteOpener(mkdtempSync(join(tmpdir(), "facets-ex-cells-"))),
       files: new MemFilesApi(),
-      durability: log,
-      backup: log,
+      storage: log,
     });
     expect(await (await runtime.fetch(new Request("http://x/"))).text()).toBe("2:hello, facet");
     await runtime.close();
