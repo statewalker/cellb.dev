@@ -1,12 +1,12 @@
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
   createCellRuntime,
   DurableObject,
   filesApiChangeLog,
   runInDurableObject,
 } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { FakeClock } from "./fake-clock.js";
 import { MemoryLeases } from "./memory-lease.js";
 

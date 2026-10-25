@@ -13,10 +13,8 @@ import {
   type Target,
   withContentLength,
 } from "../conformance/scenarios.js";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
-import { memoryObjectStore, type ObjectStore } from "../src/bucket/object-store.js";
-import { createWebSocketClass } from "../src/index.js";
-import { loadNodeProject } from "../src/project/node-project.js";
+import { createWebSocketClass, memoryObjectStore, type ObjectStore } from "../src/index.js";
+import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 import { startReferenceServer } from "./ws-reference-server.js";
 
 // celld's own examples, unchanged, from their own wrangler.jsonc, must answer exactly as

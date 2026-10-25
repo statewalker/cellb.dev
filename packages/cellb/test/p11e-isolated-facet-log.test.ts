@@ -4,9 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { filesApiLtxLog } from "../src/index.js";
-import { loadNodeProject } from "../src/project/node-project.js";
+import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
 // A facet whose class comes from a Worker Loader runs inside the isolate (note 21) — and its
 // database is now logged through the host like any facet: one LTX stream under the root,

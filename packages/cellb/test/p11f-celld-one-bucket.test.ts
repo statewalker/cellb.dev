@@ -4,12 +4,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it, vi } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
-import { celldBucket } from "../src/bucket/celld-cells.js";
-import { sqliteObjectStore } from "../src/bucket/sqlite-object-store.js";
-import type { OpenCellSql } from "../src/ports.js";
-import { loadNodeProject } from "../src/project/node-project.js";
+import { celldBucket, type OpenCellSql } from "../src/index.js";
+import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
 
 // Interop the way it is meant to be used: celld and webrun-cells share ONE bucket (celld dev's
 // objects.sqlite3) and hand cells over through celld's own ownership protocol — own.json

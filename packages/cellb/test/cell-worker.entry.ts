@@ -1,7 +1,7 @@
 // Entry of the "cell host" thread: stands in for the browser Dedicated Worker.
 import { parentPort, workerData } from "node:worker_threads";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createCellRuntime, serveRuntime } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { worker } from "./fixtures.js";
 
 const runtime = createCellRuntime({

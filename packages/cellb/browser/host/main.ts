@@ -3,7 +3,7 @@
 // with celld nodes — and serve it to the page through the ServiceWorker at its own base URL.
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { HostedSiteBuilder } from "@statewalker/webrun-site-host";
-import { createProjectSite } from "../../src/project/site.js";
+import { createProjectSite } from "../../src/browser.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const b64 = (bytes: Uint8Array) => {

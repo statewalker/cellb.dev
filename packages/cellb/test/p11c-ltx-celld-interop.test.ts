@@ -6,10 +6,9 @@ import { DatabaseSync } from "node:sqlite";
 import v8 from "node:v8";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { filesApiLtxLog } from "../src/index.js";
-import { loadNodeProject } from "../src/project/node-project.js";
+import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
 // Both directions through celld's own storage format: the REAL celld writes a cell; webrun-
 // cells' LTX log restores that database from celld's LTX files (same bucket keys); a new

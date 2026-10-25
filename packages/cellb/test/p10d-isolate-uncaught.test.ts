@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
-import { loadNodeProject } from "../src/project/node-project.js";
+import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
 // An exception no request awaits (a timer, ctx.abort() from one) is reported and the isolate
 // lives on, as a browser Dedicated Worker and workerd do; a Node worker thread would die and

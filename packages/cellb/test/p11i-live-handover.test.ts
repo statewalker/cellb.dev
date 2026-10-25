@@ -4,12 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
-import { celldBucket } from "../src/bucket/celld-cells.js";
-import { memoryObjectStore, type ObjectStore } from "../src/bucket/object-store.js";
-import { sqliteObjectStore } from "../src/bucket/sqlite-object-store.js";
-import { createCellRuntime, DurableObject, runInDurableObject } from "../src/index.js";
-import { loadNodeProject } from "../src/project/node-project.js";
+import {
+  celldBucket,
+  createCellRuntime,
+  DurableObject,
+  memoryObjectStore,
+  type ObjectStore,
+  runInDurableObject,
+} from "../src/index.js";
+import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
 
 // Hand-over while BOTH runtimes are up (celld dev and webrun-cells on one bucket): each refuses
 // a cell whose owner is live, the cell moves only when its owner stops or loses its lease, and a

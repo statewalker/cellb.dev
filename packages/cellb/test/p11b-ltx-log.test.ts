@@ -3,16 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import {
   createCellRuntime,
   DurableObject,
   filesApiLtxLog,
+  type OpenCellSql,
   runInDurableObject,
 } from "../src/index.js";
 import { decodeLtx } from "../src/ltx/ltx.js";
-import type { OpenCellSql } from "../src/ports.js";
+import { nodeSqliteOpener } from "../src/node.js";
 
 class Notes extends DurableObject {
   add(text: string) {

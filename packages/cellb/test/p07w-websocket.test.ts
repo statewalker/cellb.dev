@@ -5,7 +5,6 @@ import { writeText } from "@statewalker/webrun-files";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { newHostRegistry, newModuleServer } from "@statewalker/webrun-modules";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
   CellsResponse,
   createCellRuntime,
@@ -14,6 +13,7 @@ import {
   takeClientPort,
   WebSocketPair,
 } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 
 /** Cloudflare-style chat room: accepts sockets, echoes, broadcasts, closes on "bye". */
 class Room extends DurableObject {

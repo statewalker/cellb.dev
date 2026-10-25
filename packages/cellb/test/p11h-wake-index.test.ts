@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { celldBucket } from "../src/bucket/celld-cells.js";
-import { memoryObjectStore } from "../src/bucket/object-store.js";
-import { PreconditionFailedError } from "../src/index.js";
+import { celldBucket, memoryObjectStore, PreconditionFailedError } from "../src/index.js";
 
 // celld's wake index (logic/wake.rs): one immutable entry per alarm installation, a
 // per-cell retirement certificate, and cleanup of everything the certificate retires.

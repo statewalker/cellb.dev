@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
   CellsResponse,
   createCellRuntime,
@@ -7,6 +6,7 @@ import {
   DurableObject,
   WebSocketPair,
 } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 
 /** Hibernation-API chat: sockets accepted by ctx, events through handlers, tags. */
 class Hub extends DurableObject {

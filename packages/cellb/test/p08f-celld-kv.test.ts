@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
-import { loadNodeProject } from "../src/project/node-project.js";
+import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
 // celld's own KV (vendor/celld/kv.js) on webrun-cells: the large-value path (> 1 MiB)
 // goes to the host's FilesApi through celld's prepare/put/get protocol.

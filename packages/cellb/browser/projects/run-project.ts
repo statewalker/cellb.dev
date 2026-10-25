@@ -9,12 +9,8 @@ import {
   type Target,
   withContentLength,
 } from "../../conformance/scenarios.js";
-import { createWebSocketClass } from "../../src/index.js";
-import {
-  type BrowserProjectOptions,
-  browserProjectRuntime,
-} from "../../src/project/browser-host.js";
-import type { WranglerConfig } from "../../src/project/wrangler.js";
+import { type BrowserProjectOptions, browserProjectRuntime } from "../../src/browser.js";
+import { createWebSocketClass, type WranglerConfig } from "../../src/index.js";
 
 /** Captures the realm's console as celld prints user logs (call before running user code). */
 export function captureLogs(): string[] {

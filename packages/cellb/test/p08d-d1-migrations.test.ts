@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
-import { applyNodeD1Migrations, loadNodeProject } from "../src/project/node-project.js";
+import { applyNodeD1Migrations, loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
 // celld's rules (celld d1 --help): NNNN_description.sql, case-insensitive extension, numeric
 // order, migrations_dir / migrations_table, wrangler's d1_migrations table.

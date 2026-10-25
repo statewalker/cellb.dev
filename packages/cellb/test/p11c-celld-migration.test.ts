@@ -4,10 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
-import { celldBucket } from "../src/bucket/celld-cells.js";
-import { sqliteObjectStore } from "../src/bucket/sqlite-object-store.js";
-import { loadNodeProject } from "../src/project/node-project.js";
+import { celldBucket } from "../src/index.js";
+import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
 
 // Moves a Durable Object between the real celld and webrun-cells through ONE bucket (celld
 // dev's local objects.sqlite3): celld → webrun-cells → celld, each side restoring the

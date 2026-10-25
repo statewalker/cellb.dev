@@ -3,7 +3,7 @@
 // running in a Dedicated Worker on OPFS (sahpool SQLite + OPFS FilesApi blob store).
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
-import { sahpoolOpener } from "../../src/adapters/wasm-sqlite.js";
+import { sahpoolOpener } from "../../src/browser.js";
 import { createCellRuntime } from "../../src/index.js";
 import { filesApiBlobService } from "../../src/miniflare-compat/blob-service.js";
 import { kvNamespaceBinding } from "../../src/miniflare-compat/kv-binding.js";

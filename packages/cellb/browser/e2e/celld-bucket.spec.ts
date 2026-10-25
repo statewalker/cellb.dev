@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { bundleProjectForBrowser } from "../../conformance/browser-bundle.ts";
-import { s3ObjectStore } from "../../src/bucket/s3-object-store.ts";
+import { s3ObjectStore } from "../../src/index.ts";
 
 // A real celld fleet node and webrun-cells IN CHROMIUM (SQLite WASM on OPFS) share one S3
 // bucket (a local RustFS, reached from the page through the dev server's /s3 proxy): cells

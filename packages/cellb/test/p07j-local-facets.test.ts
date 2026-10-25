@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createCellRuntime, DurableObject } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 
 // Facets whose class is the Worker's own (not loaded code): abort() replaces the instance but
 // keeps the database; delete() clears it — as celld does.

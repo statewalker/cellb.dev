@@ -2,8 +2,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createCellRuntime, DurableObject, runInDurableObject } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { FakeClock } from "./fake-clock.js";
 
 /** Records every alarm() call; fails while `failures` > 0; can re-arm itself. */

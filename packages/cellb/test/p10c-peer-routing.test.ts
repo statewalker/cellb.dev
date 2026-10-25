@@ -2,7 +2,6 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { afterEach, describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
   type CellRuntime,
   cellsHttpHandler,
@@ -10,6 +9,7 @@ import {
   DurableObject,
   filesApiChangeLog,
 } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { MemoryLeases } from "./memory-lease.js";
 
 class Counter extends DurableObject {

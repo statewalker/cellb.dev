@@ -2,8 +2,8 @@
 // The host app's worker: runs one project long-lived (browser-host.ts) on SQLite WASM in OPFS,
 // optionally on a celld fleet bucket, and answers HTTP requests the page forwards to it.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { type BrowserBucket, browserProjectRuntime } from "../../src/project/browser-host.js";
-import type { WranglerConfig } from "../../src/project/wrangler.js";
+import { type BrowserBucket, browserProjectRuntime } from "../../src/browser.js";
+import type { WranglerConfig } from "../../src/index.js";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 let host: Awaited<ReturnType<typeof browserProjectRuntime>> | undefined;

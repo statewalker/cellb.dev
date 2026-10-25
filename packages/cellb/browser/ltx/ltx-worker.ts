@@ -4,7 +4,7 @@
 // pool rebuilds the cells from that log alone.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
-import { sahpoolOpener } from "../../src/adapters/wasm-sqlite.js";
+import { sahpoolOpener } from "../../src/browser.js";
 import {
   createCellRuntime,
   DurableObject,

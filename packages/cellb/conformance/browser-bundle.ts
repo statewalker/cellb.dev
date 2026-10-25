@@ -8,12 +8,12 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { build } from "esbuild";
+import type { WranglerConfig } from "../src/index.ts";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../src/node-compat/modules.ts";
 import { WORKERS_MODULE_SHIM } from "../src/project/browser-modules.ts";
 import { readAssetDirectory, readWranglerConfig } from "../src/project/node-project.ts";
 import { SCHEDULER_EXPRESSION } from "../src/project/scheduler.ts";
 import { WORKERS_GLOBAL_NAMES } from "../src/project/workers-global-names.ts";
-import type { WranglerConfig } from "../src/project/wrangler.ts";
 import { projectDir } from "./projects.ts";
 
 const app = resolve(import.meta.dirname, "..");

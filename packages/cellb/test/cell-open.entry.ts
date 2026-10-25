@@ -1,6 +1,7 @@
 // Child process: opens a cell through a CellRuntime (exclusive opener) and reports what happened.
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
+
 import { createCellRuntime } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { worker } from "./fixtures.js";
 
 const [dir, name, mode] = process.argv.slice(2);

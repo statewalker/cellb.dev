@@ -3,9 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { describe, expect, it } from "vitest";
-import { NodeSqliteDriver, nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
+import { NodeSqliteDriver } from "../src/adapters/node-sqlite.js";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import type { OpenCellSql } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { probeRuntime as baseProbeRuntime } from "./helpers.js";
 
 // P04a: the same storage suite runs against every SyncSqlDriver.

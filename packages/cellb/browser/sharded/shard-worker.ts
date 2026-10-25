@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // One shard: its own opfs-sahpool (pools are exclusive per worker), its own cells.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { sahpoolOpener } from "../../src/adapters/wasm-sqlite.js";
+import { sahpoolOpener } from "../../src/browser.js";
 import {
   CellsResponse,
   createShardHost,

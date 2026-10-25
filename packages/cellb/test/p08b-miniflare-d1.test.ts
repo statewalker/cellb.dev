@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createCellRuntime } from "../src/index.js";
 import { simulatorFetcher } from "../src/miniflare-compat/simulator-fetcher.js";
 import { D1DatabaseObject } from "../src/miniflare-compat/vendored.js";
+import { nodeSqliteOpener } from "../src/node.js";
 // @ts-expect-error — generated JS bundles (scripts/vendor-miniflare.mjs), no .d.ts
 import makeD1Binding from "../vendor/miniflare/d1-api.js";
 

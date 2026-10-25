@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
   CellsResponse,
   createCellRuntime,
@@ -7,6 +6,7 @@ import {
   DurableObject,
   WebSocketPair,
 } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 
 /** Counts constructions; keeps an in-memory field to show the instance really went away. */
 class Sleepy extends DurableObject {

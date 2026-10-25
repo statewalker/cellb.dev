@@ -1,9 +1,9 @@
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createCellRuntime } from "../src/index.js";
 import { filesApiBlobService } from "../src/miniflare-compat/blob-service.js";
 import { kvNamespaceBinding } from "../src/miniflare-compat/kv-binding.js";
+import { nodeSqliteOpener } from "../src/node.js";
 // @ts-expect-error — generated JS bundle (scripts/vendor-miniflare.mjs), no .d.ts
 import { KVNamespaceObject } from "../vendor/miniflare/kv-namespace.js";
 

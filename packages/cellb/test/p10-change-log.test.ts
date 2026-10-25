@@ -1,14 +1,14 @@
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import {
   createCellRuntime,
   DurableObject,
   filesApiChangeLog,
+  type OpenCellSql,
   runInDurableObject,
 } from "../src/index.js";
-import type { OpenCellSql } from "../src/ports.js";
+import { nodeSqliteOpener } from "../src/node.js";
 
 /** Writes through every path: KV, SQL with and without PRIMARY KEY, DDL, rollbacks, alarms. */
 class Ledger extends DurableObject {

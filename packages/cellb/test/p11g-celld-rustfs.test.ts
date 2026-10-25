@@ -4,12 +4,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
-import { celldBucket } from "../src/bucket/celld-cells.js";
-import { s3ObjectStore } from "../src/bucket/s3-object-store.js";
-import { startCelldPeerServer } from "../src/peer/celld-peer.js";
-import { loadNodeProject } from "../src/project/node-project.js";
+import { celldBucket, s3ObjectStore } from "../src/index.js";
+import { loadNodeProject, nodeSqliteOpener, startCelldPeerServer } from "../src/node.js";
 
 // A real celld fleet node and webrun-cells on ONE S3 bucket served by a local RustFS: cells
 // move between them through celld's ownership protocol (own.json epochs, node leases), and

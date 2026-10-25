@@ -1,4 +1,3 @@
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
   type CellDurability,
   createCellRuntime,
@@ -7,6 +6,7 @@ import {
   type OpenCellSql,
   runInDurableObject,
 } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 
 /** A probe object exposing ctx to the test through RPC closures. */
 export class Probe extends DurableObject {

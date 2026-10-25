@@ -2,7 +2,6 @@ import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { filesApiBackup } from "../src/adapters/files-backup.js";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import {
   type BackupInfo,
@@ -11,6 +10,7 @@ import {
   type OpenCellSql,
   runInDurableObject,
 } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { FakeClock } from "./fake-clock.js";
 import { worker } from "./fixtures.js";
 

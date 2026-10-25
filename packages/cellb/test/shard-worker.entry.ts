@@ -1,7 +1,7 @@
 // A shard worker thread (stand-in for a browser Dedicated Worker hosting one shard).
 import { parentPort, workerData } from "node:worker_threads";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createShardHost } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { worker } from "./fixtures.js";
 
 const host = createShardHost({

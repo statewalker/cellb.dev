@@ -2,7 +2,7 @@
 // Runs one project whose code comes from the in-browser HTTP server (webrun-site-host +
 // webrun-site-builder + webrun-modules): `import()` of real URLs; Worker Loader over the site.
 
-import type { WranglerConfig } from "../../src/project/wrangler.js";
+import type { WranglerConfig } from "../../src/index.js";
 import { captureLogs, runProject } from "../projects/run-project.js";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;

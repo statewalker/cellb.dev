@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import {
   cellsHttpHandler,
   connectRuntime,
@@ -12,6 +11,7 @@ import {
   remoteRuntime,
   serveRuntime,
 } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { worker } from "./fixtures.js";
 
 const newRuntime = () =>

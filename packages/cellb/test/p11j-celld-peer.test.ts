@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
-import { celldBucket } from "../src/bucket/celld-cells.js";
-import { sqliteObjectStore } from "../src/bucket/sqlite-object-store.js";
-import { celldPeers, startCelldPeerServer } from "../src/peer/celld-peer.js";
-import { loadNodeProject } from "../src/project/node-project.js";
-import { createWebSocketClass } from "../src/ws/client.js";
+import { celldBucket, createWebSocketClass } from "../src/index.js";
+import {
+  celldPeers,
+  loadNodeProject,
+  nodeSqliteOpener,
+  sqliteObjectStore,
+  startCelldPeerServer,
+} from "../src/node.js";
 
 // A mixed fleet: a webrun-cells node in Node speaks celld's peer protocol, so when it owns a
 // cell, celld ROUTES that cell's requests (fetch and JS RPC) to it through /peer/tunnel instead

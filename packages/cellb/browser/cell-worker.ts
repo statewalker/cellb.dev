@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // P04c — Dedicated Worker hosting the cells: SQLite WASM + OPFS sahpool, served over the worker port.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { sahpoolOpener } from "../src/adapters/wasm-sqlite.js";
+import { sahpoolOpener } from "../src/browser.js";
 import { createCellRuntime, serveRuntime } from "../src/index.js";
 import { worker } from "../test/fixtures.js";
 

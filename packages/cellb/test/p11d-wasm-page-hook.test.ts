@@ -37,7 +37,7 @@ describe("P11d SQLite WASM page hook", () => {
   });
 
   it("node:sqlite with pageCapture reads a commit's pages from the WAL, equal to the database", async () => {
-    const { nodeSqliteOpener } = await import("../src/adapters/node-sqlite.js");
+    const { nodeSqliteOpener } = await import("../src/node.js");
     const { mkdtempSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");

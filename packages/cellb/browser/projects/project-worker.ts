@@ -2,7 +2,7 @@
 // Runs one project bundled on the Node side (conformance/browser-bundle.ts); the bundle and
 // Worker-Loader code are Blob-URL modules.
 
-import type { WranglerConfig } from "../../src/project/wrangler.js";
+import type { WranglerConfig } from "../../src/index.js";
 import { captureLogs, runProject } from "./run-project.js";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;

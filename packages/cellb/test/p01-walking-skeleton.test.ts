@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { describe, expect, it } from "vitest";
-import { nodeSqliteOpener } from "../src/adapters/node-sqlite.js";
 import { createCellRuntime } from "../src/index.js";
+import { nodeSqliteOpener } from "../src/node.js";
 import { worker } from "./fixtures.js";
 
 const newRuntime = (dir?: string) =>
