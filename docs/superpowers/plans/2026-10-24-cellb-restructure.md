@@ -363,5 +363,9 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   D1 and Queues.
 - [ ] **F7 Firefox and WebKit**: add the Playwright projects; record what fails (module
   ServiceWorkers, OPFS sync handles, Web Locks) in `docs/gaps.md` before fixing anything.
+- [ ] **F8 await the lease release on close** (found in R3): `ObjectHost.close()` fires
+  `void release()`, so `storage.close()` can overlap a release in flight and leave `own.json`
+  held until its lease lapses. TDD: close, then a second node's `tryAcquire` must succeed at once
+  with the store closed right after; then await the release in `close()`.
 - Stays out, written in `docs/gaps.md` with the reason: limits per object, opaque-origin iframes
   for untrusted code, celld's log tier and `/peer/handoff`, Python Workers.
