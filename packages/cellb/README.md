@@ -52,7 +52,7 @@ changeset replication, conformance against `celld dev`) are listed in notes 08 a
 
 ```ts
 import { createCellRuntime } from "@statewalker/cellb";
-import { nodeSqliteOpener } from "@statewalker/cellb/src/adapters/node-sqlite.js";
+import { nodeSqliteOpener } from "@statewalker/cellb/node";
 import * as worker from "./worker.js"; // export default { fetch } + Durable Object classes
 
 const rt = createCellRuntime({

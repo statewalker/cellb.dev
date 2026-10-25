@@ -8,10 +8,10 @@ import { sahpoolOpener } from "../../src/adapters/wasm-sqlite.js";
 import {
   createCellRuntime,
   DurableObject,
-  decodeLtx,
   filesApiLtxLog,
   runInDurableObject,
 } from "../../src/index.js";
+import { decodeLtx } from "../../src/ltx/ltx.js";
 
 class Notes extends DurableObject {
   seed() {

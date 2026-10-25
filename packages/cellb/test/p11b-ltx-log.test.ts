@@ -8,10 +8,10 @@ import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import {
   createCellRuntime,
   DurableObject,
-  decodeLtx,
   filesApiLtxLog,
   runInDurableObject,
 } from "../src/index.js";
+import { decodeLtx } from "../src/ltx/ltx.js";
 import type { OpenCellSql } from "../src/ports.js";
 
 class Notes extends DurableObject {
