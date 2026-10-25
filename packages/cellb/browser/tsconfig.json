@@ -13,6 +13,7 @@
     "./ltx/*.ts",
     "./host/*.ts",
     "./isolate/*.ts",
+    "./entry/*.ts",
     "../src",
     "../test/fixtures.ts"
   ]
