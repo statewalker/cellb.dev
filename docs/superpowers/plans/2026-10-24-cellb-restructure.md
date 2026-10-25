@@ -168,13 +168,15 @@ their tests). p10b/p10c now run on `test/memory-lease.ts`; unit 363 → 348 (p05
   (`pageImage`, `discardDirtyPages`).
 - [x] D5: delete `CasLease`, `ConditionalStore`, `MemoryConditionalStore` and `SqliteConditionalStore` with their tests; keep `Lease`, `SqliteFileLease`, `RegistryLease` if still used, otherwise delete them too (deletion test).
 
-### R3 `CellStorage`, one bundle instead of five hand-wired fields
-- [ ] `CellStorage = { durability, backup?, ownership?, objects?, close() }`.
-- [ ] `celldBucket()` returns it, and so do `filesApiChangeLog` and `filesApiLtxLog`.
-- [ ] `ProjectHost.storage` and `loadNodeProject(dir, { storage })` accept it, and `close()` closes
+### R3 `CellStorage`, one bundle instead of five hand-wired fields — done `2ff7a94`
+Shape: `{ durability, backup?, ownership?, objects?, close() }` in `ports.ts`; 19 `as never` casts
+removed, none storage-related left; `runtime.close()` backs up, closes databases, then storage.
+- [x] `CellStorage = { durability, backup?, ownership?, objects?, close() }`.
+- [x] `celldBucket()` returns it, and so do `filesApiChangeLog` and `filesApiLtxLog`.
+- [x] `ProjectHost.storage` and `loadNodeProject(dir, { storage })` accept it, and `close()` closes
   in the right order.
-- [ ] Migrate the 17 + 18 call sites and remove the `as never` casts.
-- [ ] Seam test: the p11f hand-over through the new 2-call setup. The existing tests are moved, not
+- [x] Migrate the 17 + 18 call sites and remove the `as never` casts.
+- [x] Seam test: the p11f hand-over through the new 2-call setup. The existing tests are moved, not
   duplicated.
 
 ### R4 three entry points
