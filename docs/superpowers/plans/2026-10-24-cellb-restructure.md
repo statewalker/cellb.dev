@@ -317,6 +317,33 @@ the renames); typecheck and biome exit 0.
   `ShardWorkerOptions`, file `router/shard-worker.ts` (`git mv` first).
 - [x] The `Lease` port's comment says per cell; the name stays.
 
+### R9 test isolation: free ports and a bucket per run — done `2d2b9db..c4e3d2d` and the commit that ticks these boxes
+Goal: several worktrees run the full bar on one machine at once. Proof: two full vitest runs at
+once (celld env, `RUSTFS_ENDPOINT` unset, so each started its own RustFS): both 354 / 7 expected
+fail / 1 skipped; a Chromium run beside a vitest run: 181 / 14 and 354 / 7 / 1. Bar: vitest on the
+shared RustFS 354 / 7 / 1, `MUTANTS=0,1 pnpm mutate` and `MUTANTS=1,2 pnpm mutate:browser` kill
+theirs, `pnpm -r typecheck` and `pnpm biome check .` exit 0.
+- [x] `test/free-port.ts` (listen on 0 at 127.0.0.1, close, return the port; its own module so
+  Playwright's config and specs load it without `src/`): every celld (`dev --port`, fleet
+  `--listen`/`--internal-listen`, `diagnose`) in p11c ×2, p11f, p11g, p11i, p11j, the celld-bucket
+  spec and the celld recorder. Peer servers and the ws reference server already listened on 0.
+- [x] `test/test-bucket.ts`: vitest's globalSetup; with `CELLD_BIN` set it reuses
+  `RUSTFS_ENDPOINT` or starts RustFS from interop-env.sh's cache (`interop-env.sh --rustfs-bin`
+  prints the binary, downloading it once) on a free port with a temp data dir, stopped on
+  teardown and on process exit; then creates `cellb-<random>` with cellb's `signV4` and exports
+  `TEST_BUCKET`. p11g and the celld-bucket spec use it instead of `cells`. Buckets on a shared
+  RustFS are left in place; a temp RustFS takes them with its data dir.
+- [x] Playwright: the same setup runs at config load, not in a globalSetup, because Playwright
+  starts the webServer before globalSetup and Vite needs the port and endpoint; workers reload the
+  config and reuse the values through the environment (`PW_PORT`, `TEST_BUCKET`). Vite gets
+  `--port <free> --strictPort`, `baseURL` follows.
+- [x] interop-env.sh still starts the shared RustFS on `RUSTFS_PORT` (default 9200) and creates
+  `cells`, the host app's default bucket for manual use; CI calls only the pnpm scripts.
+- [x] Left on purpose: `127.0.0.1:18701` in p09 and the browser projects page is an origin for
+  in-process requests (no socket; the transcripts replace it by `{origin}`); 8443 in p04 is a URL
+  only; 9200 is interop-env.sh's shared-instance default and the Vite proxy's fallback for
+  `pnpm browser:dev`; 5173 appears only in a comment naming Vite's default.
+
 ## 4. Decisions (answered 2026-10-24)
 
 | # | Question | Decision |
