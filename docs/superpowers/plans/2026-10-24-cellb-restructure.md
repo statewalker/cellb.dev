@@ -109,7 +109,7 @@ packages/cellb/
 ├─ src/
 │  ├─ index.ts      isomorphic (~30 names): DurableObject, WorkerEntrypoint, createCellRuntime,
 │  │                createProjectRuntime, CellStorage, port types, serveRuntime/linkOverPort/connectRuntime,
-│  │                CellRouter, createShardHost, WebSocket client/pair, errors embedders catch
+│  │                CellRouter, createShardWorker, WebSocket client/pair, errors embedders catch
 │  │                (celldBucket, s3ObjectStore and memoryObjectStore are isomorphic, so they live here)
 │  ├─ node.ts       loadNodeProject, applyNodeD1Migrations, nodeSqliteOpener, sqliteObjectStore, celld peers
 │  └─ browser.ts    browserProjectRuntime (installs Workers/node globals itself), sahpoolOpener,

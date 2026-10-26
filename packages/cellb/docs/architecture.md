@@ -98,7 +98,7 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
 | `src/ltx` | storage | the LTX v3 codec: LZ4, CRC-64, xxHash32 |
 | `src/v8` | storage | V8 serialization in TypeScript, for platforms without `v8.serialize` |
 | `src/transport` | links | the HTTP surface (`cellsHttpHandler`, `remoteRuntime`) and links over ports |
-| `src/router` | browser placement | `CellRouter` and the shard host |
+| `src/router` | browser placement | `CellRouter` and the shard worker |
 | `src/ws` | WebSockets | the WHATWG client, `WebSocketPair` and the 101 `Response` over MessagePorts, the control channel |
 | `src/project` | projects | wrangler loading for Node and browsers, the in-browser site, Workers globals |
 | `src/bindings` | projects | assets, cache, cron, D1 migrations, HTMLRewriter, KV, Queues, R2, Workflows, Worker Loader |

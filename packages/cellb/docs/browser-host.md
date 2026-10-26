@@ -65,7 +65,7 @@ ServiceWorker: CellRouter
 - Each shard is one Web Lock, one OPFS pool and one Dedicated Worker
   ([ADR 0005](adr/0005-fixed-shards-in-the-browser.md)). A second tab queues on the locks, is served
   by the first tab's workers, and takes the shards over when that tab closes.
-- `createShardHost` runs in each shard worker: its own cells stay local, others go upstream to the
+- `createShardWorker` runs in each shard worker: its own cells stay local, others go upstream to the
   router. When the ServiceWorker restarts, it asks the pages to re-attach their links; the first
   request after a restart costs about one round trip to a page.
 - Each shard worker also holds an owner lock (`cellb:owner:<shard>:<uuid>`). The router requests it
@@ -76,7 +76,7 @@ ServiceWorker: CellRouter
   and closes `1006` after two missed pongs; the server end closes after three missed pings.
 
 The repository wires this topology in its sharded demo (the page, the ServiceWorker and the shard
-worker); the package provides `CellRouter`, `createShardHost`, `serviceWorkerConnector` and
+worker); the package provides `CellRouter`, `createShardWorker`, `serviceWorkerConnector` and
 `createWebSocketClass`.
 
 ## A fleet bucket on S3

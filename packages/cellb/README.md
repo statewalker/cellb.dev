@@ -27,7 +27,7 @@ step yet), so import it through a bundler, Vite or vitest.
 
 | Import | What it gives |
 |---|---|
-| `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, `s3ObjectStore`, `memoryObjectStore`, `filesApiLtxLog`, `filesApiChangeLog`, links over ports, `CellRouter`, `createShardHost`, the WebSocket classes, and the errors embedders catch |
+| `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, `s3ObjectStore`, `memoryObjectStore`, `filesApiLtxLog`, `filesApiChangeLog`, links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes, and the errors embedders catch |
 | `@statewalker/cellb/node` | `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
 | `@statewalker/cellb/browser` | `browserProjectRuntime`, `sahpoolOpener`, `createProjectSite`, `serviceWorkerConnector` |
 
@@ -148,7 +148,7 @@ src/bucket          object stores (S3, SQLite, memory, FilesApi), the LTX writer
 src/ltx             the LTX v3 codec (LZ4, CRC-64, xxHash32)
 src/v8              V8 serialization in TypeScript
 src/transport       the HTTP surface of a runtime, and links over ports
-src/router          CellRouter and the shard host (browser origins)
+src/router          CellRouter and the shard worker (browser origins)
 src/ws              WebSocket client, WebSocketPair and 101 Response over MessagePorts
 src/project         wrangler projects for Node and browsers, the in-browser site, Workers globals
 src/bindings        assets, cache, cron, D1 migrations, HTMLRewriter, KV, Queues, R2, Workflows, Worker Loader

@@ -22,7 +22,7 @@ export class Counter extends DurableObject<Env> {
     this.ctx.storage.sql.exec("UPDATE counter SET n = n + ? WHERE id = 1", by);
     return this.value();
   }
-  /** Which shard hosts this object (SHARD var set by the shard host). */
+  /** Which shard hosts this object (SHARD var set by the shard worker). */
   shard(): number | undefined {
     return (this.env as any).SHARD;
   }

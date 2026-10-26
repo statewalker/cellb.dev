@@ -5,12 +5,12 @@ import { type CellPort, linkOverPort, serveRuntime } from "../transport/port.js"
 import { type ControlMessage, type ControlPort, PortRendezvous } from "../ws/control.js";
 import { CellsResponse, CfWebSocket } from "../ws/server.js";
 
-export interface ShardHostOptions extends Omit<CellRuntimeOptions, "route"> {
+export interface ShardWorkerOptions extends Omit<CellRuntimeOptions, "route"> {
   shard: number;
   shards: number;
 }
 
-export interface ShardHost {
+export interface ShardWorker {
   readonly runtime: CellRuntime;
   /**
    * (Re)connects to a router: `down` = router → shard (served here),
@@ -22,7 +22,7 @@ export interface ShardHost {
 }
 
 /** Runs one shard: hosts the cells of shard `shard`, forwards the others upstream. */
-export function createShardHost(opts: ShardHostOptions): ShardHost {
+export function createShardWorker(opts: ShardWorkerOptions): ShardWorker {
   let upstream: Send | undefined;
   let control: ControlPort | undefined;
   const pending: (() => void)[] = [];

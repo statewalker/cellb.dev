@@ -30,7 +30,11 @@ export {
   type WranglerConfig,
 } from "./project/wrangler.js";
 export { CellRouter, type CellRouterOptions, ShardOwnerLostError } from "./router/cell-router.js";
-export { createShardHost, type ShardHost, type ShardHostOptions } from "./router/shard-worker.js";
+export {
+  createShardWorker,
+  type ShardWorker,
+  type ShardWorkerOptions,
+} from "./router/shard-worker.js";
 export {
   type CellsHttpOptions,
   cellsHttpHandler,

@@ -4,9 +4,9 @@ import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { sahpoolOpener } from "../../../src/browser.js";
 import {
   CellsResponse,
-  createShardHost,
+  createShardWorker,
   DurableObject,
-  type ShardHost,
+  type ShardWorker,
   WebSocketPair,
   type WorkerModule,
 } from "../../../src/index.js";
@@ -41,14 +41,14 @@ async function loadWorker(): Promise<WorkerModule> {
 }
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
-let host: ShardHost | undefined;
+let host: ShardWorker | undefined;
 
 scope.addEventListener("message", async (e) => {
   const m = e.data;
   if (m?.type === "init") {
     const sqlite3 = await (sqlite3InitModule as any)({ print() {}, printErr: console.error });
     const openSql = await sahpoolOpener(sqlite3, { name: `cellb-shard-${m.shard}` });
-    host = createShardHost({
+    host = createShardWorker({
       shard: m.shard,
       shards: m.shards,
       worker: await loadWorker(),
