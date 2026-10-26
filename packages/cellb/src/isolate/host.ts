@@ -1,13 +1,7 @@
 import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
 import { ISOLATED, type IsolatedClass } from "../core/handles.js";
 import type { CellStorage } from "../ports.js";
-import {
-  deserializeResponse,
-  type PortLike,
-  rpcPort,
-  serializeRequest,
-  splitEnv,
-} from "./protocol.js";
+import { hostPort, type PortLike, splitEnv } from "./protocol.js";
 
 /**
  * Worker Loader whose code runs in a separate realm per loaded Worker (an isolate). Returns
@@ -31,7 +25,7 @@ export function isolatedModuleLoader(opts: {
     if (code.globalOutbound && typeof code.globalOutbound === "object") stubs.push("__outbound");
     const where = await opts.prepare(id, code);
     const isolate = opts.spawn(id);
-    const rpc = rpcPort(isolate.port, async (m) => {
+    const { call, fetch } = await hostPort(isolate.port, async (m) => {
       if (m.type === "stub") {
         const target = m.key === "__outbound" ? code.globalOutbound : env[m.key];
         return (target as any)[m.method](...m.args);
@@ -46,7 +40,7 @@ export function isolatedModuleLoader(opts: {
             ...info,
             image:
               typeof token === "number"
-                ? () => rpc.request<Uint8Array | undefined>({ type: "image", token })
+                ? () => call<Uint8Array | undefined>({ type: "image", token })
                 : token,
           });
         }
@@ -57,7 +51,7 @@ export function isolatedModuleLoader(opts: {
         (console as any)[m.level](...m.args);
       }
     });
-    const exports = await rpc.request<Record<string, string>>({
+    const exports = await call<Record<string, string>>({
       type: "load",
       ...where,
       env: plain,
@@ -70,12 +64,8 @@ export function isolatedModuleLoader(opts: {
         {
           get(_t, prop) {
             if (prop === "then" || typeof prop === "symbol") return undefined;
-            if (prop === "fetch")
-              return async (req: Request) =>
-                deserializeResponse(
-                  await rpc.request({ type: "fetch", name, request: await serializeRequest(req) }),
-                );
-            return (...args: unknown[]) => rpc.request({ type: "call", name, method: prop, args });
+            if (prop === "fetch") return (req: Request) => fetch({ name }, req);
+            return (...args: unknown[]) => call({ type: "call", name, method: prop, args });
           },
         },
       );
@@ -84,22 +74,12 @@ export function isolatedModuleLoader(opts: {
     );
     // Durable Object classes of the loaded code run in the isolate too (facets).
     module[ISOLATED] = (className: string): IsolatedClass => ({
-      fetch: async (cellKey, req) =>
-        deserializeResponse(
-          await rpc.request({
-            type: "object",
-            op: "fetch",
-            className,
-            cellKey,
-            request: await serializeRequest(req),
-          }),
-        ),
+      fetch: (cellKey, req) => fetch({ className, cellKey }, req),
       call: (cellKey, method, args) =>
-        rpc.request({ type: "object", op: "call", className, cellKey, method, args }),
-      restart: (cellKey) => rpc.request({ type: "object", op: "restart", className, cellKey }),
-      delete: (cellKey) => rpc.request({ type: "object", op: "delete", className, cellKey }),
-      attach: (cellKey, epoch) =>
-        rpc.request({ type: "object", op: "attach", className, cellKey, epoch }),
+        call({ type: "object", op: "call", className, cellKey, method, args }),
+      restart: (cellKey) => call({ type: "object", op: "restart", className, cellKey }),
+      delete: (cellKey) => call({ type: "object", op: "delete", className, cellKey }),
+      attach: (cellKey, epoch) => call({ type: "object", op: "attach", className, cellKey, epoch }),
     });
     return module as Record<string, unknown>;
   };

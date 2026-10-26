@@ -435,12 +435,12 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   cell lease the local database is rebuilt from the bucket on every acquisition. Proof:
   `test/p10e-stale-local-db.test.ts` (A, B, A counts 1, 2, 3) and the OPFS step in
   `e2e-browser/opfs-bucket.spec.ts`; branch `fix/stale-local-db`.
-- [ ] **F1 isolate port on webrun-rpc** (D10-independent). Replace `rpcPort` with
+- [x] **F1 isolate port on webrun-rpc** (D10-independent) — done on `feat/isolate-rpc`; one calls port carries both directions. Replace `rpcPort` with
   `callPort`/`listenPort` (`NO_TIMEOUT`) on a `multiplexPort` channel per direction. Errors keep
   their own properties (`code`), as stub calls in one isolate already do. Proof: a step in the
   `isolation-api` project throwing an error with `code` from a loaded Worker, recorded on celld;
   red today (`code` is lost at `protocol.ts:75`). Deletes ~50 lines.
-- [ ] **F2 streamed bodies across the isolate** (D10-independent). Route the isolate's `fetch` through
+- [x] **F2 streamed bodies across the isolate** (D10-independent) — done on `feat/isolate-rpc`; the target and URL ride in the fetch port's meta. Route the isolate's `fetch` through
   the cells-http-over-port path cellb already has (`transport/port.ts`) instead of
   `arrayBuffer()` copies. Proof: a loaded Worker streams a response whose first chunk arrives
   before its last is produced — a new step, recorded on celld.
