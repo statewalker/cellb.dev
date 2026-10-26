@@ -7,6 +7,7 @@ import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startFakeLlm } from "./fake-llm.js";
+import { whoamiScript, wrongIdentities } from "./whoami.js";
 
 // The app as Flue's own Cloudflare build emits it (`vite build`: flue() + @cloudflare/vite-plugin).
 const built = join(import.meta.dirname, "../dist/flue_example");
@@ -118,6 +119,35 @@ describe("a Flue agent app on cellb", () => {
       expect(rb.text).toContain("42");
     } finally {
       await runtime.close();
+    }
+  }, 60_000);
+});
+
+// Tools and sandbox adapters find their agent through Flue's context (an AsyncLocalStorage):
+// with many conversations at once, each tool must see its own conversation, after an await too.
+describe("concurrent conversations on cellb (Node)", () => {
+  it("each conversation's tool sees its own agent context", async () => {
+    const llm = await startFakeLlm(whoamiScript, { delayMs: 30 });
+    const { runtime } = await loadNodeProject(deployment(llm.baseUrl), {
+      openSql: nodeSqliteOpener(),
+      files: new MemFilesApi(),
+    });
+    try {
+      const ids = Array.from({ length: 8 }, (_, i) => `who-${i}`);
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          const client = createFlueClient({
+            url: `http://app.test/agents/assistant/${id}`,
+            fetch: (input, init) => runtime.fetch(new Request(input, init)),
+          });
+          const sent = await client.send({ message: { kind: "user", body: "whoami" } });
+          return { id, text: (await client.read(sent)).text };
+        }),
+      );
+      expect(wrongIdentities(results)).toEqual([]);
+    } finally {
+      await runtime.close();
+      await llm.close();
     }
   }, 60_000);
 });

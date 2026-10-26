@@ -89,12 +89,27 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
 - **`node:fs` and `node:os` in a browser have no host behind them.** With nodejs_compat a browser
   bundle gets `node:fs` whose calls fail with `ENOENT` (`existsSync` is false) and `node:os` with
   fixed answers (`EOL` is `"\n"`, no CPUs, no memory); they let libraries that probe for files load.
-- **`AsyncLocalStorage` in a browser is not isolated between concurrent events.** The
-  `node:async_hooks` shim keeps one store at a time, and the Agents SDK and Flue find the current
-  agent through it. Two cells answering at once in one browser runtime can read each other's
-  context. A Flue app with two conversations at once keeps each conversation's messages apart
-  (packages/flue-example's browser test), but code that reads the store after an `await` while
-  another cell runs gets that cell's store. Node uses the real module.
+- **`AsyncLocalStorage` in a browser carries its stores only through code it can see.** The
+  `node:async_hooks` polyfill keeps each `run()` to its synchronous part and makes continuations
+  carry their stores (`Promise.prototype.then`, timers, `queueMicrotask`); a native `await` bypasses
+  `then`, so `bundleWorkerForBrowser` lowers `await` to generators in nodejs_compat bundles. A
+  bundle then answers as on Node (test/async-context-worker.ts, 16 objects at once). An in-browser
+  site's modules are compiled without lowering, so there the polyfill keeps its run-at-a-time
+  stores: a `run()`'s store stays set until its promise settles, which is right for one run at a
+  time and shared between concurrent ones (two cells answering at once can read each other's).
+  Event listeners (`addEventListener`, MessagePort `onmessage`) do not carry stores, on Node either.
+- **A called object starts in its caller's async context.** Its `AsyncLocalStorage` stores are the
+  caller's (on Node and in a browser), where on Cloudflare a call to another object is a new event
+  with none. The Agents SDK and Flue set their own stores at each entry, so they are not affected;
+  code that reads a store it did not set in the callee sees the caller's. Changing it means
+  starting each event in the root context, which the celld conformance harness (test/p09) relies
+  on not doing: it attributes Durable Object logs to a scenario through such a store.
+- **A browser runtime is one thread.** Its cells interleave, they do not run in parallel, and each
+  commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool call,
+  two model turns) makes about 155 commits, so concurrent conversations in one runtime take turns
+  (the sharded topology spreads cells over several workers). Opening a cell reserves room in the
+  OPFS pool first and the pool grows on demand; a database or journal that SQLite creates mid-event
+  (`SAH pool is full`) can still fail if a burst outruns the background growth.
 - **Agents SDK WebSocket connections are ignored.** `partyserver` reads attachments through the
   global `WebSocket.prototype` (`deserializeAttachment`), which a Worker's bundle takes from the
   host and which lacks them, so it does not recognise any accepted socket as its own: `onConnect`

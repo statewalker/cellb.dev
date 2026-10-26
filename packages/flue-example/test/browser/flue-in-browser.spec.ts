@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { bundleWorkerForBrowser } from "@statewalker/cellb/node";
 import { startFakeLlm } from "../fake-llm.ts";
+import { whoamiScript, wrongIdentities } from "../whoami.ts";
 
 // The app as Flue's own Cloudflare build emits it, bundled once more for a browser realm and
 // run by cellb in a Dedicated Worker (SQLite WASM on OPFS), against the fake model endpoint.
@@ -69,6 +70,65 @@ test("a Flue agent app runs on cellb in a browser", async ({ page }) => {
     expect(order.slice(0, 2).sort()).toEqual(["question-a", "question-b"]);
     // Every conversation went through the model twice: the tool call, then the answer.
     expect(llm.requests.length).toBe(8);
+  } finally {
+    await llm.close();
+  }
+});
+
+// Tools and sandbox adapters find their agent through Flue's context (an AsyncLocalStorage):
+// with many conversations at once in one browser runtime, each tool must see its own
+// conversation, after an await too.
+for (const conversations of [8, 32])
+  test(`each of ${conversations} concurrent conversations' tool sees its own agent context`, async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const llm = await startFakeLlm(whoamiScript, { delayMs: 30 });
+    try {
+      const config = JSON.parse(readFileSync(join(built, "wrangler.json"), "utf8"));
+      config.vars = { ...config.vars, LLM_BASE_URL: llm.baseUrl };
+      const bundle = await bundleWorkerForBrowser(join(built, config.main), { nodeCompat: true });
+      await page.goto("/");
+      await page.waitForFunction(() => document.body.dataset.ready === "true");
+      const r = await page.evaluate((job) => (window as any).__runFlue(job), {
+        config,
+        bundle,
+        run: Date.now().toString(36),
+        scenario: "whoami",
+        conversations,
+      });
+      expect(r.ok, r.error).toBe(true);
+      expect(r.problems).toEqual([]);
+      expect(wrongIdentities(r.results)).toEqual([]);
+    } finally {
+      await llm.close();
+    }
+  });
+
+// Flue's per-conversation queue on cellb's input gate: messages that arrive together all settle,
+// none is lost, and the tool still sees its own conversation.
+test("messages sent to one conversation at once all settle", async ({ page }) => {
+  test.setTimeout(120_000);
+  const llm = await startFakeLlm(whoamiScript, { delayMs: 30 });
+  try {
+    const config = JSON.parse(readFileSync(join(built, "wrangler.json"), "utf8"));
+    config.vars = { ...config.vars, LLM_BASE_URL: llm.baseUrl };
+    const bundle = await bundleWorkerForBrowser(join(built, config.main), { nodeCompat: true });
+    await page.goto("/");
+    await page.waitForFunction(() => document.body.dataset.ready === "true");
+    const r = await page.evaluate((job) => (window as any).__runFlue(job), {
+      config,
+      bundle,
+      run: Date.now().toString(36),
+      scenario: "one-conversation",
+      messages: 4,
+    });
+    expect(r.ok, r.error).toBe(true);
+    expect(r.problems).toEqual([]);
+    expect(r.submissions).toBe(4);
+    expect(r.users).toBe(4);
+    expect(r.outcomes).toEqual(["completed", "completed", "completed", "completed"]);
+    expect(wrongIdentities(r.replies.map((x: object) => ({ id: "one", ...x })))).toEqual([]);
   } finally {
     await llm.close();
   }

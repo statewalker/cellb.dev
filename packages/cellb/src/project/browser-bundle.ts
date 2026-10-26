@@ -35,6 +35,11 @@ export async function bundleWorkerForBrowser(
     // Function names are observable (the npm assert polyfill reports its caller's name as the
     // operator); bundling must not rename them.
     keepNames: true,
+    // nodejs_compat: `await` lowered to generators, so that each one resumes through
+    // Promise.prototype.then and carries its AsyncLocalStorage stores (node-compat/async_hooks.ts).
+    ...(opts.nodeCompat
+      ? { supported: { "async-await": false, "async-generator": false, "for-await": false } }
+      : {}),
     logLevel: "silent",
     inject: [
       "cells:globals",

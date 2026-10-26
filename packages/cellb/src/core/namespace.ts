@@ -12,46 +12,72 @@ export interface ObjectEndpoint {
   local?: ObjectHost;
 }
 
-export function localEndpoint(host: () => ObjectHost): () => ObjectEndpoint {
+/**
+ * An in-process object. `ready` (for a cell not open yet): a promise its first events await
+ * before the host opens the cell's database (its store is making room), or undefined.
+ */
+export function localEndpoint(
+  host: () => ObjectHost,
+  ready?: () => Promise<void> | undefined,
+): () => ObjectEndpoint {
   return () => {
-    const h = host();
+    const wait = ready?.();
+    if (!wait) return endpointOf(host());
     return {
-      local: h,
-      fetch: (req) =>
-        h.deliver(async (obj) => {
-          if (typeof obj.fetch !== "function")
-            throw new Error("Handler does not export a fetch() function.");
-          let res: Response;
-          try {
-            const r = await obj.fetch(req);
-            res = r instanceof Response ? r : new Response(String(r)); // a non-Response is sent as text (celld)
-          } catch (e) {
-            // celld: the stub's fetch() rejects with "rejected: <name>: <message> [at …]".
-            const err = e as Error;
-            throw new Error(`rejected: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`, {
-              cause: e,
-            });
-          }
-          // A WebSocket answer to a request that did not ask for one fails (workerd, celld):
-          // the stub rejects and the server end sees an abnormal close.
-          const ws = (res as { webSocket?: unknown }).webSocket;
-          if (res.status === 101 && ws && req.headers.get("upgrade")?.toLowerCase() !== "websocket")
-            throw new Error(
-              "rejected: Error: a WebSocket response to a request without Upgrade: websocket",
-            );
-          return res;
-        }),
+      get local() {
+        return host();
+      },
+      fetch: async (req) => {
+        await wait;
+        return endpointOf(host()).fetch(req);
+      },
       call: async (method, args) => {
-        const copied = cross(args);
-        const r = await h.deliver((obj) => {
-          const m = obj[method];
-          if (typeof m !== "function") throw new TypeError(`${method} is not a function`); // celld's wording
-          return m.apply(obj, copied);
-        });
-        return cross(r);
+        const copied = cross(args); // the arguments as they are now, as for an open cell
+        await wait;
+        return deliverCall(host(), method, copied);
       },
     };
   };
+}
+
+function endpointOf(h: ObjectHost): ObjectEndpoint {
+  return {
+    local: h,
+    fetch: (req) =>
+      h.deliver(async (obj) => {
+        if (typeof obj.fetch !== "function")
+          throw new Error("Handler does not export a fetch() function.");
+        let res: Response;
+        try {
+          const r = await obj.fetch(req);
+          res = r instanceof Response ? r : new Response(String(r)); // a non-Response is sent as text (celld)
+        } catch (e) {
+          // celld: the stub's fetch() rejects with "rejected: <name>: <message> [at …]".
+          const err = e as Error;
+          throw new Error(`rejected: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`, {
+            cause: e,
+          });
+        }
+        // A WebSocket answer to a request that did not ask for one fails (workerd, celld):
+        // the stub rejects and the server end sees an abnormal close.
+        const ws = (res as { webSocket?: unknown }).webSocket;
+        if (res.status === 101 && ws && req.headers.get("upgrade")?.toLowerCase() !== "websocket")
+          throw new Error(
+            "rejected: Error: a WebSocket response to a request without Upgrade: websocket",
+          );
+        return res;
+      }),
+    call: async (method, args) => deliverCall(h, method, cross(args)),
+  };
+}
+
+async function deliverCall(h: ObjectHost, method: string, copied: unknown[]): Promise<unknown> {
+  const r = await h.deliver((obj) => {
+    const m = obj[method];
+    if (typeof m !== "function") throw new TypeError(`${method} is not a function`); // celld's wording
+    return m.apply(obj, copied);
+  });
+  return cross(r);
 }
 
 export class DurableObjectNamespace {

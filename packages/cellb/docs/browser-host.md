@@ -12,6 +12,16 @@ and WebKit.
   `sahpoolOpener` (the opfs-sahpool VFS) needs no COOP/COEP headers, so any static host works.
 - **An opfs-sahpool pool is exclusive.** A second worker opening the same pool name fails with
   `NoModificationAllowedError`. Storage is therefore partitioned: one pool per worker.
+- **An opfs-sahpool pool has a fixed number of files until it grows**, and growing is asynchronous
+  while opening a database is not. `sahpoolOpener` gives the runtime `room(cellKey)`: a cell's first
+  event waits for room (about three files per cell: the database and its journal), and the pool
+  grows in the background whenever less than half of it is free.
+- **One worker is one thread.** Its cells interleave; their SQLite I/O runs on that thread. Spread
+  cells over several workers (the sharded topology) for parallel work.
+- **`AsyncLocalStorage` needs help.** Browsers have no async context yet: for a nodejs_compat
+  bundle, `browserProjectRuntime` makes promise and timer continuations carry their stores, and
+  `bundleWorkerForBrowser` lowers `await` so that it goes through them. An in-browser site keeps
+  run-at-a-time stores ([gaps.md](gaps.md)).
 - **A ServiceWorker cannot spawn workers** and is stopped when idle, dropping every port it held.
   It can route requests, hold Web Locks and pass MessagePorts, so it routes and a page owns the
   workers.
@@ -170,6 +180,13 @@ tabs or workers with no server. Its conditional writes are atomic only within on
 
 - **`NoModificationAllowedError` when a worker opens SQLite.** Another worker holds the same pool
   name. Give each worker its own `pool`, or let only the shard-lock holder open a shard's pool.
+- **`SAH pool is full` when many cells start at once.** A burst of new databases or journals
+  outran the pool's growth (`browserProjectRuntime` starts with 64 files). With `sahpoolOpener`,
+  pass a larger `initialCapacity` for workloads that open many cells together.
+- **`AsyncLocalStorage.getStore()` returns another cell's store, or `undefined` after an
+  `await`**, in a browser. The code was not bundled by `bundleWorkerForBrowser` with nodejs_compat:
+  an in-browser site keeps run-at-a-time stores (shared between concurrent runs), and a bundle of
+  your own whose `await` is not lowered loses its store at the first `await`.
 - **Every S3 request fails with a CORS error** in the console, or `PUT` succeeds but ownership never
   works. The bucket lacks a CORS rule, or does not expose `etag`: conditional writes need it.
 - **`SignatureDoesNotMatch` through a proxy.** `signAs` is missing or differs from the host the proxy

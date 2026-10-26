@@ -6,6 +6,7 @@ import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
 import type { WorkerModule } from "../core/runtime.js";
 import { browserIsolatedLoader } from "../isolate/browser.js";
+import { installAsyncContext } from "../node-compat/async_hooks.js";
 import { installNodeGlobals } from "../node-compat/install.js";
 import { browserModuleLoader, WORKERS_MODULE_SHIM } from "./browser-modules.js";
 import * as workersModule from "./cloudflare-workers.js";
@@ -93,7 +94,13 @@ async function importWorkerCode(
 ): Promise<WorkerModule> {
   const flags = config.compatibility_flags ?? [];
   const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
-  if (nodeCompat) installNodeGlobals();
+  if (nodeCompat) {
+    installNodeGlobals();
+    // node:async_hooks: continuations carry their AsyncLocalStorage stores. Only for a bundle:
+    // bundleWorkerForBrowser lowers its awaits so that they go through them; a site's modules
+    // keep native awaits and the polyfill's run-at-a-time stores.
+    if ("bundle" in code) installAsyncContext();
+  }
   const globals = {
     ...workersGlobals,
     Response: workersGlobals.CellsResponse,
@@ -136,7 +143,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
   const site = "site" in opts.code ? opts.code.site : undefined;
   const openSql = await sahpoolOpener(opts.sqlite3 as never, {
     name: opts.pool,
-    initialCapacity: 32,
+    initialCapacity: 64, // grows on demand (sahpoolOpener)
   });
   const root = await navigator.storage.getDirectory();
   const files = new BrowserFilesApi({

@@ -12,6 +12,11 @@ import {
   runInDurableObject,
 } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
+import {
+  ASYNC_CONTEXT_CONFIG,
+  ASYNC_CONTEXT_WORKER,
+  expectedSeen,
+} from "./async-context-worker.js";
 
 // What the Cloudflare Agents SDK (and Flue, built on it) needs from a host beyond the
 // Durable Object API itself; packages/flue-example runs a whole Flue app.
@@ -130,5 +135,18 @@ describe("P13 storage under the Agents SDK's write pattern", () => {
     await stub.burst(20);
     expect(await stub.count()).toBe(20);
     await runtime.close();
+  });
+});
+
+describe("P13 AsyncLocalStorage under concurrent objects (Node: the reference)", () => {
+  it("each object keeps its own store across every kind of continuation", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "p13-als-"));
+    writeFileSync(join(dir, "index.js"), ASYNC_CONTEXT_WORKER);
+    writeFileSync(join(dir, "wrangler.json"), JSON.stringify(ASYNC_CONTEXT_CONFIG));
+    const p = await loadNodeProject(dir, { openSql: nodeSqliteOpener(), files: new MemFilesApi() });
+    const r = await (await p.runtime.fetch(new Request("http://w/"))).json();
+    expect(r.outside).toBeNull();
+    for (const [name, seen] of Object.entries(r.results)) expect(seen).toEqual(expectedSeen(name));
+    await p.runtime.close();
   });
 });

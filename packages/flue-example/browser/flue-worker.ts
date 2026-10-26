@@ -11,13 +11,27 @@ interface Job {
   config: WranglerConfig;
   bundle: string;
   run: string;
+  /**
+   * `whoami`: only the concurrency probe, with `conversations` at once (test/whoami.ts).
+   * `one-conversation`: `messages` sent to one conversation at once.
+   */
+  scenario?: "whoami" | "one-conversation";
+  conversations?: number;
+  messages?: number;
 }
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 scope.onmessage = async (e) => {
   const reply = (v: unknown) => (e.ports[0] as MessagePort).postMessage(v);
   try {
-    reply({ ok: true, ...(await runScenario(e.data as Job)) });
+    const job = e.data as Job;
+    const run =
+      job.scenario === "whoami"
+        ? runWhoami
+        : job.scenario === "one-conversation"
+          ? runOneConversation
+          : runScenario;
+    reply({ ok: true, ...(await run(job)) });
   } catch (err) {
     reply({ ok: false, error: String((err as Error)?.stack ?? err) });
   }
@@ -119,4 +133,70 @@ async function runScenario({ config, bundle, run }: Job) {
     reloaded,
     problems,
   };
+}
+
+/** Many conversations at once, each asking its `whoami` tool which conversation it serves. */
+async function runWhoami({ config, bundle, run, conversations = 8 }: Job) {
+  const host = await browserProjectRuntime({
+    config,
+    code: { bundle },
+    sqlite3: await (sqlite3InitModule as any)({ print() {}, printErr() {} }),
+    pool: `flue-who-${run}`,
+    filesDir: `flue-who-files-${run}`,
+  });
+  try {
+    const ids = Array.from({ length: conversations }, (_, i) => `who-${i}`);
+    const results = await Promise.all(
+      ids.map(async (id) => {
+        const client = createFlueClient({
+          url: `http://app.test/agents/assistant/${id}`,
+          fetch: (input, init) => host.runtime.fetch(new Request(input, init)),
+        });
+        try {
+          const sent = await client.send({ message: { kind: "user", body: "whoami" } });
+          return { id, text: (await client.read(sent)).text };
+        } catch (err) {
+          return { id, error: String(err) };
+        }
+      }),
+    );
+    return { results, problems };
+  } finally {
+    await host.close();
+  }
+}
+
+/** Several messages sent to one conversation at once: each must settle, none may be lost. */
+async function runOneConversation({ config, bundle, run, messages = 4 }: Job) {
+  const host = await browserProjectRuntime({
+    config,
+    code: { bundle },
+    sqlite3: await (sqlite3InitModule as any)({ print() {}, printErr() {} }),
+    pool: `flue-one-${run}`,
+    filesDir: `flue-one-files-${run}`,
+  });
+  try {
+    const client = createFlueClient({
+      url: "http://app.test/agents/assistant/one",
+      fetch: (input, init) => host.runtime.fetch(new Request(input, init)),
+    });
+    const sent = await Promise.all(
+      Array.from({ length: messages }, () =>
+        client.send({ message: { kind: "user", body: "whoami" } }),
+      ),
+    );
+    const settled = await Promise.allSettled(sent.map((s) => client.read(s)));
+    const history = await client.history();
+    return {
+      submissions: new Set(sent.map((s) => s.submissionId)).size,
+      replies: settled.map((r) =>
+        r.status === "fulfilled" ? { text: r.value.text } : { error: String(r.reason) },
+      ),
+      users: history.messages.filter((m) => m.role === "user").length,
+      outcomes: history.settlements.map((x) => x.outcome),
+      problems,
+    };
+  } finally {
+    await host.close();
+  }
 }

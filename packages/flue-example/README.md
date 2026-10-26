@@ -48,6 +48,13 @@ module, and a Dedicated Worker (`browser/flue-worker.ts`) hosts it with `browser
    holds its own question and answer only.
 4. A second runtime on the same OPFS pool (a page reload) reads the first conversation back.
 5. Nothing is logged as a warning or an error on the way.
+6. With 8 and with 32 conversations at once, each conversation's `whoami` tool reads its own
+   conversation from Flue's context (`getDurableObjectIdentity()`, an `AsyncLocalStorage`), before
+   and after an `await`; the Node suite checks the same with the real `node:async_hooks`.
+7. Four messages sent to one conversation at once all settle, none is lost.
+
+Concurrent conversations in one browser runtime take turns: it is one thread, and each Flue turn
+makes about 155 SQLite commits on OPFS there (see `../cellb/docs/gaps.md`).
 
 The core of it, against the build:
 

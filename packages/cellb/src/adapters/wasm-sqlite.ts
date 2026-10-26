@@ -212,6 +212,8 @@ export async function sahpoolOpener(
     installOpfsSAHPoolVfs(opts: { name?: string; initialCapacity?: number }): Promise<{
       OpfsSAHPoolDb: new (path: string) => Oo1Db;
       reserveMinimumCapacity(n: number): Promise<number>;
+      getCapacity(): number;
+      getFileCount(): number;
     }>;
   },
   opts: { name?: string; initialCapacity?: number } = {},
@@ -220,8 +222,44 @@ export async function sahpoolOpener(
     name: opts.name ?? "cellb",
     initialCapacity: opts.initialCapacity ?? 16,
   });
+  // A full pool fails the open (`SAH pool is full`), and opening is synchronous while growing
+  // the pool is not. A cell about to open reserves room first (`room`, awaited by the runtime
+  // before the cell's first event); the pool grows when the reservations would not fit, and in
+  // the background whenever less than half of it is free.
+  const SLOTS_PER_CELL = 3; // the database, its journal, and one spare
+  const reserved = new Set<string>();
+  let growing: Promise<void> | undefined;
+  const grow = (min: number): Promise<void> => {
+    growing ??= pool
+      .reserveMinimumCapacity(Math.max(min, pool.getCapacity() * 2))
+      .then(() => {})
+      .finally(() => {
+        growing = undefined;
+      });
+    return growing;
+  };
+  const needed = () => pool.getFileCount() + SLOTS_PER_CELL * reserved.size;
+  const room = (cellKey: string): Promise<void> | undefined => {
+    reserved.add(cellKey);
+    if (needed() <= pool.getCapacity()) return undefined;
+    // Grow until this reservation (and every other one) fits; the open fails visibly if not.
+    const fit = async (): Promise<void> => {
+      while (needed() > pool.getCapacity()) {
+        const before = pool.getCapacity();
+        await grow(needed());
+        if (pool.getCapacity() <= before) return; // it did not grow: the open will say why
+      }
+    };
+    return fit();
+  };
+  const keepRoom = () => {
+    const capacity = pool.getCapacity();
+    if (!growing && capacity - needed() < capacity / 2) grow(capacity * 2).catch(() => {});
+  };
   const open: OpenCellSql = (cellKey) => {
     const path = `/${cellKey.replace(/[^\w.-]/g, "_")}.sqlite`;
+    reserved.delete(cellKey);
+    queueMicrotask(keepRoom); // after this open (and its first slot) is counted
     return new WasmSqliteDriver(
       new pool.OpfsSAHPoolDb(path),
       {
@@ -236,6 +274,5 @@ export async function sahpoolOpener(
       sqlite3 as never,
     );
   };
-  // Each open DB holds ~2-3 pool slots (db + journal); grow before opening many cells.
-  return Object.assign(open, { reserve: (n: number) => pool.reserveMinimumCapacity(n) });
+  return Object.assign(open, { room, reserve: (n: number) => pool.reserveMinimumCapacity(n) });
 }

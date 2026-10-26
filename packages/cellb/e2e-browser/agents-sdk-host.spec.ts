@@ -3,6 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { bundleWorkerForBrowser } from "../src/node.ts";
+import {
+  ASYNC_CONTEXT_CONFIG,
+  ASYNC_CONTEXT_WORKER,
+  expectedSeen,
+} from "../test/async-context-worker.ts";
 
 // What the Agents SDK (and Flue, built on it) needs from a browser host, in one project:
 // `env` and `exports` of cloudflare:workers, cloudflare:email, and the nodejs_compat modules it
@@ -66,4 +71,24 @@ test("a project gets env, exports, cloudflare:email and the Agents SDK's node mo
     email: "cloudflare:email is not supported by cellb",
     fs: "ENOENT",
   });
+});
+
+// node:async_hooks in a browser: the same answers as Node's (test/p13), with 16 objects at once.
+test("AsyncLocalStorage keeps each concurrent object's store, as on Node", async ({ page }) => {
+  const dir = mkdtempSync(join(tmpdir(), "agents-als-"));
+  writeFileSync(join(dir, "index.js"), ASYNC_CONTEXT_WORKER);
+  const code = await bundleWorkerForBrowser(join(dir, "index.js"), { nodeCompat: true });
+  await page.goto("/entry/");
+  await page.waitForFunction(() => document.body.dataset.ready === "true");
+  const r = await page.evaluate((p) => (window as any).__runProject(p), {
+    config: ASYNC_CONTEXT_CONFIG,
+    code,
+  });
+  expect(r.ok, r.error).toBe(true);
+  // The entry page fetches twice: both runs of 16 objects at once.
+  for (const run of r.counts) {
+    expect(run.outside).toBeNull();
+    for (const [name, seen] of Object.entries(run.results))
+      expect(seen).toEqual(expectedSeen(name));
+  }
 });
