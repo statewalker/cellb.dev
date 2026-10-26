@@ -2,7 +2,12 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFlueClient } from "@flue/sdk";
-import { celldBucket, memoryObjectStore, type ObjectStore } from "@statewalker/cellb";
+import {
+  celldBucket,
+  createWebSocketClass,
+  memoryObjectStore,
+  type ObjectStore,
+} from "@statewalker/cellb";
 import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -180,4 +185,68 @@ describe("a Flue conversation moving between cellb nodes", () => {
       await b.runtime.close();
     }
   }, 90_000);
+});
+
+// The agent is an Agents SDK Agent: besides Flue's HTTP and SSE routes, clients can hold a
+// WebSocket to it (partyserver connections, hibernatable) and share its state.
+describe("WebSocket connections to a Flue agent on cellb", () => {
+  let llm: Llm;
+  beforeAll(async () => {
+    llm = await startFakeLlm(scripted);
+  });
+  afterAll(() => llm.close());
+
+  it("syncs the agent's state between two live connections, and keeps it", async () => {
+    const { runtime } = await loadNodeProject(deployment(llm.baseUrl), {
+      openSql: nodeSqliteOpener(),
+      files: new MemFilesApi(),
+    });
+    const WS = createWebSocketClass((url, protocols) => runtime.connectWebSocket(url, protocols));
+    /** A connection and the parsed messages it received, awaited by type. */
+    const connect = (name: string) => {
+      const ws = new WS(`ws://app.test/agents/flue-assistant-agent/${name}`);
+      const seen: { type: string; [k: string]: unknown }[] = [];
+      const waiters: [string, (m: (typeof seen)[number]) => void][] = [];
+      ws.addEventListener("message", (e) => {
+        const m = JSON.parse(String((e as MessageEvent).data));
+        seen.push(m);
+        for (const w of waiters.splice(0)) {
+          if (w[0] === m.type) w[1](m);
+          else waiters.push(w);
+        }
+      });
+      const next = (type: string) =>
+        new Promise<(typeof seen)[number]>((resolve, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error(`no ${type}: ${JSON.stringify(seen)}`)),
+            10_000,
+          );
+          waiters.push([type, (m) => (clearTimeout(timer), resolve(m))]);
+        });
+      return { ws, next };
+    };
+    try {
+      const a = connect("room-1");
+      const b = connect("room-1");
+      // On connect, each socket is told which agent it reached (partyserver's onConnect ran).
+      expect(await a.next("cf_agent_identity")).toMatchObject({
+        name: "room-1",
+        agent: "flue-assistant-agent",
+      });
+      await b.next("cf_agent_identity");
+
+      // A state set by one client reaches the other (the agent's webSocketMessage handler
+      // recognised the socket as one of its connections).
+      const fromB = b.next("cf_agent_state");
+      a.ws.send(JSON.stringify({ type: "cf_agent_state", state: { topic: "answers" } }));
+      expect((await fromB).state).toEqual({ topic: "answers" });
+
+      // The state is the agent's, stored in its SQLite: a later connection starts with it.
+      const c = connect("room-1");
+      expect((await c.next("cf_agent_state")).state).toEqual({ topic: "answers" });
+      for (const x of [a, b, c]) x.ws.close();
+    } finally {
+      await runtime.close();
+    }
+  }, 60_000);
 });

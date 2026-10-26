@@ -35,6 +35,9 @@ What `test/flue-on-cellb.test.ts` proves:
 2. A reply is observed live over SSE while two conversations run at once.
 3. A node stops in the middle of a model call. A second node on the same fleet bucket, with no local
    state, takes the cell over, and Flue's recovery finishes the submission there.
+4. Two clients hold WebSockets to the same agent through the Agents SDK's own route
+   (`/agents/flue-assistant-agent/<name>`, `routeAgentRequest` in `src/app.ts`). Each is told which
+   agent it reached; a state one sets reaches the other; a later connection starts with it.
 
 The core of it, against the build:
 
@@ -84,7 +87,8 @@ do not collide, and nothing needs celld or RustFS.
 ### Dependencies
 
 `@flue/runtime`, `@flue/vite`, `@flue/sdk` (pinned together: the build and the client must agree),
-`@earendil-works/pi-ai` (Flue's model layer), `hono` (the app's router), `@cloudflare/vite-plugin`
+`@earendil-works/pi-ai` (Flue's model layer), `hono` (the app's router), `agents` (its
+`routeAgentRequest`, in the range `@flue/vite` brings, so one copy is bundled), `@cloudflare/vite-plugin`
 and `wrangler` (Flue's Cloudflare build), `@statewalker/cellb` (the runtime under test).
 
 ## License

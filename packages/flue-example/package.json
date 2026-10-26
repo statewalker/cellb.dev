@@ -13,6 +13,7 @@
   "dependencies": {
     "@earendil-works/pi-ai": "^1.4.0",
     "@flue/runtime": "2.3.0",
+    "agents": "^0.20.1",
     "hono": "^4.13.14"
   },
   "devDependencies": {

@@ -3,6 +3,7 @@ import { createProvider } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { setProvider } from "@flue/runtime";
 import { createAgentRouter } from "@flue/runtime/routing";
+import { routeAgentRequest } from "agents";
 import { Hono } from "hono";
 import { Assistant } from "./agents/assistant.ts";
 
@@ -32,6 +33,11 @@ setProvider(
 
 const app = new Hono();
 app.route("/agents/assistant", createAgentRouter(Assistant));
+// The Agents SDK's own route to an agent (`/agents/<kebab-class>/<name>`): WebSocket
+// connections with state sync, beside Flue's HTTP and SSE.
+app.all("/agents/flue-assistant-agent/*", async (c) => {
+  return (await routeAgentRequest(c.req.raw, env)) ?? c.notFound();
+});
 app.get("/ping", (c) => c.text("pong"));
 
 export default app;
