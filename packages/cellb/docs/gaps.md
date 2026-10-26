@@ -88,13 +88,18 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
 - **The upstream Worker Loader exports `overrideGlobalOutbound` and `inheritGlobalOutbound` are left
   out** of the vendored run. `WorkerCode.globalOutbound` itself is implemented (`null` blocks
   `fetch`; a Fetcher redirects it) and matches celld in the `runtime-api` project; the comment in
-  `scripts/vendor-workerd-tests.mjs` that calls it ignored is out of date.
+  `scripts/vendor-workerd-tests.mjs` that calls it ignored is out of date. `inheritGlobalOutbound`
+  stays out for good: it needs the test Worker's own `globalOutbound`, a `.wd-test` setting with no
+  wrangler equivalent, so on celld and cellb it would fetch `https://example.com` for real.
 - **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked, then
   written; two tabs using it at once can both win.
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.
-- **The input gate does not hold non-storage I/O.** A timer or `fetch` completion can interleave
-  with another event while the gate is closed. celld behaves the same; workerd does not
-  (`wd-actor-block-concurrency-timer`).
+- **The input gate does not hold timers, as on celld.** A timer set before
+  `blockConcurrencyWhile()` fires while its callback runs; workerd holds it until the callback
+  ends. `wd-actor-block-concurrency-timer` records celld doing the same as cellb, and celld is the
+  judge, so this stays (following workerd would need a `judge: "workerd"` reason of the stub kind).
+  workerd's input gate also defers outbound `fetch` completions while storage is in flight; cellb
+  does not, and what celld does there is not recorded.
 - **celld examples not run:** `python` (Pyodide Python Workers), `wasm` (needs the Rust toolchain to
   build), `container` and `sandbox` (Docker or Podman), `pi` and `opencode` (outbound access to model
   endpoints).
