@@ -180,6 +180,9 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
     runtime,
     unsupported,
     bucket: shared,
-    close: () => runtime.close(),
+    close: async () => {
+      await runtime.close();
+      openSql.release(); // the pool's files, for the next worker that opens it
+    },
   };
 }

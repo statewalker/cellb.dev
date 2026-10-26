@@ -230,15 +230,17 @@ export function createProjectRuntime(
     if (typeof scheduled !== "function")
       unsupported.push("triggers.crons without a scheduled() handler");
     else {
+      const db = host.openSql("__cellb/cron");
       const stop = startCronTriggers(
         crons,
         (c, x) => scheduled.call(module.default, c, env, x),
         host.clock ?? systemClock,
-        cronState(host.openSql("__cellb/cron")),
+        cronState(db),
       );
       const close = runtime.close.bind(runtime);
       runtime.close = async () => {
         stop();
+        db.close();
         await close();
       };
     }

@@ -37,6 +37,7 @@ export {
   createShardWorker,
   type ShardWorker,
   type ShardWorkerOptions,
+  shardRouting,
 } from "./router/shard-worker.js";
 export {
   type CellsHttpOptions,

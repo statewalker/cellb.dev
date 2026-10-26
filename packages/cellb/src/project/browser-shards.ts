@@ -11,6 +11,7 @@
  * for cells that must outlive a tab, use a fleet bucket (`bucket`), as for one worker.
  */
 import { shardOf } from "../core/shard.js";
+import { type ShardWorker, shardRouting } from "../router/shard-worker.js";
 import type { RemoteRuntime } from "../transport/cells-http.js";
 import { connectRuntime, linkOverPort, serveRuntime } from "../transport/port.js";
 import {
@@ -21,6 +22,23 @@ import {
 
 const INIT = "cellb:shard";
 const CLOSE = "cellb:shard-close";
+/** A shard of a project shared by the tabs of an origin (`joinProjectShards`): linked to a router. */
+export const TAB_INIT = "cellb:tab-shard";
+export const TAB_LINK = "cellb:tab-shard-link";
+
+/** What a shard worker shared by tabs is told: no peers, it reaches them through the router. */
+export interface TabShardInit {
+  type: typeof TAB_INIT;
+  name: string;
+  shard: number;
+  shards: number;
+  config: BrowserProjectOptions["config"];
+  code: BrowserProjectOptions["code"];
+  assetFiles?: BrowserProjectOptions["assetFiles"];
+  bucket?: BrowserBucket;
+  pool: string;
+  filesDir: string;
+}
 
 /** What a shard worker is told (the ports travel next to it). */
 interface ShardInit {
@@ -38,8 +56,9 @@ interface ShardInit {
 }
 
 /**
- * The worker side: hosts one shard when the page says so. Messages of other types are left to
- * the worker's own listeners.
+ * The worker side: hosts one shard when a page says so — of `startProjectShards` (peers wired
+ * directly) or of `joinProjectShards` (shared by the tabs, linked to the ServiceWorker's router).
+ * Messages of other types are left to the worker's own listeners.
  */
 export function serveProjectShard(opts: {
   /** An initialized SQLite WASM module, or a function that makes one. */
@@ -51,15 +70,58 @@ export function serveProjectShard(opts: {
     addEventListener(type: "message", fn: (e: MessageEvent) => void): void;
   };
   let host: Awaited<ReturnType<typeof browserProjectRuntime>> | undefined;
+  let routed: ShardWorker | undefined;
+  let releaseOwner: (() => void) | undefined;
+  const sqlite3 = () =>
+    typeof opts.sqlite3 === "function"
+      ? (opts.sqlite3 as () => Promise<unknown>)()
+      : Promise.resolve(opts.sqlite3);
   scope.addEventListener("message", async (e: MessageEvent) => {
     const type = (e.data as { type?: string } | undefined)?.type;
-    if (type !== INIT && type !== CLOSE) return;
+    if (type !== INIT && type !== CLOSE && type !== TAB_INIT && type !== TAB_LINK) return;
     const reply = e.ports[0] as MessagePort;
     try {
       if (type === CLOSE) {
-        await host?.close();
-        host = undefined;
+        try {
+          await host?.close();
+        } finally {
+          host = undefined;
+          routed = undefined;
+          releaseOwner?.(); // the router sees this shard's owner gone, even if closing failed
+          releaseOwner = undefined;
+        }
         return reply.postMessage({ ok: true });
+      }
+      if (type === TAB_LINK) {
+        if (!routed) throw new Error("shard not started");
+        await routed.link(e.ports[1], e.ports[2], e.ports[3]);
+        return reply.postMessage({ ok: true });
+      }
+      if (type === TAB_INIT) {
+        const init = e.data as TabShardInit;
+        const routing = shardRouting(init);
+        host = await browserProjectRuntime({
+          config: init.config,
+          code: init.code,
+          assetFiles: init.assetFiles,
+          bucket: init.bucket,
+          sqlite3: await sqlite3(),
+          pool: init.pool,
+          filesDir: init.filesDir,
+          isolateScript: opts.isolateScript,
+          route: routing.route,
+        });
+        routed = routing.attach(host.runtime);
+        // A lock only this worker holds: the browser releases it the moment the worker or its tab
+        // dies, which tells the router its links are dead (MessagePorts report nothing).
+        const ownerLock = `cellb:${init.name}:owner:${init.shard}:${crypto.randomUUID()}`;
+        await new Promise<void>((held) => {
+          void navigator.locks.request(ownerLock, () => {
+            held();
+            return new Promise<void>((release) => (releaseOwner = release));
+          });
+        });
+        return reply.postMessage({ ok: true, ownerLock, unsupported: host.unsupported });
       }
       const init = e.data as ShardInit;
       const links = new Map<number, (req: Request) => Promise<Response>>();
@@ -69,16 +131,12 @@ export function serveProjectShard(opts: {
         if (peer.role === "link") links.set(peer.shard, (await linkOverPort(port)).send);
         else served.push(port);
       }
-      const sqlite3 =
-        typeof opts.sqlite3 === "function"
-          ? await (opts.sqlite3 as () => Promise<unknown>)()
-          : opts.sqlite3;
       host = await browserProjectRuntime({
         config: init.config,
         code: init.code,
         assetFiles: init.assetFiles,
         bucket: init.bucket,
-        sqlite3,
+        sqlite3: await sqlite3(),
         pool: init.pool,
         filesDir: init.filesDir,
         isolateScript: opts.isolateScript,

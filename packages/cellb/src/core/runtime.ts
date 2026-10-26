@@ -414,6 +414,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       // The releases reach the store before it closes.
       await Promise.all([...hosts.values()].map((h) => h.close()));
       hosts.clear();
+      alarms.close(); // every database of the runtime is closed now
       await storage.close?.();
     },
     async fetch(req) {

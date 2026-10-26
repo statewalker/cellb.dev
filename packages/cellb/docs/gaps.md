@@ -105,8 +105,9 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   repository's CI-like container an OPFS write costs about 0.75 ms whatever its size, and those
   writes are about 80% of the worker's time. For parallel threads, spread the project over
   several workers (`startProjectShards`): 32 Flue conversations take 16 s on one worker and 11 s on
-  four there, where four workers writing OPFS at once slow each other's writes. Placement is by
-  hash with no rebalancing, and the workers do not outlive their page or serve other tabs. Opening a cell reserves
+  four there, where four workers writing OPFS at once slow each other's writes. With
+  `joinProjectShards`, the tabs of an origin share the shards (an even split, moved as tabs come
+  and go); placement of cells within the shards stays by hash. Opening a cell reserves
   room in the OPFS pool first and the pool grows on demand; a database or journal that SQLite
   creates mid-event (`SAH pool is full`) can still fail if a burst outruns the background growth.
 - **Agents SDK WebSocket connections are ignored.** `partyserver` reads attachments through the

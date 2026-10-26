@@ -9,5 +9,12 @@ export {
   serveProjectShard,
   startProjectShards,
 } from "./project/browser-shards.js";
+export {
+  installProjectRouter,
+  joinProjectShards,
+  type ProjectTabs,
+  type ProjectTabsOptions,
+  shardOwner,
+} from "./project/browser-tabs.js";
 export { createProjectSite } from "./project/site.js";
 export { serviceWorkerConnector } from "./ws/sw-connector.js";

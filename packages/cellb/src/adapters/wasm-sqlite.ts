@@ -215,14 +215,20 @@ export async function sahpoolOpener(
       reserveMinimumCapacity(n: number): Promise<number>;
       getCapacity(): number;
       getFileCount(): number;
+      // Not in older SQLite WASM builds (sqlite-vec's): there `release()` does nothing.
+      pauseVfs?(): unknown;
+      isPaused?(): boolean;
+      unpauseVfs?(): Promise<unknown>;
     }>;
   },
   opts: { name?: string; initialCapacity?: number } = {},
-): Promise<OpenCellSql & { reserve(n: number): Promise<number> }> {
+): Promise<OpenCellSql & { reserve(n: number): Promise<number>; release(): void }> {
   const pool = await sqlite3.installOpfsSAHPoolVfs({
     name: opts.name ?? "cellb",
     initialCapacity: opts.initialCapacity ?? 16,
   });
+  // The same pool again in this worker (SQLite WASM keeps one per name), after a `release()`.
+  if (pool.isPaused?.()) await pool.unpauseVfs?.();
   // A full pool fails the open (`SAH pool is full`), and opening is synchronous while growing
   // the pool is not. A cell about to open reserves room first (`room`, awaited by the runtime
   // before the cell's first event); the pool grows when the reservations would not fit, and in
@@ -283,5 +289,13 @@ export async function sahpoolOpener(
       sqlite3 as never,
     );
   };
-  return Object.assign(open, { room, reserve: (n: number) => pool.reserveMinimumCapacity(n) });
+  return Object.assign(open, {
+    room,
+    reserve: (n: number) => pool.reserveMinimumCapacity(n),
+    /**
+     * Gives the pool's OPFS files back once every database is closed, so that another worker
+     * (another tab's) can open the pool at once instead of when this worker is gone.
+     */
+    release: () => void pool.pauseVfs?.(),
+  });
 }

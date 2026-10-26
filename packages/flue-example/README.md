@@ -57,6 +57,12 @@ module, and a Dedicated Worker (`browser/flue-worker.ts`) hosts it with `browser
    (`browser/flue-shard-worker.ts` is the worker): each worker hosts the app with its own OPFS
    pool and owns its share of the conversations, and requests enter through every worker.
 
+9. Two tabs share the app (`browser/tabs.html`: cellb's `joinProjectShards` and a ServiceWorker
+   running `installProjectRouter`): its 4 shards split 2 / 2, both tabs converse through the
+   ServiceWorker at once, and when one tab closes the other takes its shards and the
+   conversations stored in them. The app mounts its routes under `BASE_PATH` (`/app/<name>`),
+   as the ServiceWorker passes requests on with their path.
+
 Concurrent conversations in one browser runtime take turns: it is one thread, and each Flue turn
 makes 21 SQLite commits on OPFS there. Spreading them over workers runs them in parallel (see
 `../cellb/docs/gaps.md` for the numbers).

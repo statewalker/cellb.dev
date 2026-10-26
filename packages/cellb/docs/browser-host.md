@@ -3,7 +3,7 @@
 A browser has no server process, no `node:sqlite` and no way for a ServiceWorker to accept a
 WebSocket. cellb still runs a project's Workers and Durable Objects there: SQLite WASM on OPFS in a
 Dedicated Worker, requests through a ServiceWorker, WebSockets over MessagePorts. This page covers
-the three ways to wire it, the S3 setup for a fleet bucket, what fails, and what differs in Firefox
+the four ways to wire it, the S3 setup for a fleet bucket, what fails, and what differs in Firefox
 and WebKit.
 
 ## What a browser forces
@@ -33,7 +33,7 @@ and WebKit.
 - **Without an open page nothing runs.** No page means no Dedicated Worker and no SQLite. Cells that
   must stay reachable live on a fleet bucket that server nodes share.
 
-## Three topologies
+## Four topologies
 
 ### A project in one worker: `browserProjectRuntime`
 
@@ -92,12 +92,42 @@ serveProjectShard({ sqlite3: () => sqlite3InitModule({ print() {}, printErr() {}
 
 - Placement is fixed by the cell id: a few dozen cells spread unevenly (hashing), and nothing
   rebalances them.
-- The workers belong to the page: closing it stops them. With `bucket`, each shard is a fleet
-  node (`<node>-s<i>`) and another page takes the cells over once their leases lapse; use S3, as an
-  OPFS bucket has one writer at a time. Sharing one set of workers between tabs is what
-  `CellRouter` below does for plain cells.
+- The workers belong to the page: closing it stops them. To share them between tabs, use the
+  next topology.
 - `browserProjectRuntime({ route })` is the building block: any placement that maps a cell to the
   worker hosting it works the same way.
+
+### A project shared by the tabs: `joinProjectShards` and `installProjectRouter`
+
+```
+ServiceWorker: installProjectRouter(self, { basePath: "/app/" })
+  /app/<name>/…  ─► the project's CellRouter ─► the live shard with the fewest requests in flight
+  shard → shard  ─► the shard the sender named (x-cellb-shard)
+
+every tab: joinProjectShards({ name, shards: 4, spawn, config, code, serviceWorker })
+  presence lock  cellb:<name>:tab:<joined-at>-<uuid>
+  shard i        → tab (i mod n) of the n tabs present, oldest first; one Web Lock per shard
+  shard worker:  serveProjectShard({ sqlite3 }) — pool <name>-shard-i, linked to the router
+```
+
+Every tab of the origin sends requests to `<basePath><name>/…`; the ServiceWorker passes them,
+with their URL unchanged (as a Worker on a Cloudflare route sees them; `stripBase: true` gives
+the Worker `/…` instead), to a shard worker, wherever it runs. The tabs split the shards evenly:
+each computes the same owners from the tabs present and takes its own, so a project of 4 shards
+runs 4 / 0 in one tab, 2 / 2 in two, 2 / 1 / 1 in three — more tabs, more processes, more cores.
+
+- **A tab joins or leaves (`close()`):** the shards whose owner changes are handed over. The router
+  stops sending the shard new requests (they wait for the next owner), lets the ones in flight
+  finish for up to `drainMs` (5 s), then the old worker closes its runtime and gives up its OPFS
+  pool, and the next owner opens the same pool: the cells move with the shard. A long-poll or
+  SSE stream still open keeps the drain waiting until `drainMs`.
+- **A tab closes or crashes:** it runs no code. Its locks are released, the router sees each shard
+  worker's own lock go and fails the requests in flight there (`ShardOwnerLostError`), and the
+  other tabs take the shards over within `checkMs` (1 s).
+- **The ServiceWorker restarts:** it asks the tabs for their shards' links again.
+- Placement inside the project is still by cell id (`shardOf`): a few dozen cells spread unevenly.
+- With `bucket`, each shard is a fleet node (`<node>-s<i>`); use S3, as an OPFS bucket has one
+  writer at a time.
 
 ### A sharded origin: `CellRouter` in the ServiceWorker
 

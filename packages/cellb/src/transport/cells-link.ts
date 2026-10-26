@@ -16,6 +16,7 @@ export const H = {
   wsAccepted: "x-cellb-ws-accepted", // response: the port was handed over (control channel)
   upgrade: "x-cellb-upgrade", // `Upgrade` is hop-by-hop: dropped by the HTTP/1.1 wire, carried here
   wsProtocol: "x-cellb-ws-protocol", // `Sec-WebSocket-Protocol` is forbidden in browser Requests
+  shard: "x-cellb-shard", // the shard that owns the target, as the sending shard computed it
 } as const;
 
 export type Send = (req: Request) => Promise<Response>;

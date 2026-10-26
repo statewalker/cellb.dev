@@ -30,8 +30,11 @@ setProvider(
   }),
 );
 
+// Where the app is mounted: "" at the root; a prefix such as "/app/<name>" when a ServiceWorker
+// passes requests on with their path (cellb's installProjectRouter), as a Cloudflare route does.
+const base = String(env.BASE_PATH ?? "");
 const app = new Hono();
-app.route("/agents/assistant", createAgentRouter(Assistant));
-app.get("/ping", (c) => c.text("pong"));
+app.route(`${base}/agents/assistant`, createAgentRouter(Assistant));
+app.get(`${base}/ping`, (c) => c.text("pong"));
 
 export default app;

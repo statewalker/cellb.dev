@@ -8,7 +8,7 @@ export default defineConfig({
   // sqlite-wasm must not be pre-bundled (it locates its .wasm next to its module).
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm"],
-    entries: ["index.html", "flue-worker.ts", "flue-shard-worker.ts"],
+    entries: ["index.html", "tabs.html", "flue-worker.ts", "flue-shard-worker.ts", "sw.ts"],
   },
   worker: { format: "es" },
   server: {
