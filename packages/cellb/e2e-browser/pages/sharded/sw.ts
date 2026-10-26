@@ -58,6 +58,9 @@ const modules = createModules(MODULES);
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== scope.origin) return;
+  // Answered, not passed through: under Playwright's Firefox a navigation the ServiceWorker lets
+  // through to the network leaves the page uncontrolled (e2e-browser/probes/sw-minimal.probe.spec.ts).
+  if (e.request.mode === "navigate") return e.respondWith(fetch(e.request));
   if (url.pathname === `${scope.pathname}__router`)
     return e.respondWith(Response.json({ bootId, attached: router.attachedShards }));
   if (url.pathname.startsWith(MODULES))

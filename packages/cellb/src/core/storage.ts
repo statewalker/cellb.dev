@@ -1,4 +1,5 @@
 import type { ValueCodec } from "../ports.js";
+import { serialize } from "../v8/serialize.js";
 import { CELLD_SCHEMA } from "./celld-schema.js";
 import type { InputGate } from "./gates.js";
 import type { SqlStorage } from "./sql-storage.js";
@@ -69,6 +70,13 @@ export class SyncKvStorage {
     try {
       structuredClone(withoutStoredStubs(value));
     } catch (e) {
+      // Worded as V8 (workerd, celld) words it, by cellb's V8 serializer: SpiderMonkey says
+      // "Function object could not be cloned." for V8's "() => 1 could not be cloned.".
+      try {
+        serialize(withoutStoredStubs(value));
+      } catch (v8) {
+        throw new TypeError((v8 as Error).message);
+      }
       // Browsers prefix the engine message ("Failed to execute 'structuredClone' on …: ").
       throw new TypeError(
         (e as Error).message.replace(/^Failed to execute '[^']+' on '[^']+': /, ""),
