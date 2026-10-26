@@ -80,7 +80,11 @@ export function isolatePort(port: PortLike, handle: Handle, fetch: Fetch): { cal
       if (m?.kind === "fetch") {
         serveDuplexOverPort(
           p,
-          serveFetchOverDuplex((req) => fetch(m.target, withUrl(req, m.url)).catch(throwOwn)),
+          serveFetchOverDuplex((req) =>
+            withUrl(req, m.url)
+              .then((r) => fetch(m.target, r))
+              .catch(throwOwn),
+          ),
         );
         return true;
       }
@@ -104,13 +108,18 @@ function throwOwn(e: unknown): never {
   throw e;
 }
 
-const withUrl = (req: Request, url: string) =>
+/**
+ * The request under its original URL. Firefox has no `Request.body` (and `new Request(url, req)`
+ * reads that same property), so there the body, already buffered by serveFetchOverDuplex, is
+ * read whole.
+ */
+const withUrl = async (req: Request, url: string) =>
   req.url === url
     ? req
     : new Request(url, {
         method: req.method,
         headers: req.headers,
-        body: req.body,
+        body: req.body ?? (req.method === "GET" || req.method === "HEAD" ? null : await req.blob()),
         duplex: "half",
       } as RequestInit);
 
