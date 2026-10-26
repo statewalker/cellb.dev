@@ -1,0 +1,15 @@
+{
+  "celld": "0.6.3",
+  "transcript": [
+    {
+      "request": "GET /pipeline",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "method": "DataCloneError: () => {} could not be cloned.",
+        "property": 2,
+        "fromLoadedCode": "DataCloneError: () => {} could not be cloned."
+      }
+    }
+  ]
+}

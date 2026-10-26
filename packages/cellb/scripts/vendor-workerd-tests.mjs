@@ -211,9 +211,6 @@ const WD_TESTS = {
       "doStubAsTail",
       // the test's own globalOutbound (an entrypoint of itself): not expressible in wrangler
       "inheritGlobalOutbound",
-      // cellb ignores WorkerCode.globalOutbound, so this would really fetch
-      // https://example.com (a known gap, docs/gaps.md)
-      "overrideGlobalOutbound",
     ],
   },
 };

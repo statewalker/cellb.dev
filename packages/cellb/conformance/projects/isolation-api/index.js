@@ -2,7 +2,17 @@
 // see the host's globals or env, its own global changes must not leak out, and it gets only
 // the env its WorkerCode declares (plain values and service stubs). Errors keep their own
 // properties across the isolate, and response bodies stream.
-import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
+import { DurableObject, RpcTarget, WorkerEntrypoint } from "cloudflare:workers";
+
+class Named extends RpcTarget {
+  constructor(name) {
+    super();
+    this.name = name;
+  }
+  greet() {
+    return `hello from ${this.name}`;
+  }
+}
 
 export class Holder extends DurableObject {
   async probe() {
@@ -19,13 +29,32 @@ export class Greeter extends WorkerEntrypoint {
   greet(name) {
     return `hello ${name} from the host`;
   }
+  named(name) {
+    return new Named(name);
+  }
 }
 
 const CODE = `
-import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
+import { DurableObject, RpcTarget, WorkerEntrypoint } from "cloudflare:workers";
+class Counter extends RpcTarget {
+  n = 0;
+  inc() {
+    return ++this.n;
+  }
+}
 export class Probe extends WorkerEntrypoint {
   fail() {
     throw Object.assign(new RangeError("refused"), { code: "E_REFUSED" });
+  }
+  counter() {
+    return new Counter();
+  }
+  nested() {
+    return { inner: { n: 2 } };
+  }
+  // A host binding's result, called before it has answered.
+  viaHost() {
+    return this.env.GREETER.named("the host").greet();
   }
 }
 export class Box extends DurableObject {
@@ -75,7 +104,7 @@ const loadedCode = (exports) => () => ({
   compatibilityDate: "2026-01-01",
   mainModule: "w.js",
   modules: { "w.js": CODE },
-  env: { PLAIN: { n: 1, list: ["a"] }, GREETER: exports.Greeter() },
+  env: { PLAIN: { n: 1, list: ["a"] }, GREETER: exports.Greeter({}) },
 });
 
 export default {
@@ -91,6 +120,22 @@ export default {
       } catch (e) {
         return Response.json({ name: e.name, message: e.message, code: e.code ?? null });
       }
+    }
+    if (path === "/pipeline") {
+      // Calls and property reads on a result that has not answered yet (workerd's RpcPromise).
+      const tryIt = async (fn) => {
+        try {
+          return await fn();
+        } catch (e) {
+          return `${e.name}: ${String(e.message).split("\n")[0]}`;
+        }
+      };
+      const probe = worker.getEntrypoint("Probe");
+      return Response.json({
+        method: await tryIt(() => probe.counter().inc()),
+        property: await tryIt(() => probe.nested().inner.n),
+        fromLoadedCode: await tryIt(() => probe.viaHost()),
+      });
     }
     if (path === "/stream") {
       // The loaded Worker holds its last chunk back for a second: a streamed body hands the
