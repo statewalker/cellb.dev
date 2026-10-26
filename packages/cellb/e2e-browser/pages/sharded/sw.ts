@@ -2,6 +2,7 @@
 // P05b — the single "server" of the origin: a ServiceWorker holding a CellRouter.
 // It cannot create workers (no Worker/SharedWorker in SW scope), so pages spawn
 // shard workers and hand the SW two MessagePorts per shard.
+import { withUrl } from "../../../src/core/request-body.js";
 import { CellRouter, linkOverPort, serveHandlerOverPort } from "../../../src/index.js";
 import { SHARDS } from "./config.js";
 import { createModules } from "./modules.js";
@@ -68,16 +69,8 @@ self.addEventListener("fetch", (e) => {
   if (!url.pathname.startsWith(CELLS)) return;
   const req = e.request;
   const target = new URL(`/${url.pathname.slice(CELLS.length)}${url.search}`, url.origin);
-  e.respondWith(
-    router.ingress(
-      new Request(target, {
-        method: req.method,
-        headers: req.headers,
-        body: req.body,
-        duplex: "half",
-      } as RequestInit),
-    ),
-  );
+  // Streams the body where the host takes stream bodies, reads it whole where not (Firefox).
+  e.respondWith(withUrl(req, target).then((r) => router.ingress(r)));
 });
 
 /**

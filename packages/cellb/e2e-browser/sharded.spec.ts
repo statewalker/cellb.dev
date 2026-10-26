@@ -34,6 +34,15 @@ test("objects are spread over shard workers and DO → DO calls cross shards via
   expect(await get(page, "/sharded/__router")).toMatchObject({ attached: [0, 1] });
 });
 
+test("a POST body crosses the ServiceWorker and the router to the Worker", async ({ page }) => {
+  await open(page, "0,1");
+  const r = await page.evaluate(async () => {
+    const res = await fetch("/sharded/cells/echo", { method: "POST", body: "hello ✓" });
+    return { status: res.status, body: await res.text() };
+  });
+  expect(r).toEqual({ status: 201, body: "hello ✓" });
+});
+
 test("second tab uses the first tab's shards, then takes over (Web Locks) when it closes; OPFS state kept", async ({
   context,
 }) => {
