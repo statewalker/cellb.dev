@@ -1,4 +1,5 @@
 import { deserializeError } from "@statewalker/webrun-streams";
+import { toAnotherNode } from "../core/handles.js";
 import type { DurableObjectId } from "../core/id.js";
 import type { ObjectEndpoint } from "../core/namespace.js";
 import type { ValueCodec } from "../ports.js";
@@ -43,7 +44,9 @@ export function httpEndpoint(
   return {
     fetch: (req) => post(addHeaders(req, { [H.kind]: "fetch", ...base })),
     async call(method, args) {
-      const res = await post(control("rpc", { ...base, [H.method]: method }, codec.encode(args)));
+      const res = await post(
+        control("rpc", { ...base, [H.method]: method }, codec.encode(toAnotherNode(args))),
+      );
       return codec.decode(new Uint8Array(await res.arrayBuffer()));
     },
   };

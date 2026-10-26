@@ -79,6 +79,26 @@ export function cross<T>(
 }
 
 /**
+ * A value sent to an object on another node (cells-http, celld's tunnel), checked first: only
+ * copies travel between nodes, so a function, `RpcTarget` or stub is refused, not sent as `{}`.
+ */
+export function toAnotherNode<T>(v: T): T {
+  cross(
+    v,
+    () => {
+      const e = new DOMException(
+        "Functions, RpcTargets and stubs cannot be sent to another node: they pass by reference only within one runtime.",
+        "DataCloneError",
+      );
+      // An own `name`, so it survives the error's trip back over the link.
+      throw Object.defineProperty(e, "name", { value: e.name, enumerable: true });
+    },
+    (x) => x,
+  );
+  return v;
+}
+
+/**
  * A stub over an asynchronously obtained target: `fetch` and JS-RPC methods, arguments
  * and results crossing as between isolates.
  */

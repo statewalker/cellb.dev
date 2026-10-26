@@ -28,8 +28,13 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   collection of the stub releases it; then the value's own `Symbol.dispose` runs. A stub used after
   `Symbol.dispose` rejects with `A stub was used after it was disposed.`
 - **Stubs do not cross to another node.** An object owned by another tab, worker or peer is called
-  over cells-http or celld's tunnel with V8-serialized arguments: a function there fails with
-  `could not be cloned`, and a stub or `RpcTarget` arrives as a plain object of its own fields.
+  over cells-http or celld's tunnel with V8-serialized arguments and results: a function, `RpcTarget`
+  or stub in either is refused with `DataCloneError: Functions, RpcTargets and stubs cannot be sent
+  to another node: they pass by reference only within one runtime.` (`toAnotherNode` in
+  `src/core/handles.ts`).
+- **A loaded Worker's `globalOutbound` Fetcher does not route its `fetch()` in an isolate.** The
+  isolate sees it only as `env.__outbound`; its global `fetch` is the realm's own (`null` still
+  blocks it). Loaded in the host's realm, the Fetcher does route `fetch()`.
 - **Only `ctx.exports.X({ props })` stubs and class handles can be stored** in Durable Object
   storage (as V8 host objects, `[name, props]`, restored against the Worker's `ctx.exports`). celld
   cannot read such a value; other stubs and `RpcTarget`s are refused with `DataCloneError`.

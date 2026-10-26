@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
 import type { ObjectStore } from "../bucket/object-store.js";
+import { toAnotherNode } from "../core/handles.js";
 import type { CellRuntime } from "../core/runtime.js";
 import { deserialize, serialize } from "../v8/serialize.js";
 import { createWebSocketClass } from "../ws/client.js";
@@ -259,7 +260,12 @@ export async function startCelldPeerServer(opts: {
     try {
       const result = await stub[method](...(Array.isArray(args) ? args : [args]));
       if (structured)
-        reply(res, 200, { "content-type": "application/octet-stream" }, serialize(result));
+        reply(
+          res,
+          200,
+          { "content-type": "application/octet-stream" },
+          serialize(toAnotherNode(result)),
+        );
       else reply(res, 200, { "content-type": "application/json" }, JSON.stringify(result ?? null));
     } catch (e) {
       if (notOwner(e)) return stale(res);
@@ -644,7 +650,7 @@ export function celldPeers(opts: { store: ObjectStore; node: string }) {
           });
         },
         async call(method: string, args: unknown[]) {
-          const body = serialize(args);
+          const body = serialize(toAnotherNode(args));
           const r = await tunnelCall(k, opts.node, target, "rpc", {
             method: "POST",
             path: "/",

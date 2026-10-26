@@ -229,6 +229,9 @@ What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches ce
 - **`A stub was used after it was disposed.`** Loaded code, or its host, called a stub of the other
   side after `stub[Symbol.dispose]()`. A stub into a loaded Worker holds its value until disposed or
   garbage-collected ([docs/gaps.md](docs/gaps.md)).
+- **`DataCloneError: Functions, RpcTargets and stubs cannot be sent to another node …`** A call to
+  an object owned by another tab, worker or peer carried one of them, as an argument or a result.
+  They pass by reference only within one runtime ([docs/gaps.md](docs/gaps.md)).
 - **`DataCloneError: Only ctx.exports.<name>({ props }) stubs and class handles can be stored.`** A
   Durable Object stub or an `RpcTarget` was put into storage; only `ctx.exports` handles with props
   are storable.

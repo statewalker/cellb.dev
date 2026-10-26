@@ -24,6 +24,7 @@ celld's answers.
 - cellb reproduces celld's deviations from Cloudflare, including its refusals. Known celld bugs
   (nested `index.html` in assets) are the exception: cellb follows Cloudflare and the comparison omits
   those requests.
-- Following workerd where celld differs (passing RPC stubs across isolates) is a separate decision,
-  still open; it would move those cases to the workerd goldens.
+- Exception (D10): stubs, functions and `RpcTarget`s pass by reference as on workerd, so the
+  scenarios marked `judge: "workerd"` are judged against the workerd goldens
+  ([conformance.md](../conformance.md#where-cellb-follows-workerd-instead)).
 - Goldens are tied to a celld version; a celld upgrade re-records all of them.

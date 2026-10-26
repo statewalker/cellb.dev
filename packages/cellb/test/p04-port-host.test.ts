@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { RpcTarget } from "../src/core/durable-object.js";
 import {
   cellsHttpHandler,
   connectRuntime,
@@ -123,6 +124,31 @@ describe("P04b cells behind a MessagePort (webrun-rpc + webrun-http-streams)", (
     const remote = await remoteRuntime(cellsHttpHandler(rt));
     const v = { d: new Date(5), m: new Map([["k", 1n]]) };
     expect(await remote.env.ECHO.getByName("e").echo(v)).toEqual(v);
+  });
+
+  it("stubs, functions and RpcTargets do not cross the link: DataCloneError, both ways", async () => {
+    const rt = createCellRuntime({
+      worker: {
+        default: {},
+        Echo: class {
+          echo(v: unknown) {
+            return v;
+          }
+          target() {
+            return new RpcTarget();
+          }
+        },
+      },
+      durableObjects: { ECHO: { className: "Echo" } },
+      openSql: nodeSqliteOpener(),
+    });
+    const remote = await remoteRuntime(cellsHttpHandler(rt));
+    const stub = remote.env.ECHO.getByName("e");
+    const refused = { name: "DataCloneError" };
+    await expect(stub.echo(() => 1)).rejects.toMatchObject(refused);
+    await expect(stub.echo({ t: new RpcTarget() })).rejects.toMatchObject(refused);
+    await expect(stub.echo([remote.env.ECHO.getByName("x")])).rejects.toMatchObject(refused);
+    await expect(stub.target()).rejects.toMatchObject(refused);
   });
 
   it("errors cross the port with their message", async () => {
