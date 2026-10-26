@@ -37,9 +37,6 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   or stub in either is refused with `DataCloneError: Functions, RpcTargets and stubs cannot be sent
   to another node: they pass by reference only within one runtime.` (`toAnotherNode` in
   `src/core/handles.ts`).
-- **A loaded Worker's `globalOutbound` Fetcher does not route its `fetch()` in an isolate.** The
-  isolate sees it only as `env.__outbound`; its global `fetch` is the realm's own (`null` still
-  blocks it). Loaded in the host's realm, the Fetcher does route `fetch()`.
 - **Only `ctx.exports.X({ props })` stubs and class handles can be stored** in Durable Object
   storage (as V8 host objects, `[name, props]`, restored against the Worker's `ctx.exports`). celld
   cannot read such a value; other stubs and `RpcTarget`s are refused with `DataCloneError`.
@@ -106,10 +103,10 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
   facets. On Node the isolate's SQLite is in memory (its opener takes a `dataDir` that nothing sets
   yet), so it starts empty and is restored correctly; an isolate given a persistent directory would
   serve the facet's old local state after taking a cell back and log it over the newer one.
-- **The upstream Worker Loader exports `overrideGlobalOutbound` and `inheritGlobalOutbound` are left
-  out** of the vendored run. `WorkerCode.globalOutbound` itself is implemented (`null` blocks
-  `fetch`; a Fetcher redirects it) and matches celld in the `runtime-api` project; the comment in
-  `scripts/vendor-workerd-tests.mjs` that calls it ignored is out of date.
+- **The upstream Worker Loader export `inheritGlobalOutbound` is left out** of the vendored run.
+  `WorkerCode.globalOutbound` itself is implemented (`null` blocks `fetch`; a Fetcher redirects
+  it, in the host's realm and in an isolate, where the request crosses back to the host), matches
+  celld in the `runtime-api` project, and passes `overrideGlobalOutbound` in `wd-worker-loader`.
 - **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked, then
   written; two tabs using it at once can both win.
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.

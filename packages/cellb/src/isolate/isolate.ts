@@ -120,6 +120,9 @@ export function serveIsolate(
       if (opts.patchConsole !== false)
         for (const level of ["log", "info", "warn", "error", "debug"] as const)
           console[level] = (...args: unknown[]) => sink(level, args);
+      if (m.outbound === "fetcher")
+        globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) =>
+          outbound(new Request(input, init))) as typeof fetch;
       if (m.outbound === "blocked")
         globalThis.fetch = (async () => {
           throw new Error(
@@ -152,7 +155,7 @@ export function serveIsolate(
     if (m.type === "call") return exported(m.name, m.props)[m.method](...m.args);
     throw new Error(`unknown isolate message ${m.type}`);
   };
-  const { call } = isolatePort(port, handle, fetchTarget);
+  const { call, outbound } = isolatePort(port, handle, fetchTarget);
 }
 
 const safe = (args: unknown[]) =>

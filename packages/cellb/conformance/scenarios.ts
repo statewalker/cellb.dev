@@ -461,11 +461,7 @@ const wdOverrides: Record<string, Partial<Scenario>> = {
     knownGap: "celld fails this test ('got '); cellb passes it, as workerd does",
   },
   "wd-websocket-constructor": { steps: [{ path: `/?skip=${WS_GAPS.join(",")}` }] },
-  "wd-worker-loader": {
-    steps: [{ path: `/?skip=${WL_GAPS.join(",")}` }],
-    knownGap:
-      "overrideGlobalOutbound: a loaded Worker's fetch() ignores globalOutbound in an isolate",
-  },
+  "wd-worker-loader": { steps: [{ path: `/?skip=${WL_GAPS.join(",")}` }] },
 };
 // Stubs passed into a loaded Worker (env, props, arguments): workerd passes them, celld refuses.
 const WL_STUBS = ["basics", "doStubViaEnv", "doStubViaProps", "doStubViaRpcParam"];

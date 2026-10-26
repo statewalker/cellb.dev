@@ -6,6 +6,7 @@ import {
   type MessageTarget,
   multiplexPort,
   NO_TIMEOUT,
+  type PortMux,
   serveDuplexOverPort,
   structuredCodec,
 } from "@statewalker/webrun-rpc";
@@ -32,7 +33,8 @@ import { withUrl } from "../core/request-body.js";
  *                    release {id|answer}      (that stub was disposed or collected; the caller
  *                                              has that answer)
  * Fetches: one port per request (meta: its target and URL), HTTP/1.1 with streamed bodies,
- * as cells-http over a port (src/transport/port.ts).
+ * as cells-http over a port (src/transport/port.ts): host → isolate to an export or facet,
+ * isolate → host for the loaded code's global `fetch()` when a `globalOutbound` Fetcher routes it.
  */
 export interface PortLike {
   postMessage(msg: unknown, transfer?: Transferable[]): void;
@@ -55,46 +57,47 @@ type Handle = (msg: any) => Promise<unknown>;
 /**
  * The host's end of an isolate's port: one webrun-rpc multiplexer over it, a calls port on
  * which each side calls the other (`callPort`/`listenPort`, no timeout: a call lasts as long
- * as the work it starts), and a port per fetch.
+ * as the work it starts), and a port per fetch. `outbound` serves the loaded code's global
+ * `fetch()` (its `globalOutbound` Fetcher).
  */
 export async function hostPort(
   port: PortLike,
   handle: Handle,
+  outbound?: (req: Request) => Promise<Response>,
 ): Promise<{ call: Call; fetch: Fetch }> {
-  const mux = multiplexPort(messageTarget(port), { codec: structuredCodec, side: "initiator" });
+  const mux = multiplexPort(messageTarget(port), {
+    codec: structuredCodec,
+    side: "initiator",
+    onPort(p, meta) {
+      const m = meta as { kind?: string; url: string } | undefined;
+      if (m?.kind !== "outbound" || !outbound) return false;
+      serveFetch(p, m.url, outbound);
+      return true;
+    },
+  });
   const call = callsOver(await mux.openPort({ kind: "calls" }), handle);
-  const fetch: Fetch = (target, req) =>
-    fetchOverDuplex(
-      (input) =>
-        (async function* () {
-          // The URL rides in the meta: the HTTP/1.1 wire drops its scheme.
-          yield* duplexOverPort(await mux.openPort({ kind: "fetch", target, url: req.url }))(input);
-        })(),
-      req,
-    );
+  const fetch: Fetch = (target, req) => fetchOver(mux, { kind: "fetch", target }, req);
   return { call, fetch };
 }
 
 /**
  * The isolate's end: accepts the ports the host opens. Everything the isolate calls the host
- * for happens while serving a host call, so the calls port is open by then.
+ * for happens while serving a host call, so the calls port is open by then. `outbound` sends
+ * a fetch to the host's `globalOutbound`.
  */
-export function isolatePort(port: PortLike, handle: Handle, fetch: Fetch): { call: Call } {
+export function isolatePort(
+  port: PortLike,
+  handle: Handle,
+  fetch: Fetch,
+): { call: Call; outbound: (req: Request) => Promise<Response> } {
   let calls: Call | undefined;
-  multiplexPort(messageTarget(port), {
+  const mux = multiplexPort(messageTarget(port), {
     codec: structuredCodec,
     side: "responder",
     onPort(p, meta) {
       const m = meta as { kind?: string; target: FetchTarget; url: string } | undefined;
       if (m?.kind === "fetch") {
-        serveDuplexOverPort(
-          p,
-          serveFetchOverDuplex((req) =>
-            withUrl(req, m.url)
-              .then((r) => fetch(m.target, r))
-              .catch(throwOwn),
-          ),
-        );
+        serveFetch(p, m.url, (r) => fetch(m.target, r));
         return true;
       }
       if (m?.kind !== "calls" || calls) return false;
@@ -102,7 +105,29 @@ export function isolatePort(port: PortLike, handle: Handle, fetch: Fetch): { cal
       return true;
     },
   });
-  return { call: (msg) => calls!(msg) };
+  return {
+    call: (msg) => calls!(msg),
+    outbound: (req) => fetchOver(mux, { kind: "outbound" }, req),
+  };
+}
+
+/** A fetch over a new port of `mux`; the URL rides in the meta (the HTTP/1.1 wire drops its scheme). */
+function fetchOver(mux: PortMux, meta: object, req: Request): Promise<Response> {
+  return fetchOverDuplex(
+    (input) =>
+      (async function* () {
+        yield* duplexOverPort(await mux.openPort({ ...meta, url: req.url }))(input);
+      })(),
+    req,
+  );
+}
+
+/** Serves the fetch on port `p` (its URL from the meta) with `fetch`. */
+function serveFetch(p: MessageTarget, url: string, fetch: (req: Request) => Promise<Response>) {
+  serveDuplexOverPort(
+    p,
+    serveFetchOverDuplex((req) => withUrl(req, url).then(fetch).catch(throwOwn)),
+  );
 }
 
 /** Marks a value passed by reference in a message: `{ [REF]: id }`. */
