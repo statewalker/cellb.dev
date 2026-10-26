@@ -9,7 +9,7 @@ import { captureLogs, runProject } from "./run-project.js";
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 scope.onmessage = async (e) => {
   const reply = (v: unknown) => (e.ports[0] as MessagePort).postMessage(v);
-  const { project, scenario, wsServer, bucket, paths } = e.data as {
+  const { project, scenario, wsServer, bucket, paths, pool } = e.data as {
     project: {
       name: string;
       config: WranglerConfig;
@@ -20,6 +20,7 @@ scope.onmessage = async (e) => {
     wsServer?: string;
     bucket?: Parameters<typeof runProject>[0]["bucket"];
     paths?: string[];
+    pool?: string;
   };
   const logs = captureLogs();
   try {
@@ -33,6 +34,7 @@ scope.onmessage = async (e) => {
       wsServer,
       bucket,
       paths,
+      pool,
       logs,
     });
     reply({ ok: true, ...r });

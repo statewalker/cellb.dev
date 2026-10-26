@@ -124,9 +124,16 @@ const mutants = [
   [
     "backup: no restore on open",
     "src/core/object-host.ts",
-    "if (empty) {",
-    "if (false) {",
+    "if (!empty && !rebuild) return;",
+    "return;",
     "p01 p02 p03 p06a",
+  ],
+  [
+    "ownership: a stale local database is kept on acquire",
+    "src/core/object-host.ts",
+    "if (!empty && !rebuild) return;",
+    "if (!empty) return;",
+    "p10e",
   ],
   [
     "backup: close() skips the final backup",

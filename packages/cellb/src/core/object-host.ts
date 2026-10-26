@@ -178,18 +178,10 @@ export class ObjectHost {
             },
           );
         }
-        const empty =
-          Number(this.#driver.exec("SELECT count(*) FROM sqlite_master", []).rows[0][0]) === 0;
-        if (empty) {
-          const image = await load?.(this.cellKey);
-          if (image) {
-            if (!this.#driver.restore)
-              throw new Error("SyncSqlDriver has no restore(): cannot restore a backup");
-            this.#driver.restore(image);
-          }
-          // Then every logged transaction the image does not contain, in order.
-          if (replay) await this.#replayLog(replay);
-        }
+        // Under a lease (the cell's own, or its root's for a facet) the bucket is the cell's
+        // truth: a local file kept from an earlier ownership is older than what other owners
+        // wrote since, and may hold commits that never became durable.
+        await this.#catchUp(this.#epoch !== undefined);
         if (opts.facet) this.#rescope(scopeOf(opts.cellKey));
         else {
           this.#initWake();
@@ -318,6 +310,41 @@ export class ObjectHost {
     this.#release = undefined;
   }
   #release: (() => Promise<void>) | undefined;
+
+  /**
+   * Brings the local database to the storage's state: restores the image, then replays the log.
+   * Without `rebuild` only an empty database is restored (the local file is the primary copy);
+   * with it, a non-empty one is replaced too — dropped first when the storage has no image.
+   */
+  async #catchUp(rebuild: boolean): Promise<void> {
+    const { load, replay } = this.#backup ?? {};
+    if (!load && !replay) return;
+    const d = this.#driver;
+    const empty = Number(d.exec("SELECT count(*) FROM sqlite_master", []).rows[0][0]) === 0;
+    if (!empty && !rebuild) return;
+    const image = await load?.(this.cellKey);
+    if (image) {
+      if (!d.restore) throw new Error("SyncSqlDriver has no restore(): cannot restore a backup");
+      d.restore(image);
+    } else if (!empty) {
+      // Indexes and triggers go with their tables; sqlite_* tables cannot be dropped. Foreign
+      // keys are off meanwhile, so a parent table can go before its children.
+      const objects = d.exec(
+        "SELECT type, name FROM sqlite_master WHERE type IN ('view', 'table') AND name NOT LIKE 'sqlite_%'",
+        [],
+      ).rows;
+      const fk = Number(d.exec("PRAGMA foreign_keys", []).rows[0][0]);
+      d.exec("PRAGMA foreign_keys = OFF", []);
+      try {
+        for (const [type, name] of objects)
+          d.exec(`DROP ${type} IF EXISTS "${String(name).replace(/"/g, '""')}"`, []);
+      } finally {
+        d.exec(`PRAGMA foreign_keys = ${fk}`, []);
+      }
+    }
+    // Then every logged transaction the image does not contain, in order.
+    if (replay) await this.#replayLog(replay);
+  }
 
   /** Applies log segments newer than the database's own log sequence (restore path). */
   async #replayLog(replay: NonNullable<CellBackup["replay"]>): Promise<void> {

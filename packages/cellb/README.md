@@ -215,10 +215,6 @@ What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches ce
 - **`Durable Object reset because …`** (`BrokenObjectError`). A commit did not become durable, the
   constructor's `blockConcurrencyWhile()` failed, or the cell lease was lost. The next call builds a
   fresh instance.
-- **A cell shows old data, and another node's writes to it are lost.** A runtime restores a cell
-  from the bucket only when its local SQLite database is empty. With a fleet bucket, give the
-  runtime local SQLite that starts empty: in memory, or a fresh directory or OPFS pool per start
-  ([docs/gaps.md](docs/gaps.md)).
 - **`unable to open database file`** from `nodeSqliteOpener(dir)` or `sqliteObjectStore(file)`. The
   directory does not exist; neither creates it. (`celld dev` creates `.celld/dev/` on its first run.)
 - **`NoModificationAllowedError` in a browser.** Two workers opened the same OPFS pool. Each worker

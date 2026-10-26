@@ -431,6 +431,10 @@ right twice); nothing if D10 = celld.
 Each task is proven by a conformance case changing state (a `knownGap` removed, or a new step
 recorded on celld/workerd), never by a test of the mechanism alone.
 
+- [x] **F0 a stale local database after re-acquiring a cell** (data loss, found in R9): under a
+  cell lease the local database is rebuilt from the bucket on every acquisition. Proof:
+  `test/p10e-stale-local-db.test.ts` (A, B, A counts 1, 2, 3) and the OPFS step in
+  `e2e-browser/opfs-bucket.spec.ts`; branch `fix/stale-local-db`.
 - [ ] **F1 isolate port on webrun-rpc** (D10-independent). Replace `rpcPort` with
   `callPort`/`listenPort` (`NO_TIMEOUT`) on a `multiplexPort` channel per direction. Errors keep
   their own properties (`code`), as stub calls in one isolate already do. Proof: a step in the
