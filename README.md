@@ -7,8 +7,9 @@ in Node, and alongside celld on one shared bucket.
 ## Layout
 
 ```
-packages/cellb/        the runtime, its browser host, conformance harness and notes (see its README)
-tools/migrate/         how this history was carved out of statewalker-sandbox
+packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
+docs/superpowers/      plans for work on the repository
+tools/migrate/         the commit map and scripts that produced this repository's history
 .github/workflows/     interop CI against the real celld and RustFS
 ```
 
@@ -20,14 +21,16 @@ tools/migrate/         how this history was carved out of statewalker-sandbox
 4. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
    and RustFS releases and starts RustFS on `127.0.0.1:9200`.
 
-## Why the history looks the way it does
+## Why it is the way it is
 
-The code grew as `apps/webrun-cells` in `statewalker-sandbox`. `git filter-repo` kept every commit
-that touched it and moved the paths to `packages/cellb/`, so `git log` and `git blame` work without
-`--follow`. Commits Claude made alone were re-attributed to Mikhail Kotelnikov with Claude as
-co-author. Every other commit is unchanged apart from its SHA. `tools/migrate/commit-map.txt` maps
-each sandbox SHA to its SHA here, and `tools/migrate/rewrite-claude-alone.py` is the exact rewrite.
+- **One package, three entry points.** Callers differ by platform (isomorphic, Node, browser), not
+  by internal module, so `@statewalker/cellb`, `/node` and `/browser` are the seams.
+- **CI runs against the real celld.** celld is the conformance judge, so the interop workflow
+  downloads the pinned celld and RustFS and runs the Node and Chromium interop suites on every pull
+  request.
 
 ## What will surprise you
 
-- A sandbox SHA quoted in an old note cannot be found here. Look it up in `commit-map.txt`.
+- A commit SHA quoted in `packages/cellb/docs/history/` may not exist here. Look it up in
+  `tools/migrate/commit-map.txt`.
+- A green `pnpm test` without `CELLD_BIN` says nothing about celld compatibility: those tests skip.
