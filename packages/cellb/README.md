@@ -27,7 +27,7 @@ step yet), so import it through a bundler, Vite or vitest.
 
 | Import | What it gives |
 |---|---|
-| `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, `s3ObjectStore`, `memoryObjectStore`, `filesApiLtxLog`, `filesApiChangeLog`, links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes, and the errors embedders catch |
+| `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes, and the errors embedders catch |
 | `@statewalker/cellb/node` | `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
 | `@statewalker/cellb/browser` | `browserProjectRuntime`, `sahpoolOpener`, `createProjectSite`, `serviceWorkerConnector` |
 
@@ -164,30 +164,29 @@ e2e-browser/        Playwright specs; pages/ holds the demo pages, the host app,
                     shard workers they drive; probes/ the exploratory browser probes
 scripts/            vendoring, the interop environment, mutation harnesses
 probes/             hypothesis probes (SQLite locks, MessagePorts, ServiceWorker idling)
-docs/               topic pages, decision records, and docs/history (session logs)
+docs/               topic pages
 ```
 
 ### Decisions a reader would otherwise undo
 
 - **celld's storage format is the only one** — ids, internal tables, V8-serialized values, LTX
-  logs — so cells move without conversion ([ADR 0001](docs/adr/0001-celld-storage-format-is-native.md)).
-- **KV, Queues and Workflows run celld's own JavaScript**, vendored unchanged
-  ([ADR 0002](docs/adr/0002-vendored-celld-javascript.md)).
-- **celld judges conformance**, workerd is recorded only to pin where celld differs
-  ([ADR 0003](docs/adr/0003-celld-as-conformance-oracle.md), [docs/conformance.md](docs/conformance.md)).
-- **The gates use no `AsyncLocalStorage`**, which browsers lack
-  ([ADR 0004](docs/adr/0004-gates-without-asynclocalstorage.md)).
+  logs — so cells move between cellb and celld without conversion
+  ([docs/celld-compatibility.md](docs/celld-compatibility.md)).
+- **KV, Queues and Workflows run celld's own JavaScript**, vendored unchanged, so a queue, workflow
+  instance or KV namespace written by celld continues on cellb, and back.
+- **celld judges conformance**, because cellb's storage must be celld's; workerd is recorded only
+  to pin where celld differs ([docs/conformance.md](docs/conformance.md)).
+- **The gates use no `AsyncLocalStorage`**, which browsers lack.
 - **A browser origin has a fixed number of shards**, because an OPFS pool is exclusive per worker
-  ([ADR 0005](docs/adr/0005-fixed-shards-in-the-browser.md)).
-- **WebSockets travel over MessagePorts**, because a ServiceWorker cannot accept them
-  ([ADR 0006](docs/adr/0006-websockets-over-messageports.md)).
-- **Each loaded Worker gets a realm of its own**, a thread or a Dedicated Worker
-  ([ADR 0007](docs/adr/0007-one-isolate-per-loaded-worker.md)).
-- **`idFromName` is synchronous**, with `@noble/hashes` instead of `crypto.subtle`
-  ([ADR 0008](docs/adr/0008-synchronous-idfromname.md)).
+  ([docs/browser-host.md](docs/browser-host.md)).
+- **WebSockets travel over MessagePorts**, because a ServiceWorker cannot accept them.
+- **Each loaded Worker gets a realm of its own**, a thread or a Dedicated Worker: as in celld's
+  isolates, loaded code must not see the host's globals or env.
+- **`idFromName` is synchronous**, with `@noble/hashes` instead of `crypto.subtle`, which is
+  asynchronous only; Worker code relies on getting the id at once.
 - **Ownership depends on the deployment**: a Web Lock per shard in an origin, celld's ownership
-  records per cell on a fleet bucket ([ADR 0009](docs/adr/0009-leases-chosen-by-deployment.md),
-  [docs/ownership-and-durability.md](docs/ownership-and-durability.md)).
+  records per cell on a fleet bucket
+  ([docs/ownership-and-durability.md](docs/ownership-and-durability.md)).
 
 What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches celld is in
 [docs/celld-compatibility.md](docs/celld-compatibility.md). The vocabulary is in
@@ -227,7 +226,7 @@ What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches ce
 - **`RPC stubs cannot cross isolate boundaries yet.`** An `RpcTarget` was passed through a stub.
   celld refuses it too ([docs/gaps.md](docs/gaps.md)).
 - **Writes after the last backup are gone after a crash** when the storage is a periodic backup
-  alone. That is its RPO; a log (`celldBucket`, `filesApiLtxLog`) has none.
+  alone (`filesApiBackup`). That is its RPO; a log (`celldBucket`, `filesApiLtxLog`) has none.
 
 ### Commands
 

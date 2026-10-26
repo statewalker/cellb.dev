@@ -19,14 +19,17 @@ page shows the layers, the path of a request, and where each `src` directory sit
    SQLite WASM       log, backup
 ```
 
-`src/core` imports only the port types in `src/ports.ts`. A platform supplies:
+`src/core` reaches the platform only through the ports in `src/ports.ts`. Besides them it imports
+isomorphic code of its own: the HTTP surface of a stub (`transport/cells-link`), the V8 value codec
+(`v8/codec`) and the WebSocket upgrade over MessagePorts (`ws/server`, `ws/upgrade`). A platform
+supplies:
 
 | Port | What it is | Implementations |
 |---|---|---|
-| `OpenCellSql` → `SyncSqlDriver` | a synchronous SQLite database per cell | `nodeSqliteOpener` (node:sqlite), `sahpoolOpener` (SQLite WASM on OPFS), an in-memory SQLite WASM opener |
-| `CellStorage` | durability, backup, ownership and R2 objects, as one bundle the runtime closes | `celldBucket` (a fleet bucket), `filesApiLtxLog`, `filesApiChangeLog` |
+| `OpenCellSql` → `SyncSqlDriver` | a synchronous SQLite database per cell | `nodeSqliteOpener` (node:sqlite), `sahpoolOpener` (SQLite WASM on OPFS), `wasmMemoryOpener` (SQLite WASM in memory) |
+| `CellStorage` | durability, backup, ownership and R2 objects, as one bundle the runtime closes | `celldBucket` (a fleet bucket), `filesApiLtxLog`, `filesApiChangeLog`; `filesApiBackup` for its `backup` part |
 | `Lease` | per-cell ownership with an epoch and a "lost" signal | `celldBucket(...).ownership` |
-| `ObjectStore` | a bucket with conditional writes | `s3ObjectStore`, `sqliteObjectStore` (celld dev's local store), `memoryObjectStore`, a FilesApi store |
+| `ObjectStore` | a bucket with conditional writes | `s3ObjectStore`, `sqliteObjectStore` (celld dev's local store), `memoryObjectStore`, `filesApiObjectStore` |
 | `Clock` | timers, injectable in tests | `systemClock` |
 | `ValueCodec` | how KV values are stored | V8 serialization (the only codec) |
 
