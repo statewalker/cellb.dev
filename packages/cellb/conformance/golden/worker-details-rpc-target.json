@@ -1,0 +1,17 @@
+{
+  "celld": "0.6.3",
+  "transcript": [
+    {
+      "request": "GET /rpc-target",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "target": {
+          "name": "Error",
+          "message": "RPC stubs cannot cross isolate boundaries yet.",
+          "code": null
+        }
+      }
+    }
+  ]
+}

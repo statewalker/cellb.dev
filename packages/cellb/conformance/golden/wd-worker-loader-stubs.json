@@ -1,0 +1,16 @@
+{
+  "celld": "0.6.3",
+  "transcript": [
+    {
+      "request": "GET /?skip=asyncCodeLoader,codeLoaderException,ctxExports,justLoad,moduleTypes,passEnv,passEnvCaps,regressionDeadIoContextGetCode,startupException,suggestWorkerBundlerForTypeScriptModules,wasmModules,abortIsolateDynamic,abortIsolateDynamicAnonymous,compatDateFlags,facetUafRegression,facets,nullGlobalOutbound",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "basics": "DataCloneError: function () {} could not be cloned.",
+        "doStubViaEnv": "DataCloneError: Worker Loader env supports only Service Binding capabilities.",
+        "doStubViaProps": "DataCloneError: #<Object> could not be cloned.",
+        "doStubViaRpcParam": "Error: worker loader: WorkerCode field `allowExperimental` is not supported"
+      }
+    }
+  ]
+}

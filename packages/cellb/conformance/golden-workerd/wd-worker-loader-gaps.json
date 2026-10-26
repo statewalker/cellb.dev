@@ -1,0 +1,22 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /?skip=asyncCodeLoader,codeLoaderException,ctxExports,justLoad,moduleTypes,passEnv,passEnvCaps,regressionDeadIoContextGetCode,startupException,suggestWorkerBundlerForTypeScriptModules,wasmModules",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "abortIsolateDynamic": "ok",
+        "abortIsolateDynamicAnonymous": "ok",
+        "basics": "ok",
+        "compatDateFlags": "ok",
+        "doStubViaEnv": "ok",
+        "doStubViaProps": "ok",
+        "doStubViaRpcParam": "ok",
+        "facetUafRegression": "ReferenceError: gc is not defined",
+        "facets": "ok",
+        "nullGlobalOutbound": "ok"
+      }
+    }
+  ]
+}

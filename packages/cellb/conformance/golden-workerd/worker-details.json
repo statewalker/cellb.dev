@@ -46,7 +46,6 @@
           "undef": true
         },
         "fn": "function",
-        "target": [1, 2],
         "missing": {
           "name": "TypeError",
           "message": "The RPC receiver does not implement the method \"nope\".",

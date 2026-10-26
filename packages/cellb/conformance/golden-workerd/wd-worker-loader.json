@@ -1,0 +1,23 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /?skip=abortIsolateDynamic,abortIsolateDynamicAnonymous,basics,compatDateFlags,doStubViaEnv,doStubViaProps,doStubViaRpcParam,facetUafRegression,facets,nullGlobalOutbound",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "asyncCodeLoader": "ok",
+        "codeLoaderException": "ok",
+        "ctxExports": "ok",
+        "justLoad": "ok",
+        "moduleTypes": "ok",
+        "passEnv": "ok",
+        "passEnvCaps": "ok",
+        "regressionDeadIoContextGetCode": "ok",
+        "startupException": "ok",
+        "suggestWorkerBundlerForTypeScriptModules": "ok",
+        "wasmModules": "ok"
+      }
+    }
+  ]
+}
