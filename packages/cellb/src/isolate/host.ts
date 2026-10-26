@@ -1,13 +1,7 @@
 import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
 import { ISOLATED, type IsolatedClass } from "../core/handles.js";
 import type { CellStorage } from "../ports.js";
-import {
-  deserializeResponse,
-  hostPort,
-  type PortLike,
-  serializeRequest,
-  splitEnv,
-} from "./protocol.js";
+import { hostPort, type PortLike, splitEnv } from "./protocol.js";
 
 /**
  * Worker Loader whose code runs in a separate realm per loaded Worker (an isolate). Returns
@@ -31,7 +25,7 @@ export function isolatedModuleLoader(opts: {
     if (code.globalOutbound && typeof code.globalOutbound === "object") stubs.push("__outbound");
     const where = await opts.prepare(id, code);
     const isolate = opts.spawn(id);
-    const { call } = await hostPort(isolate.port, async (m) => {
+    const { call, fetch } = await hostPort(isolate.port, async (m) => {
       if (m.type === "stub") {
         const target = m.key === "__outbound" ? code.globalOutbound : env[m.key];
         return (target as any)[m.method](...m.args);
@@ -70,11 +64,7 @@ export function isolatedModuleLoader(opts: {
         {
           get(_t, prop) {
             if (prop === "then" || typeof prop === "symbol") return undefined;
-            if (prop === "fetch")
-              return async (req: Request) =>
-                deserializeResponse(
-                  await call({ type: "fetch", name, request: await serializeRequest(req) }),
-                );
+            if (prop === "fetch") return (req: Request) => fetch({ name }, req);
             return (...args: unknown[]) => call({ type: "call", name, method: prop, args });
           },
         },
@@ -84,16 +74,7 @@ export function isolatedModuleLoader(opts: {
     );
     // Durable Object classes of the loaded code run in the isolate too (facets).
     module[ISOLATED] = (className: string): IsolatedClass => ({
-      fetch: async (cellKey, req) =>
-        deserializeResponse(
-          await call({
-            type: "object",
-            op: "fetch",
-            className,
-            cellKey,
-            request: await serializeRequest(req),
-          }),
-        ),
+      fetch: (cellKey, req) => fetch({ className, cellKey }, req),
       call: (cellKey, method, args) =>
         call({ type: "object", op: "call", className, cellKey, method, args }),
       restart: (cellKey) => call({ type: "object", op: "restart", className, cellKey }),

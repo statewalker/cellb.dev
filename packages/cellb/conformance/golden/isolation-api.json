@@ -44,6 +44,15 @@
         "message": "refused",
         "code": "E_REFUSED"
       }
+    },
+    {
+      "request": "GET /stream",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "firstBeforeLast": true,
+        "body": "first;last"
+      }
     }
   ]
 }

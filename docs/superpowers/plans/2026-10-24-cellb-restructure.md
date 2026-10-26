@@ -436,7 +436,7 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   their own properties (`code`), as stub calls in one isolate already do. Proof: a step in the
   `isolation-api` project throwing an error with `code` from a loaded Worker, recorded on celld;
   red today (`code` is lost at `protocol.ts:75`). Deletes ~50 lines.
-- [ ] **F2 streamed bodies across the isolate** (D10-independent). Route the isolate's `fetch` through
+- [x] **F2 streamed bodies across the isolate** (D10-independent) — done on `feat/isolate-rpc`; the target and URL ride in the fetch port's meta. Route the isolate's `fetch` through
   the cells-http-over-port path cellb already has (`transport/port.ts`) instead of
   `arrayBuffer()` copies. Proof: a loaded Worker streams a response whose first chunk arrives
   before its last is produced — a new step, recorded on celld.

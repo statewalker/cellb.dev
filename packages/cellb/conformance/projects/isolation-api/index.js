@@ -1,7 +1,7 @@
 // Isolation of loaded Workers (celld runs each in its own V8 isolate): loaded code must not
 // see the host's globals or env, its own global changes must not leak out, and it gets only
 // the env its WorkerCode declares (plain values and service stubs). Errors keep their own
-// properties across the isolate.
+// properties across the isolate, and response bodies stream.
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 
 export class Holder extends DurableObject {
@@ -45,6 +45,20 @@ const loadedCode = (exports) => () => ({
 
 export default {
   async fetch(request, env) {
+    if (new URL(request.url).pathname === "/stream") {
+      const text = new TextEncoder();
+      let sent = 0;
+      return new Response(
+        new ReadableStream({
+          async pull(c) {
+            if (sent++ === 0) return c.enqueue(text.encode("first;"));
+            await new Promise((r) => setTimeout(r, 1000));
+            c.enqueue(text.encode("last"));
+            c.close();
+          },
+        }),
+      );
+    }
     const before = typeof globalThis.hostSecret;
     globalThis.leaked = "from loaded code";
     return Response.json({
@@ -77,6 +91,19 @@ export default {
       } catch (e) {
         return Response.json({ name: e.name, message: e.message, code: e.code ?? null });
       }
+    }
+    if (path === "/stream") {
+      // The loaded Worker holds its last chunk back for a second: a streamed body hands the
+      // first chunk over before that, a buffered one hands both over together.
+      const res = await worker.getEntrypoint().fetch("http://w/stream");
+      const text = new TextDecoder();
+      let body = "";
+      let firstAt;
+      for await (const chunk of res.body) {
+        firstAt ??= Date.now();
+        body += text.decode(chunk, { stream: true });
+      }
+      return Response.json({ firstBeforeLast: Date.now() - firstAt >= 500, body });
     }
     const inner = await (await worker.getEntrypoint().fetch("http://w/")).json();
     return Response.json({ inner, leakedIntoHost: typeof globalThis.leaked });
