@@ -1,0 +1,57 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /env",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "atLoad": "hello",
+        "now": "hello",
+        "viaExports": "box hello",
+        "viaEnv": "box hello"
+      }
+    },
+    {
+      "request": "GET /loaded",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "atLoad": "loaded",
+        "now": "loaded",
+        "greeting": "hi from the host",
+        "viaExports": "pong"
+      }
+    },
+    {
+      "request": "GET /loaded-class",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "name": "loaded",
+        "same": false
+      }
+    },
+    {
+      "request": "WS /ws [\"one\",\"two\"]",
+      "messages": [
+        {
+          "message": "one",
+          "viaPrototype": {
+            "id": "conn-1"
+          },
+          "isWebSocket": true,
+          "open": 1
+        },
+        {
+          "message": "two",
+          "viaPrototype": {
+            "id": "conn-1"
+          },
+          "isWebSocket": true,
+          "open": 1
+        }
+      ]
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
+import { projectDir } from "../conformance/projects.js";
 import {
   celldBucket,
   createCellRuntime,
@@ -70,6 +71,23 @@ describe("P13 modules the Agents SDK imports", () => {
     });
     expect(await read(two)).toMatchObject({ atLoad: "two", viaExports: "box two" });
     await Promise.all([one.runtime.close(), two.runtime.close()]);
+  });
+
+  it("gives code loaded into the project's realm its own env and exports", async () => {
+    // loadNodeProject runs loaded Workers isolated; without isolates they share the realm.
+    const { runtime } = await loadNodeProject(projectDir("agents-host"), {
+      openSql: nodeSqliteOpener(),
+      files: new MemFilesApi(),
+      isolatedModules: undefined,
+    });
+    const res = await runtime.fetch(new Request("http://w/loaded"));
+    expect(await res.json()).toEqual({
+      atLoad: "loaded",
+      now: "loaded",
+      greeting: "hi from the host",
+      viaExports: "pong",
+    });
+    await runtime.close();
   });
 
   it("reports the Workers AI binding as unsupported", async () => {

@@ -6,6 +6,7 @@ import { ctxExports, entrypointStub } from "../core/handles.js";
 import { runInDurableObject } from "../core/namespace.js";
 import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
 import type { OpenCellSql } from "../ports.js";
+import { setRealmWorkerScope, workerScope } from "../project/worker-scope.js";
 import { type FetchTarget, isolatePort, type PortLike } from "./protocol.js";
 
 export function serveIsolate(
@@ -126,8 +127,12 @@ export function serveIsolate(
             "This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world.",
           );
         }) as typeof fetch;
+      // The realm runs this one Worker: its `cloudflare:workers` env/exports are this scope.
+      const scope = workerScope(env);
+      setRealmWorkerScope(scope);
       module = await importCode(m, sink);
       exports = ctxExports(module, env);
+      scope.bind({ env, exports });
       return Object.fromEntries(Object.entries(module).map(([k, v]) => [k, typeof v]));
     }
     if (m.type === "image") return await images.get(m.token)?.();

@@ -7,9 +7,10 @@ import { s3ObjectStore } from "../bucket/s3-object-store.js";
 import type { WorkerModule } from "../core/runtime.js";
 import { browserIsolatedLoader } from "../isolate/browser.js";
 import { installNodeGlobals } from "../node-compat/install.js";
-import { browserModuleLoader, WORKERS_MODULE_SHIM } from "./browser-modules.js";
+import { browserModuleLoader } from "./browser-modules.js";
 import * as workersModule from "./cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "./site.js";
+import { setRealmWorkerScope, workerScope } from "./worker-scope.js";
 import * as workersGlobals from "./workers-globals-module.js";
 import { createProjectRuntime, type WranglerConfig } from "./wrangler.js";
 
@@ -94,6 +95,7 @@ async function importWorkerCode(
   const globals = {
     ...workersGlobals,
     Response: workersGlobals.CellsResponse,
+    WebSocket: workersGlobals.WorkersWebSocket,
     WebSocketPair: flags.includes("websocket_standard_binary_type")
       ? workersGlobals.StandardWebSocketPair
       : workersGlobals.WebSocketPair,
@@ -127,6 +129,10 @@ async function importWorkerCode(
  * builds its Worker Loader; `close()` also releases the node's bucket lease.
  */
 export async function browserProjectRuntime(opts: BrowserProjectOptions) {
+  // This realm runs the project's Worker: its `cloudflare:workers` env/exports, readable
+  // while the module is evaluated (the vars, until the runtime exists).
+  const scope = workerScope(opts.config.vars);
+  setRealmWorkerScope(scope);
   const module = await importWorkerCode(opts.config, opts.code);
   const site = "site" in opts.code ? opts.code.site : undefined;
   const openSql = await sahpoolOpener(opts.sqlite3 as never, {
@@ -146,7 +152,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
     openSql,
     files,
     assetFiles: opts.assetFiles,
-    loadModules: site ? siteModuleLoader(site) : browserModuleLoader(WORKERS_MODULE_SHIM),
+    loadModules: site ? siteModuleLoader(site) : browserModuleLoader(),
     isolatedModules: opts.isolateScript
       ? browserIsolatedLoader({
           isolateScript: opts.isolateScript,
@@ -156,6 +162,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       : undefined,
     storage: shared, // R2 objects in the fleet bucket too, as celld keeps them
   });
+  scope.bind(runtime);
   return {
     runtime,
     unsupported,

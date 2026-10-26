@@ -35,8 +35,10 @@ page ── fetch("/app/…") ──► ServiceWorker (webrun-http-browser)
 ```
 
 `browserProjectRuntime` installs the Workers globals (`Response` that accepts status 101,
-`WebSocketPair`, `caches`, `HTMLRewriter`, and `Buffer`/`process` for `nodejs_compat`), imports the
-code and builds the runtime from the wrangler configuration. The code is either:
+`WebSocketPair`, `WebSocket`, `caches`, `HTMLRewriter`, and `Buffer`/`process` for
+`nodejs_compat`), makes the project the realm's Worker (`env` and `exports` of
+`cloudflare:workers`), imports the code and builds the runtime from the wrangler configuration.
+The code is either:
 
 - `{ bundle }` — one ES module built for browsers, whose `cloudflare:workers` import and Workers
   globals read what the runtime installs; or

@@ -28,12 +28,14 @@ celld transcript is recorded too, so the difference stays on file, and it carrie
 
 | Scenario | What workerd does and celld refuses |
 |---|---|
+| `agents-host` | gives `env` of `cloudflare:workers` its values while the module is evaluated, and `exports` as `ctx.exports` stubs, in the project's Worker and in loaded Workers (the Agents SDK reads both at top level); celld leaves `env` empty then and exports the module's own classes |
 | `wd-stub-storage` | stores `ctx.exports.X({ props })` stubs and class handles in Durable Object storage |
 | `wd-worker-loader-stubs` | passes `ctx.exports` stubs and Durable Object stubs into a loaded Worker's `env`, `props` and arguments |
 | `worker-details-rpc-target` | returns an `RpcTarget` from a Durable Object method as a stub |
 
 Every other scenario is still judged by celld; a new `judge: "workerd"` needs a reason of this kind,
-not a convenience.
+not a convenience. For `agents-host` the reason is that Cloudflare's Agents SDK and partyserver
+depend on workerd's behaviour, so an Agents SDK app cannot run on celld's.
 
 ## How a project is compared
 

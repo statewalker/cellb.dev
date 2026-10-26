@@ -70,12 +70,22 @@ does not support in `unsupported` instead of ignoring it. The hosts differ only 
 `main` and what they pass as `host`:
 
 - `loadNodeProject(dir, host)` bundles `main` with esbuild and runs it in the Node process; loaded
-  Workers run in worker threads. The bundle's `cloudflare:workers` also exports the project's own
-  `env` and `exports` (the configuration's `vars` while the module is evaluated, the runtime's
-  objects once it exists), as code built for Cloudflare reads them at top level; `cloudflare:email`
-  loads but cannot send; under `nodejs_compat`, bare built-in names (`path`) are Node's modules.
+  Workers run in worker threads. `cloudflare:email` loads but cannot send; under `nodejs_compat`,
+  bare built-in names (`path`) are Node's modules.
 - `browserProjectRuntime(opts)` imports a browser bundle or modules served by the in-browser HTTP
   server; loaded Workers run in Dedicated Workers. See [browser-host.md](browser-host.md).
+
+`env` and `exports` of `cloudflare:workers` belong to one Worker, and code built for Cloudflare
+reads them while its module is evaluated (the Agents SDK, Flue). Each Worker gets a scope
+(`src/project/worker-scope.ts`): the configuration's `vars` (or a loaded Worker's `env`) until its
+runtime exists, then the runtime's own `env` and `ctx.exports`. A realm that runs one Worker (an
+isolate, a browser project's worker) keeps it in a realm global; code that shares a realm with
+another Worker (the Node project's bundle, loaded code compiled in the project's realm) gets a
+`cloudflare:workers` module of its own. Cloudflare's behaviour is the judge here, as workerd
+records it: celld leaves `env` empty during evaluation (`agents-host` in the corpus).
+The global `WebSocket` of Worker code is the class of a pair's server end, as in workerd, so
+`WebSocket.prototype.deserializeAttachment.call(ws)` (partyserver) reads an attachment;
+`new WebSocket(url)` is still the host's client.
 
 KV, Queues and Workflows run celld's own JavaScript, vendored unchanged in `vendor/celld/`. D1 runs
 Miniflare's D1 simulator with workerd's D1 client, vendored in `vendor/miniflare/`. See

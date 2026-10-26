@@ -77,10 +77,11 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
   service bindings to other scripts, the Workers AI binding (`ai`), and compatibility flags it
   does not know. A Flue app (packages/flue-example) leaves out Flue's `cloudflare` provider for
   that reason; renaming a Flue agent renames its class, so it needs `renamed_classes`.
-- **`env` and `exports` of `cloudflare:workers` exist for a Node project's own Worker only.** In
-  a browser, and in a loaded Worker run in its own thread, `import { env } from
-  "cloudflare:workers"` fails to build (`No matching export`). A loaded Worker compiled in the
-  project's realm gets empty objects.
+- **Loaded code imported from an in-browser site into the project's realm reads the project's
+  `env` and `exports`** from `cloudflare:workers`. That is `browserProjectRuntime({ code: { site }
+  })` without `isolateScript`. The site serves `cloudflare:workers` as one entry of the realm's
+  module registry, so all code of a realm shares it. With `isolateScript`, with `{ bundle }`, and
+  on Node, each loaded Worker reads its own.
 - **`cloudflare:email` only loads, and only on Node.** It exists so code that imports it at top
   level (the Agents SDK) starts; building an `EmailMessage` throws `cloudflare:email is not
   supported by cellb`. A browser bundle that imports it fails to build.
@@ -88,10 +89,6 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
   `node:async_hooks` shim keeps one store at a time, and the Agents SDK and Flue find the current
   agent through it. Two cells answering at once in one browser runtime can read each other's
   context. Node uses the real module.
-- **Agents SDK WebSocket connections are ignored.** `partyserver` reads attachments through the
-  global `WebSocket.prototype` (`deserializeAttachment`), which a Worker's bundle takes from the
-  host and which lacks them, so it does not recognise any accepted socket as its own: `onConnect`
-  and `onMessage` never run. Flue's own routes use HTTP and SSE and are not affected.
 - **Isolated facets in a browser are not in the fleet bucket.** `browserProjectRuntime` does not give
   its isolates the host's storage, so a Durable Object class of a loaded Worker keeps its database in
   the isolate's OPFS pool only. On Node they are logged through the parent.

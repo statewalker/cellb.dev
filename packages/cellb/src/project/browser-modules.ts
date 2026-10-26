@@ -5,20 +5,43 @@ import {
   outboundFetch,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
+import { ctxExports } from "../core/handles.js";
+import { registerWorkerScope, workerScope } from "./worker-scope.js";
 
-/** `cloudflare:workers` for loaded code: the runtime's classes from `globalThis.__cellsWorkersModule`. */
-export const WORKERS_MODULE_SHIM =
-  "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
+/**
+ * `cloudflare:workers` for code imported in a browser realm: the runtime's classes from
+ * `globalThis.__cellsWorkersModule`, and `env`/`exports` from `scope` (an expression): the
+ * realm's Worker by default.
+ */
+const workersModuleShim = (scope = "m") =>
+  `const m = globalThis.__cellsWorkersModule; const s = ${scope}; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget, env = s.env, exports = s.exports; export default m;`;
+
+/** `cloudflare:workers` of a project bundle: its `env`/`exports` are the realm's Worker's. */
+export const WORKERS_MODULE_SHIM = workersModuleShim();
 
 /**
  * Worker Loader in a browser realm: each module of a WorkerCode becomes a Blob-URL ES
  * module. `cloudflare:workers` resolves to a shim reading the runtime's own classes from
- * `globalThis.__cellsWorkersModule`; relative imports resolve to the Blob URLs of sibling
- * modules; with a log sink the module gets a module-scoped `console` (Tail Workers).
+ * `globalThis.__cellsWorkersModule` and this load's own `env`/`exports`; relative imports
+ * resolve to the Blob URLs of sibling modules; with a log sink the module gets a module-scoped
+ * `console` (Tail Workers).
  */
-export function browserModuleLoader(workersModuleShim: string): ModuleLoader {
-  const shimUrl = URL.createObjectURL(new Blob([workersModuleShim], { type: "text/javascript" }));
+export function browserModuleLoader(): ModuleLoader {
   return async (_id: string, code: WorkerCode, logs?: LogSink) => {
+    const env = code.env ?? {};
+    const scope = workerScope(env);
+    const shimUrl = URL.createObjectURL(
+      new Blob(
+        [
+          workersModuleShim(
+            `globalThis.__cellsWorkerScopes[${JSON.stringify(registerWorkerScope(scope))}]`,
+          ),
+        ],
+        {
+          type: "text/javascript",
+        },
+      ),
+    );
     let consolePrelude = "";
     if (logs) {
       const key = `c${Math.random().toString(36).slice(2)}`;
@@ -73,6 +96,11 @@ export function browserModuleLoader(workersModuleShim: string): ModuleLoader {
       urls.set(name, url);
       return url;
     };
-    return (await import(/* @vite-ignore */ urlOf(code.mainModule))) as Record<string, unknown>;
+    const module = (await import(/* @vite-ignore */ urlOf(code.mainModule))) as Record<
+      string,
+      unknown
+    >;
+    scope.bind({ env, exports: ctxExports(module, env) });
+    return module;
   };
 }

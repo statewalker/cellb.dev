@@ -1,0 +1,15 @@
+{
+  "name": "agents-host",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "vars": { "GREETING": "hello" },
+  "durable_objects": {
+    "bindings": [
+      { "name": "BOX", "class_name": "Box" },
+      { "name": "ROOM", "class_name": "Room" },
+      { "name": "HOLDER", "class_name": "Holder" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Box", "Room", "Holder"] }]
+}

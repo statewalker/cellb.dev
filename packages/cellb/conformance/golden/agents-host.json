@@ -1,0 +1,48 @@
+{
+  "celld": "0.6.3",
+  "transcript": [
+    {
+      "request": "GET /env",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "now": "hello",
+        "viaExports": "box hello",
+        "viaEnv": "box hello"
+      }
+    },
+    {
+      "request": "GET /loaded",
+      "status": 500,
+      "contentType": "application/json",
+      "body": "Worker failed: rejected: TypeError: Class constructor Greeter cannot be invoked without 'new' [at loadedCode (worker.js:77:43)]"
+    },
+    {
+      "request": "GET /loaded-class",
+      "status": 500,
+      "contentType": "application/json",
+      "body": "Worker failed: rejected: TypeError: Class constructor Greeter cannot be invoked without 'new' [at __rpcDes (<anonymous>:5075:19) <- at <anonymous>:5276:21 <- at async invoke (<anonymous>:5179:16)]"
+    },
+    {
+      "request": "WS /ws [\"one\",\"two\"]",
+      "messages": [
+        {
+          "message": "one",
+          "viaPrototype": {
+            "id": "conn-1"
+          },
+          "isWebSocket": true,
+          "open": 1
+        },
+        {
+          "message": "two",
+          "viaPrototype": {
+            "id": "conn-1"
+          },
+          "isWebSocket": true,
+          "open": 1
+        }
+      ]
+    }
+  ]
+}

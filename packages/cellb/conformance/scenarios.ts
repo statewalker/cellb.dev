@@ -377,6 +377,16 @@ export const scenarios: Record<string, Scenario> = {
     ],
   },
   "kv-values": { steps: [{ path: "/write" }, { path: "/read" }] },
+  "agents-host": {
+    steps: [
+      { path: "/env" },
+      { path: "/loaded" },
+      { path: "/loaded-class" },
+      { ws: "/ws", send: ["one", "two"], receive: 2 },
+    ],
+    // Cloudflare's behaviour, which the Agents SDK and partyserver rely on; celld differs.
+    judge: "workerd",
+  },
   "alarm-retry": { steps: [{ path: "/arm?in=300" }, { waitMs: 9000 }, { path: "/" }] },
   "r2-api": {
     steps: ["put", "head", "get", "range", "json", "list", "delete"].map((s) => ({
@@ -491,6 +501,8 @@ scenarios["wd-sql-default"] = {
 
 // celld's deviations from workerd (conformance/record-workerd.ts); cellb follows celld.
 const workerdDiffers: Record<string, string> = {
+  "agents-host":
+    "celld leaves cloudflare:workers' `env` empty while the module is evaluated, and its `exports` are the module's own classes, not ctx.exports stubs",
   "do-ids":
     "ids are keyed per deployment (other hex); celld's invalid-namespace message has no final period",
   "storage-details":

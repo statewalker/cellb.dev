@@ -18,11 +18,13 @@ import {
   moduleText,
   outboundFetch,
 } from "../bindings/worker-loader.js";
+import { ctxExports } from "../core/handles.js";
 import type { WorkerModule } from "../core/runtime.js";
 import { isolatedModuleLoader } from "../isolate/host.js";
 import type { PortLike } from "../isolate/protocol.js";
 import type { CellStorage } from "../ports.js";
 import { parseJsonc } from "./jsonc.js";
+import { registerWorkerScope, type WorkerScope, workerScope } from "./worker-scope.js";
 import {
   createProjectRuntime,
   type ProjectHost,
@@ -60,13 +62,8 @@ export async function bundleWorker(
   opts: { nodeCompat?: boolean; standardBinaryType?: boolean; scope?: WorkerScope } = {},
 ): Promise<WorkerModule> {
   // `env` and `exports` of `cloudflare:workers` belong to one Worker: the bundle reads them
-  // from its own scope (empty objects for code that has none).
-  const scopeKey = opts.scope ? `s${Math.random().toString(36).slice(2)}` : "";
-  if (opts.scope) {
-    const g = globalThis as Record<string, unknown>;
-    g.__cellsWorkerScopes ??= {};
-    (g.__cellsWorkerScopes as Record<string, unknown>)[scopeKey] = opts.scope;
-  }
+  // from its own scope.
+  const scopeKey = opts.scope ? registerWorkerScope(opts.scope) : "";
   // Loaded code gets a bundle-local `fetch` (globalOutbound policy)…
   const outboundKey = outbound ? `o${Math.random().toString(36).slice(2)}` : "";
   if (outbound) {
@@ -204,10 +201,12 @@ export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
   const outbound = outboundFetch(code);
   const modules: Record<string, string> = {};
   for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
-  return (await bundleWorker({ modules, main: code.mainModule }, logs, outbound)) as Record<
-    string,
-    unknown
-  >;
+  // This realm runs the project too: the loaded code's `env`/`exports` are its own.
+  const env = code.env ?? {};
+  const scope = workerScope(env);
+  const module = await bundleWorker({ modules, main: code.mainModule }, logs, outbound, { scope });
+  scope.bind({ env, exports: ctxExports(module, env) });
+  return module;
 };
 
 export async function loadNodeProject(
@@ -242,40 +241,6 @@ export async function loadNodeProject(
   });
   scope.bind(project.runtime);
   return { ...project, config };
-}
-
-/** `env` and `exports` of `cloudflare:workers` for one Worker's bundle. */
-interface WorkerScope {
-  readonly env: Record<string, unknown>;
-  readonly exports: Record<string, unknown>;
-  /** Points both at the runtime's own objects (the ones `fetch` and `ctx.exports` see). */
-  bind(runtime: { env: Record<string, unknown>; exports: Record<string, unknown> }): void;
-}
-
-/** A scope whose `env` serves `vars` until it is bound to a runtime. */
-function workerScope(vars: Record<string, unknown> = {}): WorkerScope {
-  let env: Record<string, unknown> = { ...vars };
-  let exports: Record<string, unknown> = {};
-  const forward = (target: () => Record<string, unknown>) =>
-    new Proxy({} as Record<string, unknown>, {
-      get: (_, k) => Reflect.get(target(), k),
-      set: (_, k, v) => Reflect.set(target(), k, v),
-      has: (_, k) => Reflect.has(target(), k),
-      deleteProperty: (_, k) => Reflect.deleteProperty(target(), k),
-      ownKeys: () => Reflect.ownKeys(target()),
-      getOwnPropertyDescriptor: (_, k) => {
-        const d = Reflect.getOwnPropertyDescriptor(target(), k);
-        return d && { ...d, configurable: true };
-      },
-    });
-  return {
-    env: forward(() => env),
-    exports: forward(() => exports),
-    bind(runtime) {
-      env = runtime.env;
-      exports = runtime.exports;
-    },
-  };
 }
 
 /** Reads an assets directory into "/path" → bytes (what `celld deploy` uploads). */

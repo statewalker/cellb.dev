@@ -13,6 +13,7 @@ export {
   caches,
   HTMLRewriter,
   WebSocketRequestResponsePair,
+  WorkersWebSocket as WebSocket,
 } from "cellb:ws";
 
 /** The project's `websocket_standard_binary_type` flag ("cellb:compat", one per bundle). */
