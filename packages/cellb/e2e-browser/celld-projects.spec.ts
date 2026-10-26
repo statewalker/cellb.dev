@@ -5,6 +5,7 @@ import { bundleProjectForBrowser } from "../conformance/browser-bundle.ts";
 import {
   alignBrowserDifferences,
   alignDocumentedDifferences,
+  goldenDir,
   scenarios,
 } from "../conformance/scenarios.ts";
 import { startReferenceServer } from "../test/ws-reference-server.ts";
@@ -14,7 +15,12 @@ import { bundleGaps } from "./browser-gaps.ts";
 // a browser — Dedicated Worker, SQLite on OPFS, browser fetch/WebSocket/Request — and compared
 // with the transcripts and logs recorded from the real celld 0.6.2.
 const golden = (name: string) =>
-  JSON.parse(readFileSync(join(import.meta.dirname, `../conformance/golden/${name}.json`), "utf8"));
+  JSON.parse(
+    readFileSync(
+      join(import.meta.dirname, `../conformance/${goldenDir(name)}/${name}.json`),
+      "utf8",
+    ),
+  );
 
 for (const name of Object.keys(scenarios)) {
   const s = scenarios[name];

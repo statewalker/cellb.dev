@@ -18,8 +18,6 @@ those transcripts, and that cellb matches:
 - An inbound request has `request.cf` set to `{}`.
 - A Durable Object `stub.fetch()` whose handler throws rejects with `rejected: <name>: <message>`; RPC
   errors keep their name, message and own properties such as `code`.
-- Values crossing a stub are structured-cloned; functions pass by reference; an `RpcTarget` is
-  refused with `RPC stubs cannot cross isolate boundaries yet.`
 - SQL refusals use celld's authorizer wording (`not authorized`, `access to _cf_KV.scope is
   prohibited`); `sql.exec()` with several statements sums `rowsWritten`.
 - D1 sessions return the bookmark `celld:primary`; ATTACH, TEMP objects and VACUUM are refused as by
@@ -99,6 +97,8 @@ cellb follows celld, including its deviations from Cloudflare, with these except
 | A column named `_cf_col`, a string literal `'_cf_x'`, `ALTER TABLE … RENAME TO _cf_t2` | allowed | rejected |
 | `new Response("text")` | no `Content-Type` | `text/plain;charset=UTF-8`, as Fetch adds it; aligned in the comparison |
 | R2 ETags in `celld dev` | a store generation number | the store's etag; compared by type |
+| `storage.put()` of a `ctx.exports.X({ props })` stub or class handle | refused (`function () {} could not be cloned.`) | stored as a V8 host object, as on workerd; celld cannot read it back |
+| An `RpcTarget`, function or stub passed through a stub, or into a loaded Worker's `env`, `props` or arguments | refused (`RPC stubs cannot cross isolate boundaries yet.`, `function () {} could not be cloned.`, `Worker Loader env supports only Service Binding capabilities.`) | passed by reference, as on workerd; judged against workerd's recording ([conformance.md](conformance.md#where-cellb-follows-workerd-instead)) |
 
 A Durable Object that keeps out of `_cf_` names sees no difference in the stricter rows.
 

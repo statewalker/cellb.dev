@@ -38,9 +38,18 @@ export interface Scenario {
   knownGap?: string;
   /** Why workerd (conformance/record-workerd.ts) answers differently from celld's golden. */
   workerdDiffers?: string;
+  /**
+   * Whose recording cellb must match: celld's (`golden/`, the default) or workerd's
+   * (`golden-workerd/`), where cellb follows workerd on purpose (stubs by reference).
+   */
+  judge?: "workerd";
   /** Keep each distinct log line once (periodic events whose count depends on timing). */
   uniqueLogs?: boolean;
 }
+
+/** The recordings a scenario is compared with: celld's, or workerd's for `judge: "workerd"`. */
+export const goldenDir = (name: string) =>
+  scenarios[name].judge === "workerd" ? "golden-workerd" : "golden";
 
 /** Formats console arguments as celld prints them: strings raw, other values as JSON. */
 export function formatLog(args: unknown[]): string {
@@ -354,6 +363,12 @@ export const scenarios: Record<string, Scenario> = {
     // stack frames point into each engine's own bundle
     textMask: [[" \\[at [^\\]]*\\]", ""]],
   },
+  // An RpcTarget returned by a Durable Object method: celld refuses it, workerd passes it.
+  "worker-details-rpc-target": {
+    project: "worker-details",
+    steps: [{ path: "/rpc-target" }],
+    judge: "workerd",
+  },
   "ws-details": {
     steps: [
       { ws: "/?tag=red", send: ["hello", "ping", "info"], receive: 3 },
@@ -429,14 +444,21 @@ const wdOverrides: Record<string, Partial<Scenario>> = {
     knownGap:
       "no global addEventListener('unhandledrejection') in Node; celld's own assert rethrows its 'rejected: … [at …]' error",
   },
-  "wd-stub-storage": {
-    knownGap: "no ctx.exports.<Entrypoint>({ props }) stubs to store; celld refuses to clone them",
-  },
+  "wd-stub-storage": { judge: "workerd" },
   "wd-websocket-hibernation": {
     knownGap: "celld fails this test ('got '); cellb passes it, as workerd does",
   },
   "wd-websocket-constructor": { steps: [{ path: `/?skip=${WS_GAPS.join(",")}` }] },
   "wd-worker-loader": { steps: [{ path: `/?skip=${WL_GAPS.join(",")}` }] },
+};
+// Stubs passed into a loaded Worker (env, props, arguments): workerd passes them, celld refuses.
+const WL_STUBS = ["basics", "doStubViaEnv", "doStubViaProps", "doStubViaRpcParam"];
+scenarios["wd-worker-loader-stubs"] = {
+  project: "wd-worker-loader",
+  steps: [
+    { path: `/?skip=${[...WL_AGREE, ...WL_GAPS.filter((n) => !WL_STUBS.includes(n))].join(",")}` },
+  ],
+  judge: "workerd",
 };
 scenarios["wd-websocket-constructor-gaps"] = {
   project: "wd-websocket-constructor",
@@ -448,7 +470,7 @@ scenarios["wd-worker-loader-gaps"] = {
   project: "wd-worker-loader",
   steps: [{ path: `/?skip=${WL_AGREE.join(",")}` }],
   knownGap:
-    "no plain-object ctx.exports; WorkerCode compatibilityFlags, DO stubs in env/props; celld refuses allowExperimental and stub cloning",
+    "WorkerCode compatibilityFlags, getDurableObjectClass props, abortIsolateDynamic builds, gc(); celld refuses allowExperimental and stub cloning",
 };
 scenarios["miniflare2-details-relative-url"] = {
   project: "miniflare2-details",
@@ -474,7 +496,14 @@ const workerdDiffers: Record<string, string> = {
   "storage-details":
     "celld stores undefined, coerces setAlarm(non-date) to a number and needs no alarm() handler; other SQL error texts",
   "worker-details":
-    "celld wraps handler failures in a JSON 'Worker failed' body, accepts non-Response returns, and refuses cross-isolate RPC stubs",
+    "celld wraps handler failures in a JSON 'Worker failed' body and accepts non-Response returns",
+  "worker-details-rpc-target": "celld refuses an RpcTarget across a stub; workerd passes it",
+  "wd-worker-loader":
+    "celld refuses `data` modules and does not point TypeScript sources at worker-bundler",
+  "wd-worker-loader-gaps":
+    "workerd passes all but facetUafRegression (no gc()); celld refuses allowExperimental and stub cloning",
+  "wd-worker-loader-stubs":
+    "workerd passes stubs into a loaded Worker; celld refuses to clone them",
   "ws-details": "celld rejects with Error (workerd TypeError) and allows send() before accept()",
   "wd-sql":
     "celld lacks getCurrentBookmark() and keeps an alarm set inside a rolled-back transactionSync()",

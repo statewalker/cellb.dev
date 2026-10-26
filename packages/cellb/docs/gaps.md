@@ -12,35 +12,41 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 |---|---|
 | `wd-sql-default` | `sql.ingest()` (experimental) does not exist. celld itself stops at an ingest syntax-error message, so even with it the two agree only up to there. |
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
-| `wd-stub-storage` | No storable `ctx.exports.<Entrypoint>({ props })` stubs. celld refuses to clone them too, differently. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
-| `wd-worker-loader-gaps` | No plain-object `ctx.exports` entries; `WorkerCode.compatibilityFlags` and Durable Object stubs in a loaded Worker's `env` or `props` are not supported. celld refuses `allowExperimental` and stub cloning, so most of these exports fail on celld as well. |
+| `wd-worker-loader-gaps` | `WorkerCode.compatibilityFlags`; `abortIsolateDynamic*` do not build; `getDurableObjectClass(name, { props })` ignores its props; `facetUafRegression` needs `gc()`. celld refuses `allowExperimental`, so most of these exports fail on celld as well. |
 | `miniflare2-details-relative-url` | A stub's `fetch()` of a relative URL: celld passes it to the object, which fails on `new URL()`; cellb rejects at the stub, as workerd does. |
 
-## RPC across isolates is poorer than workerd's
+## Stubs pass by reference, as on workerd, except between nodes
 
-- An `RpcTarget` passed through a stub is refused with `RPC stubs cannot cross isolate boundaries
-  yet.` (`src/core/namespace.ts`). Functions pass by reference only inside one runtime.
-- A loaded Worker's isolate talks to its parent over `@statewalker/webrun-rpc`
-  (`src/isolate/protocol.ts`). Errors keep their own properties (`name`, `code`) and bodies stream,
-  but values that cannot be cloned become stubs only as `env` entries — never as arguments, results
-  or `props`. Passing one fails with `DataCloneError`. A fetch into a loaded Worker crosses as
-  HTTP/1.1, so hop-by-hop request headers (`Connection`, `Upgrade`, `TE`, `Keep-Alive`) do not
-  reach it.
-- celld refuses the same things (`function () {} could not be cloned`, `Worker Loader env supports
-  only Service Binding capabilities.`), so cellb matches the judge. workerd passes stubs.
-  **Open decision:** keep celld's refusal, or follow workerd. Following workerd would make those
-  cases disagree with the celld goldens and be judged against `conformance/golden-workerd/` instead.
+- Functions, `RpcTarget`s and stubs pass by reference through a stub (`cross` in
+  `src/core/handles.ts`) and into or out of a loaded Worker's isolate, in its `env`, `props`,
+  arguments and results (`src/isolate/protocol.ts`). celld refuses them; these cases are judged
+  against workerd ([conformance.md](conformance.md#where-cellb-follows-workerd-instead)).
+- **There is no promise pipelining**: `stub.a().b()` waits for `a()` before calling `b()`.
+- **A stub into an isolate holds its value until released.** `stub[Symbol.dispose]()` or garbage
+  collection of the stub releases it; then the value's own `Symbol.dispose` runs. A stub used after
+  `Symbol.dispose` rejects with `A stub was used after it was disposed.`
+- **Stubs do not cross to another node.** An object owned by another tab, worker or peer is called
+  over cells-http or celld's tunnel with V8-serialized arguments and results: a function, `RpcTarget`
+  or stub in either is refused with `DataCloneError: Functions, RpcTargets and stubs cannot be sent
+  to another node: they pass by reference only within one runtime.` (`toAnotherNode` in
+  `src/core/handles.ts`).
+- **A loaded Worker's `globalOutbound` Fetcher does not route its `fetch()` in an isolate.** The
+  isolate sees it only as `env.__outbound`; its global `fetch` is the realm's own (`null` still
+  blocks it). Loaded in the host's realm, the Fetcher does route `fetch()`.
+- **Only `ctx.exports.X({ props })` stubs and class handles can be stored** in Durable Object
+  storage (as V8 host objects, `[name, props]`, restored against the Worker's `ctx.exports`). celld
+  cannot read such a value; other stubs and `RpcTarget`s are refused with `DataCloneError`.
+- A fetch into a loaded Worker crosses as HTTP/1.1, so hop-by-hop request headers (`Connection`,
+  `Upgrade`, `TE`, `Keep-Alive`) do not reach it.
 
 ## Planned work
 
 Each item is proven by a conformance case changing state (a `knownGap` removed, or a new step
 recorded on celld or workerd), not by a test of the mechanism alone.
 
-- **Stubs by reference across isolates** (functions, `RpcTarget`, stubs as arguments, results, `env`
-  and `props`) — only if the RPC decision above goes to workerd.
-- **Small known gaps**, one at a time: plain-object `ctx.exports`; `sql.ingest()` only if wanted.
+- **Small known gaps**, one at a time: `sql.ingest()` only if wanted.
 
 ## Firefox and WebKit
 

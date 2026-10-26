@@ -1,4 +1,5 @@
 import { serializeError } from "@statewalker/webrun-streams";
+import { toAnotherNode } from "../core/handles.js";
 import { DurableObjectNamespace, type DurableObjectStub } from "../core/namespace.js";
 import { withUrl } from "../core/request-body.js";
 import type { CellRuntime } from "../core/runtime.js";
@@ -100,7 +101,7 @@ export function cellsHttpHandler(
       if (kind === "rpc") {
         const args = codec.decode(new Uint8Array(await req.arrayBuffer())) as unknown[];
         const result = await stub[req.headers.get(H.method) ?? ""](...args);
-        return new Response(codec.encode(result) as BodyInit, {
+        return new Response(codec.encode(toAnotherNode(result)) as BodyInit, {
           headers: { "content-type": CT_VALUES },
         });
       }

@@ -7,6 +7,7 @@ import { projectDir } from "../conformance/projects.js";
 import {
   alignDocumentedDifferences,
   formatLog,
+  goldenDir,
   normalizeLogs,
   runScenario,
   scenarios,
@@ -19,8 +20,11 @@ import { startReferenceServer } from "./ws-reference-server.js";
 
 // celld's own examples, unchanged, from their own wrangler.jsonc, must answer exactly as
 // the real celld 0.6.3 answered (conformance/golden, recorded by conformance/record-celld.ts).
+// A scenario judged by workerd (`judge: "workerd"`) is compared with conformance/golden-workerd.
 const golden = (name: string) =>
-  JSON.parse(readFileSync(join(__dirname, `../conformance/golden/${name}.json`), "utf8"));
+  JSON.parse(
+    readFileSync(join(__dirname, `../conformance/${goldenDir(name)}/${name}.json`), "utf8"),
+  );
 
 async function target(
   name: string,

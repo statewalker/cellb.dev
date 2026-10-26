@@ -1,7 +1,7 @@
 import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
 import { ISOLATED, type IsolatedClass } from "../core/handles.js";
 import type { CellStorage } from "../ports.js";
-import { hostPort, type PortLike, splitEnv } from "./protocol.js";
+import { hostPort, type PortLike } from "./protocol.js";
 
 /**
  * Worker Loader whose code runs in a separate realm per loaded Worker (an isolate). Returns
@@ -19,17 +19,14 @@ export function isolatedModuleLoader(opts: {
   prepare(id: string, code: WorkerCode): Promise<{ source?: string; url?: string }>;
 }): ModuleLoader {
   return async (id: string, code: WorkerCode, logs?: LogSink) => {
-    const env = (code.env ?? {}) as Record<string, any>;
-    const { plain, stubs } = splitEnv(env);
+    // The env crosses as any call does: bindings and other stubs by reference.
+    const env: Record<string, unknown> = { ...code.env };
     const outbound = code.globalOutbound === null ? "blocked" : undefined;
-    if (code.globalOutbound && typeof code.globalOutbound === "object") stubs.push("__outbound");
+    if (code.globalOutbound && typeof code.globalOutbound === "object")
+      env.__outbound = code.globalOutbound;
     const where = await opts.prepare(id, code);
     const isolate = opts.spawn(id);
     const { call, fetch } = await hostPort(isolate.port, async (m) => {
-      if (m.type === "stub") {
-        const target = m.key === "__outbound" ? code.globalOutbound : env[m.key];
-        return (target as any)[m.method](...m.args);
-      }
       if (m.type === "durable") {
         const st = opts.storage?.() ?? {};
         if (m.op === "load") return st.backup?.load?.(m.cellKey);
@@ -54,8 +51,7 @@ export function isolatedModuleLoader(opts: {
     const exports = await call<Record<string, string>>({
       type: "load",
       ...where,
-      env: plain,
-      stubs,
+      env,
       outbound,
     });
     const facade = (name: string) =>

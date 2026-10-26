@@ -361,7 +361,7 @@ theirs, `pnpm -r typecheck` and `pnpm biome check .` exit 0.
 | D7 | Persisted/protocol names (DB names, OPFS pools, Web Locks, peer address) | **rename now**, no migration code: nothing is deployed |
 | D8 | Glossary-driven code renames | **glossary first**: CONTEXT.md via grilling; code renames only where a name actively misleads, as separate reviewed commits |
 | D9 | ADRs | **all nine** (`packages/cellb/docs/adr/`): 0001 celld's storage format is native; 0002 vendored celld JavaScript for KV, Queues and Workflows; 0003 celld as the conformance oracle; 0004 input/output gates without AsyncLocalStorage; 0005 fixed-N shards in the browser; 0006 WebSockets over MessagePorts; 0007 one isolate (realm) per loaded Worker; 0008 synchronous `idFromName`; 0009 leases chosen by deployment (Web Lock per shard in an origin, celld's ownership records on a fleet bucket) |
-| D10 | RPC target: celld (refuses stubs across isolates) or workerd (passes them) — see §7 | **open**, needed before F3 |
+| D10 | RPC target: celld (refuses stubs across isolates) or workerd (passes them) — see §7 | **workerd** (decided 2026-10-26): stubs, functions and `RpcTarget` pass by reference; those cases are judged against `golden-workerd` (`judge: "workerd"`) and disagree with celld on purpose |
 
 ## 5. Grilling scenarios (domain-modeling)
 
@@ -444,10 +444,15 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   the cells-http-over-port path cellb already has (`transport/port.ts`) instead of
   `arrayBuffer()` copies. Proof: a loaded Worker streams a response whose first chunk arrives
   before its last is produced — a new step, recorded on celld.
-- [ ] **F3 stubs by reference** (only if D10 = workerd). Cap'n Web over the isolate port and over
+- [x] **F3 stubs by reference** (only if D10 = workerd). Cap'n Web over the isolate port and over
   `ObjectEndpoint.call`; `RpcTarget`, functions and stubs as arguments, results, env and `props`.
   Proof: `wd-stub-storage` and the `basics`/`doStubVia*` exports of `wd-worker-loader-gaps`
   judged against `golden-workerd` (new `judge: "workerd"` field in the scenario), green.
+  Done on `feat/rpc-stubs` (plan `2026-10-26-rpc-stubs.md`) with the §7 reference table, not Cap'n
+  Web: Cap'n Web 0.12.0 refuses `Map`, `Set` and `RegExp`, drops custom error names and knows only
+  its own stubs. Green against workerd: `wd-stub-storage`, `wd-worker-loader-stubs` (`basics`,
+  `doStubViaEnv`, `doStubViaProps`, `doStubViaRpcParam`), `worker-details-rpc-target`; `test/p10f`
+  for disposal. Stubs still do not cross to another node.
 - [x] **F4 small known gaps** (D10-independent) — done on `feat/isolate-rpc` (binaryType, wasm/data modules, `ctx.exports.<Entrypoint>`; `sql.ingest()` skipped; plain-object `ctx.exports` stays a gap), one commit each, each removing a `knownGap`
   or adding a recorded step: WebSocket `binaryType` per project (`websocket_standard_binary_type`,
   the three global paths); `WorkerCode` data/wasm module types; `ctx.exports.<Entrypoint>`.

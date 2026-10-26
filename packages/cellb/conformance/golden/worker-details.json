@@ -46,11 +46,6 @@
           "undef": true
         },
         "fn": "function",
-        "target": {
-          "name": "Error",
-          "message": "RPC stubs cannot cross isolate boundaries yet.",
-          "code": null
-        },
         "missing": {
           "name": "TypeError",
           "message": "nope is not a function",

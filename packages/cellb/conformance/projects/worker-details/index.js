@@ -56,12 +56,15 @@ export default {
             return { date: v.date instanceof Date, map: v.map instanceof Map, bytes: [...v.bytes], big: typeof v.big, undef: "undef" in v };
           }),
           fn: await tryIt(async () => typeof (await stub.fn())),
+          missing: await tryIt(() => stub.nope()),
+          objectThrow: await tryIt(() => stub.fetch("http://o/throw")),
+        });
+      case "/rpc-target":
+        return Response.json({
           target: await tryIt(async () => {
             const c = await stub.target();
             return [await c.inc(), await c.inc()];
           }),
-          missing: await tryIt(() => stub.nope()),
-          objectThrow: await tryIt(() => stub.fetch("http://o/throw")),
         });
       case "/cf":
         return Response.json({ hasCf: typeof request.cf, keys: Object.keys(request.cf ?? {}).sort() });

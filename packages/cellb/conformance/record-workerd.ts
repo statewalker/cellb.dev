@@ -25,6 +25,7 @@ const MAPPED = new Set([
   "vars",
   "durable_objects",
   "migrations",
+  "worker_loaders",
 ]);
 // Flags only celld knows (workerd refuses to start on them).
 const CELLD_ONLY_FLAGS = new Set(["sqlite_vec"]);
@@ -49,6 +50,7 @@ for (const name of names) {
     compatibility_flags?: string[];
     vars?: Record<string, string>;
     durable_objects?: { bindings: { name: string; class_name: string }[] };
+    worker_loaders?: { binding: string }[];
   };
   const unmapped = [
     ...Object.keys(config).filter((k) => !MAPPED.has(k)),
@@ -74,6 +76,7 @@ for (const name of names) {
         { className: b.class_name, useSQLite: true },
       ]),
     ),
+    workerLoaders: Object.fromEntries((config.worker_loaders ?? []).map((l) => [l.binding, {}])),
   });
   try {
     const url = await mf.ready;

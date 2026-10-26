@@ -9,6 +9,7 @@ import {
   serveDuplexOverPort,
   structuredCodec,
 } from "@statewalker/webrun-rpc";
+import { cross, STUB } from "../core/handles.js";
 import { withUrl } from "../core/request-body.js";
 
 /**
@@ -17,12 +18,15 @@ import { withUrl } from "../core/request-body.js";
  * to the host over one MessagePort, multiplexed with `@statewalker/webrun-rpc`. The host keeps
  * everything else: bindings in the loaded Worker's env are reached through stubs, and its logs
  * come back for Tail Workers. Errors cross with their own properties (`name`, `code`, …).
+ * Functions, `RpcTarget`s and stubs anywhere in a call or result cross by reference (as
+ * workerd passes them): the far side gets a stub whose calls come back.
  *
  * Calls (one port, both directions):
- *   host → isolate   load {source|url, plain env, stub names, outbound}   → loaded {exports}
+ *   host → isolate   load {source|url, env, outbound}                     → loaded {exports}
  *                    call {name, method, args, props}                     → result
- *   isolate → host   stub {key, method, args}                             → result
- *                    log {level, args}
+ *   isolate → host   log {level, args}
+ *   either way       ref {id, method?, args}  (a call on a stub of the other side's value)
+ *                    release {id}             (that stub was disposed or collected)
  * Fetches: one port per request (meta: its target and URL), HTTP/1.1 with streamed bodies,
  * as cells-http over a port (src/transport/port.ts).
  */
@@ -97,9 +101,83 @@ export function isolatePort(port: PortLike, handle: Handle, fetch: Fetch): { cal
   return { call: (msg) => calls!(msg) };
 }
 
+/** Marks a value passed by reference in a message: `{ [REF]: id }`. */
+const REF = "\u0000cellb.ref";
+
+/**
+ * The calls of one port, with values passed by reference: each side keeps the values it
+ * passed (by id, and how many ids hold each); the other side calls them through stubs. A
+ * stub's `Symbol.dispose` (or its garbage collection) releases its id; the last release of a
+ * value runs the value's own `Symbol.dispose`, as workerd does for an `RpcTarget`.
+ */
 function callsOver(port: MessageTarget, handle: Handle): Call {
-  listenPort(port, (msg) => handle(msg).then(cloneable).catch(throwOwn));
-  return async (msg) => callPort(port, cloneable(msg), { timeout: NO_TIMEOUT });
+  const values = new Map<number, any>();
+  const holders = new Map<unknown, number>();
+  let lastId = 0;
+  const encode = (v: unknown) =>
+    cloneable(
+      cross(
+        v,
+        (x) => {
+          values.set(++lastId, x);
+          holders.set(x, (holders.get(x) ?? 0) + 1);
+          return { [REF]: lastId };
+        },
+        (x) => x, // the port copies the rest
+      ),
+    );
+  const release = (id: number) => {
+    const v = values.get(id);
+    if (!values.delete(id)) return;
+    const n = (holders.get(v) ?? 1) - 1;
+    if (n) holders.set(v, n);
+    else {
+      holders.delete(v);
+      v[Symbol.dispose]?.();
+    }
+  };
+  const collected = new FinalizationRegistry<number>((id) => {
+    call({ type: "release", id }).catch(() => {});
+  });
+  const stubOf = (id: number) => {
+    const invoke = (method: string | undefined, args: unknown[]) =>
+      call({ type: "ref", id, method, args });
+    const stub: any = new Proxy(() => {}, {
+      apply: (_t, _this, args) => invoke(undefined, args),
+      get(_t, prop) {
+        if (prop === STUB) return true;
+        if (prop === Symbol.dispose)
+          return () => {
+            collected.unregister(stub);
+            call({ type: "release", id }).catch(() => {});
+          };
+        if (prop === "then" || typeof prop === "symbol") return undefined;
+        return (...args: unknown[]) => invoke(prop, args);
+      },
+    });
+    collected.register(stub, id, stub);
+    return stub;
+  };
+  // Messages arrive as fresh copies: stubs replace the markers in place.
+  const decode = (v: any): any => {
+    if (Array.isArray(v)) for (let i = 0; i < v.length; i++) v[i] = decode(v[i]);
+    else if (v && Object.getPrototypeOf(v) === Object.prototype) {
+      if (typeof v[REF] === "number") return stubOf(v[REF]);
+      for (const k of Object.keys(v)) v[k] = decode(v[k]);
+    }
+    return v;
+  };
+  const serve = async (m: any) => {
+    if (m.type === "release") return release(m.id);
+    if (m.type !== "ref") return handle(m);
+    const v = values.get(m.id);
+    if (v === undefined) throw new Error("A stub was used after it was disposed.");
+    return m.method === undefined ? v(...m.args) : v[m.method](...m.args);
+  };
+  listenPort(port, (msg) => serve(decode(msg)).then(encode).catch(throwOwn));
+  const call: Call = async (msg) =>
+    decode(await callPort(port, encode(msg), { timeout: NO_TIMEOUT }));
+  return call;
 }
 
 /** Errors cross with their own properties (so `code` does); `name` is inherited, so copy it. */
@@ -135,22 +213,4 @@ function messageTarget(port: PortLike): MessageTarget {
       listeners.delete(fn);
     },
   };
-}
-
-/** Plain (structured-cloneable) env values travel; anything else becomes a stub by key. */
-export function splitEnv(env: Record<string, unknown>): {
-  plain: Record<string, unknown>;
-  stubs: string[];
-} {
-  const plain: Record<string, unknown> = {};
-  const stubs: string[] = [];
-  for (const [k, v] of Object.entries(env)) {
-    try {
-      if (typeof v === "function") throw new Error("function");
-      plain[k] = structuredClone(v);
-    } catch {
-      stubs.push(k);
-    }
-  }
-  return { plain, stubs };
 }

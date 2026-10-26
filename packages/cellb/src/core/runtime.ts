@@ -7,12 +7,12 @@ import {
   type ValueCodec,
 } from "../ports.js";
 import { httpEndpoint, postVia, type Send } from "../transport/cells-link.js";
-import { v8Codec } from "../v8/codec.js";
+import { v8Codec, v8CodecWith } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
 import type { ExecutionContext } from "./durable-object.js";
-import { ctxExports, type DurableObjectClass } from "./handles.js";
+import { ctxExports, type DurableObjectClass, storedExports } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
 import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./namespace.js";
 import { CellOwnedElsewhereError, ObjectHost } from "./object-host.js";
@@ -134,6 +134,8 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   const env: Record<string, unknown> = { ...opts.vars };
   const bindingClasses: Record<string, string> = {};
   const exportsObj = ctxExports(opts.worker, env);
+  // Storage values: V8 serialization; ctx.exports stubs are stored too (workerd).
+  const storageCodec = opts.codec ?? v8CodecWith(storedExports(exportsObj));
   const clock = opts.clock ?? systemClock;
   // Hosts by class name: the alarm scheduler wakes objects that nobody is calling.
   const hostsByClass = new Map<string, (id: DurableObjectId) => ObjectHost>();
@@ -224,7 +226,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           env,
           openSql: opts.openSql,
           durability,
-          codec,
+          codec: storageCodec,
           waitUntil,
           backup,
           onAlarmChange: (at) => alarms.set({ cellKey, className, idHex: id.toString() }, at),

@@ -1,4 +1,4 @@
-# Conformance: celld is the judge
+# Conformance: celld is the judge, workerd for stubs
 
 cellb is not tested against expectations written here alone. Each Workers or Durable Objects
 behaviour that celld also has is run on the real celld, recorded, and replayed against cellb in Node
@@ -16,6 +16,24 @@ difference is either fixed or pinned.
 celld publishes no tests of its own, so its examples, its documentation and workerd's tests are the
 executable specification. [ADR 0003](adr/0003-celld-as-conformance-oracle.md) records why celld,
 not workerd, is the judge.
+
+## Where cellb follows workerd instead
+
+celld refuses stubs, functions and `RpcTarget`s across a stub or into a loaded Worker
+(`function () {} could not be cloned.`, `RPC stubs cannot cross isolate boundaries yet.`); workerd
+passes them by reference, and so does cellb. A scenario with `judge: "workerd"` is compared with
+`conformance/golden-workerd/<name>.json` instead of celld's golden, in Node and in Chromium. Its
+celld transcript is recorded too, so the difference stays on file, and it carries a
+`workerdDiffers` line. The judged-by-workerd scenarios:
+
+| Scenario | What workerd does and celld refuses |
+|---|---|
+| `wd-stub-storage` | stores `ctx.exports.X({ props })` stubs and class handles in Durable Object storage |
+| `wd-worker-loader-stubs` | passes `ctx.exports` stubs and Durable Object stubs into a loaded Worker's `env`, `props` and arguments |
+| `worker-details-rpc-target` | returns an `RpcTarget` from a Durable Object method as a stub |
+
+Every other scenario is still judged by celld; a new `judge: "workerd"` needs a reason of this kind,
+not a convenience.
 
 ## How a project is compared
 
@@ -51,8 +69,8 @@ differently. The workerd test configuration (`.wd-test`) is translated by hand i
   is expected to fail (`it.fails`): if cellb starts to match, the test turns red and the marker must
   go. Chromium skips it. The current list is in [gaps.md](gaps.md).
 - **`workerdDiffers`** marks a project where workerd answers differently from celld.
-  `conformance/record-workerd.ts` runs the scenarios that use only Durable Objects and `vars` on
-  workerd through Miniflare 4 (the pinned `miniflare` devDependency), writes
+  `conformance/record-workerd.ts` runs the scenarios that use only Durable Objects, `vars` and
+  Worker Loaders on workerd through Miniflare 4 (the pinned `miniflare` devDependency), writes
   `conformance/golden-workerd/`, and fails when a pinned difference no longer differs. Projects with
   other bindings are skipped: those are simulators, not workerd.
 
@@ -81,6 +99,8 @@ setup. `MUTANTS=0,3` runs a subset.
   remove the `knownGap` entry and record the change in [gaps.md](gaps.md).
 - **`record-workerd.ts` prints `agrees with celld, but workerdDiffers is set (stale)`** and fails.
   Remove the `workerdDiffers` line.
+- **A `judge: "workerd"` scenario fails after re-recording with `record-workerd.ts`.** The workerd
+  golden is the expectation there: a change in it is a change in the target, not noise.
 - **Goldens recorded on another celld version disagree.** Bump `CELLD_VERSION` in
   `scripts/interop-env.sh` and re-record all goldens together.
 - **`cron` takes a real minute**: it waits for a minute boundary, because the celld golden was
