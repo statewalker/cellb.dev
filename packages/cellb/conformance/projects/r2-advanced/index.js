@@ -38,6 +38,8 @@ export default {
         length: text.length,
         partNumbers: [part1.partNumber, part2.partNumber],
         abortedGone: (await B.head("gone.bin")) === null,
+        // A multipart object has no MD5 checksum.
+        md5: got.checksums.md5 !== undefined || obj.checksums.md5 !== undefined,
       });
     }
     return new Response("unknown op", { status: 404 });
