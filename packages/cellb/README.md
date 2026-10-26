@@ -1,106 +1,245 @@
-# webrun-cells
+# @statewalker/cellb
 
-Prototype of an **isomorphic Durable Objects runtime**: Cloudflare/celld-style Workers and
-Durable Objects (SQLite storage, gates, stubs and RPC, WebSockets) running **entirely in the
-browser** — a ServiceWorker as the single server, one Dedicated Worker per shard, SQLite on
-OPFS — and the **same core on a server** (Node, `node:sqlite`, worker threads, exclusive cell files).
+cellb is a Durable Objects runtime written in TypeScript that runs the same Workers code in a
+browser and in Node. A Worker module and its Durable Object classes, unmodified, get synchronous
+SQLite storage, input and output gates, stubs with `fetch` and RPC, alarms, WebSockets, Worker
+Loaders and facets. In a browser the cells live in SQLite on OPFS inside Dedicated Workers and are
+reached through a ServiceWorker; in Node they live in `node:sqlite`. Cells are stored exactly as
+celld stores them, so one cell can move between cellb in a browser, cellb in Node and celld nodes
+through one bucket.
 
-It is built on the statewalker stack: `webrun-rpc` + `webrun-http-streams` (HTTP over
-MessagePorts), `webrun-http-browser` (ServiceWorker ingress), `webrun-files` (backup store),
-`webrun-modules` (serving user code with `~deps` overrides).
+## Why it exists
 
-Everything here is a prototype: each aspect has tests that prove it and a findings note that
-explains what was learned. `docs/plan.md` is the plan; `docs/notes/NN-*.md` the notes.
+Workers and Durable Objects normally need a server: Cloudflare, workerd (which Miniflare wraps) or
+celld, all native binaries. That leaves out a browser tab, which can hold durable state in OPFS
+but cannot run a binary, accept a socket, or start a server. cellb is the runtime written for that
+constraint: pure TypeScript, synchronous SQLite through WebAssembly, HTTP through a ServiceWorker,
+WebSockets over MessagePorts. The same core runs in Node, so a project behaves the same on both.
 
-## Status
+celld is the reference, not an afterthought. cellb answers every recorded celld request the same
+way, stores cells in celld's format, and speaks celld's ownership and peer protocols, so a fleet can
+mix celld nodes, cellb nodes and browsers.
 
-308 unit tests + 51 skips + 7 known gaps (Node, incl. worker threads and child processes): 50 need
-the celld binary (`CELLD_BIN`; 358 pass with it), 1 is a documented deviation of Node's own WebSocket;
-176 Chromium end-to-end tests + 17 skips (incl. 2 × 19 WebSocket conformance cases), mutation harnesses:
-57/57 Node mutants and 9/9 browser mutants killed — each run preceded by a passing
-baseline of the unmutated copy.
+## How to use it
 
-## Aspects, code, tests, notes
+The package has three entry points, one per platform. Its sources are TypeScript (there is no build
+step yet), so import it through a bundler, Vite or vitest.
 
-| Aspect | Code | Tests | Note |
-|---|---|---|---|
-| Walking skeleton: Request → Worker → stub → SQLite → Response | `src/core/{runtime,namespace,id,object-host}.ts` | `test/p01-walking-skeleton.test.ts` | 01 |
-| Synchronous SQL, implicit transactions, KV over SQL (both drivers) | `src/core/{sql-storage,storage,codec}.ts`, `src/adapters/{node-sqlite,wasm-sqlite}.ts` | `test/p02-sync-sql-kv.test.ts` | 02 |
-| Input/output gates, write coalescing, reset of broken objects | `src/core/{gates,object-host,state}.ts` | `test/p03-gates.test.ts` | 03 |
-| Cells behind a port (worker thread / Dedicated Worker) | `src/transport/{port,cells-http}.ts` | `test/p04-port-host.test.ts`, `browser/e2e/cells.spec.ts` | 04, 05 |
-| One HTTP surface on webrun-wire (streaming, scheme, errors) | `src/transport/cells-http.ts` | `test/p04-port-host.test.ts` | 05 |
-| Shards, `CellRouter`, Web Locks, dead-owner detection | `src/router/*`, `browser/sharded/*` | `test/p05-router.test.ts`, `browser/e2e/sharded.spec.ts` | 06, 07 |
-| Server fencing: cell SQLite files in EXCLUSIVE locking mode | `src/adapters/node-sqlite.ts` | `test/p05c-exclusive-cells.test.ts` | 07 |
-| Durability: periodic backup callback, FilesApi, restore on open | `src/core/object-host.ts`, `src/adapters/files-backup.ts` | `test/p06a-backup.test.ts`, `browser/e2e/backup.spec.ts` | 11, 14 |
-| WebSockets over MessagePorts, injected via webrun-modules `~deps` | `src/ws/{client,server,frames}.ts` | `test/p07w-websocket.test.ts` | 12 |
-| WebSocket routing (SW ⇄ shards, cross-shard), heartbeat, webrun-modules in the SW | `src/ws/{control,sw-connector,upgrade}.ts`, `browser/sharded/modules.ts` | `test/p07x-websocket-routing.test.ts`, `browser/e2e/websocket.spec.ts` | 13 |
-| Reuse of Miniflare 4 simulators (KV, D1) and workerd's D1 client, unchanged | `scripts/vendor-miniflare.mjs`, `src/miniflare-compat/*`, `vendor/miniflare/*` | `test/p08a-miniflare-kv.test.ts`, `test/p08b-miniflare-d1.test.ts`, `browser/e2e/miniflare.spec.ts` | 16 |
-| Parity with celld: wrangler projects, differential tests against the real celld 0.6.3 (44 projects, all match in Node and in Chromium) | `src/project/*`, `src/bindings/{r2,r2-celld,celld-kv,celld-queues,celld-workflows,worker-loader}.ts`, `vendor/celld/*`, `src/core/{alarms,handles}.ts`, `conformance/*` | `test/p09-celld-conformance.test.ts`, `test/p07a-alarms.test.ts`, `test/p07h-websocket-hibernation.test.ts` | 17 |
-| The celld projects in Chromium (Dedicated Worker, OPFS, browser Worker Loader, sqlite-vec WASM) | `conformance/browser-bundle.ts`, `browser/projects/*`, `src/project/browser-modules.ts` | `browser/e2e/celld-projects.spec.ts` | 18 |
-| Projects served by an in-browser HTTP server (webrun-site-builder + webrun-site-host + webrun-modules), Worker Loader and facets over it | `src/project/site.ts`, `browser/site-projects/*` | `browser/e2e/site-projects.spec.ts` | 19 |
-| Transaction log (SQLite changesets on a FilesApi, RPO 0, snapshot + replay, epoch fencing), per-cell ownership, hibernation, more runtime APIs | `src/adapters/{files-changelog,wasm-session}.ts`, `src/bindings/{cache,html-rewriter}.ts`, `src/core/{sql-storage,object-host}.ts` | `test/p10-change-log.test.ts`, `test/p10b-ownership.test.ts`, `test/p07i-hibernation.test.ts`, `browser/e2e/changelog.spec.ts` | 20 |
-| Isolated loaded Workers (worker thread / Dedicated Worker per Worker), routing between nodes, nodejs_compat, HTMLRewriter (async), asset modes, cron catch-up, D1 migrations, Queues max_concurrency | `src/isolate/*`, `src/node-compat/*`, `src/bindings/{html-rewriter,d1-migrations,cron,celld-queues}.ts` | `test/p10c-peer-routing.test.ts`, `test/p08{d,e}-*.test.ts`, conformance projects | 21 |
-| Storage compatible with celld: LTX v3 logs in celld's bucket layout, celld's internal schema, V8-serialized values, SQLite WASM page hook — a cell moves celld ↔ webrun-cells | `src/ltx/*`, `src/v8/*`, `src/core/celld-schema.ts`, `src/adapters/{files-ltx,wasm-page-hook}.ts`, `src/bucket/*` | `test/p11*.test.ts`, `test/p12-v8-serialize.test.ts`, `browser/e2e/ltx.spec.ts` | 22, 23 |
-| WebSocket conformance: 19 WHATWG cases, native vs webrun-cells, Node and Chromium | `test/ws-conformance.ts`, `test/ws-reference-server.ts` | `test/p07y-ws-conformance.test.ts`, `browser/e2e/ws-conformance.spec.ts` | 15 |
-| Upstream conformance: workerd's Durable Object contract tests, unchanged, and Miniflare v2's DO behaviours as observations, judged against celld (and recorded on workerd) | `scripts/vendor-workerd-tests.mjs`, `conformance/workerd-tests/*` | `test/p09-celld-conformance.test.ts` (`wd-*` projects) | 24 |
-| Bindings interoperate with celld: KV, Queues and Workflows run celld's own JavaScript (vendored from denoland/celld, Apache-2.0) with the Rust policies ported; D1 cells and R2 objects in celld's layout — each moves celld ⇄ webrun-cells | `vendor/celld/*`, `scripts/vendor-celld.mjs`, `src/bindings/{celld-kv,celld-queues,celld-workflows,r2-celld}.ts`, `src/bucket/*` | `test/p11f-celld-one-bucket.test.ts`, `test/p11g-celld-rustfs.test.ts`, `browser/e2e/celld-bucket.spec.ts` | 23 |
+| Import | What it gives |
+|---|---|
+| `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, `s3ObjectStore`, `memoryObjectStore`, `filesApiLtxLog`, `filesApiChangeLog`, links over ports, `CellRouter`, `createShardHost`, the WebSocket classes, and the errors embedders catch |
+| `@statewalker/cellb/node` | `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
+| `@statewalker/cellb/browser` | `browserProjectRuntime`, `sahpoolOpener`, `createProjectSite`, `serviceWorkerConnector` |
 
-Gaps that remain (alarms, hibernation, RPC richness, Worker Loader and isolation,
-changeset replication, conformance against `celld dev`) are listed in notes 08 and 09.
+Node 22.13 or later is needed for `node:sqlite`. `loadNodeProject` bundles a project with
+`esbuild`, which the embedder must install.
 
-## Using it
+A runtime is a `(Request) ⇒ Response` handler: mount `runtime.fetch` on `node:http`, a
+ServiceWorker or a test, and call `runtime.close()` when done. `close()` takes final backups,
+closes every database, then closes the storage.
+
+## Examples
+
+### A Worker and a Durable Object in Node
 
 ```ts
-import { createCellRuntime } from "@statewalker/cellb";
+import { createCellRuntime, DurableObject } from "@statewalker/cellb";
 import { nodeSqliteOpener } from "@statewalker/cellb/node";
-import * as worker from "./worker.js"; // export default { fetch } + Durable Object classes
 
-const rt = createCellRuntime({
-  worker,
+class Counter extends DurableObject {
+  increment(): number {
+    const sql = this.ctx.storage.sql;
+    sql.exec("CREATE TABLE IF NOT EXISTS c (id INTEGER PRIMARY KEY, n INTEGER)");
+    sql.exec("INSERT INTO c (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1");
+    return sql.exec<{ n: number }>("SELECT n FROM c WHERE id = 1").one().n;
+  }
+}
+
+const runtime = createCellRuntime({
+  worker: {
+    Counter,
+    default: {
+      fetch: async (req: Request, env: any) =>
+        Response.json({ n: await env.COUNTER.getByName(new URL(req.url).pathname).increment() }),
+    },
+  },
   durableObjects: { COUNTER: { className: "Counter" } },
-  openSql: nodeSqliteOpener("./data"),
+  openSql: nodeSqliteOpener("./data"), // a file per cell in an existing directory; () = in memory
 });
-const res = await rt.fetch(new Request("http://local/counter/a"));
+const res = await runtime.fetch(new Request("http://local/counter/a")); // {"n":1}
+await runtime.close();
 ```
 
-## Commands
+### A wrangler project on a bucket shared with celld
 
-| Command | What |
+```ts
+import { celldBucket } from "@statewalker/cellb";
+import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "@statewalker/cellb/node";
+import { MemFilesApi } from "@statewalker/webrun-files-mem";
+
+const dir = "./counter"; // wrangler.jsonc and its `main`
+const { runtime, unsupported } = await loadNodeProject(dir, {
+  openSql: nodeSqliteOpener(), // in memory: every cell is restored from the bucket on first use
+  files: new MemFilesApi(), // blob store for large KV values
+  storage: celldBucket(sqliteObjectStore(`${dir}/.celld/dev/objects.sqlite3`), { node: "cellb-1" }),
+});
+console.log(unsupported); // configuration entries cellb does not support, e.g. []
+await runtime.fetch(new Request("http://localhost/increment?name=a"));
+await runtime.close(); // releases the cells, so celld can take them at once
+```
+
+`sqliteObjectStore` is the bucket `celld dev` keeps in that file. A fleet on S3 uses
+`s3ObjectStore({ endpoint, bucket, prefix, region, accessKeyId, secretAccessKey })` instead.
+
+### A wrangler project in a browser worker
+
+```ts
+// in a Dedicated Worker
+import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
+import { browserProjectRuntime } from "@statewalker/cellb/browser";
+
+const host = await browserProjectRuntime({
+  config, // the parsed wrangler.jsonc
+  code: { bundle }, // `main` bundled for browsers (or { site } for the in-browser HTTP server)
+  sqlite3: await sqlite3InitModule(),
+  pool: "my-app", // the OPFS SQLite pool; one per worker
+  filesDir: "my-app-files",
+});
+const res = await host.runtime.fetch(new Request("http://browser/"));
+await host.close();
+```
+
+[docs/browser-host.md](docs/browser-host.md) shows how requests reach this worker through a
+ServiceWorker, how to shard an origin, and how to put the cells on an S3 bucket shared with celld.
+
+### A runtime behind a MessagePort
+
+```ts
+import { connectRuntime, serveRuntime } from "@statewalker/cellb";
+
+const { port1, port2 } = new MessageChannel();
+await serveRuntime(port1, runtime); // in the worker that owns the cells
+const remote = await connectRuntime(port2); // in the page, or another thread
+const res = await remote.fetch(new Request("http://local/counter/a")); // bodies stream
+```
+
+## Internals
+
+### One core, and ports for what differs per platform
+
+`src/core` knows nothing about the platform. It depends on the ports in `src/ports.ts`: a
+synchronous SQLite driver per cell, a `CellStorage` bundle (durability, backup, ownership, R2
+objects), a `Lease`, a `Clock`. The SQL port is synchronous because `ctx.storage.sql.exec()` is
+synchronous in Workers, and both drivers are synchronous underneath (`node:sqlite`, and SQLite WASM
+in a Dedicated Worker). [docs/architecture.md](docs/architecture.md) has the request path and the
+layers.
+
+### Where everything is
+
+```
+src/core            runtime, stubs, ids, gates, SQL and KV storage, alarms, celld's internal schema
+src/ports.ts        the port interfaces and CellStorage
+src/adapters        node:sqlite and SQLite WASM drivers, the WASM page hook, FilesApi logs and backups
+src/bucket          object stores (S3, SQLite, memory, FilesApi), the LTX writer, celldBucket
+src/ltx             the LTX v3 codec (LZ4, CRC-64, xxHash32)
+src/v8              V8 serialization in TypeScript
+src/transport       the HTTP surface of a runtime, and links over ports
+src/router          CellRouter and the shard host (browser origins)
+src/ws              WebSocket client, WebSocketPair and 101 Response over MessagePorts
+src/project         wrangler projects for Node and browsers, the in-browser site, Workers globals
+src/bindings        assets, cache, cron, D1 migrations, HTMLRewriter, KV, Queues, R2, Workflows, Worker Loader
+src/isolate         loaded Workers in a realm of their own (worker threads, Dedicated Workers)
+src/peer            celld's peer protocol, server and client (Node)
+src/node-compat     node:* modules for nodejs_compat in browsers
+src/miniflare-compat  shims for Miniflare's vendored D1 simulator
+vendor/             celld's KV, Queues and Workflows code; Miniflare's D1; html-rewriter-wasm
+conformance/        celld examples, our projects, workerd's tests, recorded goldens
+test/               unit and interop tests (vitest)
+browser/            demo pages, the host app, ServiceWorker and shard workers, Playwright specs
+scripts/            vendoring, the interop environment, mutation harnesses
+probes/             hypothesis probes (SQLite locks, MessagePorts, ServiceWorker idling)
+docs/               topic pages, decision records, and docs/history (session logs)
+```
+
+### Decisions a reader would otherwise undo
+
+- **celld's storage format is the only one** — ids, internal tables, V8-serialized values, LTX
+  logs — so cells move without conversion ([ADR 0001](docs/adr/0001-celld-storage-format-is-native.md)).
+- **KV, Queues and Workflows run celld's own JavaScript**, vendored unchanged
+  ([ADR 0002](docs/adr/0002-vendored-celld-javascript.md)).
+- **celld judges conformance**, workerd is recorded only to pin where celld differs
+  ([ADR 0003](docs/adr/0003-celld-as-conformance-oracle.md), [docs/conformance.md](docs/conformance.md)).
+- **The gates use no `AsyncLocalStorage`**, which browsers lack
+  ([ADR 0004](docs/adr/0004-gates-without-asynclocalstorage.md)).
+- **A browser origin has a fixed number of shards**, because an OPFS pool is exclusive per worker
+  ([ADR 0005](docs/adr/0005-fixed-shards-in-the-browser.md)).
+- **WebSockets travel over MessagePorts**, because a ServiceWorker cannot accept them
+  ([ADR 0006](docs/adr/0006-websockets-over-messageports.md)).
+- **Each loaded Worker gets a realm of its own**, a thread or a Dedicated Worker
+  ([ADR 0007](docs/adr/0007-one-isolate-per-loaded-worker.md)).
+- **`idFromName` is synchronous**, with `@noble/hashes` instead of `crypto.subtle`
+  ([ADR 0008](docs/adr/0008-synchronous-idfromname.md)).
+- **Ownership depends on the deployment**: a Web Lock per shard in an origin, celld's ownership
+  records per cell on a fleet bucket ([ADR 0009](docs/adr/0009-leases-chosen-by-deployment.md),
+  [docs/ownership-and-durability.md](docs/ownership-and-durability.md)).
+
+What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches celld is in
+[docs/celld-compatibility.md](docs/celld-compatibility.md). The vocabulary is in
+[CONTEXT.md](CONTEXT.md).
+
+### Dependencies, and why
+
+- `@sqlite.org/sqlite-wasm` — SQLite in browsers (opfs-sahpool needs no COOP/COEP headers);
+  `sqlite-vec` for celld's `sqlite_vec` flag.
+- `@noble/hashes` — synchronous SHA-256 and HMAC for object ids.
+- `@statewalker/webrun-rpc`, `webrun-http-streams`, `webrun-streams` — HTTP with streaming bodies
+  over MessagePorts.
+- `@statewalker/webrun-files` — the FilesApi for logs, backups and KV blobs;
+  `webrun-http-browser`, `webrun-site-builder`, `webrun-site-host` — ServiceWorker ingress and the
+  in-browser HTTP server.
+- `worker-timers` — unthrottled heartbeat timers on a page's main thread.
+- `buffer`, `events`, `util`, `assert`, `path-browserify` — `nodejs_compat` in browsers.
+
+### What will surprise you
+
+- **`ERR_MODULE_NOT_FOUND` for `…/src/…/*.js` when importing with plain `node`.** The entry points
+  are TypeScript sources; import them through a bundler, Vite or vitest.
+- **`Durable Object <Class>/<id> is owned by another node`** (`CellOwnedElsewhereError`). Another live
+  node owns the cell in the fleet bucket. Pass `peers` to route to it, or wait for it to release the
+  cell or for its node lease to expire.
+- **`Durable Object reset because …`** (`BrokenObjectError`). A commit did not become durable, the
+  constructor's `blockConcurrencyWhile()` failed, or the cell lease was lost. The next call builds a
+  fresh instance.
+- **A cell shows old data, and another node's writes to it are lost.** A runtime restores a cell
+  from the bucket only when its local SQLite database is empty. With a fleet bucket, give the
+  runtime local SQLite that starts empty: in memory, or a fresh directory or OPFS pool per start
+  ([docs/gaps.md](docs/gaps.md)).
+- **`unable to open database file`** from `nodeSqliteOpener(dir)` or `sqliteObjectStore(file)`. The
+  directory does not exist; neither creates it. (`celld dev` creates `.celld/dev/` on its first run.)
+- **`NoModificationAllowedError` in a browser.** Two workers opened the same OPFS pool. Each worker
+  needs its own `pool`.
+- **`RPC stubs cannot cross isolate boundaries yet.`** An `RpcTarget` was passed through a stub.
+  celld refuses it too ([docs/gaps.md](docs/gaps.md)).
+- **Writes after the last backup are gone after a crash** when the storage is a periodic backup
+  alone. That is its RPO; a log (`celldBucket`, `filesApiLtxLog`) has none.
+
+### Commands
+
+Run from `packages/cellb` after `pnpm install` at the repository root.
+
+| Command | What it does |
 |---|---|
-| `pnpm test` | unit tests (vitest; Node ≥ 22.13 for `node:sqlite`) |
+| `pnpm test` | unit tests (vitest). Tests that need celld skip without `CELLD_BIN`. |
 | `pnpm typecheck` | TypeScript for `src/`, `test/` and the browser code |
-| `pnpm e2e` | Chromium tests; Chrome is found automatically: `PW_CHROMIUM`, else Playwright's own Chromium, else the one packaged in `node_modules` by `@sparticuz/chromium` (no CDN access needed) |
-| `pnpm mutate` / `pnpm mutate:browser` | mutation harnesses: every listed defect must make a test fail; mutants run in a throw-away copy of the app after a mandatory baseline run (`MUTANTS=0,3` runs a subset) |
-| `pnpm probes:node` / `pnpm probes:browser` | exploratory probes (SQLite locks; MessagePort close, lock watch, SW idling) |
-| `pnpm browser:dev` | demo pages: `/` (single cell worker), `/sharded/` (router + shards), `/backup/` |
+| `pnpm e2e` | Chromium tests (Playwright). Chromium is found from `PW_CHROMIUM`, then Playwright's own, then the one `@sparticuz/chromium` packages in `node_modules`. |
+| `pnpm interop` | the celld interop tests in Node: `scripts/interop-env.sh` downloads the pinned celld and RustFS into `~/.cache/cellb-interop`, starts RustFS on `127.0.0.1:9200`, and sets `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` |
+| `pnpm interop:browser` | the same for Chromium |
+| `pnpm mutate`, `pnpm mutate:browser` | mutation harnesses in a throw-away copy, after a baseline run; `MUTANTS=0,3` runs a subset |
+| `pnpm browser:dev` | the demo pages: `/` (one cell worker), `/sharded/`, `/backup/`, and `/host/`, the host app that runs a project folder |
 
-## Layout
+## License
 
-```
-src/core        runtime, stubs, storage, gates (runtime-agnostic)
-src/adapters    node:sqlite, sqlite-wasm (memory, OPFS), FilesApi backup
-src/transport   HTTP surface and port links (webrun-rpc, webrun-http-streams)
-src/router      CellRouter, shard host
-src/ws          WebSocket client/server over ports, control channel, Upgrade helper
-test/           unit tests per aspect (p01 … p07x), worker-thread/child-process fixtures
-browser/        demo pages, ServiceWorker, shard workers, Playwright specs (browser/e2e)
-docs/           plan and findings notes
-scripts/        mutation harnesses, npm Chromium helper
-probes/         hypothesis probes
-```
-
-## Interop with celld
-
-`pnpm run interop` (Node) and `pnpm run interop:browser` (Chromium) run the suites against the
-real celld: `scripts/interop-env.sh` downloads the pinned celld (0.6.3) and RustFS (1.0.3)
-releases into `~/.cache/cellb-interop`, starts RustFS on 127.0.0.1:9200, and exports
-`CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT`. Without them those tests skip. CI:
-`.github/workflows/interop.yml`.
-
-## Host app
-
-`pnpm run browser:dev`, then open `/host/`: load a Workers project folder, choose a fleet bucket
-(OPFS, or S3 shared with celld nodes), and the project runs in a worker of this browser, served
-at its own URL through the ServiceWorker (`browser/host/`, `src/project/browser-host.ts`).
-S3 setup (CORS or a same-origin proxy): `docs/browser-host-s3.md`.
-
+MIT. Vendored code keeps its own licence, named in each file's first line or a `LICENSE` beside it:
+`vendor/celld/` and `conformance/celld-examples/` are Apache-2.0 (celld), `vendor/miniflare/` is
+MIT OR Apache-2.0 (Miniflare) and Apache-2.0 (workerd's D1 client), `vendor/html-rewriter-wasm/` is
+BSD-3-Clause, and `conformance/workerd-tests/` carry workerd's Apache-2.0.
