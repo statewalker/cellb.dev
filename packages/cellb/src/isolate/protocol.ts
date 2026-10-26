@@ -9,6 +9,7 @@ import {
   serveDuplexOverPort,
   structuredCodec,
 } from "@statewalker/webrun-rpc";
+import { withUrl } from "../core/request-body.js";
 
 /**
  * Isolation for loaded Workers (celld runs each in its own V8 isolate): the loaded code runs
@@ -107,21 +108,6 @@ function throwOwn(e: unknown): never {
     Object.defineProperty(e, "name", { value: (e as Error).name, enumerable: true });
   throw e;
 }
-
-/**
- * The request under its original URL. Firefox has no `Request.body` (and `new Request(url, req)`
- * reads that same property), so there the body, already buffered by serveFetchOverDuplex, is
- * read whole.
- */
-const withUrl = async (req: Request, url: string) =>
-  req.url === url
-    ? req
-    : new Request(url, {
-        method: req.method,
-        headers: req.headers,
-        body: req.body ?? (req.method === "GET" || req.method === "HEAD" ? null : await req.blob()),
-        duplex: "half",
-      } as RequestInit);
 
 /**
  * Throws `DataCloneError` for a value the port cannot carry: the multiplexer drops a message

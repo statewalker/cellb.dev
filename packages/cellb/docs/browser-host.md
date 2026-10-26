@@ -191,8 +191,8 @@ tabs or workers with no server. Its conditional writes are atomic only within on
 
 ## Firefox and WebKit
 
-The suite is written against Chromium; `pnpm e2e:firefox` and `pnpm e2e:webkit` (Playwright's own
-builds: `npx playwright install firefox webkit`) run it elsewhere. A spec that fails there for a
+The suite is written against Chromium; `pnpm e2e:firefox` (Playwright's own build:
+`npx playwright install firefox`) runs it in Firefox. A spec that fails there for a
 reason below is marked `test.fail` with that reason (`e2e-browser/browser-gaps.ts`), so it turns red
 the day the cause goes away.
 
@@ -200,12 +200,17 @@ Firefox 157 runs module ServiceWorkers, module Dedicated Workers, OPFS synchrono
 (sahpool) and Web Locks; the sharded topology, OPFS persistence, backups, the LTX log and the fleet
 bucket specs pass. What differs:
 
-- **`TypeError: can't access property "pipeTo", req.body is undefined`**, or a project's `PUT`
-  answering `Worker failed: rejected: Error: KV_ERROR: a KV value must be a string, an ArrayBuffer,
-  a typed array, or a ReadableStream`, or an R2 object read back empty. Firefox has no
-  `Request.body`; Worker code that streams the request body sees `undefined`. Use
-  `await request.arrayBuffer()` (or `text()`), which works everywhere. Specs: `celld-projects` and
-  `site-projects` `kv` and `r2`, `miniflare`.
+- **A forwarded request body arrives as the text `[object ReadableStream]`.** Firefox has no
+  `Request.body` and does not take a `ReadableStream` as a request body; it stores the stream's
+  string form. `createCellRuntime` gives Firefox a `request.body` (a stream read from
+  `arrayBuffer()` on its first read, so the whole body is in memory first), and Worker code that
+  reads it works (specs: `celld-projects` and `site-projects` `kv` and `r2`, `miniflare`). Code
+  that passes it on, `new Request(url, { body: request.body })`, sends that text: pass
+  `await request.arrayBuffer()`, or the request itself. The getter sits on a prototype below
+  `Request.prototype`, not on it: `@statewalker/webrun-http-streams` asks whether
+  `Request.prototype` owns `body` to decide whether it may build requests with stream bodies, and
+  must keep hearing no. Where cellb rebuilds a request itself (a scheme restored on a node's link, a
+  URL given back on an isolate's port) it reads the body whole there (spec: `peer-routing`).
 - **`Worker failed: rejected: Error: Handler does not export a fetch() function.`** or
   `Loaded worker does not export class "App"` from a Worker Loader on an in-browser site.
   `@statewalker/webrun-site-host` rebuilds each request from `request.body`, so the loader's
@@ -222,5 +227,6 @@ bucket specs pass. What differs:
 - The two `sharded` specs that stop the ServiceWorker use the Chrome DevTools Protocol and are
   skipped outside Chromium.
 
-WebKit has not run here: Playwright's WebKit build needs `libavif.so.16` (`libavif16`), and fails
-to launch with `Host system is missing dependencies to run browsers` without it.
+WebKit is not run, and is not a target for now. `pnpm e2e:webkit` is wired, but Playwright's WebKit
+build needs the system `libavif16` (`libavif.so.16`), and fails to launch with `Host system is
+missing dependencies to run browsers` without it.

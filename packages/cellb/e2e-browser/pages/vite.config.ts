@@ -59,6 +59,7 @@ export default defineConfig({
       "site-projects/site-worker.ts",
       "projects/project-worker.ts",
       "entry/index.html",
+      "peers/index.html",
       "entry/entry-worker.ts",
       "miniflare/mf-worker.ts",
       "cell-worker.ts",

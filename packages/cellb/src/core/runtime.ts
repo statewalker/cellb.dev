@@ -16,6 +16,7 @@ import { ctxExports, type DurableObjectClass } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
 import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./namespace.js";
 import { CellOwnedElsewhereError, ObjectHost } from "./object-host.js";
+import { installRequestBody } from "./request-body.js";
 
 export interface WorkerModule {
   default: { fetch?(req: Request, env: any, ctx: ExecutionContext): Response | Promise<Response> };
@@ -116,6 +117,7 @@ export interface CellRuntime {
 }
 
 export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
+  installRequestBody(); // Firefox: `request.body` for the Worker code (and for the retry below)
   const storage = opts.storage ?? {};
   const { backup, ownership } = storage;
   const durability: CellDurability = storage.durability ?? { committed: () => Promise.resolve() };

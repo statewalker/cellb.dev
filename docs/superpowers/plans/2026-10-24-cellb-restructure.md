@@ -462,11 +462,16 @@ recorded on celld/workerd), never by a test of the mechanism alone.
 - [x] **F7 Firefox and WebKit**: add the Playwright projects; record what fails (module
   ServiceWorkers, OPFS sync handles, Web Locks) in `docs/gaps.md` before fixing anything.
   Done (`pnpm e2e:firefox`, `pnpm e2e:webkit`): Firefox runs green with its failures marked by
-  cause; WebKit is wired but not run on this host (no `libavif16`).
+  cause; WebKit is wired but not run on this host (no `libavif16`), and is not a target for now.
 - [x] **F8 await the lease release on close** (found in R3): `ObjectHost.close()` fires
   `void release()`, so `storage.close()` can overlap a release in flight and leave `own.json`
   held until its lease lapses. TDD: close, then a second node's `tryAcquire` must succeed at once
   with the store closed right after; then await the release in `close()`. Done: `test/p10e`
   (own.json released when `close()` returns).
+- [x] **F9 Firefox `Request.body`** (found in F7): `createCellRuntime` installs a `request.body`
+  where it is missing; cellb's rebuilt requests read the body whole where the host cannot take a
+  stream. Done on `feat/firefox-request-body` (plan `2026-10-26-firefox-request-body.md`): the
+  `kv`, `r2` and `miniflare` Firefox specs pass, and `peer-routing` proves the owner retry and the
+  restored scheme in Firefox.
 - Stays out, written in `docs/gaps.md` with the reason: limits per object, opaque-origin iframes
   for untrusted code, celld's log tier and `/peer/handoff`, Python Workers.

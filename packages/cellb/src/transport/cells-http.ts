@@ -1,5 +1,6 @@
 import { serializeError } from "@statewalker/webrun-streams";
 import { DurableObjectNamespace, type DurableObjectStub } from "../core/namespace.js";
+import { withUrl } from "../core/request-body.js";
 import type { CellRuntime } from "../core/runtime.js";
 import type { ValueCodec } from "../ports.js";
 import { v8Codec } from "../v8/codec.js";
@@ -50,7 +51,7 @@ export function cellsHttpHandler(
 ): (req: Request) => Promise<Response> {
   const codec = opts.codec ?? v8Codec; // the runtime's default: V8 serialization
   return async (incoming) => {
-    const req = restoreScheme(incoming);
+    const req = await restoreScheme(incoming);
     const kind = req.headers.get(H.kind);
     if (!kind) return runtime.fetch(stripControl(req));
     try {
@@ -147,22 +148,13 @@ export async function remoteRuntime(
   return { env, fetch: (req) => send(withScheme(req)) };
 }
 
-function restoreScheme(req: Request): Request {
+async function restoreScheme(req: Request): Promise<Request> {
   const proto = req.headers.get(H.proto);
   if (!proto) return req;
   const url = new URL(req.url);
   if (url.protocol === `${proto}:`) return req;
   url.protocol = `${proto}:`;
-  return keepUpgrade(
-    req,
-    new Request(url, {
-      method: req.method,
-      headers: req.headers,
-      body: req.body,
-      signal: req.signal,
-      duplex: "half",
-    } as RequestInit),
-  );
+  return keepUpgrade(req, await withUrl(req, url));
 }
 
 export function stripControl(req: Request): Request {

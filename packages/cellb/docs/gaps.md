@@ -44,29 +44,29 @@ recorded on celld or workerd), not by a test of the mechanism alone.
 
 ## Firefox and WebKit
 
-`pnpm e2e:firefox` and `pnpm e2e:webkit` run the browser suite there; `pnpm e2e` stays on Chromium.
+`pnpm e2e:firefox` runs the browser suite in Firefox; `pnpm e2e` stays on Chromium. (`pnpm e2e:webkit`
+is wired, but WebKit is not run: see the last item.)
 Module ServiceWorkers, OPFS synchronous access handles (the sahpool VFS), Web Locks and module
 Dedicated Workers all work in Firefox 157. What fails, by cause (error text and the specs in
 [browser-host.md](browser-host.md#firefox-and-webkit)):
 
-- **Firefox has no `Request.body`.** Worker code that reads `request.body` gets `undefined`: celld's
-  `kv` and `r2` examples store nothing, Miniflare's KV simulator throws. Firefox also stores a
-  `ReadableStream` given as a request body as the text `[object ReadableStream]`.
-- **Two cellb paths still read `req.body`**, untested in Firefox: a request retried at the owner
-  after `CellOwnedElsewhereError` is not cloned first (`src/core/runtime.ts`), and a request whose
-  scheme is restored from `x-cellb-proto` is rebuilt from `req.body` (`src/transport/cells-http.ts`).
-  In Firefox both would send an empty body. (A request given its URL back on an isolate's port,
-  `withUrl` in `src/isolate/protocol.ts`, reads the body whole where `Request.body` is missing.)
-- **`@statewalker/webrun-site-host` drops request bodies in Firefox** for the same reason, so the
-  Worker Loader's uploads to an in-browser site arrive empty and every loaded Worker exports
-  nothing. Projects bundled into the worker are not affected.
+- **Firefox has no `Request.body`; cellb gives it one, read whole.** `createCellRuntime` installs a
+  `request.body` that reads the body with `arrayBuffer()` on its first read, so Worker code gets a
+  `ReadableStream`, but the whole body is in memory before the first chunk. Firefox stores a
+  `ReadableStream` given as a request body as the text `[object ReadableStream]`, so Worker code
+  that forwards one (`new Request(url, { body: request.body })`, `fetch(url, { body: … })`) sends
+  that text. Use `await request.arrayBuffer()`, or the request itself, as the body.
+- **`@statewalker/webrun-site-host` drops request bodies in Firefox**: it rebuilds each request
+  from `request.body`, which Firefox cannot take as a body, so the Worker Loader's uploads to an
+  in-browser site arrive empty and every loaded Worker exports nothing. Projects bundled into the
+  worker are not affected.
 - **A clone error reads differently:** SpiderMonkey's `Function object could not be cloned.` against
   V8's (and celld's) `() => 1 could not be cloned.`
 - **Under Playwright's Firefox, a page loaded while a ServiceWorker is active is not controlled**;
   only `clients.claim()` takes it. The sharded topology's second tab therefore talks to the dev
   server instead of the router. Whether Firefox outside Playwright does the same is not checked.
-- **WebKit was not run:** Playwright's WebKit needs `libavif.so.16` (`apt-get install libavif16`),
-  which this host lacks.
+- **WebKit is not run, and is not a target for now:** Playwright's WebKit needs the system
+  `libavif16` (`libavif.so.16`), which this host lacks.
 
 ## Other gaps
 
