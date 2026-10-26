@@ -20,6 +20,8 @@
     "browser:dev": "pnpm run browser:prepare && vite e2e-browser/pages --config e2e-browser/pages/vite.config.ts",
     "browser:build": "pnpm run browser:prepare && vite build e2e-browser/pages --config e2e-browser/pages/vite.config.ts",
     "e2e": "playwright test",
+    "e2e:firefox": "PW_BROWSERS=firefox playwright test",
+    "e2e:webkit": "PW_BROWSERS=webkit playwright test",
     "interop": "scripts/interop-env.sh vitest run e2e/ test/p09-celld-conformance.test.ts",
     "interop:browser": "scripts/interop-env.sh playwright test celld-bucket opfs-bucket",
     "e2e:npm-chromium": "PW_CHROMIUM=\"$(node scripts/npm-chromium.mjs)\" playwright test",

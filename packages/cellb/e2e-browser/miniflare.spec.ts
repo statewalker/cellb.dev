@@ -1,10 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { NO_REQUEST_BODY } from "./browser-gaps.ts";
 
 // Miniflare's KV and D1 simulators (unchanged, vendored) + workerd's D1 client, in a
-// Chromium Dedicated Worker on OPFS; state must survive a worker restart.
+// browser Dedicated Worker on OPFS; state must survive a worker restart.
 test("KV and D1 bindings from Miniflare/workerd code run in the browser and persist in OPFS", async ({
   page,
+  browserName,
 }) => {
+  test.fail(browserName === "firefox", `${NO_REQUEST_BODY} (Miniflare's KV simulator)`);
   await page.goto("/miniflare/");
   await page.waitForFunction(() => document.body.dataset.ready === "true");
   const r = await page.evaluate(async () => {

@@ -3,7 +3,8 @@
 A browser has no server process, no `node:sqlite` and no way for a ServiceWorker to accept a
 WebSocket. cellb still runs a project's Workers and Durable Objects there: SQLite WASM on OPFS in a
 Dedicated Worker, requests through a ServiceWorker, WebSockets over MessagePorts. This page covers
-the two ways to wire it, the S3 setup for a fleet bucket, and what fails.
+the two ways to wire it, the S3 setup for a fleet bucket, what fails, and what differs in Firefox
+and WebKit.
 
 ## What a browser forces
 
@@ -187,3 +188,43 @@ tabs or workers with no server. Its conditional writes are atomic only within on
   requests while the browser node lives, and takes the cells after its node lease lapses.
 - **Isolated facets in a browser are not in the fleet bucket.** A Durable Object class of a loaded
   Worker keeps its database in the isolate's OPFS pool only; see [gaps.md](gaps.md).
+
+## Firefox and WebKit
+
+The suite is written against Chromium; `pnpm e2e:firefox` and `pnpm e2e:webkit` (Playwright's own
+builds: `npx playwright install firefox webkit`) run it elsewhere. A spec that fails there for a
+reason below is marked `test.fail` with that reason (`e2e-browser/browser-gaps.ts`), so it turns red
+the day the cause goes away.
+
+Firefox 157 runs module ServiceWorkers, module Dedicated Workers, OPFS synchronous access handles
+(sahpool) and Web Locks; the sharded topology, OPFS persistence, backups, the LTX log and the fleet
+bucket specs pass. What differs:
+
+- **`TypeError: can't access property "pipeTo", req.body is undefined`**, or a project's `PUT`
+  answering `Worker failed: rejected: Error: KV_ERROR: a KV value must be a string, an ArrayBuffer,
+  a typed array, or a ReadableStream`, or an R2 object read back empty. Firefox has no
+  `Request.body`; Worker code that streams the request body sees `undefined`. Use
+  `await request.arrayBuffer()` (or `text()`), which works everywhere. Specs: `celld-projects` and
+  `site-projects` `kv` and `r2`, `miniflare`.
+- **`Worker failed: rejected: Error: v8: missing version header`** on a JS-RPC call through a link
+  (a page's stub, a DO → DO call across shards). cellb rebuilt requests from `req.body` when adding
+  or stripping its control headers. Specs: `cells` "RPC stubs from the page…", `sharded` "objects
+  are spread…".
+- **`Worker failed: rejected: Error: Handler does not export a fetch() function.`** or
+  `Loaded worker does not export class "App"` from a Worker Loader on an in-browser site.
+  `@statewalker/webrun-site-host` rebuilds each request from `request.body`, so the loader's
+  `PUT /loaded-src/…` uploads arrive empty and the loaded module is empty. Loaders in a bundled
+  project (`browserProjectRuntime({ code: { bundle } })`) are not affected. Specs: `site-projects`
+  `dynamic-worker-tails`, `facets`, `facets-api`, `runtime-api`, `isolation-api`,
+  `wd-worker-loader`.
+- **`TypeError: Function object could not be cloned.`** where V8 says `TypeError: () => 1 could not
+  be cloned.` (spec: `storage-details`).
+- **A second tab's requests reach the dev server, not the router** (`JSON.parse: unexpected
+  character`): under Playwright's Firefox, a page loaded while the ServiceWorker is already active
+  stays uncontrolled (`navigator.serviceWorker.controller === null`, also after a reload); the first
+  tab is controlled only through `clients.claim()`. Specs: the three two-tab `sharded` specs.
+- The two `sharded` specs that stop the ServiceWorker use the Chrome DevTools Protocol and are
+  skipped outside Chromium.
+
+WebKit has not run here: Playwright's WebKit build needs `libavif.so.16` (`libavif16`), and fails
+to launch with `Host system is missing dependencies to run browsers` without it.

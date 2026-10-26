@@ -21,6 +21,7 @@ async function chromeBinary(): Promise<string | undefined> {
   return packaged.default.executablePath();
 }
 const executablePath = await chromeBinary();
+const browsers = (process.env.PW_BROWSERS ?? "chromium").split(",");
 
 // Set up at config load, not in a globalSetup: Playwright starts the webServer before
 // globalSetup, and Vite needs the port and RUSTFS_ENDPOINT. Worker processes load this config
@@ -34,17 +35,21 @@ export default defineConfig({
   // e2e-browser/probes holds the exploratory probes (playwright.probes.config.ts).
   testIgnore: /\.probe\.spec\.ts$/,
   use: { baseURL: `http://localhost:${port}` },
-  projects: [
-    {
-      name: "chromium",
-      use: {
-        ...devices["Desktop Chrome"],
-        launchOptions: executablePath
-          ? { executablePath, args: ["--no-sandbox", "--disable-gpu", "--no-zygote"] }
-          : {},
-      },
-    },
-  ],
+  // PW_BROWSERS picks the browsers (comma-separated); `pnpm e2e` stays on Chromium.
+  // Firefox and WebKit use Playwright's own builds (`npx playwright install firefox webkit`).
+  projects: browsers.map((name) =>
+    name === "chromium"
+      ? {
+          name,
+          use: {
+            ...devices["Desktop Chrome"],
+            launchOptions: executablePath
+              ? { executablePath, args: ["--no-sandbox", "--disable-gpu", "--no-zygote"] }
+              : {},
+          },
+        }
+      : { name, use: devices[name === "firefox" ? "Desktop Firefox" : "Desktop Safari"] },
+  ),
   webServer: {
     // Plain node + vite (no package manager): also works in the mutation harness's repo copy.
     command: `mkdir -p e2e-browser/pages/public/vendor && cp node_modules/@statewalker/webrun-http-browser/dist/sw-worker.js e2e-browser/pages/public/vendor/webrun-http-sw-worker.js && node node_modules/vite/bin/vite.js e2e-browser/pages --config e2e-browser/pages/vite.config.ts --port ${port} --strictPort`,
