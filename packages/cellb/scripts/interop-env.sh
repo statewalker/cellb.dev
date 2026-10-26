@@ -3,8 +3,8 @@
 #   - celld (denoland/celld release binary) and esbuild for its bundler
 #   - a local RustFS (S3) on 127.0.0.1:9200, started detached with fresh data
 # Prints the variables to export; with a command, runs it in that environment:
-#   scripts/interop-env.sh pnpm vitest run test/p11c* test/p11f* test/p11g* test/p11i*
-#   scripts/interop-env.sh pnpm playwright test e2e/celld-bucket
+#   scripts/interop-env.sh pnpm vitest run e2e
+#   scripts/interop-env.sh pnpm playwright test celld-bucket
 # Versions are pinned (bump them together with the recorded goldens).
 set -euo pipefail
 CELLD_VERSION="${CELLD_VERSION:-0.6.3}"
