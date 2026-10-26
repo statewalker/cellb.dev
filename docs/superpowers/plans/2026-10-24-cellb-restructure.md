@@ -478,5 +478,12 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   stream. Done on `feat/firefox-request-body` (plan `2026-10-26-firefox-request-body.md`): the
   `kv`, `r2` and `miniflare` Firefox specs pass, and `peer-routing` proves the owner retry and the
   restored scheme in Firefox.
+- [x] **Promise pipelining** (gap from F3): a stub call returns an RpcPromise; across an isolate a
+  call on a pending result is sent at once, naming its answer. Done on `feat/rpc-extras` (plan
+  `2026-10-26-rpc-extras.md`): `worker-details-pipeline` and `isolation-api-pipeline` judged
+  against workerd; `test/p10g` counts the pipelined call before the first answers.
+- [x] **globalOutbound in an isolate** (gap from F3): the isolate's global `fetch()` goes back to
+  the host's Fetcher. Done on `feat/rpc-extras`: `overrideGlobalOutbound` leaves the vendored skip
+  list and passes in `wd-worker-loader`.
 - Stays out, written in `docs/gaps.md` with the reason: limits per object, opaque-origin iframes
   for untrusted code, celld's log tier and `/peer/handoff`, Python Workers.

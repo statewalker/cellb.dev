@@ -67,3 +67,16 @@ one that opens a port to the host, and the host answers through `WorkerCode.glob
    `overrideGlobalOutbound`. Docs: gaps.md (both outbound entries).
 4. Restructure plan §8: a line for each. Merge origin/main, bar (unit, Chromium, Firefox,
    mutate:check, typecheck, Biome), push.
+
+## As built
+
+- The serving side drops an answer when the caller has its result (`release {answer}`, sent on
+  arrival), not when the caller's result is garbage-collected: a call on a settled result runs on
+  the value already there, so no later message can name the answer.
+- A ref on an answer is `ref {on, path, args}`: every call carries its own `answer`.
+- `RpcTarget` is branded with `Symbol.for("cellb.RpcTarget")`: a loaded Worker bundles its own
+  `cloudflare:workers`, and in an isolate its `RpcTarget`s were copied as plain objects.
+- An RpcPromise is an object over `Promise.prototype`, not callable: `node:assert.rejects` calls a
+  function it is given (`suggestWorkerBundlerForTypeScriptModules` failed).
+- A loaded Worker's entrypoint pipelines one call deep from the host; deeper calls wait for the
+  previous one. Stubs across the isolate's port pipeline at any depth.
