@@ -207,19 +207,25 @@ cache dir `~/.cache/webrun-cells-interop` is left on disk for manual deletion.
 - [x] Persisted and protocol names (D7: rename, no migration): database names, OPFS pools, Web Lock
   names, the `.invalid` peer address.
 
-### R6 documentation
-- [ ] **Grilling session** on the vocabulary (scenarios in §5). Write `CONTEXT.md` term by term as
-  each is resolved.
-- [ ] Rename in code only the terms D8 says to rename. Glossary-driven renames are separate,
-  reviewed commits.
-- [ ] Rewrite the README in package shape, with claim headings and failure modes in the reader's
-  words. Run every command in it before committing.
-- [ ] Write the six topic pages from the still-true notes, each with a "what breaks" section.
+### R6 documentation — done `f8e3275..2cc83dd` and the commit that ticks these boxes
+No live grilling: `CONTEXT.md` holds every term as a `_(proposed)_` entry grounded in the code, the
+§5 scenarios answered as recommendations, and an `## Open questions` list awaiting the user. Found
+on the way and documented in `docs/gaps.md` (no code change): a runtime restores a cell only into
+an empty local database, so a node that keeps its local SQLite on a fleet bucket and takes a cell
+back serves old state and overwrites the other node's writes (verified: A 1, B 2, A again 2).
+- [x] **Grilling session** on the vocabulary (scenarios in §5). Write `CONTEXT.md` term by term as
+  each is resolved. — proposed entries + open questions; awaiting the user.
+- [x] Rename in code only the terms D8 says to rename. Glossary-driven renames are separate,
+  reviewed commits. — none renamed; candidates are open questions in `CONTEXT.md`.
+- [x] Rewrite the README in package shape, with claim headings and failure modes in the reader's
+  words. Run every command in it before committing. — Node examples run in a scratch test; the
+  browser example is `e2e/entry-points`; `pnpm e2e` was run for that spec only.
+- [x] Write the six topic pages from the still-true notes, each with a "what breaks" section.
   Resolve the contradictions while doing so: Worker Loader `globalOutbound`, note 23's duplicate
-  section and its gap list.
-- [ ] Write the ADRs confirmed in D9.
-- [ ] Move the notes, `plan.md` and the plans to `docs/history/` with `git mv`.
-- [ ] Root README: drop the "still uses the old name" paragraph.
+  section and its gap list. — `browser-host.md` absorbs `browser-host-s3.md`.
+- [x] Write the ADRs confirmed in D9.
+- [x] Move the notes, `plan.md` and the plans to `docs/history/` with `git mv`.
+- [x] Root README: drop the "still uses the old name" paragraph.
 
 ### R7 test time: ~400 s → ~130 s for the unit suite (tests only, no behaviour change) — done `9a12f0a..9d6ce12`
 Measured on `a511d51` (vitest JSON report): the suite takes 397 s and **one file sets it**,
@@ -279,7 +285,7 @@ per file.
 | D5 | CAS lease + ConditionalStore (test-only, duplicates `ObjectStore.put(ifMatch)`) | **delete** (`lease/cas-lease.ts`, `lease/conditional-store.ts`, `SqliteConditionalStore`, their tests); celld's ownership protocol is the multi-host story |
 | D7 | Persisted/protocol names (DB names, OPFS pools, Web Locks, peer address) | **rename now**, no migration code: nothing is deployed |
 | D8 | Glossary-driven code renames | **glossary first**: CONTEXT.md via grilling; code renames only where a name actively misleads, as separate reviewed commits |
-| D9 | ADRs | **all nine** |
+| D9 | ADRs | **all nine** (`packages/cellb/docs/adr/`): 0001 celld's storage format is native; 0002 vendored celld JavaScript for KV, Queues and Workflows; 0003 celld as the conformance oracle; 0004 input/output gates without AsyncLocalStorage; 0005 fixed-N shards in the browser; 0006 WebSockets over MessagePorts; 0007 one isolate (realm) per loaded Worker; 0008 synchronous `idFromName`; 0009 leases chosen by deployment (Web Lock per shard in an origin, celld's ownership records on a fleet bucket) |
 | D10 | RPC target: celld (refuses stubs across isolates) or workerd (passes them) — see §7 | **open**, needed before F3 |
 
 ## 5. Grilling scenarios (domain-modeling)
