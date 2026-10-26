@@ -29,6 +29,28 @@ export default {
         range: await part.text(),
       });
     }
+    // Multipart: a 5 MiB part (the minimum but for the last) and a tail, then its metadata.
+    if (url.pathname === "/mp") {
+      const u = await env.B.createMultipartUpload(key, {
+        httpMetadata: { contentType: "text/x-big" },
+        customMetadata: { Who: url.searchParams.get("who") },
+      });
+      const parts = [await u.uploadPart(1, "x".repeat(5 * 1024 * 1024)), await u.uploadPart(2, key)];
+      await u.complete(parts);
+      return Response.json({ mp: key });
+    }
+    if (url.pathname === "/mp-get") {
+      const o = await env.B.get(key);
+      if (!o) return Response.json(null);
+      const body = await o.text();
+      return Response.json({
+        size: o.size,
+        tail: body.slice(-key.length),
+        httpMetadata: o.httpMetadata,
+        customMetadata: o.customMetadata,
+        md5: o.checksums.md5 ? [...new Uint8Array(o.checksums.md5)].map((b) => b.toString(16).padStart(2, "0")).join("") : null,
+      });
+    }
     if (url.pathname === "/list") return Response.json((await env.B.list()).objects.map((o) => o.key));
     return new Response("?", { status: 404 });
   },

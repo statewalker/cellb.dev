@@ -72,7 +72,8 @@ export function celldR2Backend(store: ObjectStore, bucketName: string): R2Backen
       uploaded: o.modifiedMs ?? Date.now(),
       httpMetadata: http as R2HTTPMetadata,
       customMetadata: custom,
-      md5: env?.checksums?.md5,
+      // The store's etag is never an MD5: an object without one (celld's multipart) has none.
+      md5: env?.checksums?.md5 ?? "",
     };
   };
   return {
@@ -101,7 +102,7 @@ export function celldR2Backend(store: ObjectStore, bucketName: string): R2Backen
       if (Object.keys(m.customMetadata).length)
         env.custom = Object.fromEntries(Object.entries(m.customMetadata).sort());
       env.http = httpRecord as Envelope["http"];
-      env.checksums = { md5: m.md5 };
+      if (m.md5 !== undefined) env.checksums = { md5: m.md5 };
       attrs.metadata = { [ENVELOPE]: asciiJson(env) };
       await store.put(prefix + key, bytes, undefined, attrs);
       const o = await store.get(prefix + key);

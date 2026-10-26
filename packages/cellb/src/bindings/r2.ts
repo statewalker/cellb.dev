@@ -20,7 +20,7 @@ export interface R2HTTPMetadata {
 }
 
 export interface StoredMeta {
-  /** Hex MD5 of the bytes when the etag is something else (a store's own etag). */
+  /** Hex MD5 of the bytes when the etag is something else (a store's own etag); "" for none. */
   md5?: string;
   key: string;
   size: number;
@@ -52,9 +52,10 @@ export class R2Object {
     this.uploaded = new Date(m.uploaded);
     this.httpMetadata = { ...m.httpMetadata };
     this.customMetadata = { ...m.customMetadata };
-    // The MD5 of the bytes: recorded separately when the etag is not it (celld's bucket).
+    // The MD5 of the bytes: recorded separately when the etag is not it (celld's bucket), and
+    // "" when the object has none (a multipart object).
     const bytes = (m.md5 ?? m.etag).match(/../g)?.map((h) => Number.parseInt(h, 16)) ?? [];
-    this.checksums = { md5: new Uint8Array(bytes).buffer };
+    this.checksums = bytes.length ? { md5: new Uint8Array(bytes).buffer } : {};
     if (range) this.range = range;
   }
   /** The JSON form celld gives an R2Object (r2-details project): checksums as hex. */
@@ -242,11 +243,11 @@ function conditionHolds(c: R2Conditional | undefined, m: StoredMeta | undefined)
 export interface R2Backend {
   meta(key: string): Promise<StoredMeta | undefined>;
   body(key: string): Promise<Uint8Array | undefined>;
-  /** Stores the object; the backend decides etag, version and upload time. */
+  /** Stores the object; the backend decides etag, version and upload time. No md5: multipart. */
   write(
     key: string,
     bytes: Uint8Array,
-    m: { httpMetadata: R2HTTPMetadata; customMetadata: Record<string, string>; md5: string },
+    m: { httpMetadata: R2HTTPMetadata; customMetadata: Record<string, string>; md5?: string },
   ): Promise<StoredMeta>;
   remove(key: string): Promise<void>;
   keys(): Promise<string[]>;
@@ -268,11 +269,13 @@ export function filesR2Backend(files: FilesApi, root: string): R2Backend {
     },
     body: (key) => readAll(files, objectPath(key)),
     async write(key, bytes, m) {
+      const version = crypto.randomUUID().replace(/-/g, "");
       const meta: StoredMeta = {
+        ...(m.md5 === undefined && { md5: "" }),
         key,
         size: bytes.byteLength,
-        etag: m.md5,
-        version: crypto.randomUUID().replace(/-/g, ""),
+        etag: m.md5 ?? version,
+        version,
         uploaded: Date.now(),
         httpMetadata: m.httpMetadata,
         customMetadata: m.customMetadata,
@@ -416,7 +419,6 @@ export function r2BucketOn(backend: R2Backend, binding = "BUCKET") {
     /** A handle on an open upload; parts live under {root}/multipart/{uploadId}/ until complete or abort. */
     resumeMultipartUpload(key: string, uploadId: string) {
       const dir = uploadId;
-      const bucket = this;
       const info = async () => {
         const raw = await backend.scratch.read(`${dir}/upload.json`);
         if (!raw)
@@ -463,12 +465,13 @@ export function r2BucketOn(backend: R2Backend, binding = "BUCKET") {
             total.set(c, o);
             o += c.byteLength;
           }
-          const obj = (await bucket.put(u.key, total, {
+          // A multipart object has no MD5 checksum (celld, Cloudflare).
+          const meta = await backend.write(u.key, total, {
             httpMetadata: u.httpMetadata,
             customMetadata: u.customMetadata,
-          })) as R2Object;
+          });
           await backend.scratch.removeDir(dir);
-          return obj;
+          return new R2Object(meta);
         },
       };
     },

@@ -50,9 +50,6 @@ recorded on celld or workerd), not by a test of the mechanism alone.
   plain-object `ctx.exports`; `sql.ingest()` only if wanted.
 - **Idle databases.** Hibernation drops a cell's instance but keeps its SQLite database open; a
   second, longer idle time should close it and reopen on the next event.
-- **Storage round trips for Workflows and R2.** The interop suite already moves R2 objects
-  celld → cellb → celld, and Workflow instances celld → cellb and cellb → celld as separate tests; a
-  single celld → cellb → celld Workflow chain is not recorded.
 - **Firefox and WebKit.** Only Chromium is tested. Module ServiceWorkers, OPFS synchronous handles
   and Web Locks are the likely failures; record them here before fixing anything.
 - **Await the lease release on close.** Closing a runtime releases each cell without waiting, so a
