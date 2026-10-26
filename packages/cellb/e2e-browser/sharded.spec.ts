@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { UNCONTROLLED_NAVIGATION } from "./browser-gaps.ts";
 
 const open = async (page: Page, wantOwned?: string, query = "") => {
   await page.goto(`/sharded/${query}`);
@@ -36,7 +37,9 @@ test("objects are spread over shard workers and DO → DO calls cross shards via
 
 test("second tab uses the first tab's shards, then takes over (Web Locks) when it closes; OPFS state kept", async ({
   context,
+  browserName,
 }) => {
+  test.fail(browserName === "firefox", UNCONTROLLED_NAVIGATION); // the second tab
   const t1 = await context.newPage();
   await open(t1, "0,1");
   const name = `h${Date.now()}`;
@@ -66,7 +69,9 @@ test("second tab uses the first tab's shards, then takes over (Web Locks) when i
 test("a restarted ServiceWorker asks the pages to re-attach their shards", async ({
   page,
   context,
+  browserName,
 }) => {
+  test.skip(browserName !== "chromium", "stops the ServiceWorker through CDP (Chromium only)");
   await open(page, "0,1");
   const name = `r${Date.now()}`;
   await get(page, `/sharded/cells/counter/${name}/rpc/2`);
@@ -82,7 +87,9 @@ test("a restarted ServiceWorker asks the pages to re-attach their shards", async
 
 test("an in-flight request fails fast when the owner tab closes, then the new owner serves", async ({
   context,
+  browserName,
 }) => {
+  test.fail(browserName === "firefox", UNCONTROLLED_NAVIGATION); // the second tab
   const t1 = await context.newPage();
   await open(t1, "0,1");
   const t2 = await context.newPage();
@@ -112,7 +119,9 @@ test("an in-flight request fails fast when the owner tab closes, then the new ow
 test("measure: request latency warm vs. first request after a ServiceWorker restart", async ({
   page,
   context,
+  browserName,
 }) => {
+  test.skip(browserName !== "chromium", "stops the ServiceWorker through CDP (Chromium only)");
   await open(page, "0,1");
   const name = `m${Date.now()}`;
   const time = () =>
@@ -140,7 +149,9 @@ test("measure: request latency warm vs. first request after a ServiceWorker rest
 
 test("with no tab left to take over, the owner-lock watch fails the in-flight request within ~100 ms", async ({
   context,
+  browserName,
 }) => {
+  test.fail(browserName === "firefox", UNCONTROLLED_NAVIGATION); // the second tab
   const t1 = await context.newPage();
   await open(t1, "0,1");
   const t2 = await context.newPage();

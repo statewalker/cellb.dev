@@ -187,6 +187,12 @@ docs/               topic pages
 - **Ownership depends on the deployment**: a Web Lock per shard in an origin, celld's ownership
   records per cell on a fleet bucket
   ([docs/ownership-and-durability.md](docs/ownership-and-durability.md)).
+- **An idle database closes without letting go of its cell.** `hibernateAfterMs` drops an idle
+  object's instance; `closeDatabaseAfterMs` (longer, opt-in) also closes its SQLite handle, and the
+  next event reopens it. The cell lease is kept: taking the cell again would start a new generation,
+  whose first commit uploads the whole database. It is off by default because an in-memory database
+  without a log or backup would come back empty; a cell whose last changes are not backed up yet
+  stays open until they are.
 
 What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches celld is in
 [docs/celld-compatibility.md](docs/celld-compatibility.md). The vocabulary is in
@@ -215,10 +221,6 @@ What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches ce
 - **`Durable Object reset because …`** (`BrokenObjectError`). A commit did not become durable, the
   constructor's `blockConcurrencyWhile()` failed, or the cell lease was lost. The next call builds a
   fresh instance.
-- **A cell shows old data, and another node's writes to it are lost.** A runtime restores a cell
-  from the bucket only when its local SQLite database is empty. With a fleet bucket, give the
-  runtime local SQLite that starts empty: in memory, or a fresh directory or OPFS pool per start
-  ([docs/gaps.md](docs/gaps.md)).
 - **`unable to open database file`** from `nodeSqliteOpener(dir)` or `sqliteObjectStore(file)`. The
   directory does not exist; neither creates it. (`celld dev` creates `.celld/dev/` on its first run.)
 - **`NoModificationAllowedError` in a browser.** Two workers opened the same OPFS pool. Each worker
@@ -237,6 +239,7 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 | `pnpm test` | `test/` and `e2e/` (vitest). The `e2e/` tests skip without `CELLD_BIN`; with it, each run makes its own S3 bucket (`TEST_BUCKET`) on `RUSTFS_ENDPOINT`, or starts a RustFS of its own on a free port when that is unset. Every server a test starts takes a free port, so several checkouts can run at once. `pnpm test:unit` and `pnpm test:e2e` run one folder. |
 | `pnpm typecheck` | TypeScript for `src/`, `test/`, `e2e/` and the browser pages |
 | `pnpm e2e` | Chromium tests (Playwright, `e2e-browser/`), on a dev server at a free port, with the same bucket setup as `pnpm test`. Chromium is found from `PW_CHROMIUM`, then Playwright's own, then the one `@sparticuz/chromium` packages in `node_modules`. |
+| `pnpm e2e:firefox`, `pnpm e2e:webkit` | the same suite in Playwright's Firefox or WebKit (`npx playwright install firefox webkit`; `PW_BROWSERS` takes a comma-separated list). Specs that fail there for a known cause are marked `test.fail` ([docs/browser-host.md](docs/browser-host.md#firefox-and-webkit)). |
 | `pnpm interop` | `e2e/` and the celld conformance in Node: `scripts/interop-env.sh` downloads the pinned celld and RustFS into `~/.cache/cellb-interop`, starts a shared RustFS on `127.0.0.1:9200` (`RUSTFS_PORT`), and sets `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` |
 | `pnpm interop:browser` | the same for Chromium |
 | `pnpm mutate`, `pnpm mutate:browser` | mutation harnesses in a throw-away copy, after a baseline run; `MUTANTS=0,3` runs a subset |

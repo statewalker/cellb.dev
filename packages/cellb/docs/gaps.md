@@ -41,30 +41,47 @@ recorded on celld or workerd), not by a test of the mechanism alone.
 - **Stubs by reference across isolates** (functions, `RpcTarget`, stubs as arguments, results, `env`
   and `props`) — only if the RPC decision above goes to workerd.
 - **Small known gaps**, one at a time: plain-object `ctx.exports`; `sql.ingest()` only if wanted.
-- **Idle databases.** Hibernation drops a cell's instance but keeps its SQLite database open; a
-  second, longer idle time should close it and reopen on the next event.
-- **Firefox and WebKit.** Only Chromium is tested. Module ServiceWorkers, OPFS synchronous handles
-  and Web Locks are the likely failures; record them here before fixing anything.
-- **Await the lease release on close.** Closing a runtime releases each cell without waiting, so a
-  store closed right after can leave `own.json` held until the node lease lapses (10 s by default):
-  the next node reports `owned by another node` until then.
+
+## Firefox and WebKit
+
+`pnpm e2e:firefox` and `pnpm e2e:webkit` run the browser suite there; `pnpm e2e` stays on Chromium.
+Module ServiceWorkers, OPFS synchronous access handles (the sahpool VFS), Web Locks and module
+Dedicated Workers all work in Firefox 157. What fails, by cause (error text and the specs in
+[browser-host.md](browser-host.md#firefox-and-webkit)):
+
+- **Firefox has no `Request.body`.** Worker code that reads `request.body` gets `undefined`: celld's
+  `kv` and `r2` examples store nothing, Miniflare's KV simulator throws. Firefox also stores a
+  `ReadableStream` given as a request body as the text `[object ReadableStream]`.
+- **Three cellb paths still read `req.body`**, untested in Firefox: a request retried at the owner
+  after `CellOwnedElsewhereError` is not cloned first (`src/core/runtime.ts`), a request whose
+  scheme is restored from `x-cellb-proto` is rebuilt from `req.body` (`src/transport/cells-http.ts`),
+  and so is a request given a new URL on an isolate's port (`withUrl`, `src/isolate/protocol.ts`).
+  In Firefox all three would send an empty body.
+- **`@statewalker/webrun-site-host` drops request bodies in Firefox** for the same reason, so the
+  Worker Loader's uploads to an in-browser site arrive empty and every loaded Worker exports
+  nothing. Projects bundled into the worker are not affected.
+- **A clone error reads differently:** SpiderMonkey's `Function object could not be cloned.` against
+  V8's (and celld's) `() => 1 could not be cloned.`
+- **Under Playwright's Firefox, a page loaded while a ServiceWorker is active is not controlled**;
+  only `clients.claim()` takes it. The sharded topology's second tab therefore talks to the dev
+  server instead of the router. Whether Firefox outside Playwright does the same is not checked.
+- **WebKit was not run:** Playwright's WebKit needs `libavif.so.16` (`apt-get install libavif16`),
+  which this host lacks.
 
 ## Other gaps
 
-- **A persistent local database can overwrite another node's writes.** A runtime restores a cell
-  from the bucket only when the cell's local SQLite database is empty. A node that kept its local
-  file, lost the cell to another node, and takes it back later serves its old local state and logs
-  it as the new generation: the other node's writes are lost. Seen with `nodeSqliteOpener(dir)` on a
-  fleet bucket (node A counts 1, node B 2, node A again 2 instead of 3). The same applies to a
-  browser runtime, whose OPFS pool persists, when it takes back a cell it lost. Until fixed, give a
-  runtime on a fleet bucket local SQLite that starts empty: in memory, or a fresh directory or pool
-  per start.
 - **Configuration cellb does not support** is reported in `createProjectRuntime(...).unsupported`,
   not silently ignored: `migrations.renamed_classes`, `durable_objects.bindings[].script_name`,
   service bindings to other scripts, and compatibility flags it does not know.
 - **Isolated facets in a browser are not in the fleet bucket.** `browserProjectRuntime` does not give
   its isolates the host's storage, so a Durable Object class of a loaded Worker keeps its database in
   the isolate's OPFS pool only. On Node they are logged through the parent.
+- **An isolated facet restores only into an empty database.** A Durable Object class of a loaded
+  Worker runs in the isolate's own runtime, which holds no cell lease, so taking the root cell does
+  not rebuild the facet's local database from the bucket as it does for the root and its local
+  facets. On Node the isolate's SQLite is in memory (its opener takes a `dataDir` that nothing sets
+  yet), so it starts empty and is restored correctly; an isolate given a persistent directory would
+  serve the facet's old local state after taking a cell back and log it over the newer one.
 - **The upstream Worker Loader exports `overrideGlobalOutbound` and `inheritGlobalOutbound` are left
   out** of the vendored run. `WorkerCode.globalOutbound` itself is implemented (`null` blocks
   `fetch`; a Fetcher redirects it) and matches celld in the `runtime-api` project; the comment in

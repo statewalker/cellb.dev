@@ -57,20 +57,14 @@ export function control(kind: string, headers: Record<string, string>, body?: Ui
   });
 }
 
-/** Re-creates a request with extra headers, streaming its body through. */
+/**
+ * Re-creates a request with extra headers, streaming its body through. The request itself is the
+ * source, not `body: req.body`: Firefox has no `Request.body`, so that would drop the body there.
+ */
 function addHeaders(req: Request, extra: Record<string, string>): Request {
   const headers = new Headers(req.headers);
   for (const [k, v] of Object.entries(extra)) headers.set(k, v);
-  return keepUpgrade(
-    req,
-    new Request(req.url, {
-      method: req.method,
-      headers,
-      body: req.body,
-      signal: req.signal,
-      duplex: "half",
-    } as RequestInit),
-  );
+  return keepUpgrade(req, new Request(req, { headers }));
 }
 
 /** Browsers drop the forbidden `Upgrade` header from every rebuilt Request: carry it over. */

@@ -53,8 +53,18 @@ r2/<bucket>/<key>                        R2 objects (owned by no cell)
   raises the epoch with a compare-and-swap (`If-Match`), and only if the record names this node, no
   node, or a node whose node lease has expired. Losing the race returns no lease, and the call fails
   with `CellOwnedElsewhereError`, or goes to the owner when `peers` is configured.
-- **Releasing.** Closing the runtime writes `{ "node": "", epoch }` to each owned record and deletes
-  the node lease, so the next node takes the cells at once.
+- **The bucket wins over the local file.** Every time a node takes a cell, it replaces the cell's
+  local database with the newest generation in the bucket, even when the local file is not empty
+  (a directory given to `nodeSqliteOpener`, a browser's OPFS pool). That file may be from an earlier
+  time this node owned the cell, older than what other owners wrote since, or hold commits that
+  never became durable; continuing from it would log it as the new generation and lose the other
+  owners' writes. A bucket that holds nothing for the cell starts it empty. The price is one
+  download per acquisition, which the new generation's first commit pays again anyway as a
+  snapshot. Without ownership the local file is the primary copy, and only an empty database is
+  restored.
+- **Releasing.** Closing the runtime writes `{ "node": "", epoch }` to each owned record, waits for
+  those writes, then deletes the node lease and closes the store, so the next node takes the cells
+  at once.
 - **Self-fencing.** A node stops acknowledging writes once its node lease could have lapsed
   (`expires_ms` minus a margin), and a deadline timer breaks every owned cell when renewals stop
   arriving (a paused process, a frozen tab). celld waits for `expires_ms` before taking over, so the
@@ -124,12 +134,6 @@ have expired. A wake entry is only a hint: the stored alarm decides whether anyt
 - **`ownership record lost: cells/<scope>/own.json is missing, but the bucket holds LTX …`**. A
   lifecycle rule or an operator removed `own.json`. Write the released record named in the message;
   neither celld nor cellb will guess the epoch.
-- **A cell stays held for its node lease after a clean shutdown.** `close()` releases each cell
-  without waiting for the write, so closing the store right after can leave `own.json` held until the
-  node lease lapses ([gaps.md](gaps.md)).
-- **A cell comes back with old data and another node's writes disappear.** The node's local SQLite
-  file survived from an earlier time it owned the cell; restore runs only into an empty database.
-  On a fleet bucket, local SQLite must start empty ([gaps.md](gaps.md)).
 - **Data written after the last backup is gone after a crash.** That is the backup's RPO, not
   corruption. Use a log for RPO 0.
 - **Two browser tabs on one OPFS fleet bucket overwrite each other.** A FilesApi store checks

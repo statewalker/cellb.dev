@@ -39,7 +39,14 @@ export class ObjectHost {
   readonly cellKey: string;
   readonly #gate = new InputGate();
   readonly #out = new OutputGate();
-  readonly #driver: SyncSqlDriver;
+  /** The open database; `#driver` follows it, so it can be closed while idle and reopened. */
+  #db!: SyncSqlDriver;
+  readonly #driver: SyncSqlDriver = new Proxy({} as SyncSqlDriver, {
+    get: (_t, k) => {
+      const v = (this.#db as unknown as Record<PropertyKey, unknown>)[k];
+      return typeof v === "function" ? v.bind(this.#db) : v;
+    },
+  });
   readonly #sql: SqlStorage;
   #instance: any;
   readonly #backup?: CellBackup;
@@ -87,12 +94,13 @@ export class ObjectHost {
   }) {
     this.#backup = opts.backup;
     this.cellKey = opts.cellKey;
-    this.#driver = opts.openSql(opts.cellKey);
     this.#epoch = opts.epoch;
     this.#opts = opts;
-    for (const ext of opts.sqlExtensions ?? []) {
-      this.#driver.loadExtension(ext);
-    }
+    this.#open = () => {
+      this.#db = opts.openSql(opts.cellKey);
+      for (const ext of opts.sqlExtensions ?? []) this.#db.loadExtension(ext);
+    };
+    this.#open();
     this.#sql = new SqlStorage(
       this.#driver,
       (changes) => {
@@ -178,18 +186,10 @@ export class ObjectHost {
             },
           );
         }
-        const empty =
-          Number(this.#driver.exec("SELECT count(*) FROM sqlite_master", []).rows[0][0]) === 0;
-        if (empty) {
-          const image = await load?.(this.cellKey);
-          if (image) {
-            if (!this.#driver.restore)
-              throw new Error("SyncSqlDriver has no restore(): cannot restore a backup");
-            this.#driver.restore(image);
-          }
-          // Then every logged transaction the image does not contain, in order.
-          if (replay) await this.#replayLog(replay);
-        }
+        // Under a lease (the cell's own, or its root's for a facet) the bucket is the cell's
+        // truth: a local file kept from an earlier ownership is older than what other owners
+        // wrote since, and may hold commits that never became durable.
+        await this.#catchUp(this.#epoch !== undefined);
         if (opts.facet) this.#rescope(scopeOf(opts.cellKey));
         else {
           this.#initWake();
@@ -283,6 +283,18 @@ export class ObjectHost {
   #pump = (): void => {
     this.#pumpWaiting = false;
     while (this.#queue.length && this.#gate.isOpen) {
+      // A database closed while idle: reopen it (and catch up) before anything runs.
+      if (this.#dbClosed) {
+        this.#dbClosed = false;
+        void this.#gate
+          .runClosed(async () => {
+            this.#open();
+            // The lease was held throughout: a kept file is current, an empty one is restored.
+            await this.#catchUp(false);
+          })
+          .catch((e) => this.#breakOn(e));
+        continue;
+      }
       // Waking from hibernation: the constructor runs again before the event (and may
       // close the gate with blockConcurrencyWhile, which the loop then respects).
       if (this.#hibernated) {
@@ -311,13 +323,50 @@ export class ObjectHost {
     }
   }
 
-  close(): void {
-    this.#driver.close();
+  /** Settles once the cell lease is released (a store closed earlier would keep it held). */
+  close(): Promise<void> {
+    if (!this.#dbClosed) this.#db.close();
     // Hand the cell over at once instead of letting the lease expire.
-    void this.#release?.().catch(() => {});
+    const released = this.#release?.().catch(() => {});
     this.#release = undefined;
+    return released ?? Promise.resolve();
   }
   #release: (() => Promise<void>) | undefined;
+
+  /**
+   * Brings the local database to the storage's state: restores the image, then replays the log.
+   * Without `rebuild` only an empty database is restored (the local file is the primary copy);
+   * with it, a non-empty one is replaced too — dropped first when the storage has no image.
+   */
+  async #catchUp(rebuild: boolean): Promise<void> {
+    const { load, replay } = this.#backup ?? {};
+    if (!load && !replay) return;
+    const d = this.#driver;
+    const empty = Number(d.exec("SELECT count(*) FROM sqlite_master", []).rows[0][0]) === 0;
+    if (!empty && !rebuild) return;
+    const image = await load?.(this.cellKey);
+    if (image) {
+      if (!d.restore) throw new Error("SyncSqlDriver has no restore(): cannot restore a backup");
+      d.restore(image);
+    } else if (!empty) {
+      // Indexes and triggers go with their tables; sqlite_* tables cannot be dropped. Foreign
+      // keys are off meanwhile, so a parent table can go before its children.
+      const objects = d.exec(
+        "SELECT type, name FROM sqlite_master WHERE type IN ('view', 'table') AND name NOT LIKE 'sqlite_%'",
+        [],
+      ).rows;
+      const fk = Number(d.exec("PRAGMA foreign_keys", []).rows[0][0]);
+      d.exec("PRAGMA foreign_keys = OFF", []);
+      try {
+        for (const [type, name] of objects)
+          d.exec(`DROP ${type} IF EXISTS "${String(name).replace(/"/g, '""')}"`, []);
+      } finally {
+        d.exec(`PRAGMA foreign_keys = ${fk}`, []);
+      }
+    }
+    // Then every logged transaction the image does not contain, in order.
+    if (replay) await this.#replayLog(replay);
+  }
 
   /** Applies log segments newer than the database's own log sequence (restore path). */
   async #replayLog(replay: NonNullable<CellBackup["replay"]>): Promise<void> {
@@ -343,6 +392,7 @@ export class ObjectHost {
   }
 
   #construct?: () => unknown;
+  readonly #open: () => void;
   #epoch: number | undefined;
 
   /**
@@ -491,8 +541,22 @@ export class ObjectHost {
     this.#hibernated = true;
     return true;
   }
+  #dbClosed = false;
+  /**
+   * Closes the database of a hibernated cell (the cell lease stays); the next event reopens it.
+   * A cell with changes its backup has not taken yet stays open. Returns whether it closed.
+   */
+  closeDatabase(): boolean {
+    if (!this.#hibernated || this.#dbClosed || this.#queue.length || !this.#gate.isOpen)
+      return false;
+    if (this.#backup && (this.#saving || this.#seq !== this.#backedUpSeq)) return false;
+    this.#db.close();
+    this.#dbClosed = true;
+    return true;
+  }
   /** Replaces the instance with a fresh one on the SAME database (facet abort/delete). */
   restart(): void {
+    if (this.#dbClosed) return; // the next event reopens it with a fresh instance
     this.#construct?.();
   }
 }

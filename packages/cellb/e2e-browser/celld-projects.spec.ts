@@ -8,23 +8,22 @@ import {
   scenarios,
 } from "../conformance/scenarios.ts";
 import { startReferenceServer } from "../test/ws-reference-server.ts";
+import { bundleGaps } from "./browser-gaps.ts";
 
 // The same 25 projects as test/p09 (celld's examples and ours), run on cellb INSIDE
-// Chromium — Dedicated Worker, SQLite on OPFS, browser fetch/WebSocket/Request — and compared
+// a browser — Dedicated Worker, SQLite on OPFS, browser fetch/WebSocket/Request — and compared
 // with the transcripts and logs recorded from the real celld 0.6.2.
 const golden = (name: string) =>
   JSON.parse(readFileSync(join(import.meta.dirname, `../conformance/golden/${name}.json`), "utf8"));
-
-/** Projects that cannot run in a browser realm, with the reason (none at present). */
-const browserGaps: Record<string, string> = {};
 
 for (const name of Object.keys(scenarios)) {
   const s = scenarios[name];
   const wait =
     (s.settleMs ?? 1500) + s.steps.reduce((n, st) => n + ("waitMs" in st ? st.waitMs : 0), 0);
-  test(name, async ({ page }) => {
+  test(name, async ({ page, browserName }) => {
     test.skip(!!s.knownGap, `known gap: ${s.knownGap}`);
-    test.skip(!!browserGaps[name], browserGaps[name]);
+    const gap = bundleGaps[name]?.[browserName];
+    test.fail(!!gap, gap);
     test.setTimeout(wait + 60_000);
     const ref = s.wsServer ? await startReferenceServer() : undefined;
     try {

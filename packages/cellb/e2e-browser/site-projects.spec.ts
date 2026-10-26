@@ -8,6 +8,7 @@ import {
   scenarios,
 } from "../conformance/scenarios.ts";
 import { startReferenceServer } from "../test/ws-reference-server.ts";
+import { siteGaps } from "./browser-gaps.ts";
 
 // The celld projects served by an IN-BROWSER HTTP SERVER: the page mounts a
 // webrun-site-builder handler (sources compiled to ESM by webrun-modules) with
@@ -21,8 +22,10 @@ for (const name of Object.keys(scenarios)) {
   const s = scenarios[name];
   const wait =
     (s.settleMs ?? 1500) + s.steps.reduce((n, st) => n + ("waitMs" in st ? st.waitMs : 0), 0);
-  test(name, async ({ page }) => {
+  test(name, async ({ page, browserName }) => {
     test.skip(!!s.knownGap, `known gap: ${s.knownGap}`);
+    const gap = siteGaps[name]?.[browserName];
+    test.fail(!!gap, gap);
     test.setTimeout(wait + 60_000);
     const ref = s.wsServer ? await startReferenceServer() : undefined;
     try {
