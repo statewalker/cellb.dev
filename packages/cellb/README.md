@@ -159,11 +159,11 @@ src/miniflare-compat  shims for Miniflare's vendored D1 simulator
 vendor/             celld's KV, Queues and Workflows code; Miniflare's D1; html-rewriter-wasm
 conformance/        celld examples, our projects, workerd's tests, recorded goldens
 test/               unit tests (vitest, Node)
-e2e/                tests against a real celld and RustFS (vitest; skipped without scripts/interop-env.sh)
+e2e/                tests against a real celld and RustFS (vitest; skipped without CELLD_BIN)
 e2e-browser/        Playwright specs; pages/ holds the demo pages, the host app, ServiceWorker and
-                    shard workers they drive; probes/ the exploratory browser probes
+                    shard workers they drive; probes/ the exploratory browser probes (ServiceWorker idling)
 scripts/            vendoring, the interop environment, mutation harnesses
-probes/             hypothesis probes (SQLite locks, MessagePorts, ServiceWorker idling)
+probes/             Node hypothesis probes (SQLite locks, webrun-modules globals)
 docs/               topic pages
 ```
 

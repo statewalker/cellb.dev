@@ -9,14 +9,14 @@ in Node, and alongside celld on one shared bucket.
 ```
 packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
 docs/superpowers/      plans for work on the repository
-tools/migrate/         the commit map and scripts that produced this repository's history
 .github/workflows/     interop CI against the real celld and RustFS
 ```
 
 ## How to run it
 
 1. `pnpm install`
-2. `cd packages/cellb && pnpm test`: the unit suite. Tests that need celld skip without `CELLD_BIN`.
+2. `cd packages/cellb && pnpm test`: the unit tests (`test/`) and the celld end-to-end tests
+   (`e2e/`), which skip without `CELLD_BIN`.
 3. `pnpm exec playwright test`: the Chromium end-to-end suite.
 4. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
    and RustFS releases and starts RustFS on `127.0.0.1:9200`.
@@ -31,6 +31,4 @@ tools/migrate/         the commit map and scripts that produced this repository'
 
 ## What will surprise you
 
-- A commit SHA quoted in `packages/cellb/docs/history/` may not exist here. Look it up in
-  `tools/migrate/commit-map.txt`.
 - A green `pnpm test` without `CELLD_BIN` says nothing about celld compatibility: those tests skip.
