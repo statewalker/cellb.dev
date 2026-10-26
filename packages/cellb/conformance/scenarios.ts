@@ -402,9 +402,11 @@ const WS_CONSTRUCTOR_OTHERS = [
 const WL_AGREE = [
   "asyncCodeLoader",
   "codeLoaderException",
+  "ctxExports",
   "justLoad",
   "passEnv",
   "passEnvCaps",
+  "regressionDeadIoContextGetCode",
   "startupException",
   "suggestWorkerBundlerForTypeScriptModules",
 ];
@@ -413,7 +415,6 @@ const WL_GAPS = [
   "abortIsolateDynamicAnonymous",
   "basics",
   "compatDateFlags",
-  "ctxExports",
   "doStubViaEnv",
   "doStubViaProps",
   "doStubViaRpcParam",
@@ -421,7 +422,6 @@ const WL_GAPS = [
   "facets",
   "moduleTypes",
   "nullGlobalOutbound",
-  "regressionDeadIoContextGetCode",
   "wasmModules",
 ];
 const wdOverrides: Record<string, Partial<Scenario>> = {
@@ -451,7 +451,7 @@ scenarios["wd-worker-loader-gaps"] = {
   project: "wd-worker-loader",
   steps: [{ path: `/?skip=${WL_AGREE.join(",")}` }],
   knownGap:
-    "no ctx.exports.<Entrypoint>({ props }) stubs or plain-object ctx.exports; WorkerCode compatibilityFlags, data/wasm modules, DO stubs in env/props; celld refuses allowExperimental and stub cloning",
+    "no plain-object ctx.exports; WorkerCode compatibilityFlags, data/wasm modules, DO stubs in env/props; celld refuses allowExperimental and stub cloning",
 };
 scenarios["miniflare2-details-relative-url"] = {
   project: "miniflare2-details",

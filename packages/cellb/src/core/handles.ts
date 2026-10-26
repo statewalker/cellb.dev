@@ -1,3 +1,4 @@
+import { isWorkerEntrypoint } from "./durable-object.js";
 import type { DurableObjectState } from "./state.js";
 
 export type DurableObjectClass = new (ctx: DurableObjectState, env: any) => any;
@@ -108,4 +109,30 @@ export function entrypointStub(
         : instance.fetch(req, env, objectCtx());
     },
   );
+}
+
+/**
+ * `ctx.exports`: loopback handles of a Worker's named exports. An entrypoint's is a stub
+ * (`ctx.exports.Greeter.greet()`), and called with `{ props }` gives one with props; a Durable
+ * Object class's is a facet class handle, also callable with `{ props }`.
+ */
+export function ctxExports(worker: Record<string, unknown>, env: unknown): Record<string, unknown> {
+  const exports: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(worker)) {
+    if (name === "default" || typeof value !== "function") continue;
+    if (isWorkerEntrypoint(value)) {
+      const withProps = (o: { props?: unknown } = {}) =>
+        entrypointStub(value, env, o.props, exports);
+      const stub = withProps();
+      exports[name] = new Proxy(withProps, { get: (_t, prop) => stub[prop as string] });
+    } else {
+      const handle = (o: { props?: unknown } = {}) =>
+        classHandle(async () => ({ cls: value as DurableObjectClass, env, props: o.props }));
+      exports[name] = Object.assign(
+        handle,
+        classHandle(async () => ({ cls: value as DurableObjectClass, env })),
+      );
+    }
+  }
+  return exports;
 }

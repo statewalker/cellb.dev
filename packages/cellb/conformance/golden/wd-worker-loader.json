@@ -2,15 +2,17 @@
   "celld": "0.6.3",
   "transcript": [
     {
-      "request": "GET /?skip=abortIsolateDynamic,abortIsolateDynamicAnonymous,basics,compatDateFlags,ctxExports,doStubViaEnv,doStubViaProps,doStubViaRpcParam,facetUafRegression,facets,moduleTypes,nullGlobalOutbound,regressionDeadIoContextGetCode,wasmModules",
+      "request": "GET /?skip=abortIsolateDynamic,abortIsolateDynamicAnonymous,basics,compatDateFlags,doStubViaEnv,doStubViaProps,doStubViaRpcParam,facetUafRegression,facets,moduleTypes,nullGlobalOutbound,wasmModules",
       "status": 200,
       "contentType": "application/json",
       "body": {
         "asyncCodeLoader": "ok",
         "codeLoaderException": "ok",
+        "ctxExports": "ok",
         "justLoad": "ok",
         "passEnv": "ok",
         "passEnvCaps": "ok",
+        "regressionDeadIoContextGetCode": "ok",
         "startupException": "ok",
         "suggestWorkerBundlerForTypeScriptModules": "AssertionError: undefined rejects {\"name\":\"TypeError\",\"message\":\"Module name must end with '.js' or '.py' (or the content must be an object indicating the type explicitly). Got: main.ts. If you're trying to load TypeScript, bundle it first with '@cloudflare/worker-bundler' and pass the generated Jav"
       }

@@ -92,6 +92,9 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
   (the cells-http wire of `src/transport/port.ts`): the first chunk of a response arrives while the
   loaded Worker is still producing the rest.
 - `globalOutbound: null` makes the isolate's `fetch` throw; a Fetcher redirects it.
+- Its `ctx.exports` holds its own `WorkerEntrypoint` classes, each a stub
+  (`ctx.exports.Alt.greet()`) or called with `{ props }`; `getEntrypoint(name, { props })` props
+  reach `ctx.props` inside the isolate.
 - Durable Object classes of loaded code (facets) run inside the isolate, with their own SQLite; their
   commits are logged through the parent's storage on Node.
 - The project's own Worker does **not** run in an isolate: it shares the host's realm.

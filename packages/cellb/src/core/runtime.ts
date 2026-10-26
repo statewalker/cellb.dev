@@ -11,8 +11,8 @@ import { v8Codec } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
-import { type ExecutionContext, WorkerEntrypoint } from "./durable-object.js";
-import { classHandle, type DurableObjectClass, entrypointStub } from "./handles.js";
+import type { ExecutionContext } from "./durable-object.js";
+import { ctxExports, type DurableObjectClass } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
 import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./namespace.js";
 import { CellOwnedElsewhereError, ObjectHost } from "./object-host.js";
@@ -121,23 +121,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   };
   const env: Record<string, unknown> = { ...opts.vars };
   const bindingClasses: Record<string, string> = {};
-  // ctx.exports: loopback handles of the Worker's named exports.
-  const exportsObj: Record<string, unknown> = {};
-  for (const [name, value] of Object.entries(opts.worker)) {
-    if (name === "default" || typeof value !== "function") continue;
-    if (value.prototype instanceof WorkerEntrypoint)
-      exportsObj[name] = (o: { props?: unknown } = {}) =>
-        entrypointStub(value, env, o.props, exportsObj);
-    else {
-      // A Durable Object class: usable as a facet class handle, or called with props.
-      const handle = (o: { props?: unknown } = {}) =>
-        classHandle(async () => ({ cls: value as DurableObjectClass, env, props: o.props }));
-      exportsObj[name] = Object.assign(
-        handle,
-        classHandle(async () => ({ cls: value as DurableObjectClass, env })),
-      );
-    }
-  }
+  const exportsObj = ctxExports(opts.worker, env);
   const clock = opts.clock ?? systemClock;
   // Hosts by class name: the alarm scheduler wakes objects that nobody is calling.
   const hostsByClass = new Map<string, (id: DurableObjectId) => ObjectHost>();

@@ -86,7 +86,7 @@ recorded), red on cellb before, green after.
    `getEntrypoint(name, {props})` reaches an isolated loaded Worker: the facade forwards
    `ctx.props` on calls and fetches; plain-object entrypoint methods receive `(…args, env, ctx)`
    as in workerd (`src/core/handles.ts`, `src/isolate/host.ts`, `src/isolate/isolate.ts`).
-2. **`ctx.exports.<Entrypoint>` in loaded Workers** (`ctxExports`).
+2. [x] **`ctx.exports.<Entrypoint>` in loaded Workers** (`ctxExports`; `regressionDeadIoContextGetCode` too, which uses `ctx.exports.X.fetch` directly).
 3. **`WorkerCode` module types** (`wasmModules` "ok"; `moduleTypes` matches celld's refusal of
    `data` modules: `module "binary.dat" must be a string or wasm bytes`).
 4. **WebSocketPair `binaryType` per project** (`binaryTypeWebSocketPairDefault`,

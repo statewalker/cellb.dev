@@ -2,7 +2,7 @@
  * The isolate side: loads the Worker code in THIS realm and serves fetch/RPC for the host.
  * `importCode` is realm specific (data: URL of a bundle on Node, a site URL in browsers).
  */
-import { entrypointStub } from "../core/handles.js";
+import { ctxExports, entrypointStub } from "../core/handles.js";
 import { runInDurableObject } from "../core/namespace.js";
 import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
 import type { OpenCellSql } from "../ports.js";
@@ -89,6 +89,7 @@ export function serveIsolate(
     return rt;
   };
   let env: Record<string, unknown> = {};
+  let exports: Record<string, unknown> = {};
   // A facet of loaded code: the object lives here, named by the parent's facet cell key.
   const facet = async (className: string, cellKey: string) => {
     const rt = await objectRuntime(className);
@@ -101,7 +102,7 @@ export function serveIsolate(
   const exported = (name: string, props?: unknown) => {
     const target = module[name];
     if (target === undefined) throw new Error(`Loaded worker does not export "${name}"`);
-    return entrypointStub(target, env, props);
+    return entrypointStub(target, env, props, exports);
   };
   const fetchTarget = async (t: FetchTarget, req: Request): Promise<Response> =>
     "className" in t
@@ -138,6 +139,7 @@ export function serveIsolate(
           );
         }) as typeof fetch;
       module = await importCode(m, sink);
+      exports = ctxExports(module, env);
       return Object.fromEntries(Object.entries(module).map(([k, v]) => [k, typeof v]));
     }
     if (m.type === "image") return await images.get(m.token)?.();

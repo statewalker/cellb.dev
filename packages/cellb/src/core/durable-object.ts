@@ -10,7 +10,14 @@ export class DurableObject<Env = unknown> {
   }
 }
 
+/** Brands WorkerEntrypoint subclasses across copies of this module (a loaded Worker bundles its own). */
+const ENTRYPOINT = Symbol.for("cellb.WorkerEntrypoint");
+
+export const isWorkerEntrypoint = (v: unknown): boolean =>
+  typeof v === "function" && (v as unknown as Record<symbol, unknown>)[ENTRYPOINT] === true;
+
 export class WorkerEntrypoint<Env = unknown> {
+  static readonly [ENTRYPOINT] = true;
   protected ctx: ExecutionContext;
   protected env: Env;
   constructor(ctx: ExecutionContext, env: Env) {

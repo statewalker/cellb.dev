@@ -1,5 +1,6 @@
 import {
   classHandle,
+  ctxExports,
   type DurableObjectClass,
   entrypointStub,
   ISOLATED,
@@ -83,6 +84,8 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
   type Loaded = {
     module: Record<string, unknown>;
     env: unknown;
+    /** ctx.exports of the loaded code (empty for an isolated module: the isolate builds its own). */
+    exports: Record<string, unknown>;
     code: WorkerCode;
     logs: TailLog[];
   };
@@ -107,7 +110,9 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             const logs: TailLog[] = [];
             const sink: LogSink = (level, message) =>
               logs.push({ level, message, timestamp: Date.now() });
-            return { module: await load(id, code, sink), env: code.env ?? {}, code, logs };
+            const module = await load(id, code, sink);
+            const env = code.env ?? {};
+            return { module, env, exports: ctxExports(module, env), code, logs };
           })();
           p.catch(() => cache.delete(id));
           if (cached) cache.set(id, p);
@@ -187,7 +192,7 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
                 if (prop === "then" || typeof prop === "symbol") return undefined;
                 return async (...args: unknown[]) => {
                   const l = await loaded();
-                  const stub = entrypointStub(l.module[name], l.env, options.props);
+                  const stub = entrypointStub(l.module[name], l.env, options.props, l.exports);
                   const request =
                     prop === "fetch"
                       ? new Request(args[0] as RequestInfo, args[1] as RequestInit)
