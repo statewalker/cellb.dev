@@ -1,5 +1,6 @@
 import type { CommitChanges, SqlResult, SyncSqlDriver } from "../ports.js";
 import { LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE } from "./celld-schema.js";
+import { completeSqlStatements } from "./sql-split.js";
 
 const FORBIDDEN_TXN = /^\s*(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
 const FORBIDDEN_INTERNAL = /\b_cf_\w*/i;
@@ -10,6 +11,25 @@ const FORBIDDEN_DDL = /^\s*(CREATE|DROP)\b[^(]*?\b_cf_/i;
 function withoutLiterals(sql: string): string {
   return sql.replace(/'(?:[^']|'')*'|--[^\n]*|\/\*[\s\S]*?\*\//g, " ");
 }
+
+/**
+ * Why celld's authorizer refuses a statement at prepare time, or undefined: transaction
+ * statements and internal tables. Names inside string literals and comments are values, not
+ * tables: `WHERE callback = '_cf_x'` is allowed (the Agents SDK writes one).
+ */
+function refusal(query: string): string | undefined {
+  const code = withoutLiterals(query);
+  if (FORBIDDEN_TXN.test(code) || FORBIDDEN_DDL.test(code)) return "not authorized";
+  const internal = FORBIDDEN_INTERNAL.exec(code);
+  if (!internal) return undefined;
+  const table = internal[0];
+  // celld names the first column of its own internal schema (_cf_KV starts with `scope`).
+  return `access to ${table}.${table.toLowerCase() === "_cf_kv" ? "scope" : "key"} is prohibited`;
+}
+
+/** SQLite's own message, without the prefix SQLite WASM adds to it. */
+const sqliteMessage = (e: unknown) =>
+  String((e as Error)?.message ?? e).replace(/^SQLITE_\w+: sqlite3 result code \d+: /, "");
 
 /** `ctx.storage.sql.exec()` cursor (iterable, one-shot like the CF one). */
 export class SqlStorageCursor<T = Record<string, unknown>> implements Iterable<T> {
@@ -122,20 +142,9 @@ export class SqlStorage {
   }
 
   exec<T = Record<string, unknown>>(query: string, ...bindings: unknown[]): SqlStorageCursor<T> {
-    // Messages as celld words them (storage-details project): its authorizer refuses
-    // transaction statements and reads of internal tables at prepare time.
-    // Names inside string literals and comments are values, not tables: `WHERE callback =
-    // '_cf_x'` is allowed (the Agents SDK writes one).
-    const code = withoutLiterals(query);
-    if (FORBIDDEN_TXN.test(code) || FORBIDDEN_DDL.test(code))
-      throw new Error("SQL error: prepare SQL cursor: not authorized");
-    const internal = FORBIDDEN_INTERNAL.exec(code);
-    if (internal) {
-      const table = internal[0];
-      // celld names the first column of its own internal schema (_cf_KV starts with `scope`).
-      const column = table.toLowerCase() === "_cf_kv" ? "scope" : "key";
-      throw new Error(`SQL error: prepare SQL cursor: access to ${table}.${column} is prohibited`);
-    }
+    // Messages as celld words them (storage-details project).
+    const refused = refusal(query);
+    if (refused) throw new Error(`SQL error: prepare SQL cursor: ${refused}`);
     if (bindings.length && countParameters(query) !== bindings.length)
       throw new Error("SQL error: Wrong number of parameter bindings for SQL query.");
     return new SqlStorageCursor<T>(this.internalExec(query, bindings));
@@ -149,6 +158,37 @@ export class SqlStorage {
     query: string,
   ): (...bindings: unknown[]) => SqlStorageCursor<T> {
     return (...bindings) => this.exec<T>(query, ...bindings);
+  }
+
+  /**
+   * workerd's experimental `sql.ingest(text)`, for SQL that arrives in pieces: runs the complete
+   * statements at the start of `text` and returns the rest, to be prefixed to the next piece.
+   * As celld: errors read `prepare ingested SQL: …` (refused, or not valid SQL) or `step ingested
+   * SQL: …` (failed while running); statements before a failing one stay applied; `rowsWritten`
+   * includes trigger writes; there is no `rowsRead`.
+   */
+  ingest(text: string): { remainder: string; statementCount: number; rowsWritten: number } {
+    const { statements, remainder } = completeSqlStatements(String(text));
+    const before = this.#totalChanges();
+    for (const statement of statements) {
+      const refused = refusal(statement);
+      if (refused) throw new Error(`SQL error: prepare ingested SQL: ${refused}`);
+      try {
+        this.#driver.exec(`EXPLAIN ${statement}`, []); // prepares it without running it
+      } catch (e) {
+        throw new Error(`SQL error: prepare ingested SQL: ${sqliteMessage(e)}`);
+      }
+      try {
+        this.internalExec(statement);
+      } catch (e) {
+        throw new Error(`SQL error: step ingested SQL: ${sqliteMessage(e)}`);
+      }
+    }
+    return {
+      remainder,
+      statementCount: statements.length,
+      rowsWritten: this.#totalChanges() - before,
+    };
   }
 
   get databaseSize(): number {

@@ -76,7 +76,7 @@ differently. The workerd test configuration (`.wd-test`) is translated by hand i
 
 ## WebSockets are compared with the platform's own
 
-A shared case module encodes 19 WHATWG WebSocket behaviours with no Node- or DOM-only imports.
+A shared case module encodes 20 WHATWG WebSocket behaviours with no Node- or DOM-only imports.
 They run against cellb's sockets (in-process, across worker-thread shards, through a ServiceWorker
 router to shard workers) and against the platform's native `WebSocket` talking to a real `ws`
 server that speaks the same protocol as the test `Room` object. Chrome's native WebSocket is the

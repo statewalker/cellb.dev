@@ -10,7 +10,7 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 
 | Scenario | What differs |
 |---|---|
-| `wd-sql-default` | `sql.ingest()` (experimental) does not exist. celld itself stops at an ingest syntax-error message, so even with it the two agree only up to there. |
+| `wd-sql-default` | `sql.exec('SELECT 1; -- comment')` runs; celld refuses it (workerd: `SQL code did not contain a statement`), so cellb fails an earlier assertion than celld. celld stops at `sql.ingest()`'s syntax error, which cellb words the same (`sql-ingest` agrees), but celld's report of it carries celld's own stack frames. |
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
@@ -40,13 +40,6 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   cannot read such a value; other stubs and `RpcTarget`s are refused with `DataCloneError`.
 - A fetch into a loaded Worker crosses as HTTP/1.1, so hop-by-hop request headers (`Connection`,
   `Upgrade`, `TE`, `Keep-Alive`) do not reach it.
-
-## Planned work
-
-Each item is proven by a conformance case changing state (a `knownGap` removed, or a new step
-recorded on celld or workerd), not by a test of the mechanism alone.
-
-- **Small known gaps**, one at a time: `sql.ingest()` only if wanted.
 
 ## Firefox and WebKit
 
@@ -87,26 +80,21 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   global `WebSocket.prototype` (`deserializeAttachment`), which a Worker's bundle takes from the
   host and which lacks them, so it does not recognise any accepted socket as its own: `onConnect`
   and `onMessage` never run. Flue's own routes use HTTP and SSE and are not affected.
-- **Isolated facets in a browser are not in the fleet bucket.** `browserProjectRuntime` does not give
-  its isolates the host's storage, so a Durable Object class of a loaded Worker keeps its database in
-  the isolate's OPFS pool only. On Node they are logged through the parent.
-- **An isolated facet restores only into an empty database.** A Durable Object class of a loaded
-  Worker runs in the isolate's own runtime, which holds no cell lease, so taking the root cell does
-  not rebuild the facet's local database from the bucket as it does for the root and its local
-  facets. On Node the isolate's SQLite is in memory (its opener takes a `dataDir` that nothing sets
-  yet), so it starts empty and is restored correctly; an isolate given a persistent directory would
-  serve the facet's old local state after taking a cell back and log it over the newer one.
 - **The upstream Worker Loader exports `overrideGlobalOutbound` and `inheritGlobalOutbound` are left
   out** of the vendored run. `WorkerCode.globalOutbound` itself is implemented (`null` blocks
   `fetch`; a Fetcher redirects it) and matches celld in the `runtime-api` project; the comment in
-  `scripts/vendor-workerd-tests.mjs` that calls it ignored is out of date.
+  `scripts/vendor-workerd-tests.mjs` that calls it ignored is out of date. `inheritGlobalOutbound`
+  stays out for good: it needs the test Worker's own `globalOutbound`, a `.wd-test` setting with no
+  wrangler equivalent, so on celld and cellb it would fetch `https://example.com` for real.
 - **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked, then
   written; two tabs using it at once can both win.
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.
-- **`bufferedAmount` is always 0** on cellb's WebSockets: there is no backpressure on socket ports.
-- **The input gate does not hold non-storage I/O.** A timer or `fetch` completion can interleave
-  with another event while the gate is closed. celld behaves the same; workerd does not
-  (`wd-actor-block-concurrency-timer`).
+- **The input gate does not hold timers, as on celld.** A timer set before
+  `blockConcurrencyWhile()` fires while its callback runs; workerd holds it until the callback
+  ends. `wd-actor-block-concurrency-timer` records celld doing the same as cellb, and celld is the
+  judge, so this stays (following workerd would need a `judge: "workerd"` reason of the stub kind).
+  workerd's input gate also defers outbound `fetch` completions while storage is in flight; cellb
+  does not, and what celld does there is not recorded.
 - **celld examples not run:** `python` (Pyodide Python Workers), `wasm` (needs the Rust toolchain to
   build), `container` and `sandbox` (Docker or Podman), `pi` and `opencode` (outbound access to model
   endpoints).

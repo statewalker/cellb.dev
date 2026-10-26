@@ -101,7 +101,8 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
   (`ctx.exports.Alt.greet()`) or called with `{ props }`; `getEntrypoint(name, { props })` props
   reach `ctx.props` inside the isolate.
 - Durable Object classes of loaded code (facets) run inside the isolate, with their own SQLite; their
-  commits are logged through the parent's storage on Node.
+  commits are logged through the parent's storage, in Node and in a browser. Under the root's lease
+  the isolate rebuilds a facet's database from that storage when it opens, as the root does.
 - The project's own Worker does **not** run in an isolate: it shares the host's realm.
 
 ## Where each directory sits

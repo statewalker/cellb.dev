@@ -5,7 +5,7 @@
 import { ctxExports, entrypointStub } from "../core/handles.js";
 import { runInDurableObject } from "../core/namespace.js";
 import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
-import type { OpenCellSql } from "../ports.js";
+import type { Lease, LeaseHandle, OpenCellSql } from "../ports.js";
 import { type FetchTarget, isolatePort, type PortLike } from "./protocol.js";
 
 export function serveIsolate(
@@ -64,6 +64,21 @@ export function serveIsolate(
     },
     async save() {},
   };
+  // The host holds the root's lease and attaches each facet with its epoch: handing that epoch
+  // out as the facet's own lease makes its ObjectHost rebuild the local database from the
+  // bucket when it opens, as a root does under a lease (a pool kept from an earlier ownership
+  // is older than what other nodes wrote since). Without an epoch, the local file stays primary.
+  const ownership: Lease = {
+    async tryAcquire(cellKey) {
+      const lost = new AbortController().signal; // fencing stays with the root's lease, in the host
+      return {
+        name: cellKey,
+        epoch: hostLogged(cellKey)?.epoch,
+        lost,
+        release: async () => {},
+      } as LeaseHandle;
+    },
+  };
   let loadMsg: any;
   let sql: Promise<OpenCellSql> | undefined;
   const objectRuntime = async (className: string) => {
@@ -81,7 +96,7 @@ export function serveIsolate(
         durableObjects: { [className]: { className } },
         openSql,
         vars: env, // the loaded Worker's env: plain values and host stubs
-        storage: { durability, backup },
+        storage: { durability, backup, ownership },
         facets: true, // rows move to this run's scope on open, as celld does for facets
       });
       runtimes.set(className, rt);

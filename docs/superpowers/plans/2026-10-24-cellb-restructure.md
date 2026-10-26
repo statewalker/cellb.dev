@@ -483,5 +483,11 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   quirk (a navigation a ServiceWorker lets through loses its controller); the demo's ServiceWorker
   answers navigations. `storage.put` words its clone refusal with cellb's V8 serializer, so
   `storage-details` matches celld's golden. No `test.fail` mark is left; `browser-gaps.ts` is gone.
+- [x] **F11 small gaps** (from `docs/gaps.md`): done on `feat/small-gaps` (plan
+  `2026-10-26-small-gaps.md`). A WebSocket client's `bufferedAmount` counts unacknowledged bytes
+  (a new `ws-conformance` case, native and cellb); isolated facets in a browser are in the fleet
+  bucket and rebuilt on acquire (`opfs-bucket.spec.ts`); `sql.ingest()` as celld words it (new
+  recorded project `sql-ingest`). Kept as limits, reworded: `inheritGlobalOutbound`, the input
+  gate on timers (celld parity).
 - Stays out, written in `docs/gaps.md` with the reason: limits per object, opaque-origin iframes
   for untrusted code, celld's log tier and `/peer/handoff`, Python Workers.
