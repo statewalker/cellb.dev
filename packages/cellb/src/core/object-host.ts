@@ -77,6 +77,8 @@ export class ObjectHost {
     onAlarmChange?: (at: number | null) => void;
     /** `ctx.exports` (loopback handles of the Worker's exports). */
     exports?: Record<string, unknown>;
+    /** `ctx.props` of a facet started from a class handle with `{ props }`. */
+    props?: unknown;
     /** SQLite extensions to load into every cell database (e.g. "sqlite_vec"). */
     sqlExtensions?: string[];
     /** storage.deleteAll() keeps the alarm (`delete_all_preserves_alarm`). */
@@ -143,9 +145,10 @@ export class ObjectHost {
       throw reason ?? new Error("Durable Object reset because its code calls abort()");
     };
     state.exports = opts.exports ?? {};
+    state.props = opts.props;
     state.facets = createFacets(
       { ...opts, epoch: () => this.#epoch },
-      (name, cls, env, id) =>
+      (name, cls, env, id, props) =>
         new ObjectHost({
           ...opts,
           // celld's facet stream: <parent>/facets/<SHA-256(name)[0..16] hex> (engine_api.rs)
@@ -153,6 +156,7 @@ export class ObjectHost {
           id,
           cls,
           env,
+          props,
           onAlarmChange: undefined,
           // A facet is part of its root's cell: no lease of its own, the root's epoch.
           acquire: undefined,
@@ -575,7 +579,13 @@ interface FacetTarget {
 
 function createFacets(
   parent: { id: DurableObjectId; env: unknown; cellKey: string; epoch?: () => number | undefined },
-  spawn: (name: string, cls: DurableObjectClass, env: unknown, id: DurableObjectId) => ObjectHost,
+  spawn: (
+    name: string,
+    cls: DurableObjectClass,
+    env: unknown,
+    id: DurableObjectId,
+    props?: unknown,
+  ) => ObjectHost,
 ) {
   const running = new Map<string, Promise<FacetTarget>>();
   // abort() stops the stubs handed out so far (their calls throw the reason); a later
@@ -615,14 +625,15 @@ function createFacets(
         const info = (await start()) as { class: unknown; id?: unknown };
         let cls: DurableObjectClass;
         let env = parent.env;
+        let props: unknown;
         if (isClassHandle(info.class)) {
           const r = await info.class.resolve();
           if ("isolated" in r)
             return isolated(r.isolated, `${parent.cellKey}/facets/${facetSegment(name)}`);
-          ({ cls, env } = r);
+          ({ cls, env, props } = r);
         } else cls = info.class as DurableObjectClass;
         const id = info.id instanceof DurableObjectIdClass ? info.id : parent.id;
-        return local(spawn(name, cls, env, id));
+        return local(spawn(name, cls, env, id, props));
       })();
       p.catch(() => running.delete(name));
       running.set(name, p);

@@ -1,3 +1,4 @@
+import { deserialize, type HostObjects, serialize } from "../v8/serialize.js";
 import { isWorkerEntrypoint, RpcTarget } from "./durable-object.js";
 import type { DurableObjectState } from "./state.js";
 
@@ -44,6 +45,8 @@ export function isClassHandle(v: unknown): v is ClassHandle {
 export const STUB = Symbol.for("cellb.stub");
 /** Answered by a value that may not cross, with workerd's reason. */
 export const REFUSE = Symbol.for("cellb.refuse");
+/** Answered by a `ctx.exports.X({ props })` stub or class handle: `{ name, props }` (storable). */
+export const EXPORT = Symbol.for("cellb.export");
 
 /**
  * What crosses a stub, as in workerd: functions, `RpcTarget`s, stubs and class handles by
@@ -161,15 +164,22 @@ export function ctxExports(worker: Record<string, unknown>, env: unknown): Recor
     if (name === "default" || !value || (typeof value !== "function" && typeof value !== "object"))
       continue;
     if (typeof value === "object" || isWorkerEntrypoint(value)) {
-      const withProps = (o: { props?: unknown } = {}) =>
-        entrypointStub(value, env, o.props, exports);
+      const withProps = (o: { props?: unknown } = {}) => {
+        const stub = entrypointStub(value, env, o.props, exports);
+        return new Proxy(stub, {
+          get: (t, prop) => (prop === EXPORT ? { name, props: o.props } : t[prop as string]),
+        });
+      };
       const stub = withProps();
       exports[name] = new Proxy(withProps, {
         get: (_t, prop) => (prop === REFUSE ? LOOPBACK : stub[prop as string]),
       });
     } else {
       const handle = (o: { props?: unknown } = {}) =>
-        classHandle(async () => ({ cls: value as DurableObjectClass, env, props: o.props }));
+        Object.assign(
+          classHandle(async () => ({ cls: value as DurableObjectClass, env, props: o.props })),
+          { [EXPORT]: { name, props: o.props } },
+        );
       exports[name] = Object.assign(
         handle,
         classHandle(async () => ({ cls: value as DurableObjectClass, env })),
@@ -177,4 +187,30 @@ export function ctxExports(worker: Record<string, unknown>, env: unknown): Recor
     }
   }
   return exports;
+}
+
+/**
+ * Stubs in Durable Object storage (workerd's `allow_irrevocable_stub_storage`), as V8 host
+ * objects: a `ctx.exports.X({ props })` stub or class handle is stored as `[name, props]` and
+ * read back as `ctx.exports[name]({ props })`. Other stubs and `RpcTarget`s are refused rather
+ * than stored as `{}`.
+ */
+export function storedExports(exports: Record<string, unknown>): HostObjects {
+  const host: HostObjects = {
+    encode(v) {
+      const e = (v as Record<symbol, { name: string; props: unknown } | undefined>)[EXPORT];
+      if (e) return serialize([e.name, e.props], host);
+      if ((v as Record<symbol, unknown>)[STUB] === true || v instanceof RpcTarget)
+        throw new DOMException(
+          "Only ctx.exports.<name>({ props }) stubs and class handles can be stored.",
+          "DataCloneError",
+        );
+      return undefined;
+    },
+    decode(bytes) {
+      const [name, props] = deserialize(bytes, host) as [string, unknown];
+      return (exports[name] as (o: { props: unknown }) => unknown)({ props });
+    },
+  };
+  return host;
 }

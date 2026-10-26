@@ -44,6 +44,8 @@ export class DurableObjectState {
 
   /** `ctx.exports`: loopback handles of the Worker's exports (set by the host). */
   exports: Record<string, unknown> = {};
+  /** `ctx.props`: what a facet's class handle was given as `{ props }` (set by the host). */
+  props: unknown;
   /** `ctx.facets`: child objects with their own SQLite (set by the host). */
   facets!: {
     get(name: string, start: () => unknown): Record<string, any>;

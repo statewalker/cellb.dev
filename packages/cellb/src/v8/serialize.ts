@@ -47,7 +47,17 @@ const T = {
   view: 0x56,
   error: 0x72,
   theHole: 0x2d,
+  host: 0x5c,
 } as const;
+
+/**
+ * An embedder's own objects (V8's host objects, tag `\`), written as a length and bytes:
+ * `encode` claims a value (bytes) or leaves it (undefined); `decode` restores it.
+ */
+export interface HostObjects {
+  encode(v: object): Uint8Array | undefined;
+  decode(bytes: Uint8Array): unknown;
+}
 
 const VIEW_TAGS: [string, number][] = [
   ["Int8Array", 0x62],
@@ -99,7 +109,7 @@ class Writer {
   }
 }
 
-export function serialize(value: unknown): Uint8Array {
+export function serialize(value: unknown, host?: HostObjects): Uint8Array {
   const w = new Writer();
   w.byte(T.version);
   w.varint(VERSION);
@@ -183,6 +193,13 @@ export function serialize(value: unknown): Uint8Array {
     if (known !== undefined) {
       w.byte(T.ref);
       return w.varint(known);
+    }
+    const hosted = host?.encode(v);
+    if (hosted) {
+      remember(v);
+      w.byte(T.host);
+      w.varint(hosted.length);
+      return w.bytes(hosted);
     }
     if (ArrayBuffer.isView(v)) {
       // The buffer first (its id precedes the view's), then the view.
@@ -302,7 +319,7 @@ export function serialize(value: unknown): Uint8Array {
   return w.buf.slice(0, w.len);
 }
 
-export function deserialize(bytes: Uint8Array): unknown {
+export function deserialize(bytes: Uint8Array, host?: HostObjects): unknown {
   let o = 0;
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const objs: unknown[] = [];
@@ -523,6 +540,14 @@ export function deserialize(bytes: Uint8Array): unknown {
           return viewOf(buffer);
         }
         return buffer;
+      }
+      case T.host: {
+        if (!host) throw new Error("v8: a host object, and no decoder for it");
+        const n = varint();
+        const v = host.decode(bytes.slice(o, o + n));
+        o += n;
+        objs.push(v);
+        return v;
       }
       case T.error: {
         let message = "";

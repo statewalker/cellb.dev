@@ -174,8 +174,9 @@ docs/               topic pages
   ([docs/celld-compatibility.md](docs/celld-compatibility.md)).
 - **KV, Queues and Workflows run celld's own JavaScript**, vendored unchanged, so a queue, workflow
   instance or KV namespace written by celld continues on cellb, and back.
-- **celld judges conformance**, because cellb's storage must be celld's; workerd is recorded only
-  to pin where celld differs ([docs/conformance.md](docs/conformance.md)).
+- **celld judges conformance**, because cellb's storage must be celld's; workerd is recorded to
+  pin where celld differs, and judges only where cellb follows it on purpose: stubs, functions and
+  `RpcTarget`s pass by reference, which celld refuses ([docs/conformance.md](docs/conformance.md)).
 - **The gates use no `AsyncLocalStorage`**, which browsers lack.
 - **A browser origin has a fixed number of shards**, because an OPFS pool is exclusive per worker
   ([docs/browser-host.md](docs/browser-host.md)).
@@ -225,8 +226,12 @@ What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches ce
   directory does not exist; neither creates it. (`celld dev` creates `.celld/dev/` on its first run.)
 - **`NoModificationAllowedError` in a browser.** Two workers opened the same OPFS pool. Each worker
   needs its own `pool`.
-- **`RPC stubs cannot cross isolate boundaries yet.`** An `RpcTarget` was passed through a stub.
-  celld refuses it too ([docs/gaps.md](docs/gaps.md)).
+- **`A stub was used after it was disposed.`** Loaded code, or its host, called a stub of the other
+  side after `stub[Symbol.dispose]()`. A stub into a loaded Worker holds its value until disposed or
+  garbage-collected ([docs/gaps.md](docs/gaps.md)).
+- **`DataCloneError: Only ctx.exports.<name>({ props }) stubs and class handles can be stored.`** A
+  Durable Object stub or an `RpcTarget` was put into storage; only `ctx.exports` handles with props
+  are storable.
 - **Writes after the last backup are gone after a crash** when the storage is a periodic backup
   alone (`filesApiBackup`). That is its RPO; a log (`celldBucket`, `filesApiLtxLog`) has none.
 

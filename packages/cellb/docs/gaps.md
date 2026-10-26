@@ -12,10 +12,9 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 |---|---|
 | `wd-sql-default` | `sql.ingest()` (experimental) does not exist. celld itself stops at an ingest syntax-error message, so even with it the two agree only up to there. |
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
-| `wd-stub-storage` | No storable `ctx.exports.<Entrypoint>({ props })` stubs. celld refuses to clone them too, differently. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
-| `wd-worker-loader-gaps` | `WorkerCode.compatibilityFlags` and Durable Object stubs in a loaded Worker's `env` or `props` are not supported. celld refuses `allowExperimental` and stub cloning, so most of these exports fail on celld as well. |
+| `wd-worker-loader-gaps` | `WorkerCode.compatibilityFlags`; `abortIsolateDynamic*` do not build; `getDurableObjectClass(name, { props })` ignores its props; `facetUafRegression` needs `gc()`. celld refuses `allowExperimental`, so most of these exports fail on celld as well. |
 | `miniflare2-details-relative-url` | A stub's `fetch()` of a relative URL: celld passes it to the object, which fails on `new URL()`; cellb rejects at the stub, as workerd does. |
 
 ## Stubs pass by reference, as on workerd, except between nodes
@@ -29,8 +28,11 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   collection of the stub releases it; then the value's own `Symbol.dispose` runs. A stub used after
   `Symbol.dispose` rejects with `A stub was used after it was disposed.`
 - **Stubs do not cross to another node.** An object owned by another tab, worker or peer is called
-  over cells-http or celld's tunnel with V8-serialized arguments: a function, `RpcTarget` or stub
-  there fails with `DataCloneError`.
+  over cells-http or celld's tunnel with V8-serialized arguments: a function there fails with
+  `could not be cloned`, and a stub or `RpcTarget` arrives as a plain object of its own fields.
+- **Only `ctx.exports.X({ props })` stubs and class handles can be stored** in Durable Object
+  storage (as V8 host objects, `[name, props]`, restored against the Worker's `ctx.exports`). celld
+  cannot read such a value; other stubs and `RpcTarget`s are refused with `DataCloneError`.
 - A fetch into a loaded Worker crosses as HTTP/1.1, so hop-by-hop request headers (`Connection`,
   `Upgrade`, `TE`, `Keep-Alive`) do not reach it.
 

@@ -444,7 +444,7 @@ const wdOverrides: Record<string, Partial<Scenario>> = {
     knownGap:
       "no global addEventListener('unhandledrejection') in Node; celld's own assert rethrows its 'rejected: … [at …]' error",
   },
-  "wd-stub-storage": { judge: "workerd", knownGap: "stubs do not pass by reference yet (F3)" },
+  "wd-stub-storage": { judge: "workerd" },
   "wd-websocket-hibernation": {
     knownGap: "celld fails this test ('got '); cellb passes it, as workerd does",
   },
@@ -470,7 +470,7 @@ scenarios["wd-worker-loader-gaps"] = {
   project: "wd-worker-loader",
   steps: [{ path: `/?skip=${WL_AGREE.join(",")}` }],
   knownGap:
-    "no plain-object ctx.exports; WorkerCode compatibilityFlags, DO stubs in env/props; celld refuses allowExperimental and stub cloning",
+    "WorkerCode compatibilityFlags, getDurableObjectClass props, abortIsolateDynamic builds, gc(); celld refuses allowExperimental and stub cloning",
 };
 scenarios["miniflare2-details-relative-url"] = {
   project: "miniflare2-details",

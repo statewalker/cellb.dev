@@ -12,6 +12,17 @@ export interface ListOptions {
   limit?: number;
 }
 
+/** `EXPORT` of core/handles.ts, by its registered name: importing handles.ts here is a cycle. */
+const EXPORT = Symbol.for("cellb.export");
+const withoutStoredStubs = (v: unknown): unknown =>
+  v && typeof v === "object" && (v as Record<symbol, unknown>)[EXPORT]
+    ? null
+    : Array.isArray(v)
+      ? v.map(withoutStoredStubs)
+      : v && Object.getPrototypeOf(v) === Object.prototype
+        ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, withoutStoredStubs(x)]))
+        : v;
+
 /**
  * Synchronous KV API of SQLite-backed objects (`ctx.storage.kv`), stored as celld stores it:
  * `_cf_KV(scope, k, v)` with the cell's scope and V8-serialized values (celld-schema.ts).
@@ -54,8 +65,9 @@ export class SyncKvStorage {
   put(key: string, value: unknown): void {
     this.#init();
     // As celld: `undefined` is a storable value; what structured clone refuses is a TypeError.
+    // ctx.exports.X({ props }) stubs are left to the codec, which stores them (workerd).
     try {
-      structuredClone(value);
+      structuredClone(withoutStoredStubs(value));
     } catch (e) {
       // Browsers prefix the engine message ("Failed to execute 'structuredClone' on …: ").
       throw new TypeError(
