@@ -1,0 +1,8 @@
+{
+  "name": "flue-example",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // The OpenAI-compatible endpoint the agent talks to; the test replaces it with its fake server.
+  "vars": { "LLM_BASE_URL": "http://127.0.0.1:11434/v1" },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FlueAssistantAgent"] }]
+}

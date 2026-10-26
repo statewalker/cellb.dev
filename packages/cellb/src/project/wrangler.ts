@@ -48,6 +48,8 @@ export interface WranglerConfig {
   assets?: AssetsConfig;
   services?: { binding: string; service: string; entrypoint?: string; props?: unknown }[];
   worker_loaders?: { binding: string }[];
+  /** Workers AI: not supported (reported in `unsupported`). */
+  ai?: { binding: string };
 }
 
 /** wrangler `workflows` entries. */
@@ -149,6 +151,7 @@ export function createProjectRuntime(
     worker[workflows.className] = workflows.WorkflowCell as never;
     durableObjects[WORKFLOW_OBJECTS] = { className: workflows.className };
   }
+  if (config.ai) unsupported.push(`ai[${config.ai.binding}] (Workers AI)`);
   for (const s of config.services ?? [])
     if (s.service !== config.name)
       unsupported.push(

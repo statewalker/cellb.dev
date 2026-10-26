@@ -8,6 +8,7 @@ in Node, and alongside celld on one shared bucket.
 
 ```
 packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
+packages/flue-example/ a Flue agent app (Cloudflare target, Agents SDK) run on cellb
 docs/superpowers/      plans for work on the repository
 tools/migrate/         the commit map and scripts that produced this repository's history
 .github/workflows/     interop CI against the real celld and RustFS
@@ -18,7 +19,9 @@ tools/migrate/         the commit map and scripts that produced this repository'
 1. `pnpm install`
 2. `cd packages/cellb && pnpm test`: the unit suite. Tests that need celld skip without `CELLD_BIN`.
 3. `pnpm exec playwright test`: the Chromium end-to-end suite.
-4. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
+4. `cd packages/flue-example && pnpm test`: builds a Flue app with Flue's own Cloudflare build and
+   runs it on cellb against a fake model endpoint.
+5. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
    and RustFS releases and starts RustFS on `127.0.0.1:9200`.
 
 ## Why it is the way it is

@@ -100,12 +100,19 @@ export class ObjectHost {
         // Page-level logs (LTX): the changed pages straight from the page hook when the driver
         // has one; the image only on demand (a generation's first snapshot, or no hook).
         const d = this.#driver;
+        const seq = ++this.#seq;
         const pages = opts.durability.capturePages ? d.takeDirtyPages() : undefined;
+        const snap = () => d.pageImage?.() ?? d.snapshot?.();
+        // The log runs later, after the next event may have opened its transaction, and an
+        // image cannot be taken inside one (VACUUM INTO). When the log will surely need it
+        // (no page hook) or likely does (this host's first commit), take it now.
         const image = opts.durability.capturePages
-          ? () => d.pageImage?.() ?? d.snapshot?.()
+          ? !pages || seq === 1
+            ? snap()
+            : snap
           : undefined;
         const durable = opts.durability.committed(this.cellKey, {
-          seq: ++this.#seq,
+          seq,
           changes,
           image,
           pages,
