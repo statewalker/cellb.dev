@@ -478,7 +478,12 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   stream. Done on `feat/firefox-request-body` (plan `2026-10-26-firefox-request-body.md`): the
   `kv`, `r2` and `miniflare` Firefox specs pass, and `peer-routing` proves the owner retry and the
   restored scheme in Firefox.
-- [x] **Agents SDK gaps** (WebSocket attachments, `env`/`exports` per Worker in browsers and
+- [x] **F10 the remaining Firefox marks**: done on `fix/firefox-remaining` (plan
+  `2026-10-26-firefox-remaining.md`). The two-tab `sharded` specs failed on a Playwright Firefox
+  quirk (a navigation a ServiceWorker lets through loses its controller); the demo's ServiceWorker
+  answers navigations. `storage.put` words its clone refusal with cellb's V8 serializer, so
+  `storage-details` matches celld's golden. No `test.fail` mark is left; `browser-gaps.ts` is gone.
+- [x] **F11 the Agents SDK gaps** (WebSocket attachments, `env`/`exports` per Worker in browsers and
   loaded Workers, `AsyncLocalStorage` in browsers). Done on `feat/agents-sdk-full` (plan
   `2026-10-26-agents-sdk-full.md`): the `agents-host` scenario judged by workerd, the Flue example
   over a WebSocket, and `e2e-browser/agents-sdk.spec.ts`. A native `await` in a browser stays a

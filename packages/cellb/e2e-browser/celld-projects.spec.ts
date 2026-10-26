@@ -9,7 +9,6 @@ import {
   scenarios,
 } from "../conformance/scenarios.ts";
 import { startReferenceServer } from "../test/ws-reference-server.ts";
-import { bundleGaps } from "./browser-gaps.ts";
 
 // The same 25 projects as test/p09 (celld's examples and ours), run on cellb INSIDE
 // a browser — Dedicated Worker, SQLite on OPFS, browser fetch/WebSocket/Request — and compared
@@ -26,10 +25,8 @@ for (const name of Object.keys(scenarios)) {
   const s = scenarios[name];
   const wait =
     (s.settleMs ?? 1500) + s.steps.reduce((n, st) => n + ("waitMs" in st ? st.waitMs : 0), 0);
-  test(name, async ({ page, browserName }) => {
+  test(name, async ({ page }) => {
     test.skip(!!s.knownGap, `known gap: ${s.knownGap}`);
-    const gap = bundleGaps[name]?.[browserName];
-    test.fail(!!gap, gap);
     test.setTimeout(wait + 60_000);
     const ref = s.wsServer ? await startReferenceServer() : undefined;
     try {
