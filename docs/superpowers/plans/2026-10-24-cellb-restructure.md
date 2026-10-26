@@ -455,8 +455,10 @@ recorded on celld/workerd), never by a test of the mechanism alone.
 - [x] **F5 idle databases**: `hibernateIdle` closes the SQLite handle after a second, longer idle
   time and reopens on the next event. Proof: a test counting open handles, and p07i still green.
   Done: `closeDatabaseAfterMs` (opt-in), `test/p07k-idle-databases.test.ts`.
-- [ ] **F6 storage round trips for Workflows and R2**, celld → cellb → celld, as p11f does for KV,
-  D1 and Queues.
+- [x] **F6 storage round trips for Workflows and R2**, celld → cellb → celld, as p11f does for KV,
+  D1 and Queues. Done on `feat/storage-roundtrips` (plan `2026-10-26-storage-roundtrips.md`): one
+  Workflow instance celld → cellb → celld; R2 multipart objects both ways, which found and fixed an
+  MD5 misread from the store's etag and an MD5 on cellb's multipart objects.
 - [ ] **F7 Firefox and WebKit**: add the Playwright projects; record what fails (module
   ServiceWorkers, OPFS sync handles, Web Locks) in `docs/gaps.md` before fixing anything.
 - [x] **F8 await the lease release on close** (found in R3): `ObjectHost.close()` fires

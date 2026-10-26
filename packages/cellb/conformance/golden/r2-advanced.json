@@ -34,7 +34,8 @@
         "tail": "aabc",
         "length": 5242882,
         "partNumbers": [1, 2],
-        "abortedGone": true
+        "abortedGone": true,
+        "md5": false
       }
     }
   ]

@@ -48,9 +48,6 @@ recorded on celld or workerd), not by a test of the mechanism alone.
   and `props`) — only if the RPC decision above goes to workerd.
 - **Small known gaps**, one at a time: `binaryType` per project; `WorkerCode` data and wasm modules;
   plain-object `ctx.exports`; `sql.ingest()` only if wanted.
-- **Storage round trips for Workflows and R2.** The interop suite already moves R2 objects
-  celld → cellb → celld, and Workflow instances celld → cellb and cellb → celld as separate tests; a
-  single celld → cellb → celld Workflow chain is not recorded.
 - **Firefox and WebKit.** Only Chromium is tested. Module ServiceWorkers, OPFS synchronous handles
   and Web Locks are the likely failures; record them here before fixing anything.
 

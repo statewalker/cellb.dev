@@ -73,10 +73,20 @@ async function roundTrip(
       return text;
     }
   };
+  // celld may refuse a request with "predecessor recovery in progress" while it recovers the
+  // previous run's state: a celld step refused that way (before any code ran) is retried.
+  const celldAnswer = async (path: string) => {
+    let got: unknown;
+    for (let i = 0; i < 40; i++) {
+      got = await answer((p, init) => fetch(celld.base + p, init), path);
+      if (got !== "predecessor recovery in progress") break;
+      await new Promise((r2) => setTimeout(r2, 500));
+    }
+    return got;
+  };
   let celld = await celldDev(dir);
   try {
-    for (const [path, want] of steps.celld1)
-      expect(await answer((p, init) => fetch(celld.base + p, init), path)).toEqual(want);
+    for (const [path, want] of steps.celld1) expect(await celldAnswer(path)).toEqual(want);
   } finally {
     await stop(celld.p);
   }
@@ -112,7 +122,7 @@ async function roundTrip(
   celld = await celldDev(dir);
   try {
     for (const [path, want] of steps.celld2) {
-      const got = await answer((p, init) => fetch(celld.base + p, init), path);
+      const got = await celldAnswer(path);
       expect(
         got,
         celld
@@ -649,6 +659,60 @@ describe.skipIf(!CELLD)(
       120_000,
     );
 
+    // One instance, three runtimes: each step reports the runtime that ran it, so a step run
+    // again after a hand-over would show the wrong one.
+    for (const driver of ["node", "wasm"] as const) {
+      it(`Workflows: one instance runs celld → cellb → celld (${driver})`, async () => {
+        const dir = join(mkdtempSync(join(tmpdir(), "wf-relay-")), "workflow-api");
+        cpSync(join(ours, "workflow-api"), dir, { recursive: true });
+        let celld = await celldDev(dir);
+        await fetch(`${celld.base}/create?id=r1&kind=relay`); // step a, then a 2 s sleep
+        await new Promise((r) => setTimeout(r, 300));
+        await stop(celld.p);
+        const { runtime } = await loadNodeProject(dir, {
+          openSql: driver === "node" ? nodeSqliteOpener() : await wasm(),
+          files: new MemFilesApi(),
+          storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
+            node: "cellb-test",
+            leaseTtlMs: 3_000,
+          }),
+        });
+        let st: any;
+        for (let i = 0; i < 60; i++) {
+          const text = await (await runtime.fetch(new Request("http://w/status?id=r1"))).text();
+          if (!text.includes("owned by another")) {
+            st = JSON.parse(text);
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        expect(st.status).toBe("waiting");
+        // The sleep ends here (at most 2 s after the create): step b runs, then the event wait.
+        await new Promise((r) => setTimeout(r, 3_000));
+        await runtime.close();
+        celld = await celldDev(dir);
+        try {
+          await fetch(`${celld.base}/event?id=r1`);
+          let got: any;
+          for (let i = 0; i < 40; i++) {
+            got = await (await fetch(`${celld.base}/status?id=r1`)).json();
+            if (got.status === "complete" || got.status === "errored") break;
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          expect(got).toMatchObject({
+            status: "complete",
+            output: {
+              a: "Cloudflare-Workers",
+              b: expect.stringMatching(/^Node\.js/),
+              c: "Cloudflare-Workers",
+            },
+          });
+        } finally {
+          await stop(celld.p);
+        }
+      }, 120_000);
+    }
+
     for (const driver of ["node", "wasm", "node-wal"] as const) {
       const note = (body: string, who: string) => ({
         body,
@@ -662,19 +726,34 @@ describe.skipIf(!CELLD)(
         md5: expect.stringMatching(/^[0-9a-f]{32}$/),
         range: body.slice(1, 4),
       });
+      // A multipart object (completed: celld keeps an open upload in the memory of its node).
+      // It has no MD5 checksum, on celld as on Cloudflare.
+      const multipart = (key: string, who: string) => ({
+        size: 5 * 1024 * 1024 + key.length,
+        tail: key,
+        httpMetadata: { contentType: "text/x-big" },
+        customMetadata: { Who: who },
+        md5: null,
+      });
       it(
         `R2: objects with their metadata move across runtimes (${driver})`,
         () =>
           roundTrip(join(ours, "r2-handoff"), driver, {
-            celld1: [["/put?key=a/one&body=written-by-celld&who=celld", { put: "a/one" }]],
+            celld1: [
+              ["/put?key=a/one&body=written-by-celld&who=celld", { put: "a/one" }],
+              ["/mp?key=m/one&who=celld", { mp: "m/one" }],
+            ],
             cellb: [
               ["/get?key=a/one", note("written-by-celld", "celld")],
+              ["/mp-get?key=m/one", multipart("m/one", "celld")],
               ["/put?key=b/two&body=written-by-cellb&who=cellb", { put: "b/two" }],
-              ["/list", ["a/one", "b/two"]],
+              ["/mp?key=m/two&who=cellb", { mp: "m/two" }],
+              ["/list", ["a/one", "b/two", "m/one", "m/two"]],
             ],
             celld2: [
               ["/get?key=b/two", note("written-by-cellb", "cellb")],
-              ["/list", ["a/one", "b/two"]],
+              ["/mp-get?key=m/two", multipart("m/two", "cellb")],
+              ["/list", ["a/one", "b/two", "m/one", "m/two"]],
             ],
           }),
         120_000,
