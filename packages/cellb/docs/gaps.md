@@ -99,7 +99,6 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
 - **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked, then
   written; two tabs using it at once can both win.
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.
-- **`bufferedAmount` is always 0** on cellb's WebSockets: there is no backpressure on socket ports.
 - **The input gate does not hold non-storage I/O.** A timer or `fetch` completion can interleave
   with another event while the gate is closed. celld behaves the same; workerd does not
   (`wd-actor-block-concurrency-timer`).
