@@ -85,6 +85,12 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
 
 - Plain values in its `env` are copied; anything that cannot be cloned (a stub, a binding) becomes a
   stub whose calls go back to the parent runtime.
+- Calls cross the port with `@statewalker/webrun-rpc` (`callPort`/`listenPort` on a multiplexed
+  port, no timeout); an error thrown on one side arrives on the other with its own properties
+  (`name`, `message`, `code`, …).
+- A fetch into the isolate gets a port of its own and crosses as HTTP/1.1 with streamed bodies
+  (the cells-http wire of `src/transport/port.ts`): the first chunk of a response arrives while the
+  loaded Worker is still producing the rest.
 - `globalOutbound: null` makes the isolate's `fetch` throw; a Fetcher redirects it.
 - Durable Object classes of loaded code (facets) run inside the isolate, with their own SQLite; their
   commits are logged through the parent's storage on Node.

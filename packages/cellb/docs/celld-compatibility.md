@@ -53,7 +53,12 @@ those transcripts, and that cellb matches:
 | KV | a cell `__KvNamespace:<id>`; values above 1 MiB in a FilesApi through celld's blob protocol | celld's `services/kv.js`, vendored unchanged |
 | Queues | a cell `__Queue:<id>` with celld's schema (`__queue_messages`, `__queue_stats`, `__queue_meta`, `__queue_transfer_receipts`) | celld's queue code from `harness.js`, vendored unchanged, with the seven policy operations of `celld_logic::queue` ported to TypeScript |
 | Workflows | a cell `__Workflow.<script>:<id>`, KV records under `__wf.` plus the instance's alarm | celld's workflow engine from `harness.js`, vendored unchanged |
-| R2 | directly in the fleet bucket at `r2/<bucket>/<key>`, metadata in the user-metadata entry `celld-r2`; multipart parts under `r2-uploads/<bucket>/<uploadId>/` | cellb's R2 binding on celld's layout |
+| R2 | directly in the fleet bucket at `r2/<bucket>/<key>`, metadata in the user-metadata entry `celld-r2`, with an MD5 for a single-request write and none for a multipart object; an open multipart upload in the memory of the node that opened it | cellb's R2 binding on celld's layout; an open upload's parts under `r2-uploads/<bucket>/<uploadId>/` |
+
+`e2e/p11f-celld-one-bucket.test.ts` moves each binding's data celld → cellb → celld through one
+bucket. A single Workflow instance takes the whole trip: its first step runs on celld, the step after
+its sleep on cellb, the step after its event on celld again, and none runs twice. R2 objects written
+by `put` and by multipart upload cross both ways with their metadata.
 
 Without a fleet bucket, R2 keeps its objects in the project's FilesApi. Queues default
 `max_concurrency` to celld's ceiling, 250.
@@ -105,6 +110,12 @@ A Durable Object that keeps out of `_cf_` names sees no difference in the strict
 - **celld logs `celld ownership record lost`, and cellb throws `OwnershipRecordLostError`**: see
   [ownership-and-durability.md](ownership-and-durability.md#what-breaks). `celld dev` with a lost
   record reports it and never becomes ready.
+- **An R2 multipart upload opened on one runtime cannot be finished on the other.** celld keeps an
+  open upload in its node's memory and answers `R2 multipart upload <id> is not open on this node:
+  celld can resume an upload within the node that created it, not across nodes or restarts`; cellb
+  answers `completeMultipartUpload: The specified multipart upload does not exist. (10024)` for an
+  upload celld opened. Complete an upload on the runtime that opened it; the finished object then
+  reads on both.
 - **Renaming the project's `name` makes every Durable Object start empty.** Ids derive from the
   script name. The old cells are still in the bucket, under their old keys.
 - **Node's HTTP server rejects celld's inner RPC requests** with `400`: they carry no `Host` header.

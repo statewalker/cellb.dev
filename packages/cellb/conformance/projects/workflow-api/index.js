@@ -34,6 +34,16 @@ export class Flow extends WorkflowEntrypoint {
         throw new Error("always fails");
       });
     }
+    if (kind === "relay") {
+      // Each step reports the runtime that ran it (celld: "Cloudflare-Workers"; cellb: "Node.js/…").
+      const ran = async () => navigator.userAgent;
+      const a = await step.do("a", ran);
+      await step.sleep("nap", "2 seconds");
+      const b = await step.do("b", ran);
+      await step.waitForEvent("go", { type: "approve", timeout: "1 minute" });
+      const c = await step.do("c", ran);
+      return { a, b, c };
+    }
     if (kind === "fail") throw new TypeError("bad input");
     if (kind === "long") {
       await step.sleep("long nap", "1 hour");

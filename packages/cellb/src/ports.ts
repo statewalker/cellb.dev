@@ -150,7 +150,8 @@ export interface BackupInfo {
  * Durability by periodic backup: `save` receives a consistent SQLite image of a
  * cell whenever it changed since the last successful save (every `intervalMs`,
  * on `runtime.backupNow()` and on `runtime.close()`). `load` restores a cell
- * whose local database is empty. RPO = interval: writes after the last
+ * whose local database is empty, and under a cell lease replaces the local
+ * database on every acquisition. RPO = interval: writes after the last
  * successful save can be lost with the local store (e.g. an evicted OPFS).
  */
 export interface CellBackup {

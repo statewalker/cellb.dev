@@ -51,6 +51,8 @@ export async function runProject(job: {
     | { opfs: string; node: string };
   /** With `bucket`: fetch these paths (retrying while another node still owns the cell). */
   paths?: string[];
+  /** The OPFS SQLite pool (default: a fresh one per run); a node's own pool persists across runs. */
+  pool?: string;
 }) {
   const vec = job.config.compatibility_flags?.includes("sqlite_vec");
   // sqlite_vec needs a SQLite WASM build with sqlite-vec compiled in (no Emscripten options).
@@ -67,7 +69,7 @@ export async function runProject(job: {
     code: job.code,
     isolateScript: job.isolateScript,
     sqlite3,
-    pool: `cells-${run}`,
+    pool: job.pool ?? `cells-${run}`,
     filesDir: `files-${run}`,
     assetFiles,
     bucket: !b

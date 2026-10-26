@@ -431,12 +431,16 @@ right twice); nothing if D10 = celld.
 Each task is proven by a conformance case changing state (a `knownGap` removed, or a new step
 recorded on celld/workerd), never by a test of the mechanism alone.
 
-- [ ] **F1 isolate port on webrun-rpc** (D10-independent). Replace `rpcPort` with
+- [x] **F0 a stale local database after re-acquiring a cell** (data loss, found in R9): under a
+  cell lease the local database is rebuilt from the bucket on every acquisition. Proof:
+  `test/p10e-stale-local-db.test.ts` (A, B, A counts 1, 2, 3) and the OPFS step in
+  `e2e-browser/opfs-bucket.spec.ts`; branch `fix/stale-local-db`.
+- [x] **F1 isolate port on webrun-rpc** (D10-independent) — done on `feat/isolate-rpc`; one calls port carries both directions. Replace `rpcPort` with
   `callPort`/`listenPort` (`NO_TIMEOUT`) on a `multiplexPort` channel per direction. Errors keep
   their own properties (`code`), as stub calls in one isolate already do. Proof: a step in the
   `isolation-api` project throwing an error with `code` from a loaded Worker, recorded on celld;
   red today (`code` is lost at `protocol.ts:75`). Deletes ~50 lines.
-- [ ] **F2 streamed bodies across the isolate** (D10-independent). Route the isolate's `fetch` through
+- [x] **F2 streamed bodies across the isolate** (D10-independent) — done on `feat/isolate-rpc`; the target and URL ride in the fetch port's meta. Route the isolate's `fetch` through
   the cells-http-over-port path cellb already has (`transport/port.ts`) instead of
   `arrayBuffer()` copies. Proof: a loaded Worker streams a response whose first chunk arrives
   before its last is produced — a new step, recorded on celld.
@@ -448,17 +452,21 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   or adding a recorded step: WebSocket `binaryType` per project (`websocket_standard_binary_type`,
   the three global paths); `WorkerCode` data/wasm module types; `ctx.exports.<Entrypoint>`.
   `sql.ingest()` only if wanted — celld stops at an ingest error anyway.
-- [ ] **F5 idle databases**: `hibernateIdle` closes the SQLite handle after a second, longer idle
+- [x] **F5 idle databases**: `hibernateIdle` closes the SQLite handle after a second, longer idle
   time and reopens on the next event. Proof: a test counting open handles, and p07i still green.
-- [ ] **F6 storage round trips for Workflows and R2**, celld → cellb → celld, as p11f does for KV,
-  D1 and Queues.
+  Done: `closeDatabaseAfterMs` (opt-in), `test/p07k-idle-databases.test.ts`.
+- [x] **F6 storage round trips for Workflows and R2**, celld → cellb → celld, as p11f does for KV,
+  D1 and Queues. Done on `feat/storage-roundtrips` (plan `2026-10-26-storage-roundtrips.md`): one
+  Workflow instance celld → cellb → celld; R2 multipart objects both ways, which found and fixed an
+  MD5 misread from the store's etag and an MD5 on cellb's multipart objects.
 - [x] **F7 Firefox and WebKit**: add the Playwright projects; record what fails (module
   ServiceWorkers, OPFS sync handles, Web Locks) in `docs/gaps.md` before fixing anything.
   Done (`pnpm e2e:firefox`, `pnpm e2e:webkit`): Firefox runs green with its failures marked by
   cause; WebKit is wired but not run on this host (no `libavif16`).
-- [ ] **F8 await the lease release on close** (found in R3): `ObjectHost.close()` fires
+- [x] **F8 await the lease release on close** (found in R3): `ObjectHost.close()` fires
   `void release()`, so `storage.close()` can overlap a release in flight and leave `own.json`
   held until its lease lapses. TDD: close, then a second node's `tryAcquire` must succeed at once
-  with the store closed right after; then await the release in `close()`.
+  with the store closed right after; then await the release in `close()`. Done: `test/p10e`
+  (own.json released when `close()` returns).
 - Stays out, written in `docs/gaps.md` with the reason: limits per object, opaque-origin iframes
   for untrusted code, celld's log tier and `/peer/handoff`, Python Workers.

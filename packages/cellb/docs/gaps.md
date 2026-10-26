@@ -26,11 +26,12 @@ the in-browser module server). A per-project default needs all three.
 
 - An `RpcTarget` passed through a stub is refused with `RPC stubs cannot cross isolate boundaries
   yet.` (`src/core/namespace.ts`). Functions pass by reference only inside one runtime.
-- A loaded Worker's isolate talks to its parent over a request/response port protocol
-  (`src/isolate/protocol.ts`): errors arrive with `name` and `message` only (a `code` property is
-  lost), request and response bodies are buffered whole, and values that cannot be cloned become
-  stubs only as `env` entries — never as arguments, results or `props`. Passing one fails with
-  `DataCloneError`.
+- A loaded Worker's isolate talks to its parent over `@statewalker/webrun-rpc`
+  (`src/isolate/protocol.ts`). Errors keep their own properties (`name`, `code`) and bodies stream,
+  but values that cannot be cloned become stubs only as `env` entries — never as arguments, results
+  or `props`. Passing one fails with `DataCloneError`. A fetch into a loaded Worker crosses as
+  HTTP/1.1, so hop-by-hop request headers (`Connection`, `Upgrade`, `TE`, `Keep-Alive`) do not
+  reach it.
 - celld refuses the same things (`function () {} could not be cloned`, `Worker Loader env supports
   only Service Binding capabilities.`), so cellb matches the judge. workerd passes stubs.
   **Open decision:** keep celld's refusal, or follow workerd. Following workerd would make those
@@ -41,21 +42,10 @@ the in-browser module server). A per-project default needs all three.
 Each item is proven by a conformance case changing state (a `knownGap` removed, or a new step
 recorded on celld or workerd), not by a test of the mechanism alone.
 
-- **Isolate port on `@statewalker/webrun-rpc`.** Errors keep their own properties (`code`) across an
-  isolate.
-- **Streamed bodies across an isolate**, instead of buffered copies.
 - **Stubs by reference across isolates** (functions, `RpcTarget`, stubs as arguments, results, `env`
   and `props`) — only if the RPC decision above goes to workerd.
 - **Small known gaps**, one at a time: `binaryType` per project; `WorkerCode` data and wasm modules;
   plain-object `ctx.exports`; `sql.ingest()` only if wanted.
-- **Idle databases.** Hibernation drops a cell's instance but keeps its SQLite database open; a
-  second, longer idle time should close it and reopen on the next event.
-- **Storage round trips for Workflows and R2.** The interop suite already moves R2 objects
-  celld → cellb → celld, and Workflow instances celld → cellb and cellb → celld as separate tests; a
-  single celld → cellb → celld Workflow chain is not recorded.
-- **Await the lease release on close.** Closing a runtime releases each cell without waiting, so a
-  store closed right after can leave `own.json` held until the node lease lapses (10 s by default):
-  the next node reports `owned by another node` until then.
 
 ## Firefox and WebKit
 
@@ -84,20 +74,18 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
 
 ## Other gaps
 
-- **A persistent local database can overwrite another node's writes.** A runtime restores a cell
-  from the bucket only when the cell's local SQLite database is empty. A node that kept its local
-  file, lost the cell to another node, and takes it back later serves its old local state and logs
-  it as the new generation: the other node's writes are lost. Seen with `nodeSqliteOpener(dir)` on a
-  fleet bucket (node A counts 1, node B 2, node A again 2 instead of 3). The same applies to a
-  browser runtime, whose OPFS pool persists, when it takes back a cell it lost. Until fixed, give a
-  runtime on a fleet bucket local SQLite that starts empty: in memory, or a fresh directory or pool
-  per start.
 - **Configuration cellb does not support** is reported in `createProjectRuntime(...).unsupported`,
   not silently ignored: `migrations.renamed_classes`, `durable_objects.bindings[].script_name`,
   service bindings to other scripts, and compatibility flags it does not know.
 - **Isolated facets in a browser are not in the fleet bucket.** `browserProjectRuntime` does not give
   its isolates the host's storage, so a Durable Object class of a loaded Worker keeps its database in
   the isolate's OPFS pool only. On Node they are logged through the parent.
+- **An isolated facet restores only into an empty database.** A Durable Object class of a loaded
+  Worker runs in the isolate's own runtime, which holds no cell lease, so taking the root cell does
+  not rebuild the facet's local database from the bucket as it does for the root and its local
+  facets. On Node the isolate's SQLite is in memory (its opener takes a `dataDir` that nothing sets
+  yet), so it starts empty and is restored correctly; an isolate given a persistent directory would
+  serve the facet's old local state after taking a cell back and log it over the newer one.
 - **The upstream Worker Loader exports `overrideGlobalOutbound` and `inheritGlobalOutbound` are left
   out** of the vendored run. `WorkerCode.globalOutbound` itself is implemented (`null` blocks
   `fetch`; a Fetcher redirects it) and matches celld in the `runtime-api` project; the comment in

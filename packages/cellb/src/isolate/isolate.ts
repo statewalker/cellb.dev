@@ -6,7 +6,7 @@ import { entrypointStub } from "../core/handles.js";
 import { runInDurableObject } from "../core/namespace.js";
 import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
 import type { OpenCellSql } from "../ports.js";
-import { deserializeRequest, type PortLike, rpcPort, serializeResponse } from "./protocol.js";
+import { type FetchTarget, isolatePort, type PortLike } from "./protocol.js";
 
 export function serveIsolate(
   port: PortLike,
@@ -39,7 +39,7 @@ export function serveIsolate(
       const token = ++nextImage;
       if (typeof info.image === "function") images.set(token, info.image);
       try {
-        await rpc.request({
+        await call({
           type: "durable",
           op: "committed",
           cellKey: f.key,
@@ -59,9 +59,7 @@ export function serveIsolate(
     async load(cellKey: string) {
       const f = hostLogged(cellKey);
       return f
-        ? ((await rpc.request({ type: "durable", op: "load", cellKey: f.key })) as
-            | Uint8Array
-            | undefined)
+        ? ((await call({ type: "durable", op: "load", cellKey: f.key })) as Uint8Array | undefined)
         : undefined;
     },
     async save() {},
@@ -91,7 +89,25 @@ export function serveIsolate(
     return rt;
   };
   let env: Record<string, unknown> = {};
-  const rpc = rpcPort(port, async (m) => {
+  // A facet of loaded code: the object lives here, named by the parent's facet cell key.
+  const facet = async (className: string, cellKey: string) => {
+    const rt = await objectRuntime(className);
+    const ns = rt.env[className] as {
+      getByName(n: string): any;
+      idFromName(n: string): { toString(): string };
+    };
+    return { rt, stub: ns.getByName(cellKey), key: `${className}/${ns.idFromName(cellKey)}` };
+  };
+  const exported = (name: string, props?: unknown) => {
+    const target = module[name];
+    if (target === undefined) throw new Error(`Loaded worker does not export "${name}"`);
+    return entrypointStub(target, env, props);
+  };
+  const fetchTarget = async (t: FetchTarget, req: Request): Promise<Response> =>
+    "className" in t
+      ? (await facet(t.className, t.cellKey)).stub.fetch(req)
+      : exported(t.name).fetch(req);
+  const handle = async (m: any) => {
     if (m.type === "load") {
       loadMsg = m;
       // Host bindings: every method call goes back to the host.
@@ -102,7 +118,7 @@ export function serveIsolate(
             get: (_t, method) =>
               typeof method === "symbol" || method === "then"
                 ? undefined
-                : (...args: unknown[]) => rpc.request({ type: "stub", key, method, args }),
+                : (...args: unknown[]) => call({ type: "stub", key, method, args }),
           },
         );
       env = { ...m.env };
@@ -111,7 +127,7 @@ export function serveIsolate(
       // console, or — where the realm has other code that logs — a console scoped to the
       // loaded modules (importCode receives the sink).
       const sink = (level: string, args: unknown[]) =>
-        rpc.send({ type: "log", level, args: safe(args) });
+        call({ type: "log", level, args: safe(args) }).catch(() => {});
       if (opts.patchConsole !== false)
         for (const level of ["log", "info", "warn", "error", "debug"] as const)
           console[level] = (...args: unknown[]) => sink(level, args);
@@ -121,27 +137,16 @@ export function serveIsolate(
             "This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world.",
           );
         }) as typeof fetch;
-      module = await importCode(m, (level, args) =>
-        rpc.send({ type: "log", level, args: safe(args) }),
-      );
+      module = await importCode(m, sink);
       return Object.fromEntries(Object.entries(module).map(([k, v]) => [k, typeof v]));
     }
     if (m.type === "image") return await images.get(m.token)?.();
     if (m.type === "object") {
-      // A facet of loaded code: the object lives here, named by the parent's facet cell key.
-      const rt = await objectRuntime(m.className);
-      const ns = rt.env[m.className] as {
-        getByName(n: string): any;
-        idFromName(n: string): { toString(): string };
-      };
-      const stub = ns.getByName(m.cellKey);
-      const key = `${m.className}/${ns.idFromName(m.cellKey).toString()}`;
+      const { rt, stub, key } = await facet(m.className, m.cellKey);
       if (m.op === "attach") {
         facetKeys.set(key, { key: m.cellKey, epoch: m.epoch });
         return;
       }
-      if (m.op === "fetch")
-        return serializeResponse(await stub.fetch(deserializeRequest(m.request)));
       if (m.op === "call") return stub[m.method](...m.args);
       if (m.op === "restart") return rt.restartObject(key);
       if (m.op === "delete") {
@@ -154,15 +159,10 @@ export function serveIsolate(
       }
       throw new Error(`unknown object op ${m.op}`);
     }
-    const target = module[m.name];
-    if (target === undefined) throw new Error(`Loaded worker does not export "${m.name}"`);
-    const stub = entrypointStub(target, env, m.props);
-    if (m.type === "fetch")
-      return serializeResponse(await stub.fetch(deserializeRequest(m.request)));
-    if (m.type === "call") return stub[m.method](...m.args);
+    if (m.type === "call") return exported(m.name, m.props)[m.method](...m.args);
     throw new Error(`unknown isolate message ${m.type}`);
-  });
-  return rpc;
+  };
+  const { call } = isolatePort(port, handle, fetchTarget);
 }
 
 const safe = (args: unknown[]) =>
