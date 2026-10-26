@@ -302,6 +302,21 @@ and `pnpm biome check .` exit 0, no stale `browser/` path outside `docs/history`
   inside `new URL(…, import.meta.url)`; `?worker&url` also bundles it for a build). The no-`node:`
   import guard covers `src/browser.ts` and the worker too.
 
+### G glossary — done `420fbaa..28dd1bf` and the commit that ticks these boxes
+The user accepted every recommended answer in `CONTEXT.md`'s open questions. Bar: unit with celld
+354 / 7 expected fail / 1 skip; Chromium with the celld env 181 / 14 skipped (one earlier full run
+had 4 failures — celld-projects `queues` and `workflow`, site-projects `alarm` ("Execution context
+was destroyed … navigation"), and websocket "a socket held by another tab's shard closes with 1006"
+(30 s timeout) — that passed alone (121 / 14) and in a full rerun: a flake to watch, not traced to
+the renames); typecheck and biome exit 0.
+- [x] `CONTEXT.md`: entries resolved, the answers folded in, no open questions left.
+- [x] `SyncSqlDriver.snapshot()` → `image()` (drivers, WASM hooks, object host, tests, the mutant's
+  label). The changeset log's persisted `snapshot.sqlite` keeps its name; "snapshot" elsewhere is the
+  LTX meaning.
+- [x] `createShardHost` / `ShardHost` / `ShardHostOptions` → `createShardWorker` / `ShardWorker` /
+  `ShardWorkerOptions`, file `router/shard-worker.ts` (`git mv` first).
+- [x] The `Lease` port's comment says per cell; the name stays.
+
 ## 4. Decisions (answered 2026-10-24)
 
 | # | Question | Decision |
