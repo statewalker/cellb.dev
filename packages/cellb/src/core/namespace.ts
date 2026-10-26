@@ -1,27 +1,8 @@
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
-import { RpcTarget } from "./durable-object.js";
+import { cross, STUB } from "./handles.js";
 import { type DurableObjectId, idFromName, newUniqueId, validateId } from "./id.js";
 import type { ObjectHost } from "./object-host.js";
 import type { DurableObjectState } from "./state.js";
-
-/** Structured-clone boundary: what crosses a stub is copied, as between isolates. */
-/**
- * What crosses a stub call, as celld does in one isolate: values are structured-cloned,
- * functions pass by reference, and an RpcTarget is refused ("cannot cross isolate
- * boundaries yet" — celld has no RPC stubs across isolates).
- */
-const cross = <T>(v: T): T => {
-  if (v === undefined || v === null) return v;
-  if (typeof v === "function") return v;
-  if (v instanceof RpcTarget) throw new Error("RPC stubs cannot cross isolate boundaries yet.");
-  if (Array.isArray(v)) return v.map(cross) as T;
-  if (Object.getPrototypeOf(v) === Object.prototype) {
-    const out: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = cross(x);
-    return out as T;
-  }
-  return structuredClone(v);
-};
 
 /** What a stub talks to: a local ObjectHost or a remote cell host behind a port. */
 export interface ObjectEndpoint {
@@ -132,6 +113,7 @@ function createStub(id: DurableObjectId, endpoint: () => ObjectEndpoint): Durabl
   // Only id and name are own enumerable keys, as in workerd and celld: Object.keys(stub) is
   // [id, name], and two stubs of one object are deep-equal.
   Object.defineProperty(target, kEndpoint, { value: endpoint });
+  Object.defineProperty(target, STUB, { value: true });
   Object.defineProperty(target, "fetch", {
     value(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       const req = new Request(input as any, init);

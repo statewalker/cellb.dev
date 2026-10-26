@@ -368,7 +368,6 @@ export const scenarios: Record<string, Scenario> = {
     project: "worker-details",
     steps: [{ path: "/rpc-target" }],
     judge: "workerd",
-    knownGap: "stubs do not pass by reference yet (F3)",
   },
   "ws-details": {
     steps: [

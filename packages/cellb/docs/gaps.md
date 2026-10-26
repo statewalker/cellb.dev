@@ -15,13 +15,13 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 | `wd-stub-storage` | No storable `ctx.exports.<Entrypoint>({ props })` stubs. celld refuses to clone them too, differently. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
-| `wd-worker-loader-gaps` | No plain-object `ctx.exports` entries; `WorkerCode.compatibilityFlags` and Durable Object stubs in a loaded Worker's `env` or `props` are not supported. celld refuses `allowExperimental` and stub cloning, so most of these exports fail on celld as well. |
+| `wd-worker-loader-gaps` | `WorkerCode.compatibilityFlags` and Durable Object stubs in a loaded Worker's `env` or `props` are not supported. celld refuses `allowExperimental` and stub cloning, so most of these exports fail on celld as well. |
 | `miniflare2-details-relative-url` | A stub's `fetch()` of a relative URL: celld passes it to the object, which fails on `new URL()`; cellb rejects at the stub, as workerd does. |
 
 ## RPC across isolates is poorer than workerd's
 
-- An `RpcTarget` passed through a stub is refused with `RPC stubs cannot cross isolate boundaries
-  yet.` (`src/core/namespace.ts`). Functions pass by reference only inside one runtime.
+- Within one runtime, functions, `RpcTarget`s and stubs pass through a stub by reference, as on
+  workerd (`cross` in `src/core/handles.ts`); celld refuses them.
 - A loaded Worker's isolate talks to its parent over `@statewalker/webrun-rpc`
   (`src/isolate/protocol.ts`). Errors keep their own properties (`name`, `code`) and bodies stream,
   but values that cannot be cloned become stubs only as `env` entries — never as arguments, results
@@ -40,7 +40,7 @@ recorded on celld or workerd), not by a test of the mechanism alone.
 
 - **Stubs by reference across isolates** (functions, `RpcTarget`, stubs as arguments, results, `env`
   and `props`) — only if the RPC decision above goes to workerd.
-- **Small known gaps**, one at a time: plain-object `ctx.exports`; `sql.ingest()` only if wanted.
+- **Small known gaps**, one at a time: `sql.ingest()` only if wanted.
 
 ## Firefox and WebKit
 

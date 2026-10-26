@@ -1,4 +1,4 @@
-import { isWorkerEntrypoint } from "./durable-object.js";
+import { isWorkerEntrypoint, RpcTarget } from "./durable-object.js";
 import type { DurableObjectState } from "./state.js";
 
 export type DurableObjectClass = new (ctx: DurableObjectState, env: any) => any;
@@ -40,11 +40,44 @@ export function isClassHandle(v: unknown): v is ClassHandle {
   );
 }
 
-const clone = <T>(v: T): T => (v === undefined ? v : structuredClone(v));
+/** Answered `true` by cellb's stubs: they cross by reference. */
+export const STUB = Symbol.for("cellb.stub");
+/** Answered by a value that may not cross, with workerd's reason. */
+export const REFUSE = Symbol.for("cellb.refuse");
+
+/**
+ * What crosses a stub, as in workerd: functions, `RpcTarget`s, stubs and class handles by
+ * reference (`ref` says what stands for one on the far side; in one realm, the value itself),
+ * arrays and plain objects walked, anything else structured-cloned (`copy`).
+ */
+export function cross<T>(
+  v: T,
+  ref: (v: object) => unknown = (x) => x,
+  copy: (v: unknown) => unknown = structuredClone,
+): T {
+  if (v === undefined || v === null || (typeof v !== "object" && typeof v !== "function"))
+    return copy(v) as T;
+  const refused = (v as Record<symbol, unknown>)[REFUSE];
+  if (typeof refused === "string") throw new DOMException(refused, "DataCloneError");
+  if (
+    typeof v === "function" ||
+    v instanceof RpcTarget ||
+    (v as Record<symbol, unknown>)[STUB] === true ||
+    isClassHandle(v)
+  )
+    return ref(v) as T;
+  if (Array.isArray(v)) return v.map((x) => cross(x, ref, copy)) as T;
+  if (Object.getPrototypeOf(v) === Object.prototype) {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v)) out[k] = cross(x, ref, copy);
+    return out as T;
+  }
+  return copy(v) as T;
+}
 
 /**
  * A stub over an asynchronously obtained target: `fetch` and JS-RPC methods, arguments
- * and results copied (structured clone) as across isolates.
+ * and results crossing as between isolates.
  */
 export function asyncStub(
   call: (method: string, args: unknown[]) => Promise<unknown>,
@@ -54,11 +87,12 @@ export function asyncStub(
     {},
     {
       get(_t, prop) {
+        if (prop === STUB) return true;
         if (prop === "then" || typeof prop === "symbol") return undefined;
         if (prop === "fetch")
           return (input: RequestInfo | URL, init?: RequestInit) =>
             fetch(new Request(input as RequestInfo, init));
-        return async (...args: unknown[]) => clone(await call(String(prop), clone(args)));
+        return async (...args: unknown[]) => cross(await call(String(prop), cross(args)));
       },
     },
   );
@@ -78,12 +112,12 @@ export function entrypointStub(
   const objectCtx = () => ({
     waitUntil() {},
     passThroughOnException() {},
-    props: clone(props ?? {}),
+    props: cross(props ?? {}),
   });
   const make = () => {
     if (typeof target === "function") {
       const ctx = {
-        props: clone(props ?? {}),
+        props: cross(props ?? {}),
         exports,
         waitUntil() {},
         passThroughOnException() {},
@@ -111,20 +145,28 @@ export function entrypointStub(
   );
 }
 
+/** workerd's refusal of `ctx.exports.<Entrypoint>` passed on without `({ props })`. */
+const LOOPBACK =
+  'Could not serialize object of type "LoopbackServiceStub". This type does not support serialization.';
+
 /**
- * `ctx.exports`: loopback handles of a Worker's named exports. An entrypoint's is a stub
- * (`ctx.exports.Greeter.greet()`), and called with `{ props }` gives one with props; a Durable
- * Object class's is a facet class handle, also callable with `{ props }`.
+ * `ctx.exports`: loopback handles of a Worker's named exports. An entrypoint's (a
+ * WorkerEntrypoint class, or an object with methods) is a stub (`ctx.exports.Greeter.greet()`),
+ * and called with `{ props }` gives one with props; a Durable Object class's is a facet class
+ * handle, also callable with `{ props }`.
  */
 export function ctxExports(worker: Record<string, unknown>, env: unknown): Record<string, unknown> {
   const exports: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(worker)) {
-    if (name === "default" || typeof value !== "function") continue;
-    if (isWorkerEntrypoint(value)) {
+    if (name === "default" || !value || (typeof value !== "function" && typeof value !== "object"))
+      continue;
+    if (typeof value === "object" || isWorkerEntrypoint(value)) {
       const withProps = (o: { props?: unknown } = {}) =>
         entrypointStub(value, env, o.props, exports);
       const stub = withProps();
-      exports[name] = new Proxy(withProps, { get: (_t, prop) => stub[prop as string] });
+      exports[name] = new Proxy(withProps, {
+        get: (_t, prop) => (prop === REFUSE ? LOOPBACK : stub[prop as string]),
+      });
     } else {
       const handle = (o: { props?: unknown } = {}) =>
         classHandle(async () => ({ cls: value as DurableObjectClass, env, props: o.props }));

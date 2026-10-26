@@ -1,11 +1,17 @@
 import {
   classHandle,
+  cross,
   ctxExports,
   type DurableObjectClass,
   entrypointStub,
   ISOLATED,
   type IsolatedClass,
+  REFUSE,
 } from "../core/handles.js";
+
+/** workerd's refusal of a loaded Worker's entrypoint passed on to another Worker. */
+const DYNAMIC_ENTRYPOINT =
+  "Entrypoints to dynamically-loaded workers cannot be transferred to other Workers, because the system does not know how to reload this Worker from scratch. Instead, have the parent Worker expose an entrypoint which constructs the dynamic worker and forwards to it.";
 
 /** What `env.LOADER.get(id, () => code)` returns from its callback (workerd's WorkerCode). */
 export interface WorkerCode {
@@ -202,10 +208,20 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
           cache.delete(id);
         },
         getEntrypoint(name = "default", options: { props?: unknown } = {}) {
+          // Props cross now (workerd serializes them here): a refusal is a rejected promise,
+          // so `await` and `assert.rejects` see it.
+          try {
+            cross(options.props);
+          } catch (e) {
+            const refused = Promise.reject(e);
+            refused.catch(() => {});
+            return refused as never;
+          }
           return new Proxy(
             {},
             {
               get(_t, prop) {
+                if (prop === REFUSE) return DYNAMIC_ENTRYPOINT;
                 if (prop === "then" || typeof prop === "symbol") return undefined;
                 return async (...args: unknown[]) => {
                   const l = await loaded();
