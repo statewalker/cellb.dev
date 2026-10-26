@@ -85,6 +85,8 @@ export interface CellRuntime {
   /** Ingress: a (Request) ⇒ Response handler — exactly what webrun-http-browser / node:http mount. */
   fetch(req: Request): Promise<Response>;
   readonly env: Record<string, unknown>;
+  /** The Worker's `ctx.exports` (also `exports` of `cloudflare:workers`). */
+  readonly exports: Record<string, unknown>;
   /** Drops live instances (simulates eviction / hibernation); storage survives if openSql persists it. */
   evictAll(): void;
   /** Settles all waitUntil() promises. */
@@ -356,6 +358,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
 
   const runtime: CellRuntime = {
     env,
+    exports: exportsObj,
     durableObjectBindings: bindingClasses,
     backupNow: () => backupAll("manual"),
     async connectWebSocket(url, protocols = [], headers) {

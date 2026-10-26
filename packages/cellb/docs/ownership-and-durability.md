@@ -98,7 +98,10 @@ closes. Details are in [browser-host.md](browser-host.md).
   The first commit of a generation is a snapshot (every page, TXID 1); later commits carry only the
   changed pages. SQLite WASM reports changed pages through a hook on its database file; on Node the
   log diffs the image, or, with `nodeSqliteOpener(dir, { pageCapture: true })`, reads the pages from
-  the WAL. A cell's commits are written strictly in order.
+  the WAL. A cell's commits are written strictly in order. Without a page hook the image is taken
+  at commit time, not when the log gets to it: by then the next event may have opened a
+  transaction, inside which SQLite cannot copy the database (`cannot VACUUM from within a
+  transaction`, and the object would break).
 - **The changeset log** records row changes through SQLite's session extension. It is cellb's own
   format and celld cannot read it; use it only where the LTX log does not fit.
 - **Backups** save an image when a cell changed since the last successful save; `close()` takes a
