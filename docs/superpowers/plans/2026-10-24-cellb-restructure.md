@@ -343,6 +343,15 @@ theirs, `pnpm -r typecheck` and `pnpm biome check .` exit 0.
   in-process requests (no socket; the transcripts replace it by `{origin}`); 8443 in p04 is a URL
   only; 9200 is interop-env.sh's shared-instance default and the Vite proxy's fallback for
   `pnpm browser:dev`; 5173 appears only in a comment naming Vite's default.
+- [x] Review fixes (`d6d48cc..5e5ef19`): three Node mutants followed their code to
+  `transport/cells-link.ts` and `bucket/ltx-log.ts` (killed), and `pnpm mutate:check` verifies
+  every Node and browser anchor (55 + 9); `wasmMemoryOpener`, `filesApiBackup` and
+  `filesApiObjectStore` are exported from `.`; the README keeps its reasons without ADR links and
+  `architecture.md` says what `src/core` imports; one Workers-globals module for every realm;
+  `freePorts(n)`, celld killed when it does not start, `stop()` for an exited child, RustFS only
+  when the run includes `e2e/`, an atomic RustFS download; "note NN" comments point at topic
+  pages. vitest 354 / 7 / 1 (p11f's delayed-queue flake once; the rerun of p11f 30/30),
+  Chromium 181 / 14.
 
 ## 4. Decisions (answered 2026-10-24)
 
