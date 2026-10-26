@@ -57,6 +57,12 @@ recorded on celld or workerd), not by a test of the mechanism alone.
 - **Isolated facets in a browser are not in the fleet bucket.** `browserProjectRuntime` does not give
   its isolates the host's storage, so a Durable Object class of a loaded Worker keeps its database in
   the isolate's OPFS pool only. On Node they are logged through the parent.
+- **An isolated facet restores only into an empty database.** A Durable Object class of a loaded
+  Worker runs in the isolate's own runtime, which holds no cell lease, so taking the root cell does
+  not rebuild the facet's local database from the bucket as it does for the root and its local
+  facets. On Node the isolate's SQLite is in memory (its opener takes a `dataDir` that nothing sets
+  yet), so it starts empty and is restored correctly; an isolate given a persistent directory would
+  serve the facet's old local state after taking a cell back and log it over the newer one.
 - **The upstream Worker Loader exports `overrideGlobalOutbound` and `inheritGlobalOutbound` are left
   out** of the vendored run. `WorkerCode.globalOutbound` itself is implemented (`null` blocks
   `fetch`; a Fetcher redirects it) and matches celld in the `runtime-api` project; the comment in
