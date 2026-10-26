@@ -165,7 +165,7 @@ const mutants = [
   ],
   [
     "ws routing: Upgrade not carried across links",
-    "src/router/shard-host.ts",
+    "src/router/shard-worker.ts",
     'headers.set(H.upgrade, "websocket");',
     "",
     "p07x",

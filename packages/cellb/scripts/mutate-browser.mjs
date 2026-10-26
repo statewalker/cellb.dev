@@ -61,7 +61,7 @@ const mutants = [
   // Node keeps Sec-* headers on rebuilt Requests, so only a browser can catch this one.
   [
     "ws: offered subprotocol dropped across shard links",
-    "src/router/shard-host.ts",
+    "src/router/shard-worker.ts",
     "if (offered) headers.set(H.wsProtocol, offered);",
     "",
     "websocket.spec",
