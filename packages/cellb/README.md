@@ -158,8 +158,10 @@ src/node-compat     node:* modules for nodejs_compat in browsers
 src/miniflare-compat  shims for Miniflare's vendored D1 simulator
 vendor/             celld's KV, Queues and Workflows code; Miniflare's D1; html-rewriter-wasm
 conformance/        celld examples, our projects, workerd's tests, recorded goldens
-test/               unit and interop tests (vitest)
-browser/            demo pages, the host app, ServiceWorker and shard workers, Playwright specs
+test/               unit tests (vitest, Node)
+e2e/                tests against a real celld and RustFS (vitest; skipped without scripts/interop-env.sh)
+e2e-browser/        Playwright specs; pages/ holds the demo pages, the host app, ServiceWorker and
+                    shard workers they drive; probes/ the exploratory browser probes
 scripts/            vendoring, the interop environment, mutation harnesses
 probes/             hypothesis probes (SQLite locks, MessagePorts, ServiceWorker idling)
 docs/               topic pages, decision records, and docs/history (session logs)
@@ -233,13 +235,13 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 
 | Command | What it does |
 |---|---|
-| `pnpm test` | unit tests (vitest). Tests that need celld skip without `CELLD_BIN`. |
-| `pnpm typecheck` | TypeScript for `src/`, `test/` and the browser code |
-| `pnpm e2e` | Chromium tests (Playwright). Chromium is found from `PW_CHROMIUM`, then Playwright's own, then the one `@sparticuz/chromium` packages in `node_modules`. |
-| `pnpm interop` | the celld interop tests in Node: `scripts/interop-env.sh` downloads the pinned celld and RustFS into `~/.cache/cellb-interop`, starts RustFS on `127.0.0.1:9200`, and sets `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` |
+| `pnpm test` | `test/` and `e2e/` (vitest). The `e2e/` tests skip without `CELLD_BIN`. `pnpm test:unit` and `pnpm test:e2e` run one folder. |
+| `pnpm typecheck` | TypeScript for `src/`, `test/`, `e2e/` and the browser pages |
+| `pnpm e2e` | Chromium tests (Playwright, `e2e-browser/`). Chromium is found from `PW_CHROMIUM`, then Playwright's own, then the one `@sparticuz/chromium` packages in `node_modules`. |
+| `pnpm interop` | `e2e/` and the celld conformance in Node: `scripts/interop-env.sh` downloads the pinned celld and RustFS into `~/.cache/cellb-interop`, starts RustFS on `127.0.0.1:9200`, and sets `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` |
 | `pnpm interop:browser` | the same for Chromium |
 | `pnpm mutate`, `pnpm mutate:browser` | mutation harnesses in a throw-away copy, after a baseline run; `MUTANTS=0,3` runs a subset |
-| `pnpm browser:dev` | the demo pages: `/` (one cell worker), `/sharded/`, `/backup/`, and `/host/`, the host app that runs a project folder |
+| `pnpm browser:dev` | the demo pages in `e2e-browser/pages`: `/` (one cell worker), `/sharded/`, `/backup/`, and `/host/`, the host app that runs a project folder |
 
 ## License
 

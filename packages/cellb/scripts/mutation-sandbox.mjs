@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 // vendor/ (Miniflare, celld, html-rewriter bundles) is source the tests need; only the SW
-// runtime copy under browser/public/vendor is generated and skipped.
+// runtime copy under e2e-browser/pages/public/vendor is generated and skipped.
 const SKIP = new Set(["node_modules", "test-results", "playwright-report", "dist"]);
 
 export function runMutants(mutants, cmd, { timeoutMs = 600_000 } = {}) {
@@ -15,7 +15,7 @@ export function runMutants(mutants, cmd, { timeoutMs = 600_000 } = {}) {
   cpSync(root, work, {
     recursive: true,
     filter: (src) =>
-      !relative(root, src).startsWith("browser/public/vendor") &&
+      !relative(root, src).startsWith("e2e-browser/pages/public/vendor") &&
       !relative(root, src)
         .split("/")
         .some((p) => SKIP.has(p)),

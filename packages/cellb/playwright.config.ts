@@ -21,7 +21,9 @@ async function chromeBinary(): Promise<string | undefined> {
 const executablePath = await chromeBinary();
 
 export default defineConfig({
-  testDir: "browser/e2e",
+  testDir: "e2e-browser",
+  // e2e-browser/probes holds the exploratory probes (playwright.probes.config.ts).
+  testIgnore: /\.probe\.spec\.ts$/,
   use: { baseURL: "http://localhost:5173" },
   projects: [
     {
@@ -37,7 +39,7 @@ export default defineConfig({
   webServer: {
     // Plain node + vite (no package manager): also works in the mutation harness's repo copy.
     command:
-      "mkdir -p browser/public/vendor && cp node_modules/@statewalker/webrun-http-browser/dist/sw-worker.js browser/public/vendor/webrun-http-sw-worker.js && node node_modules/vite/bin/vite.js browser --config browser/vite.config.ts",
+      "mkdir -p e2e-browser/pages/public/vendor && cp node_modules/@statewalker/webrun-http-browser/dist/sw-worker.js e2e-browser/pages/public/vendor/webrun-http-sw-worker.js && node node_modules/vite/bin/vite.js e2e-browser/pages --config e2e-browser/pages/vite.config.ts",
     url: "http://localhost:5173",
     // Never reuse: a stale dev server from an earlier run would serve old code.
     reuseExistingServer: false,

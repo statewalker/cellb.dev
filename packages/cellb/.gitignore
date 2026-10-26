@@ -1,5 +1,5 @@
 node_modules
-browser/dist
-browser/public/vendor
+e2e-browser/pages/dist
+e2e-browser/pages/public/vendor
 test-results
 playwright-report

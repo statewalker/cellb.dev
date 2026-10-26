@@ -4,28 +4,28 @@ import { runMutants } from "./mutation-sandbox.mjs";
 const mutants = [
   [
     "SW never asks pages to re-attach",
-    "browser/sharded/sw.ts",
+    "e2e-browser/pages/sharded/sw.ts",
     "onMissingShard: () => void askForLinks(),",
     "onMissingShard: () => {},",
     "sharded",
   ],
   [
     "pages spawn shard workers without the Web Lock",
-    "browser/sharded/main.ts",
+    "e2e-browser/pages/sharded/main.ts",
     "await navigator.locks.request(`cellb:shard:${shard}`, async () => {",
     "await (async (cb) => cb())(async () => {",
     "sharded",
   ],
   [
     "cell worker uses in-memory SQLite (no OPFS)",
-    "browser/cell-worker.ts",
+    "e2e-browser/pages/cell-worker.ts",
     'const openSql = await sahpoolOpener(sqlite3, { name: "cellb-e2e", initialCapacity: 16 });',
-    'const openSql = (await import("../src/adapters/wasm-sqlite.js")).wasmMemoryOpener(sqlite3);',
+    'const openSql = (await import("../../src/adapters/wasm-sqlite.js")).wasmMemoryOpener(sqlite3);',
     "cells",
   ],
   [
     "SW does not watch the owner lock (polling only)",
-    "browser/sharded/sw.ts",
+    "e2e-browser/pages/sharded/sw.ts",
     "watchOwner: (_shard, ownerLock) => navigator.locks.request(ownerLock as string, async () => {}),",
     "",
     "sharded",
