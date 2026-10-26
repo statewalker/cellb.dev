@@ -64,9 +64,6 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
   that text. Use `await request.arrayBuffer()`, or the request itself, as the body.
 - **A clone error reads differently:** SpiderMonkey's `Function object could not be cloned.` against
   V8's (and celld's) `() => 1 could not be cloned.`
-- **Under Playwright's Firefox, a page loaded while a ServiceWorker is active is not controlled**;
-  only `clients.claim()` takes it. The sharded topology's second tab therefore talks to the dev
-  server instead of the router. Whether Firefox outside Playwright does the same is not checked.
 - **WebKit is not run, and is not a target for now:** Playwright's WebKit needs the system
   `libavif16` (`libavif.so.16`), which this host lacks.
 

@@ -213,10 +213,14 @@ bucket specs pass. What differs:
   URL given back on an isolate's port) it reads the body whole there (spec: `peer-routing`).
 - **`TypeError: Function object could not be cloned.`** where V8 says `TypeError: () => 1 could not
   be cloned.` (spec: `storage-details`).
-- **A second tab's requests reach the dev server, not the router** (`JSON.parse: unexpected
-  character`): under Playwright's Firefox, a page loaded while the ServiceWorker is already active
-  stays uncontrolled (`navigator.serviceWorker.controller === null`, also after a reload); the first
-  tab is controlled only through `clients.claim()`. Specs: the three two-tab `sharded` specs.
+- **Under Playwright's Firefox, a navigation the ServiceWorker lets through to the network leaves
+  the page uncontrolled** (`navigator.serviceWorker.controller === null`, after a reload or in a
+  new tab), so its requests reach the dev server, not the router (`JSON.parse: unexpected
+  character`). Playwright's Firefox takes back every request the ServiceWorker does not answer.
+  A ServiceWorker with no fetch handler, or one that answers the navigation, keeps control
+  (`e2e-browser/probes/sw-minimal.probe.spec.ts`), so the sharded demo's ServiceWorker answers
+  navigations with `fetch(request)`. Whether Firefox outside Playwright does the same is not
+  checked.
 - The two `sharded` specs that stop the ServiceWorker use the Chrome DevTools Protocol and are
   skipped outside Chromium.
 

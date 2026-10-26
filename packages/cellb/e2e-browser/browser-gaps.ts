@@ -6,8 +6,6 @@ export type Gaps = Record<string, Partial<Record<Browser, string>>>;
 
 export const CLONE_MESSAGE =
   "Firefox words the structured-clone error differently from V8 (celld's golden)";
-export const UNCONTROLLED_NAVIGATION =
-  "Playwright's Firefox: a page loaded under an active ServiceWorker is not controlled";
 
 /** The celld projects bundled into the worker (celld-projects.spec.ts). */
 export const bundleGaps: Gaps = { "storage-details": { firefox: CLONE_MESSAGE } };
