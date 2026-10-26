@@ -368,13 +368,11 @@ export const scenarios: Record<string, Scenario> = {
     project: "worker-details",
     steps: [{ path: "/pipeline" }],
     judge: "workerd",
-    knownGap: "no promise pipelining yet",
   },
   "isolation-api-pipeline": {
     project: "isolation-api",
     steps: [{ path: "/pipeline" }],
     judge: "workerd",
-    knownGap: "no promise pipelining yet",
   },
   // An RpcTarget returned by a Durable Object method: celld refuses it, workerd passes it.
   "worker-details-rpc-target": {

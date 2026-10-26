@@ -176,7 +176,8 @@ docs/               topic pages
   instance or KV namespace written by celld continues on cellb, and back.
 - **celld judges conformance**, because cellb's storage must be celld's; workerd is recorded to
   pin where celld differs, and judges only where cellb follows it on purpose: stubs, functions and
-  `RpcTarget`s pass by reference, which celld refuses ([docs/conformance.md](docs/conformance.md)).
+  `RpcTarget`s pass by reference, and calls on a pending result are pipelined, which celld
+  refuses ([docs/conformance.md](docs/conformance.md)).
 - **The gates use no `AsyncLocalStorage`**, which browsers lack.
 - **A browser origin has a fixed number of shards**, because an OPFS pool is exclusive per worker
   ([docs/browser-host.md](docs/browser-host.md)).
