@@ -1,18 +1,16 @@
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
 import { sahpoolOpener } from "../adapters/wasm-sqlite.js";
 import type { AssetFiles } from "../bindings/assets.js";
-import { cellsCaches } from "../bindings/cache.js";
-import { HTMLRewriter } from "../bindings/html-rewriter.js";
 import { celldBucket } from "../bucket/celld-cells.js";
 import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js";
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
 import type { WorkerModule } from "../core/runtime.js";
 import { browserIsolatedLoader } from "../isolate/browser.js";
 import { installNodeGlobals } from "../node-compat/install.js";
-import { CellsResponse, WebSocketPair, WebSocketRequestResponsePair } from "../ws/server.js";
 import { browserModuleLoader, WORKERS_MODULE_SHIM } from "./browser-modules.js";
 import * as workersModule from "./cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "./site.js";
+import * as workersGlobals from "./workers-globals-module.js";
 import { createProjectRuntime, type WranglerConfig } from "./wrangler.js";
 
 /**
@@ -92,13 +90,7 @@ async function importWorkerCode(
 ): Promise<WorkerModule> {
   const nodeCompat = (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
   if (nodeCompat) installNodeGlobals();
-  const globals = {
-    Response: CellsResponse,
-    WebSocketPair,
-    caches: cellsCaches,
-    HTMLRewriter,
-    WebSocketRequestResponsePair,
-  };
+  const globals = { ...workersGlobals, Response: workersGlobals.CellsResponse };
   if ("site" in code) {
     workersHostRegistry({
       workersModule,

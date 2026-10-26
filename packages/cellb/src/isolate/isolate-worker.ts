@@ -2,26 +2,16 @@
 // One loaded Worker in its own realm (a Dedicated Worker), served over its port.
 
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { cellsCaches } from "../bindings/cache.js";
-import { HTMLRewriter } from "../bindings/html-rewriter.js";
-import { sahpoolOpener } from "../browser.js";
-import { CellsResponse, WebSocketPair } from "../index.js";
+import { sahpoolOpener } from "../adapters/wasm-sqlite.js";
 import { browserModuleLoader, WORKERS_MODULE_SHIM } from "../project/browser-modules.js";
 import * as workersModule from "../project/cloudflare-workers.js";
 import { workersHostRegistry } from "../project/site.js";
-import { WebSocketRequestResponsePair } from "../ws/server.js";
+import * as workersGlobals from "../project/workers-globals-module.js";
 import { serveIsolate } from "./isolate.js";
 import type { PortLike } from "./protocol.js";
 
 (globalThis as Record<string, unknown>).__cellsWorkersModule = workersModule;
-workersHostRegistry({
-  workersModule,
-  Response: CellsResponse,
-  WebSocketPair,
-  caches: cellsCaches,
-  HTMLRewriter,
-  WebSocketRequestResponsePair,
-});
+workersHostRegistry({ workersModule, ...workersGlobals, Response: workersGlobals.CellsResponse });
 
 // The global console is left alone (the dev server's client logs here too): loaded modules
 // get a console of their own that reports to the host.
