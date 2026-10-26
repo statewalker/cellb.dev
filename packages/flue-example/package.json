@@ -1,0 +1,30 @@
+{
+  "name": "@statewalker/flue-example",
+  "version": "0.0.1",
+  "description": "A Flue agent app, built for Flue's Cloudflare target and run on cellb against a fake LLM endpoint",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build",
+    "test": "vite build && vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^1.4.0",
+    "@flue/runtime": "2.3.0",
+    "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.65.0",
+    "@flue/sdk": "2.3.0",
+    "@flue/vite": "2.3.0",
+    "@statewalker/cellb": "workspace:*",
+    "@statewalker/webrun-files-mem": "^0.10.0",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "^4.152.0"
+  }
+}
