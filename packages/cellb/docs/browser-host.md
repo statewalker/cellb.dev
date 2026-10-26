@@ -211,13 +211,6 @@ bucket specs pass. What differs:
   `Request.prototype` owns `body` to decide whether it may build requests with stream bodies, and
   must keep hearing no. Where cellb rebuilds a request itself (a scheme restored on a node's link, a
   URL given back on an isolate's port) it reads the body whole there (spec: `peer-routing`).
-- **`Worker failed: rejected: Error: Handler does not export a fetch() function.`** or
-  `Loaded worker does not export class "App"` from a Worker Loader on an in-browser site.
-  `@statewalker/webrun-site-host` rebuilds each request from `request.body`, so the loader's
-  `PUT /loaded-src/…` uploads arrive empty and the loaded module is empty. Loaders in a bundled
-  project (`browserProjectRuntime({ code: { bundle } })`) are not affected. Specs: `site-projects`
-  `dynamic-worker-tails`, `facets`, `facets-api`, `runtime-api`, `isolation-api`,
-  `wd-worker-loader`, `wd-worker-loader-stubs`.
 - **`TypeError: Function object could not be cloned.`** where V8 says `TypeError: () => 1 could not
   be cloned.` (spec: `storage-details`).
 - **A second tab's requests reach the dev server, not the router** (`JSON.parse: unexpected

@@ -62,10 +62,6 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
   `ReadableStream` given as a request body as the text `[object ReadableStream]`, so Worker code
   that forwards one (`new Request(url, { body: request.body })`, `fetch(url, { body: … })`) sends
   that text. Use `await request.arrayBuffer()`, or the request itself, as the body.
-- **`@statewalker/webrun-site-host` drops request bodies in Firefox**: it rebuilds each request
-  from `request.body`, which Firefox cannot take as a body, so the Worker Loader's uploads to an
-  in-browser site arrive empty and every loaded Worker exports nothing. Projects bundled into the
-  worker are not affected.
 - **A clone error reads differently:** SpiderMonkey's `Function object could not be cloned.` against
   V8's (and celld's) `() => 1 could not be cloned.`
 - **Under Playwright's Firefox, a page loaded while a ServiceWorker is active is not controlled**;

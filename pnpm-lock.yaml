@@ -19,8 +19,8 @@ catalogs:
       specifier: ^0.2.0
       version: 0.2.2
     '@statewalker/webrun-site-host':
-      specifier: ^0.2.1
-      version: 0.2.4
+      specifier: ^0.2.5
+      version: 0.2.5
     '@types/node':
       specifier: ^26.6.4
       version: 26.6.5
@@ -88,7 +88,7 @@ importers:
         version: 0.2.2(@statewalker/webrun-files@0.10.3)
       '@statewalker/webrun-site-host':
         specifier: 'catalog:'
-        version: 0.2.4(@statewalker/webrun-files@0.10.3)
+        version: 0.2.5(@statewalker/webrun-files@0.10.3)
       '@statewalker/webrun-streams':
         specifier: ^0.2.0
         version: 0.2.2
@@ -1346,8 +1346,8 @@ packages:
     peerDependencies:
       '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
 
-  '@statewalker/webrun-site-host@0.2.4':
-    resolution: {integrity: sha512-IHXbFItBjqKDeDA2W1TRRKlVl8/yHLZzhYITd4ZXpYJ79R+aNu4/Blk/szEZW4SumA5bBc7zI54FcNZeCq39bw==}
+  '@statewalker/webrun-site-host@0.2.5':
+    resolution: {integrity: sha512-PYrygNN+BR540WcXamXTZW3BRdKPRrqFprqprsem42EFbzf+wAy9M5Q2GEbBhHKh3vK+p2f4Ue/VVM/caPEfcQ==}
     peerDependencies:
       '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
 
@@ -4123,7 +4123,7 @@ snapshots:
     dependencies:
       '@statewalker/webrun-files': 0.10.3
 
-  '@statewalker/webrun-site-host@0.2.4(@statewalker/webrun-files@0.10.3)':
+  '@statewalker/webrun-site-host@0.2.5(@statewalker/webrun-files@0.10.3)':
     dependencies:
       '@statewalker/webrun-files': 0.10.3
       '@statewalker/webrun-files-mem': 0.10.3
