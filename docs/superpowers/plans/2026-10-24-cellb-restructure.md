@@ -478,5 +478,10 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   stream. Done on `feat/firefox-request-body` (plan `2026-10-26-firefox-request-body.md`): the
   `kv`, `r2` and `miniflare` Firefox specs pass, and `peer-routing` proves the owner retry and the
   restored scheme in Firefox.
+- [x] **F10 the remaining Firefox marks**: done on `fix/firefox-remaining` (plan
+  `2026-10-26-firefox-remaining.md`). The two-tab `sharded` specs failed on a Playwright Firefox
+  quirk (a navigation a ServiceWorker lets through loses its controller); the demo's ServiceWorker
+  answers navigations. `storage.put` words its clone refusal with cellb's V8 serializer, so
+  `storage-details` matches celld's golden. No `test.fail` mark is left; `browser-gaps.ts` is gone.
 - Stays out, written in `docs/gaps.md` with the reason: limits per object, opaque-origin iframes
   for untrusted code, celld's log tier and `/peer/handoff`, Python Workers.
