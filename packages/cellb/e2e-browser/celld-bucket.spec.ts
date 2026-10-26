@@ -5,13 +5,16 @@ import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { bundleProjectForBrowser } from "../conformance/browser-bundle.ts";
 import { s3ObjectStore } from "../src/index.ts";
+import { freePort } from "../test/free-port.ts";
 
 // A real celld fleet node and cellb IN CHROMIUM (SQLite WASM on OPFS) share one S3
 // bucket (a local RustFS, reached from the page through the dev server's /s3 proxy): cells
 // move between them through celld's ownership protocol and LTX logs. Needs CELLD_BIN,
-// ESBUILD_DIR and RustFS at RUSTFS_ENDPOINT (default http://127.0.0.1:9200); skipped otherwise.
+// ESBUILD_DIR; playwright.config.ts provides RustFS (RUSTFS_ENDPOINT) and the run's bucket
+// (TEST_BUCKET). Skipped otherwise.
 const CELLD = process.env.CELLD_BIN;
-const ENDPOINT = process.env.RUSTFS_ENDPOINT ?? "http://127.0.0.1:9200";
+const ENDPOINT = process.env.RUSTFS_ENDPOINT ?? "";
+const BUCKET = process.env.TEST_BUCKET ?? "";
 const KEYS = { accessKeyId: "rustfsadmin", secretAccessKey: "rustfssecret" };
 const env = {
   ...process.env,
@@ -22,7 +25,6 @@ const env = {
 };
 const examples = resolve(import.meta.dirname, "../conformance/celld-examples");
 const ours = resolve(import.meta.dirname, "../conformance/projects");
-let port = 18_900;
 
 const run = (args: string[], cwd: string) =>
   new Promise<void>((res, rej) => {
@@ -33,19 +35,18 @@ const run = (args: string[], cwd: string) =>
     p.on("exit", (c) => (c === 0 ? res() : rej(new Error(out.slice(-1500)))));
   });
 async function celldNode(prefix: string): Promise<{ p: ChildProcess; base: string }> {
-  const at = port;
-  port += 2;
+  const [at, internal] = [await freePort(), await freePort()];
   const p = spawn(
     CELLD!,
     [
       "--bucket",
-      `s3://cells/${prefix}`,
+      `s3://${BUCKET}/${prefix}`,
       "--endpoint",
       ENDPOINT,
       "--listen",
       `127.0.0.1:${at}`,
       "--internal-listen",
-      `127.0.0.1:${at + 1}`,
+      `127.0.0.1:${internal}`,
     ],
     { env, stdio: ["ignore", "pipe", "pipe"] },
   );
@@ -64,6 +65,7 @@ const stop = (p: ChildProcess) =>
     p.kill("SIGTERM");
   });
 const rustfsUp = async () => {
+  if (!BUCKET) return false;
   try {
     return (await fetch(`${ENDPOINT}/health`)).ok;
   } catch {
@@ -78,7 +80,7 @@ async function roundTrip(
   steps: { celld1: string[]; browser: string[]; celld2: string[] },
 ) {
   const prefix = `b${Date.now().toString(36)}`;
-  await run(["deploy", ".", "--bucket", `s3://cells/${prefix}`, "--endpoint", ENDPOINT], dir);
+  await run(["deploy", ".", "--bucket", `s3://${BUCKET}/${prefix}`, "--endpoint", ENDPOINT], dir);
   const answers = { celld1: [] as string[], browser: [] as string[], celld2: [] as string[] };
   let node = await celldNode(prefix);
   for (const p of steps.celld1) answers.celld1.push(await (await fetch(node.base + p)).text());
@@ -94,7 +96,7 @@ async function roundTrip(
     bucket: {
       endpoint: `${new URL(page.url()).origin}/s3`,
       signAs: ENDPOINT,
-      bucket: "cells",
+      bucket: BUCKET,
       prefix,
       ...KEYS,
       node: `chromium-${prefix}`,
@@ -104,7 +106,7 @@ async function roundTrip(
   answers.browser = r.answers;
   const store = s3ObjectStore({
     endpoint: ENDPOINT,
-    bucket: "cells",
+    bucket: BUCKET,
     prefix,
     region: "us-east-1",
     ...KEYS,

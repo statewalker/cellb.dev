@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
 import { chromium, defineConfig, devices } from "@playwright/test";
+import { freePort } from "./test/free-port.ts";
+import { setupTestBucket } from "./test/test-bucket.ts";
 
 /**
  * Which Chrome runs the tests, in order:
@@ -20,11 +22,18 @@ async function chromeBinary(): Promise<string | undefined> {
 }
 const executablePath = await chromeBinary();
 
+// Set up at config load, not in a globalSetup: Playwright starts the webServer before
+// globalSetup, and Vite needs the port and RUSTFS_ENDPOINT. Worker processes load this config
+// again and inherit the values through the environment, so they reuse them.
+process.env.PW_PORT ??= String(await freePort());
+const port = Number(process.env.PW_PORT);
+await setupTestBucket(); // stops its RustFS (if it started one) when this process exits
+
 export default defineConfig({
   testDir: "e2e-browser",
   // e2e-browser/probes holds the exploratory probes (playwright.probes.config.ts).
   testIgnore: /\.probe\.spec\.ts$/,
-  use: { baseURL: "http://localhost:5173" },
+  use: { baseURL: `http://localhost:${port}` },
   projects: [
     {
       name: "chromium",
@@ -38,9 +47,8 @@ export default defineConfig({
   ],
   webServer: {
     // Plain node + vite (no package manager): also works in the mutation harness's repo copy.
-    command:
-      "mkdir -p e2e-browser/pages/public/vendor && cp node_modules/@statewalker/webrun-http-browser/dist/sw-worker.js e2e-browser/pages/public/vendor/webrun-http-sw-worker.js && node node_modules/vite/bin/vite.js e2e-browser/pages --config e2e-browser/pages/vite.config.ts",
-    url: "http://localhost:5173",
+    command: `mkdir -p e2e-browser/pages/public/vendor && cp node_modules/@statewalker/webrun-http-browser/dist/sw-worker.js e2e-browser/pages/public/vendor/webrun-http-sw-worker.js && node node_modules/vite/bin/vite.js e2e-browser/pages --config e2e-browser/pages/vite.config.ts --port ${port} --strictPort`,
+    url: `http://localhost:${port}`,
     // Never reuse: a stale dev server from an earlier run would serve old code.
     reuseExistingServer: false,
     timeout: 60_000,

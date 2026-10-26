@@ -7,13 +7,16 @@ import { describe, expect, it } from "vitest";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { celldBucket, s3ObjectStore } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, startCelldPeerServer } from "../src/node.js";
+import { freePort } from "../test/free-port.js";
 
 // A real celld fleet node and cellb on ONE S3 bucket served by a local RustFS: cells
 // move between them through celld's ownership protocol (own.json epochs, node leases), and
-// alarms through celld's wake index. Needs CELLD_BIN, ESBUILD_DIR and a running RustFS
-// (RUSTFS_ENDPOINT, default http://127.0.0.1:9200, keys rustfsadmin / rustfssecret).
+// alarms through celld's wake index. Needs CELLD_BIN and ESBUILD_DIR; the run's global setup
+// (test/test-bucket.ts) provides RustFS (RUSTFS_ENDPOINT, keys rustfsadmin / rustfssecret)
+// and the run's bucket (TEST_BUCKET).
 const CELLD = process.env.CELLD_BIN;
-const ENDPOINT = process.env.RUSTFS_ENDPOINT ?? "http://127.0.0.1:9200";
+const ENDPOINT = process.env.RUSTFS_ENDPOINT ?? "";
+const BUCKET = process.env.TEST_BUCKET ?? "";
 const KEYS = {
   accessKeyId: process.env.RUSTFS_ACCESS_KEY ?? "rustfsadmin",
   secretAccessKey: process.env.RUSTFS_SECRET_KEY ?? "rustfssecret",
@@ -25,9 +28,9 @@ const env = {
   AWS_SECRET_ACCESS_KEY: KEYS.secretAccessKey,
   AWS_REGION: "us-east-1",
 };
-let port = 18_880; // p11i runs celld on 18860+ in parallel
 
 async function rustfsUp(): Promise<boolean> {
+  if (!BUCKET) return false;
   try {
     return (await fetch(`${ENDPOINT}/health`)).ok;
   } catch {
@@ -35,8 +38,8 @@ async function rustfsUp(): Promise<boolean> {
   }
 }
 
-/** A fresh prefix per test: `s3://cells/<prefix>` (celld supports bucket prefixes). */
-const bucketUrl = (prefix: string) => `s3://cells/${prefix}`;
+/** A fresh prefix per test: `s3://<run bucket>/<prefix>` (celld supports bucket prefixes). */
+const bucketUrl = (prefix: string) => `s3://${BUCKET}/${prefix}`;
 
 function run(cmd: string[], cwd: string): Promise<string> {
   return new Promise((res, rej) => {
@@ -53,8 +56,7 @@ function run(cmd: string[], cwd: string): Promise<string> {
 async function celldNode(
   prefix: string,
 ): Promise<{ p: ChildProcess; base: string; log: () => string }> {
-  const at = port;
-  port += 2;
+  const [at, internal] = [await freePort(), await freePort()];
   const p = spawn(
     CELLD!,
     [
@@ -65,7 +67,7 @@ async function celldNode(
       "--listen",
       `127.0.0.1:${at}`,
       "--internal-listen",
-      `127.0.0.1:${at + 1}`,
+      `127.0.0.1:${internal}`,
     ],
     { env, stdio: ["ignore", "pipe", "pipe"] },
   );
@@ -93,7 +95,7 @@ const stop = (p: ChildProcess) =>
 async function cellb(project: string, prefix: string) {
   const store = s3ObjectStore({
     endpoint: ENDPOINT,
-    bucket: "cells",
+    bucket: BUCKET,
     prefix,
     region: "us-east-1",
     ...KEYS,
@@ -245,7 +247,7 @@ describe.skipIf(!CELLD)(
         await w.close();
         const store = s3ObjectStore({
           endpoint: ENDPOINT,
-          bucket: "cells",
+          bucket: BUCKET,
           prefix,
           region: "us-east-1",
           ...KEYS,
@@ -284,7 +286,7 @@ describe.skipIf(!CELLD)(
         await stop(node0.p);
         const store = s3ObjectStore({
           endpoint: ENDPOINT,
-          bucket: "cells",
+          bucket: BUCKET,
           prefix,
           region: "us-east-1",
           ...KEYS,
@@ -305,8 +307,7 @@ describe.skipIf(!CELLD)(
         try {
           await runtime.fetch(new Request("http://w/increment?name=a")); // writes the node record
           await bucket.advertise(peer.addr);
-          const diag = port;
-          port += 2;
+          const [diag, diagInternal] = [await freePort(), await freePort()];
           const out = await run(
             [
               "diagnose",
@@ -314,7 +315,7 @@ describe.skipIf(!CELLD)(
               "--listen",
               `127.0.0.1:${diag}`,
               "--internal-listen",
-              `127.0.0.1:${diag + 1}`,
+              `127.0.0.1:${diagInternal}`,
               "--bucket",
               bucketUrl(prefix),
               "--endpoint",
