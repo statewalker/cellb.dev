@@ -25,7 +25,7 @@ interface Oo1Stmt {
  */
 /** Backup hooks: how to export an image of the DB and how to replace it (returns the reopened DB). */
 export interface WasmImageHooks {
-  snapshot(db: Oo1Db): Uint8Array;
+  image(db: Oo1Db): Uint8Array;
   restore(db: Oo1Db, image: Uint8Array): Oo1Db;
 }
 
@@ -54,12 +54,12 @@ export class WasmSqliteDriver implements SyncSqlDriver {
     }
     if (!hooks) {
       // No image support for this driver: hide the optional port methods.
-      (this as { snapshot?: unknown }).snapshot = undefined;
+      (this as { image?: unknown }).image = undefined;
       (this as { restore?: unknown }).restore = undefined;
     }
   }
-  snapshot(): Uint8Array {
-    return this.#hooks!.snapshot(this.#db);
+  image(): Uint8Array {
+    return this.#hooks!.image(this.#db);
   }
 
   /**
@@ -172,7 +172,7 @@ function fromSqlite(v: unknown): unknown {
 export function memoryImageHooks(sqlite3: any): WasmImageHooks {
   const { capi, wasm } = sqlite3;
   return {
-    snapshot: (db) => sqlite3.capi.sqlite3_js_db_export(db),
+    image: (db) => sqlite3.capi.sqlite3_js_db_export(db),
     restore(db, image) {
       const p = wasm.allocFromTypedArray(image);
       const rc = capi.sqlite3_deserialize(
@@ -225,7 +225,7 @@ export async function sahpoolOpener(
     return new WasmSqliteDriver(
       new pool.OpfsSAHPoolDb(path),
       {
-        snapshot: (db) => (sqlite3 as any).capi.sqlite3_js_db_export(db),
+        image: (db) => (sqlite3 as any).capi.sqlite3_js_db_export(db),
         // Replace the file inside the pool, then reopen it.
         restore(db, image) {
           db.close();

@@ -132,7 +132,7 @@ describe.each(drivers)("P06a periodic backup callback [%s]", (_n, opener) => {
     await r.close();
   });
 
-  it("never snapshots in the middle of an async transaction()", async () => {
+  it("never takes an image in the middle of an async transaction()", async () => {
     const { saves, backup } = recording();
     const { rt: r, clock } = rt(backup);
     const stub = counter(r, "t");

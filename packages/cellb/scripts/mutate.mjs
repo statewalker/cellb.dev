@@ -115,7 +115,7 @@ const mutants = [
     "p01 p02 p03 p06a",
   ],
   [
-    "backup: snapshots inside a transaction",
+    "backup: takes an image inside a transaction",
     "src/core/object-host.ts",
     "if (this.#sql.held) return Promise.resolve();",
     "",

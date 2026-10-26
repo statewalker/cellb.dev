@@ -201,10 +201,10 @@ export class NodeSqliteDriver implements SyncSqlDriver {
 
   /**
    * The database file as SQLite wrote it (page for page), for page-level logs; an in-memory
-   * database falls back to snapshot(). Valid between transactions (rollback journal mode).
+   * database falls back to image(). Valid between transactions (rollback journal mode).
    */
   pageImage(): Uint8Array {
-    if (this.#path === ":memory:") return this.snapshot();
+    if (this.#path === ":memory:") return this.image();
     // A database restored from celld's files is in WAL mode (litestream needs it): its last
     // commits are in the -wal file until a checkpoint moves them into the main file.
     const mode = String(this.#db.prepare("PRAGMA journal_mode").get()?.journal_mode ?? "");
@@ -216,7 +216,7 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   }
 
   /** `VACUUM INTO` a temp file: a consistent, compact image (no open transaction allowed). */
-  snapshot(): Uint8Array {
+  image(): Uint8Array {
     const tmp = join(mkdtempSync(join(tmpdir(), "cell-snap-")), "db.sqlite");
     try {
       this.#db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);

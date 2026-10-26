@@ -14,7 +14,7 @@ describe("P11d SQLite WASM page hook", () => {
     d.takeDirtyPages(); // everything so far
     d.exec("UPDATE t SET v = 'changed' WHERE rowid = 150", []);
     const dirty = d.takeDirtyPages()!;
-    const image = d.snapshot!();
+    const image = d.image!();
     expect(dirty.pages.size).toBeGreaterThan(0);
     expect(dirty.pages.size).toBeLessThanOrEqual(3); // header page + the row's leaf (+ maybe one)
     expect(dirty.pageCount).toBe(image.length / dirty.pageSize);
@@ -31,7 +31,7 @@ describe("P11d SQLite WASM page hook", () => {
     d.exec("ROLLBACK", []);
     d.discardDirtyPages!();
     expect(d.takeDirtyPages()!.pages.size).toBe(0);
-    d.restore!(d.snapshot!());
+    d.restore!(d.image!());
     d.exec("INSERT INTO t VALUES ('after restore')", []);
     expect(d.takeDirtyPages()!.pages.size).toBeGreaterThan(0);
   });

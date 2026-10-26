@@ -36,7 +36,7 @@ export interface SyncSqlDriver {
   captureDiscard?(): void;
   applyChangeset?(changeset: Uint8Array): void;
   readonly captureCoversRowidTables?: boolean;
-  /** The database file page for page (page-level logs); defaults to snapshot(). */
+  /** The database file page for page (page-level logs); defaults to image(). */
   pageImage?(): Uint8Array;
   /** Pages written since the previous call, when the driver can hook its file (SQLite WASM). */
   takeDirtyPages():
@@ -44,8 +44,8 @@ export interface SyncSqlDriver {
     | undefined;
   discardDirtyPages?(): void;
   /** Consistent image of the whole database (no transaction may be open). Needed for backups. */
-  snapshot?(): Uint8Array;
-  /** Replaces the whole database with an image produced by `snapshot()`. Needed for restores. */
+  image?(): Uint8Array;
+  /** Replaces the whole database with an image produced by `image()`. Needed for restores. */
   restore?(image: Uint8Array): void;
 }
 

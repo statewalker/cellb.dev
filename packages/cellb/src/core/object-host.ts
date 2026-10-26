@@ -102,7 +102,7 @@ export class ObjectHost {
         const d = this.#driver;
         const pages = opts.durability.capturePages ? d.takeDirtyPages() : undefined;
         const image = opts.durability.capturePages
-          ? () => d.pageImage?.() ?? d.snapshot?.()
+          ? () => d.pageImage?.() ?? d.image?.()
           : undefined;
         const durable = opts.durability.committed(this.cellKey, {
           seq: ++this.#seq,
@@ -202,16 +202,16 @@ export class ObjectHost {
   }
 
   /**
-   * Takes a snapshot if the cell changed since the last successful save and hands
-   * it to `backup.save`. Synchronous snapshot between events → consistent image.
+   * Takes an image if the cell changed since the last successful save and hands
+   * it to `backup.save`. Taken synchronously between events → a consistent image.
    * Skipped while an async transaction() holds the database or a save is running.
    */
   backupIfDirty(reason: BackupInfo["reason"], now: number): Promise<void> {
     const b = this.#backup;
     if (!b || this.broken || this.#saving || this.#seq === this.#backedUpSeq)
       return this.#saving ?? Promise.resolve();
-    if (!this.#driver.snapshot)
-      return Promise.reject(new Error("SyncSqlDriver has no snapshot(): cannot back up"));
+    if (!this.#driver.image)
+      return Promise.reject(new Error("SyncSqlDriver has no image(): cannot back up"));
     if (this.#sql.held) return Promise.resolve(); // mid-transaction: next round
     this.#sql.commit();
     const seq = this.#seq;
@@ -221,7 +221,7 @@ export class ObjectHost {
     } catch {
       // no _cf_LOG yet
     }
-    const image = this.#driver.snapshot();
+    const image = this.#driver.image();
     this.#saving = b
       .save(this.cellKey, image, { seq, takenAt: now, reason, logSeq })
       .then(
