@@ -192,13 +192,11 @@ tabs or workers with no server. Its conditional writes are atomic only within on
 ## Firefox and WebKit
 
 The suite is written against Chromium; `pnpm e2e:firefox` (Playwright's own build:
-`npx playwright install firefox`) runs it in Firefox. A spec that fails there for a
-reason below is marked `test.fail` with that reason (`e2e-browser/browser-gaps.ts`), so it turns red
-the day the cause goes away.
+`npx playwright install firefox`) runs it in Firefox, where it passes. It skips what Chromium skips
+(the `knownGap` scenarios) and the two specs below.
 
 Firefox 157 runs module ServiceWorkers, module Dedicated Workers, OPFS synchronous access handles
-(sahpool) and Web Locks; the sharded topology, OPFS persistence, backups, the LTX log and the fleet
-bucket specs pass. What differs:
+(sahpool) and Web Locks. What differs:
 
 - **A forwarded request body arrives as the text `[object ReadableStream]`.** Firefox has no
   `Request.body` and does not take a `ReadableStream` as a request body; it stores the stream's
@@ -211,8 +209,10 @@ bucket specs pass. What differs:
   `Request.prototype` owns `body` to decide whether it may build requests with stream bodies, and
   must keep hearing no. Where cellb rebuilds a request itself (a scheme restored on a node's link, a
   URL given back on an isolate's port) it reads the body whole there (spec: `peer-routing`).
-- **`TypeError: Function object could not be cloned.`** where V8 says `TypeError: () => 1 could not
-  be cloned.` (spec: `storage-details`).
+- **Storage refusals are worded as V8 words them.** `storage.put` of a value structured clone
+  refuses throws cellb's own `TypeError`, with the message of cellb's V8 serializer
+  (`() => 1 could not be cloned.`), not SpiderMonkey's (`Function object could not be cloned.`), so
+  it reads as on workerd and celld (spec: `storage-details`).
 - **Under Playwright's Firefox, a navigation the ServiceWorker lets through to the network leaves
   the page uncontrolled** (`navigator.serviceWorker.controller === null`, after a reload or in a
   new tab), so its requests reach the dev server, not the router (`JSON.parse: unexpected
