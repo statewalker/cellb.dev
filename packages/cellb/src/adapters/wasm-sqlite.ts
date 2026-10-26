@@ -6,6 +6,7 @@ import { type WasmSqlite3, wasmSessionCapture } from "./wasm-session.js";
 /** Minimal slice of the @sqlite.org/sqlite-wasm `oo1.DB` API we rely on. */
 export interface Oo1Db {
   prepare(sql: string): Oo1Stmt;
+  exec(sql: string): unknown;
   changes(): number;
   close(): void;
 }
@@ -256,19 +257,27 @@ export async function sahpoolOpener(
     const capacity = pool.getCapacity();
     if (!growing && capacity - needed() < capacity / 2) grow(capacity * 2).catch(() => {});
   };
+  // The rollback journal stays in the pool between transactions (PERSIST): DELETE gives its pool
+  // slot back and takes it again on every commit, which costs a header write each time. The
+  // database file is the same in both modes (only WAL marks it).
+  const openDb = (path: string) => {
+    const db = new pool.OpfsSAHPoolDb(path);
+    db.exec("PRAGMA journal_mode=PERSIST");
+    return db;
+  };
   const open: OpenCellSql = (cellKey) => {
     const path = `/${cellKey.replace(/[^\w.-]/g, "_")}.sqlite`;
     reserved.delete(cellKey);
     queueMicrotask(keepRoom); // after this open (and its first slot) is counted
     return new WasmSqliteDriver(
-      new pool.OpfsSAHPoolDb(path),
+      openDb(path),
       {
         image: (db) => (sqlite3 as any).capi.sqlite3_js_db_export(db),
         // Replace the file inside the pool, then reopen it.
         restore(db, image) {
           db.close();
           (pool as any).importDb(path, image);
-          return new pool.OpfsSAHPoolDb(path);
+          return openDb(path);
         },
       },
       sqlite3 as never,

@@ -16,6 +16,42 @@
         w.onerror = (e) => resolve({ ok: false, error: e.message });
         w.postMessage(job, [port2]);
       });
+    // `shards` workers, a MessageChannel between every two; worker 0 drives the conversations.
+    window.__runFlueSharded = async (job) => {
+      const workers = Array.from(
+        { length: job.shards },
+        () => new Worker(new URL("./flue-worker.ts", import.meta.url), { type: "module" }),
+      );
+      const call = (w, data, transfer = []) =>
+        new Promise((resolve) => {
+          const { port1, port2 } = new MessageChannel();
+          port1.onmessage = (e) => resolve(e.data);
+          w.onerror = (e) => resolve({ ok: false, error: e.message });
+          w.postMessage(data, [port2, ...transfer]);
+        });
+      const peers = workers.map(() => ({ peers: [], ports: [] }));
+      for (let i = 0; i < job.shards; i++)
+        for (let j = 0; j < job.shards; j++) {
+          if (i === j) continue;
+          const { port1, port2 } = new MessageChannel();
+          peers[i].peers.push({ shard: j, role: "link" });
+          peers[i].ports.push(port1);
+          peers[j].peers.push({ shard: i, role: "serve" });
+          peers[j].ports.push(port2);
+        }
+      try {
+        const started = await Promise.all(
+          workers.map((w, i) =>
+            call(w, { ...job, shard: i, peers: peers[i].peers }, peers[i].ports),
+          ),
+        );
+        const failed = started.find((r) => !r.ok);
+        if (failed) return failed;
+        return await call(workers[0], { shard: 0, drive: true, conversations: job.conversations });
+      } finally {
+        for (const w of workers) w.terminate();
+      }
+    };
     document.body.dataset.ready = "true";
   </script>
 </body>

@@ -65,7 +65,7 @@ interface QueueDispatcher {
 }
 
 export interface ProjectHost
-  extends Pick<CellRuntimeOptions, "openSql" | "storage" | "clock" | "peers"> {
+  extends Pick<CellRuntimeOptions, "openSql" | "storage" | "clock" | "peers" | "route"> {
   /** Files of `assets.directory` (path "/a/b.html" → bytes), loaded by the host. */
   assetFiles?: AssetFiles;
   /** Runs each loaded Worker in its own realm (celld isolates); classes still use `loadModules`. */
@@ -189,6 +189,7 @@ export function createProjectRuntime(
     storage: host.storage,
     clock: host.clock,
     peers: host.peers,
+    route: host.route,
   });
   const env = runtime.env as Record<string, unknown>;
   // KV: celld's own client against celld's own namespace cell (cell name "<id>/<shard>").

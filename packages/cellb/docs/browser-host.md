@@ -16,8 +16,24 @@ and WebKit.
   while opening a database is not. `sahpoolOpener` gives the runtime `room(cellKey)`: a cell's first
   event waits for room (about three files per cell: the database and its journal), and the pool
   grows in the background whenever less than half of it is free.
-- **One worker is one thread.** Its cells interleave; their SQLite I/O runs on that thread. Spread
-  cells over several workers (the sharded topology) for parallel work.
+- **One worker is one thread.** Its cells interleave; their SQLite I/O runs on that thread. For
+  parallel work, run one `browserProjectRuntime` per worker, each with its own `pool`, and give
+  each a `route` that sends the cells it does not own to their worker:
+
+  ```ts
+  // In worker `shard` of `shards`; `links[j]` = (await linkOverPort(portToWorker[j])).send,
+  // and every worker serves its runtime to the others: serveRuntime(portFromWorker[j], runtime).
+  route: (_key, id) => {
+    const owner = shardOf(id.toString(), shards);
+    return owner === shard ? undefined : links[owner];
+  },
+  ```
+
+  Any worker can take a request; a Durable Object call runs in the worker that owns the object
+  (packages/flue-example's browser test runs a Flue app this way).
+- **Journals stay in the pool.** `sahpoolOpener` opens databases with `journal_mode=PERSIST`: the
+  rollback journal keeps its pool slot between commits instead of being created and deleted on each
+  one. The database file is the same as with the default `DELETE` (only WAL marks it).
 - **`AsyncLocalStorage` needs help.** Browsers have no async context yet: for a nodejs_compat
   bundle, `browserProjectRuntime` makes promise and timer continuations carry their stores, and
   `bundleWorkerForBrowser` lowers `await` so that it goes through them. An in-browser site keeps

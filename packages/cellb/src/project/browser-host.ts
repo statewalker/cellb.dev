@@ -4,7 +4,7 @@ import type { AssetFiles } from "../bindings/assets.js";
 import { celldBucket } from "../bucket/celld-cells.js";
 import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js";
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
-import type { WorkerModule } from "../core/runtime.js";
+import type { CellRuntimeOptions, WorkerModule } from "../core/runtime.js";
 import { browserIsolatedLoader } from "../isolate/browser.js";
 import { installAsyncContext } from "../node-compat/async_hooks.js";
 import { installNodeGlobals } from "../node-compat/install.js";
@@ -74,6 +74,12 @@ export interface BrowserProjectOptions {
   filesDir: string;
   assetFiles?: AssetFiles;
   bucket?: BrowserBucket;
+  /**
+   * Cells this runtime does not host: where to send their events (a `Send` over a MessagePort
+   * to the runtime that hosts them, `linkOverPort`), or undefined to host the cell here. With
+   * one runtime per worker and `shardOf` as the placement, cells run in parallel threads.
+   */
+  route?: CellRuntimeOptions["route"];
 }
 
 async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
@@ -167,6 +173,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
         })
       : undefined,
     storage: shared, // R2 objects in the fleet bucket too, as celld keeps them
+    route: opts.route,
   });
   scope.bind(runtime);
   return {

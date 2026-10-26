@@ -90,6 +90,11 @@ for (const conversations of [8, 32])
       const bundle = await bundleWorkerForBrowser(join(built, config.main), { nodeCompat: true });
       await page.goto("/");
       await page.waitForFunction(() => document.body.dataset.ready === "true");
+      const browser = page.context().browser()!;
+      await browser.startTracing(page, {
+        path: `/tmp/claude-0/trace-${conversations}.json`,
+        categories: ["disabled-by-default-v8.cpu_profiler", "v8"],
+      });
       const r = await page.evaluate((job) => (window as any).__runFlue(job), {
         config,
         bundle,
@@ -97,6 +102,7 @@ for (const conversations of [8, 32])
         scenario: "whoami",
         conversations,
       });
+      await browser.stopTracing();
       expect(r.ok, r.error).toBe(true);
       expect(r.problems).toEqual([]);
       expect(wrongIdentities(r.results)).toEqual([]);
@@ -133,3 +139,32 @@ test("messages sent to one conversation at once all settle", async ({ page }) =>
     await llm.close();
   }
 });
+
+// Conversations in parallel threads: `shards` workers each host the app and own their share of
+// the conversations (shardOf), and route the others to their owner over MessagePorts.
+for (const shards of [1, 4])
+  test(`32 conversations over ${shards} worker(s): each tool sees its own agent context`, async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const llm = await startFakeLlm(whoamiScript, { delayMs: 30 });
+    try {
+      const config = JSON.parse(readFileSync(join(built, "wrangler.json"), "utf8"));
+      config.vars = { ...config.vars, LLM_BASE_URL: llm.baseUrl };
+      const bundle = await bundleWorkerForBrowser(join(built, config.main), { nodeCompat: true });
+      await page.goto("/");
+      await page.waitForFunction(() => document.body.dataset.ready === "true");
+      const r = await page.evaluate((job) => (window as any).__runFlueSharded(job), {
+        config,
+        bundle,
+        run: Date.now().toString(36),
+        shards,
+        conversations: 32,
+      });
+      expect(r.ok, r.error).toBe(true);
+      expect(r.problems).toEqual([]);
+      expect(wrongIdentities(r.results)).toEqual([]);
+    } finally {
+      await llm.close();
+    }
+  });

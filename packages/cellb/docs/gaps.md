@@ -99,12 +99,16 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   code that reads a store it did not set in the callee sees the caller's. Changing it means
   starting each event in the root context, which the celld conformance harness (test/p09) relies
   on not doing: it attributes Durable Object logs to a scenario through such a store.
-- **A browser runtime is one thread.** Its cells interleave, they do not run in parallel, and each
-  commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool call,
-  two model turns) makes about 155 commits, so concurrent conversations in one runtime take turns
-  (the sharded topology spreads cells over several workers). Opening a cell reserves room in the
-  OPFS pool first and the pool grows on demand; a database or journal that SQLite creates mid-event
-  (`SAH pool is full`) can still fail if a burst outruns the background growth.
+- **A browser runtime is one thread, and OPFS writes are its cost.** Its cells interleave, and
+  each commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool
+  call, two model turns) makes 21 commits (155 when commits ended with each microtask); in this
+  repository's CI-like container an OPFS write costs about 0.75 ms whatever its size, and those
+  writes are about 80% of the worker's time. For parallel threads, run one
+  `browserProjectRuntime` per worker with `route` (`shardOf` placement, `linkOverPort` /
+  `serveRuntime` between workers): 32 Flue conversations take 16 s on one worker and 11 s on four
+  there, where four workers writing OPFS at once slow each other's writes. Opening a cell reserves
+  room in the OPFS pool first and the pool grows on demand; a database or journal that SQLite
+  creates mid-event (`SAH pool is full`) can still fail if a burst outruns the background growth.
 - **Agents SDK WebSocket connections are ignored.** `partyserver` reads attachments through the
   global `WebSocket.prototype` (`deserializeAttachment`), which a Worker's bundle takes from the
   host and which lacks them, so it does not recognise any accepted socket as its own: `onConnect`

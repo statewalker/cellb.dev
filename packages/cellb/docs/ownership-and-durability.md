@@ -8,8 +8,12 @@ deployment, and what you see when it does not. Terms are defined in [CONTEXT.md]
 
 These rules hold on every platform and with every storage.
 
-- **Implicit transaction.** The first SQL statement of a handler turn opens a transaction; it commits
-  when the turn ends. A hundred synchronous writes in one turn are one commit.
+- **Implicit transaction.** The first SQL statement opens a transaction; it commits when the
+  current turn of the event loop ends (a macrotask: `setImmediate` on Node, a MessageChannel
+  message in browsers), as workerd commits after the turn of its event loop. Writes with no `await`
+  between them are atomic; writes of several microtasks (a handler resuming after `await`s on
+  promises that are already settled) share one commit. A reply never waits for the turn: the output
+  gate commits first.
 - **Input gate.** Events reach an object through a queue that a synchronous pump starts only while
   the gate is open. The first storage operation of a handler closes the gate before the next event
   can start, so read-modify-write over storage awaits is safe. The gate reopens on a macrotask, and

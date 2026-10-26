@@ -42,7 +42,9 @@ export function httpEndpoint(
   const target = id.name !== undefined ? `name:${id.name}` : `id:${id}`;
   const base = { [H.binding]: binding, [H.target]: target };
   return {
-    fetch: (req) => post(addHeaders(req, { [H.kind]: "fetch", ...base })),
+    // Not the caller's abort signal: an aborted caller does not cancel a local object's
+    // fetch() either (the object answers, nobody reads), so neither does a remote one.
+    fetch: (req) => post(addHeaders(req, { [H.kind]: "fetch", ...base }, { detach: true })),
     async call(method, args) {
       const res = await post(
         control("rpc", { ...base, [H.method]: method }, codec.encode(toAnotherNode(args))),
@@ -64,10 +66,14 @@ export function control(kind: string, headers: Record<string, string>, body?: Ui
  * Re-creates a request with extra headers, streaming its body through. The request itself is the
  * source, not `body: req.body`: Firefox has no `Request.body`, so that would drop the body there.
  */
-function addHeaders(req: Request, extra: Record<string, string>): Request {
+function addHeaders(
+  req: Request,
+  extra: Record<string, string>,
+  opts: { detach?: boolean } = {},
+): Request {
   const headers = new Headers(req.headers);
   for (const [k, v] of Object.entries(extra)) headers.set(k, v);
-  return keepUpgrade(req, new Request(req, { headers }));
+  return keepUpgrade(req, new Request(req, opts.detach ? { headers, signal: null } : { headers }));
 }
 
 /** Browsers drop the forbidden `Upgrade` header from every rebuilt Request: carry it over. */
