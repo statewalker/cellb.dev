@@ -2,13 +2,16 @@
   "celld": "0.6.3",
   "transcript": [
     {
-      "request": "GET /?skip=binaryMessageDeliveredAsBlob,binaryTypeSetterInvalid,binaryTypeSwitchMidStream,binaryTypeWebSocketPairDefault,closeReasonUSVString",
+      "request": "GET /?skip=binaryTypeSetterInvalid,closeReasonUSVString",
       "status": 200,
       "contentType": "application/json",
       "body": {
         "binaryMessageDeliveredAsArrayBuffer": "ok",
+        "binaryMessageDeliveredAsBlob": "ok",
         "binaryTypeDefaultsToBlob": "ok",
         "binaryTypeSetterValid": "ok",
+        "binaryTypeSwitchMidStream": "ok",
+        "binaryTypeWebSocketPairDefault": "ok",
         "closeCode1000Succeeds": "ok",
         "closeCode3000To4999Succeeds": "ok",
         "closeCodeSpecInvalid": "ok",

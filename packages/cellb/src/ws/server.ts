@@ -17,6 +17,14 @@ export class CfWebSocket extends EventTarget {
 
   protocol: string | null = null;
   extensions: string | null = null;
+  #binaryType: "blob" | "arraybuffer" = "arraybuffer";
+  /** How binary messages arrive; other values are ignored, as in browsers. */
+  get binaryType(): "blob" | "arraybuffer" {
+    return this.#binaryType;
+  }
+  set binaryType(v: "blob" | "arraybuffer") {
+    if (v === "blob" || v === "arraybuffer") this.#binaryType = v;
+  }
   [kPort]: MessagePort | undefined;
   #accepted = false;
   #queued: Frame[] = [];
@@ -82,7 +90,8 @@ export class CfWebSocket extends EventTarget {
 
   #frame(f: Frame): void {
     if (f.t === "m") {
-      this.dispatchEvent(new MessageEvent("message", { data: f.d }));
+      const data = typeof f.d !== "string" && this.#binaryType === "blob" ? new Blob([f.d]) : f.d;
+      this.dispatchEvent(new MessageEvent("message", { data }));
       return;
     }
     if (f.t !== "c") return;
@@ -128,6 +137,19 @@ export class WebSocketPair {
   *[Symbol.iterator](): IterableIterator<CfWebSocket> {
     yield this[0];
     yield this[1];
+  }
+}
+
+/**
+ * `WebSocketPair` under the `websocket_standard_binary_type` compatibility flag: both ends
+ * start with `binaryType` "blob", as browsers' WebSockets do. Without it they start with
+ * "arraybuffer", workerd's older default.
+ */
+export class StandardWebSocketPair extends WebSocketPair {
+  constructor() {
+    super();
+    this[0].binaryType = "blob";
+    this[1].binaryType = "blob";
   }
 }
 

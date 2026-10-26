@@ -376,17 +376,14 @@ export const scenarios: Record<string, Scenario> = {
 // scripts/vendor-workerd-tests.mjs): GET / runs every `test` export inside the worker and
 // answers each one's outcome. Per-project adjustments (knownGap, textMask, …) go here.
 // websocket-constructor-test.js exports with a known gap (wd-websocket-constructor-gaps).
-const WS_GAPS = [
-  "binaryMessageDeliveredAsBlob",
-  "binaryTypeSetterInvalid",
-  "binaryTypeSwitchMidStream",
-  "binaryTypeWebSocketPairDefault",
-  "closeReasonUSVString",
-];
+const WS_GAPS = ["binaryTypeSetterInvalid", "closeReasonUSVString"];
 const WS_CONSTRUCTOR_OTHERS = [
   "binaryMessageDeliveredAsArrayBuffer",
+  "binaryMessageDeliveredAsBlob",
   "binaryTypeDefaultsToBlob",
   "binaryTypeSetterValid",
+  "binaryTypeSwitchMidStream",
+  "binaryTypeWebSocketPairDefault",
   "closeCode1000Succeeds",
   "closeCode3000To4999Succeeds",
   "closeCodeSpecInvalid",
@@ -445,7 +442,7 @@ scenarios["wd-websocket-constructor-gaps"] = {
   project: "wd-websocket-constructor",
   steps: [{ path: `/?skip=${WS_CONSTRUCTOR_OTHERS.join(",")}` }],
   knownGap:
-    "WebSocketPair ends have no binaryType and deliver ArrayBuffers (websocket_standard_binary_type); the host's own WebSocket and CloseEvent: Node takes 'BLOB' as 'blob', Chromium keeps lone surrogates in a close reason",
+    "the host's own WebSocket and CloseEvent: Node takes 'BLOB' as 'blob', Chromium keeps lone surrogates in a close reason",
 };
 scenarios["wd-worker-loader-gaps"] = {
   project: "wd-worker-loader",

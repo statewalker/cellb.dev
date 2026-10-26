@@ -70,6 +70,8 @@ export class DurableObjectState {
     if (tags.length > 10) throw new Error("A WebSocket can have at most 10 tags");
     this.#sockets.set(ws, [...tags]);
     (ws as { hibernatable?: boolean }).hibernatable = true;
+    // webSocketMessage() gets string | ArrayBuffer, whatever the pair's default binaryType.
+    (ws as { binaryType?: string }).binaryType = "arraybuffer";
     ws.accept();
     const deliver = (fn: (o: any) => unknown) => this.#dispatch?.(fn).catch(() => {});
     ws.addEventListener("message", (e: MessageEvent) => {

@@ -164,6 +164,8 @@ export function createProjectRuntime(
       sqlExtensions.push("sqlite_vec"); // vec0 virtual tables, as on celld
     else if (f === "nodejs_compat" || f === "nodejs_compat_v2")
       continue; // the host's bundler maps node:*
+    else if (f === "websocket_standard_binary_type")
+      continue; // the host picks the project's WebSocketPair
     else unsupported.push(`compatibility_flags: ${f}`);
   }
 

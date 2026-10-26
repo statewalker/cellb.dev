@@ -41,7 +41,7 @@ export async function bundleWorker(
   entry: { path: string } | { modules: Record<string, string>; main: string },
   logs?: LogSink,
   outbound?: typeof fetch,
-  opts: { nodeCompat?: boolean } = {},
+  opts: { nodeCompat?: boolean; standardBinaryType?: boolean } = {},
 ): Promise<WorkerModule> {
   // Loaded code gets a bundle-local `fetch` (globalOutbound policy)…
   const outboundKey = outbound ? `o${Math.random().toString(36).slice(2)}` : "";
@@ -100,6 +100,14 @@ export async function bundleWorker(
           // nodejs_compat on a Node host: `node:*` are the real Node.js modules.
           if (opts.nodeCompat)
             b.onResolve({ filter: /^node:/ }, (a) => ({ path: a.path, external: true }));
+          b.onResolve({ filter: /^cellb:compat$/ }, () => ({
+            path: "compat",
+            namespace: "cells-compat",
+          }));
+          b.onLoad({ filter: /.*/, namespace: "cells-compat" }, () => ({
+            contents: `export const standardBinaryType = ${!!opts.standardBinaryType};`,
+            loader: "js",
+          }));
           b.onResolve({ filter: /^cellb:fetch$/ }, () => ({
             path: "fetch",
             namespace: "cells-fetch",
@@ -162,9 +170,14 @@ export async function loadNodeProject(
   const config = readWranglerConfig(dir);
   if (!config.main && !config.assets)
     throw new Error("wrangler config has neither `main` nor `assets`");
-  const nodeCompat = (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
+  const flags = config.compatibility_flags ?? [];
+  const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
+  const standardBinaryType = flags.includes("websocket_standard_binary_type");
   const module = config.main
-    ? await bundleWorker({ path: resolve(dir, config.main) }, undefined, undefined, { nodeCompat })
+    ? await bundleWorker({ path: resolve(dir, config.main) }, undefined, undefined, {
+        nodeCompat,
+        standardBinaryType,
+      })
     : ({ default: {} } as WorkerModule);
   const assetFiles = config.assets?.directory
     ? readAssetDirectory(resolve(dir, config.assets.directory))

@@ -4,4 +4,9 @@
  */
 export { cellsCaches as caches } from "../bindings/cache.js";
 export { HTMLRewriter } from "../bindings/html-rewriter.js";
-export { CellsResponse, WebSocketPair, WebSocketRequestResponsePair } from "../ws/server.js";
+export {
+  CellsResponse,
+  StandardWebSocketPair,
+  WebSocketPair,
+  WebSocketRequestResponsePair,
+} from "../ws/server.js";

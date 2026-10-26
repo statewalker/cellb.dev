@@ -5,13 +5,18 @@
  * EXTERNAL module (workers-globals-module.ts): if it were bundled, the injected `Response` would
  * also replace the `Response` that CellsResponse itself extends.
  */
+import { standardBinaryType } from "cellb:compat";
+import { WebSocketPair as LegacyWebSocketPair, StandardWebSocketPair } from "cellb:ws";
+
 export {
   CellsResponse as Response,
   caches,
   HTMLRewriter,
-  WebSocketPair,
   WebSocketRequestResponsePair,
 } from "cellb:ws";
+
+/** The project's `websocket_standard_binary_type` flag ("cellb:compat", one per bundle). */
+export const WebSocketPair = standardBinaryType ? StandardWebSocketPair : LegacyWebSocketPair;
 
 /** workerd's `scheduler`: `await scheduler.wait(ms)` is a promise-based setTimeout. */
 export const scheduler = {

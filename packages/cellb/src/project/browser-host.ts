@@ -88,9 +88,16 @@ async function importWorkerCode(
   config: WranglerConfig,
   code: BrowserProjectOptions["code"],
 ): Promise<WorkerModule> {
-  const nodeCompat = (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
+  const flags = config.compatibility_flags ?? [];
+  const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
   if (nodeCompat) installNodeGlobals();
-  const globals = { ...workersGlobals, Response: workersGlobals.CellsResponse };
+  const globals = {
+    ...workersGlobals,
+    Response: workersGlobals.CellsResponse,
+    WebSocketPair: flags.includes("websocket_standard_binary_type")
+      ? workersGlobals.StandardWebSocketPair
+      : workersGlobals.WebSocketPair,
+  };
   if ("site" in code) {
     workersHostRegistry({
       workersModule,

@@ -444,7 +444,7 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   `ObjectEndpoint.call`; `RpcTarget`, functions and stubs as arguments, results, env and `props`.
   Proof: `wd-stub-storage` and the `basics`/`doStubVia*` exports of `wd-worker-loader-gaps`
   judged against `golden-workerd` (new `judge: "workerd"` field in the scenario), green.
-- [ ] **F4 small known gaps** (D10-independent), one commit each, each removing a `knownGap`
+- [x] **F4 small known gaps** (D10-independent) — done on `feat/isolate-rpc` (binaryType, wasm/data modules, `ctx.exports.<Entrypoint>`; `sql.ingest()` skipped; plain-object `ctx.exports` stays a gap), one commit each, each removing a `knownGap`
   or adding a recorded step: WebSocket `binaryType` per project (`websocket_standard_binary_type`,
   the three global paths); `WorkerCode` data/wasm module types; `ctx.exports.<Entrypoint>`.
   `sql.ingest()` only if wanted — celld stops at an ingest error anyway.

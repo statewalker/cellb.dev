@@ -28,6 +28,9 @@ those transcripts, and that cellb matches:
   `R2 <op> (binding <NAME>): …`).
 - Either end of a `WebSocketPair` may `send()` before `accept()` (celld queues the frame; workerd
   refuses).
+- `WebSocketPair` ends start with `binaryType` `"blob"` when the project sets
+  `websocket_standard_binary_type`, `"arraybuffer"` otherwise (loaded Workers always get the
+  latter). `webSocketMessage()` of a hibernatable socket always receives an `ArrayBuffer`.
 
 ## The same cell is stored the same way
 
