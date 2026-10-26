@@ -55,9 +55,6 @@ recorded on celld or workerd), not by a test of the mechanism alone.
   single celld → cellb → celld Workflow chain is not recorded.
 - **Firefox and WebKit.** Only Chromium is tested. Module ServiceWorkers, OPFS synchronous handles
   and Web Locks are the likely failures; record them here before fixing anything.
-- **Await the lease release on close.** Closing a runtime releases each cell without waiting, so a
-  store closed right after can leave `own.json` held until the node lease lapses (10 s by default):
-  the next node reports `owned by another node` until then.
 
 ## Other gaps
 

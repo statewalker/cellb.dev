@@ -77,3 +77,42 @@ describe("P10e a node's local database is brought to the bucket's state when it 
     await a2.close();
   });
 });
+
+/** A remote store: each operation takes a macrotask, and none succeeds after close(). */
+const slowStore = (inner: ObjectStore) => {
+  let closed = false;
+  const slow =
+    <A extends unknown[], R>(op: (...a: A) => Promise<R>) =>
+    async (...a: A) => {
+      await new Promise((r) => setTimeout(r, 5));
+      if (closed) throw new Error("store closed");
+      return op(...a);
+    };
+  return {
+    get: slow(inner.get),
+    put: slow(inner.put),
+    list: slow(inner.list),
+    delete: slow(inner.delete),
+    close: () => {
+      closed = true;
+    },
+  };
+};
+
+describe("P10e closing a runtime releases its cells before the store closes", () => {
+  it("own.json is released when close() returns, and the next node takes the cell at once", async () => {
+    const shared = memoryObjectStore();
+    const a = node("A", slowStore(shared), tempDir());
+    expect(await inc(a)).toBe(1);
+    await a.close();
+    const own = await shared.list("cells/");
+    const record = own.find((k) => k.endsWith("/own.json"))!;
+    expect(JSON.parse(new TextDecoder().decode((await shared.get(record))!.body))).toEqual({
+      node: "",
+      epoch: 1,
+    });
+    const b = node("B", shared, tempDir());
+    expect(await inc(b)).toBe(2);
+    await b.close();
+  });
+});

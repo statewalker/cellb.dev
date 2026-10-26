@@ -136,6 +136,13 @@ const mutants = [
     "p10e",
   ],
   [
+    "ownership: close() does not wait for the releases",
+    "src/core/runtime.ts",
+    "await Promise.all([...hosts.values()].map((h) => h.close()));",
+    "for (const h of hosts.values()) void h.close();",
+    "p10e",
+  ],
+  [
     "backup: close() skips the final backup",
     "src/core/runtime.ts",
     'await backupAll("close");',

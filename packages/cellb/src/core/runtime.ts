@@ -403,7 +403,8 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       clock.clearTimeout(timer);
       timer = undefined;
       await backupAll("close");
-      for (const h of hosts.values()) h.close();
+      // The releases reach the store before it closes.
+      await Promise.all([...hosts.values()].map((h) => h.close()));
       hosts.clear();
       await storage.close?.();
     },

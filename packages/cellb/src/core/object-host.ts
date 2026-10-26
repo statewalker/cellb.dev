@@ -303,11 +303,13 @@ export class ObjectHost {
     }
   }
 
-  close(): void {
+  /** Settles once the cell lease is released (a store closed earlier would keep it held). */
+  close(): Promise<void> {
     this.#driver.close();
     // Hand the cell over at once instead of letting the lease expire.
-    void this.#release?.().catch(() => {});
+    const released = this.#release?.().catch(() => {});
     this.#release = undefined;
+    return released ?? Promise.resolve();
   }
   #release: (() => Promise<void>) | undefined;
 

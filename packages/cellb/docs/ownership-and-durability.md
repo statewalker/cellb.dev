@@ -62,8 +62,9 @@ r2/<bucket>/<key>                        R2 objects (owned by no cell)
   download per acquisition, which the new generation's first commit pays again anyway as a
   snapshot. Without ownership the local file is the primary copy, and only an empty database is
   restored.
-- **Releasing.** Closing the runtime writes `{ "node": "", epoch }` to each owned record and deletes
-  the node lease, so the next node takes the cells at once.
+- **Releasing.** Closing the runtime writes `{ "node": "", epoch }` to each owned record, waits for
+  those writes, then deletes the node lease and closes the store, so the next node takes the cells
+  at once.
 - **Self-fencing.** A node stops acknowledging writes once its node lease could have lapsed
   (`expires_ms` minus a margin), and a deadline timer breaks every owned cell when renewals stop
   arriving (a paused process, a frozen tab). celld waits for `expires_ms` before taking over, so the
@@ -133,9 +134,6 @@ have expired. A wake entry is only a hint: the stored alarm decides whether anyt
 - **`ownership record lost: cells/<scope>/own.json is missing, but the bucket holds LTX …`**. A
   lifecycle rule or an operator removed `own.json`. Write the released record named in the message;
   neither celld nor cellb will guess the epoch.
-- **A cell stays held for its node lease after a clean shutdown.** `close()` releases each cell
-  without waiting for the write, so closing the store right after can leave `own.json` held until the
-  node lease lapses ([gaps.md](gaps.md)).
 - **Data written after the last backup is gone after a crash.** That is the backup's RPO, not
   corruption. Use a log for RPO 0.
 - **Two browser tabs on one OPFS fleet bucket overwrite each other.** A FilesApi store checks
