@@ -44,7 +44,9 @@ code and builds the runtime from the wrangler configuration. The code is either:
   (`@statewalker/webrun-modules`). Loaded Workers' code is uploaded to it and imported from URLs.
 
 With `isolateScript`, each loaded Worker runs in its own Dedicated Worker; without it, it runs in
-this worker's realm. The host app (`pnpm browser:dev`, then `/host/`) is this topology: pick a
+this worker's realm. The package ships that worker as `@statewalker/cellb/isolate-worker`; with
+Vite, `import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url"` and pass
+`isolateScript: new URL(isolateWorker, import.meta.url)`. The host app (`pnpm browser:dev`, then `/host/`) is this topology: pick a
 project folder, a node name and a bucket, and the project is served at its own URL.
 
 ### A sharded origin: `CellRouter` in the ServiceWorker

@@ -2,16 +2,16 @@
 // One loaded Worker in its own realm (a Dedicated Worker), served over its port.
 
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { cellsCaches } from "../../src/bindings/cache.js";
-import { HTMLRewriter } from "../../src/bindings/html-rewriter.js";
-import { sahpoolOpener } from "../../src/browser.js";
-import { CellsResponse, WebSocketPair } from "../../src/index.js";
-import { serveIsolate } from "../../src/isolate/isolate.js";
-import type { PortLike } from "../../src/isolate/protocol.js";
-import { browserModuleLoader, WORKERS_MODULE_SHIM } from "../../src/project/browser-modules.js";
-import * as workersModule from "../../src/project/cloudflare-workers.js";
-import { workersHostRegistry } from "../../src/project/site.js";
-import { WebSocketRequestResponsePair } from "../../src/ws/server.js";
+import { cellsCaches } from "../bindings/cache.js";
+import { HTMLRewriter } from "../bindings/html-rewriter.js";
+import { sahpoolOpener } from "../browser.js";
+import { CellsResponse, WebSocketPair } from "../index.js";
+import { browserModuleLoader, WORKERS_MODULE_SHIM } from "../project/browser-modules.js";
+import * as workersModule from "../project/cloudflare-workers.js";
+import { workersHostRegistry } from "../project/site.js";
+import { WebSocketRequestResponsePair } from "../ws/server.js";
+import { serveIsolate } from "./isolate.js";
+import type { PortLike } from "./protocol.js";
 
 (globalThis as Record<string, unknown>).__cellsWorkersModule = workersModule;
 workersHostRegistry({

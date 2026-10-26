@@ -2,6 +2,7 @@
 // Runs one project whose code comes from the in-browser HTTP server (webrun-site-host +
 // webrun-site-builder + webrun-modules): `import()` of real URLs; Worker Loader over the site.
 
+import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url";
 import type { WranglerConfig } from "../../src/index.js";
 import { captureLogs, runProject } from "../projects/run-project.js";
 
@@ -25,7 +26,7 @@ scope.onmessage = async (e) => {
       config: job.config,
       code: { site: job.baseUrl },
       // Loaded Workers run isolated, each in its own Dedicated Worker (as celld's isolates).
-      isolateScript: new URL("../isolate/isolate-worker.ts", import.meta.url),
+      isolateScript: new URL(isolateWorker, import.meta.url),
       assets: job.assets,
       wsServer: job.wsServer,
       logs,

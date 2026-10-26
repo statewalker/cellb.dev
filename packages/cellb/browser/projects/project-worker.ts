@@ -2,6 +2,7 @@
 // Runs one project bundled on the Node side (conformance/browser-bundle.ts); the bundle and
 // Worker-Loader code are Blob-URL modules.
 
+import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url";
 import type { WranglerConfig } from "../../src/index.js";
 import { captureLogs, runProject } from "./run-project.js";
 
@@ -27,7 +28,7 @@ scope.onmessage = async (e) => {
       scenario,
       config: project.config,
       code: { bundle: project.code },
-      isolateScript: new URL("../isolate/isolate-worker.ts", import.meta.url),
+      isolateScript: new URL(isolateWorker, import.meta.url),
       assets: project.assets,
       wsServer,
       bucket,

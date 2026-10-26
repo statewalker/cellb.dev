@@ -62,6 +62,7 @@ export interface BrowserProjectOptions {
   /**
    * A Dedicated Worker script that serves one loaded Worker (`serveIsolate`): Worker Loader
    * code then runs isolated, one Dedicated Worker per loaded Worker, as celld's isolates.
+   * The package ships one: `@statewalker/cellb/isolate-worker`.
    */
   isolateScript?: URL;
   /** An initialized SQLite WASM module (`@sqlite.org/sqlite-wasm`). */

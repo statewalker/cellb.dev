@@ -31,9 +31,12 @@ function staticImports(entry: string): [string, string][] {
   return out;
 }
 
-test("importing the isomorphic entry point loads no node: builtin", () => {
-  expect(staticImports("src/index.ts").filter(([spec]) => spec.startsWith("node:"))).toEqual([]);
-});
+test.each(["src/index.ts", "src/browser.ts", "src/isolate/isolate-worker.ts"])(
+  "importing %s loads no node: builtin",
+  (entry) => {
+    expect(staticImports(entry).filter(([spec]) => spec.startsWith("node:"))).toEqual([]);
+  },
+);
 
 class Counter extends DurableObject {
   increment(): number {

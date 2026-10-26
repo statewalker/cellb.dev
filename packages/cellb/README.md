@@ -109,6 +109,10 @@ const res = await host.runtime.fetch(new Request("http://browser/"));
 await host.close();
 ```
 
+To run each Worker-Loader Worker in a Dedicated Worker of its own, pass the shipped isolate worker:
+with Vite, `import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url"` and
+`isolateScript: new URL(isolateWorker, import.meta.url)`.
+
 [docs/browser-host.md](docs/browser-host.md) shows how requests reach this worker through a
 ServiceWorker, how to shard an origin, and how to put the cells on an S3 bucket shared with celld.
 

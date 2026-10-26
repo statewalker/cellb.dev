@@ -48,7 +48,7 @@ export default defineConfig({
       "backup/index.html",
       "miniflare/index.html",
       "projects/index.html",
-      "isolate/isolate-worker.ts",
+      "../src/isolate/isolate-worker.ts",
       "changelog/index.html",
       "ltx/index.html",
       "host/index.html",

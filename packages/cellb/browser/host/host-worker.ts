@@ -2,6 +2,7 @@
 // The host app's worker: runs one project long-lived (browser-host.ts) on SQLite WASM in OPFS,
 // optionally on a celld fleet bucket, and answers HTTP requests the page forwards to it.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
+import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url";
 import { type BrowserBucket, browserProjectRuntime } from "../../src/browser.js";
 import type { WranglerConfig } from "../../src/index.js";
 
@@ -40,7 +41,7 @@ scope.onmessage = async (e) => {
       host = await browserProjectRuntime({
         config: m.config,
         code: { site: m.baseUrl },
-        isolateScript: new URL("../isolate/isolate-worker.ts", import.meta.url),
+        isolateScript: new URL(isolateWorker, import.meta.url),
         sqlite3,
         pool: m.pool,
         filesDir: `${m.pool}-files`,
