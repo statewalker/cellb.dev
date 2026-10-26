@@ -9,7 +9,7 @@
 names plus about 80 deep imports), no import cycles, one name everywhere, and documentation that
 describes the code as it is.
 
-**Supersedes:** Phase B of `packages/cellb/docs/superpowers/plans/2026-10-24-cellb-monorepo.md`
+**Supersedes:** Phase B of `packages/cellb/docs/history/2026-10-24-cellb-monorepo.md`
 (five packages). The review showed that the seam callers need is the **platform**
 (isomorphic / Node / browser), not the internal directories. One package with three entry points
 gives callers that seam at a fraction of the cost. Splitting `ltx` or `v8` into their own packages
