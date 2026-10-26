@@ -143,6 +143,20 @@ const mutants = [
     "p10e",
   ],
   [
+    "idle databases never close",
+    "src/core/runtime.ts",
+    "if (closeMs !== undefined && idle >= closeMs) h.closeDatabase();",
+    "",
+    "p07k",
+  ],
+  [
+    "a reopened database is not caught up",
+    "src/core/object-host.ts",
+    "await this.#catchUp(false);",
+    "",
+    "p07k",
+  ],
+  [
     "backup: close() skips the final backup",
     "src/core/runtime.ts",
     'await backupAll("close");',

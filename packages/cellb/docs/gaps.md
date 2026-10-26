@@ -48,8 +48,6 @@ recorded on celld or workerd), not by a test of the mechanism alone.
   and `props`) — only if the RPC decision above goes to workerd.
 - **Small known gaps**, one at a time: `binaryType` per project; `WorkerCode` data and wasm modules;
   plain-object `ctx.exports`; `sql.ingest()` only if wanted.
-- **Idle databases.** Hibernation drops a cell's instance but keeps its SQLite database open; a
-  second, longer idle time should close it and reopen on the next event.
 - **Storage round trips for Workflows and R2.** The interop suite already moves R2 objects
   celld → cellb → celld, and Workflow instances celld → cellb and cellb → celld as separate tests; a
   single celld → cellb → celld Workflow chain is not recorded.

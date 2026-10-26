@@ -233,7 +233,8 @@ One alarm published in the wake index; it is only a hint, the cell's stored alar
 
 **Hibernation**:
 An idle cell losing its instance while its storage and its hibernatable WebSockets stay. Unlike on
-Cloudflare, a cell without WebSockets hibernates too. Callers do not see it.
+Cloudflare, a cell without WebSockets hibernates too. After a longer idle time a hibernated cell may
+also close its database, keeping its cell lease. Callers do not see it.
 _Avoid_: sleep, eviction
 
 **Eviction**:

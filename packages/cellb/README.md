@@ -187,6 +187,12 @@ docs/               topic pages
 - **Ownership depends on the deployment**: a Web Lock per shard in an origin, celld's ownership
   records per cell on a fleet bucket
   ([docs/ownership-and-durability.md](docs/ownership-and-durability.md)).
+- **An idle database closes without letting go of its cell.** `hibernateAfterMs` drops an idle
+  object's instance; `closeDatabaseAfterMs` (longer, opt-in) also closes its SQLite handle, and the
+  next event reopens it. The cell lease is kept: taking the cell again would start a new generation,
+  whose first commit uploads the whole database. It is off by default because an in-memory database
+  without a log or backup would come back empty; a cell whose last changes are not backed up yet
+  stays open until they are.
 
 What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches celld is in
 [docs/celld-compatibility.md](docs/celld-compatibility.md). The vocabulary is in

@@ -66,6 +66,13 @@ export interface CellRuntimeOptions {
   };
   /** Hibernate objects idle this long (ms); swept every max(1 s, half of it). Off by default. */
   hibernateAfterMs?: number;
+  /**
+   * Close the SQLite database of a hibernated object idle this long (ms); the next event reopens
+   * it. Swept with `hibernateAfterMs`, so it needs that too. Off by default: the database must
+   * come back, so use local SQLite that persists (a directory, an OPFS pool) or storage that
+   * restores the cell (a log or a backup).
+   */
+  closeDatabaseAfterMs?: number;
   /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
   sqlExtensions?: string[];
   /** `delete_all_preserves_alarm`: storage.deleteAll() keeps the alarm (default: deletes it). */
@@ -99,6 +106,7 @@ export interface CellRuntime {
   /**
    * Hibernates every object idle for at least `idleMs` (default: `hibernateAfterMs`):
    * instances are dropped, storage and hibernatable WebSockets stay. Returns how many slept.
+   * Hibernated objects idle for `closeDatabaseAfterMs` also close their database.
    */
   hibernateIdle(idleMs?: number): number;
   /** Replaces one object's instance with a fresh one on the same storage (facet abort). */
@@ -391,7 +399,12 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     hibernateIdle(idleMs = opts.hibernateAfterMs ?? 0) {
       const now = Date.now();
       let n = 0;
-      for (const h of hosts.values()) if (now - h.lastActive >= idleMs && h.hibernate()) n++;
+      const closeMs = opts.closeDatabaseAfterMs;
+      for (const h of hosts.values()) {
+        const idle = now - h.lastActive;
+        if (idle >= idleMs && h.hibernate()) n++;
+        if (closeMs !== undefined && idle >= closeMs) h.closeDatabase();
+      }
       return n;
     },
     async close() {

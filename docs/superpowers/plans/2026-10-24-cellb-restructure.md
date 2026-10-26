@@ -452,8 +452,9 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   or adding a recorded step: WebSocket `binaryType` per project (`websocket_standard_binary_type`,
   the three global paths); `WorkerCode` data/wasm module types; `ctx.exports.<Entrypoint>`.
   `sql.ingest()` only if wanted — celld stops at an ingest error anyway.
-- [ ] **F5 idle databases**: `hibernateIdle` closes the SQLite handle after a second, longer idle
+- [x] **F5 idle databases**: `hibernateIdle` closes the SQLite handle after a second, longer idle
   time and reopens on the next event. Proof: a test counting open handles, and p07i still green.
+  Done: `closeDatabaseAfterMs` (opt-in), `test/p07k-idle-databases.test.ts`.
 - [ ] **F6 storage round trips for Workflows and R2**, celld → cellb → celld, as p11f does for KV,
   D1 and Queues.
 - [ ] **F7 Firefox and WebKit**: add the Playwright projects; record what fails (module
