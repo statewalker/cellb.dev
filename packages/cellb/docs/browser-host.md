@@ -71,7 +71,7 @@ ServiceWorker: CellRouter
 - WebSocket sockets have a heartbeat for the same reason: the client pings every 10 s by default
   and closes `1006` after two missed pongs; the server end closes after three missed pings.
 
-The repository wires this topology in `browser/sharded/` (the page, the ServiceWorker and the shard
+The repository wires this topology in its sharded demo (the page, the ServiceWorker and the shard
 worker); the package provides `CellRouter`, `createShardHost`, `serviceWorkerConnector` and
 `createWebSocketClass`.
 
@@ -136,7 +136,7 @@ bucket: { s3: { endpoint: `${location.origin}/s3`, signAs: "https://s3.eu-west-1
 ```
 
 The proxy must keep the path after `/s3`, set `Host` to the real endpoint, and pass the body and the
-`authorization`, `x-amz-*` and `if-*` headers through. Vite (as in `browser/vite.config.ts`):
+`authorization`, `x-amz-*` and `if-*` headers through. Vite (as in the demo pages' config):
 
 ```ts
 server: { proxy: { "/s3": { target: "https://s3.eu-west-1.amazonaws.com", changeOrigin: true,

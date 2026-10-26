@@ -61,6 +61,14 @@ recorded on celld or workerd), not by a test of the mechanism alone.
 
 ## Other gaps
 
+- **A persistent local database can overwrite another node's writes.** A runtime restores a cell
+  from the bucket only when the cell's local SQLite database is empty. A node that kept its local
+  file, lost the cell to another node, and takes it back later serves its old local state and logs
+  it as the new generation: the other node's writes are lost. Seen with `nodeSqliteOpener(dir)` on a
+  fleet bucket (node A counts 1, node B 2, node A again 2 instead of 3). The same applies to a
+  browser runtime, whose OPFS pool persists, when it takes back a cell it lost. Until fixed, give a
+  runtime on a fleet bucket local SQLite that starts empty: in memory, or a fresh directory or pool
+  per start.
 - **Configuration cellb does not support** is reported in `createProjectRuntime(...).unsupported`,
   not silently ignored: `migrations.renamed_classes`, `durable_objects.bindings[].script_name`,
   service bindings to other scripts, and compatibility flags it does not know.

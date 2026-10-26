@@ -158,7 +158,8 @@ expired may be replaced. _(proposed)_
 _Avoid_: heartbeat file
 
 **Waker**:
-The one node of a fleet, chosen by a short lease, that fires alarms of cells nobody live owns.
+The one node of a fleet, chosen by a lease in the fleet bucket, that fires the alarms of cells no
+live node owns.
 _(proposed)_
 _Avoid_: scheduler, alarm owner
 

@@ -127,6 +127,9 @@ have expired. A wake entry is only a hint: the stored alarm decides whether anyt
 - **A cell stays held for its node lease after a clean shutdown.** `close()` releases each cell
   without waiting for the write, so closing the store right after can leave `own.json` held until the
   node lease lapses ([gaps.md](gaps.md)).
+- **A cell comes back with old data and another node's writes disappear.** The node's local SQLite
+  file survived from an earlier time it owned the cell; restore runs only into an empty database.
+  On a fleet bucket, local SQLite must start empty ([gaps.md](gaps.md)).
 - **Data written after the last backup is gone after a crash.** That is the backup's RPO, not
   corruption. Use a log for RPO 0.
 - **Two browser tabs on one OPFS fleet bucket overwrite each other.** A FilesApi store checks

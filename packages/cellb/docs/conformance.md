@@ -26,7 +26,7 @@ not workerd, is the judge.
    `conformance/golden/<name>.json`: the transcript and the user's console lines. Its usage line is
    at the top of the file; it needs `CELLD_BIN` and `ESBUILD_DIR` (`scripts/interop-env.sh` prints
    both).
-3. The Node suite (`test/p09-celld-conformance.test.ts`) loads each project with
+3. The Node conformance suite loads each project with
    `loadNodeProject` and requires the same transcript and logs. Chromium runs the same scenarios
    twice: from a Node-built bundle in a Dedicated Worker, and from sources compiled by the in-browser
    HTTP server.
@@ -58,7 +58,7 @@ differently. The workerd test configuration (`.wd-test`) is translated by hand i
 
 ## WebSockets are compared with the platform's own
 
-`test/ws-conformance.ts` encodes 19 WHATWG WebSocket behaviours with no Node- or DOM-only imports.
+A shared case module encodes 19 WHATWG WebSocket behaviours with no Node- or DOM-only imports.
 They run against cellb's sockets (in-process, across worker-thread shards, through a ServiceWorker
 router to shard workers) and against the platform's native `WebSocket` talking to a real `ws`
 server that speaks the same protocol as the test `Room` object. Chrome's native WebSocket is the
