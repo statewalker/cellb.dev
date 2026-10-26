@@ -217,7 +217,7 @@ bucket specs pass. What differs:
   `PUT /loaded-src/…` uploads arrive empty and the loaded module is empty. Loaders in a bundled
   project (`browserProjectRuntime({ code: { bundle } })`) are not affected. Specs: `site-projects`
   `dynamic-worker-tails`, `facets`, `facets-api`, `runtime-api`, `isolation-api`,
-  `wd-worker-loader`.
+  `wd-worker-loader`, `wd-worker-loader-stubs`.
 - **`TypeError: Function object could not be cloned.`** where V8 says `TypeError: () => 1 could not
   be cloned.` (spec: `storage-details`).
 - **A second tab's requests reach the dev server, not the router** (`JSON.parse: unexpected

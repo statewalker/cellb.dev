@@ -25,6 +25,7 @@ export const siteGaps: Gaps = {
       "runtime-api",
       "isolation-api",
       "wd-worker-loader",
+      "wd-worker-loader-stubs",
     ].map((name) => [name, { firefox: SITE_HOST_DROPS_BODY }]),
   ),
 };
