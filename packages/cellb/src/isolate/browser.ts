@@ -1,6 +1,6 @@
 import type { ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
-import { putLoadedModule } from "../project/site.js";
 import type { CellBackup, CellDurability } from "../ports.js";
+import { putLoadedModule } from "../project/site.js";
 import { isolatedModuleLoader } from "./host.js";
 import type { PortLike } from "./protocol.js";
 
