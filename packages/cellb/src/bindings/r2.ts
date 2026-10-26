@@ -3,12 +3,14 @@ import { bytesToHex } from "@noble/hashes/utils";
 import type { FilesApi } from "@statewalker/webrun-files";
 
 /**
- * The R2 binding (`env.BUCKET.get/put/head/delete/list`) on a webrun-files FilesApi.
- * Like celld — whose R2 bindings read and write objects directly in the fleet bucket,
- * not through a cell — objects live in the store as files:
+ * The R2 binding (`env.BUCKET.get/put/head/delete/list`, conditional requests, multipart
+ * uploads) on an R2Backend: a webrun-files FilesApi here, or celld's fleet bucket layout
+ * (r2-celld.ts). Like celld — whose R2 bindings read and write objects directly in the fleet
+ * bucket, not through a cell — the FilesApi backend keeps objects as files:
  *   {root}/objects/<encoded key>      the bytes
- *   {root}/meta/<encoded key>.json    key, size, etag (MD5), version, uploaded, metadata
- * Multipart uploads and conditional requests (onlyIf) are not implemented yet.
+ *   {root}/meta/<encoded key>.json    key, size, etag (MD5; a multipart object has none), version,
+ *                                     uploaded, metadata
+ *   {root}/multipart/<uploadId>/      an open upload's description and parts, until complete or abort
  */
 export interface R2HTTPMetadata {
   contentType?: string;

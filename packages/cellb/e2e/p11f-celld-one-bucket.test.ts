@@ -73,10 +73,20 @@ async function roundTrip(
       return text;
     }
   };
+  // celld may refuse a request with "predecessor recovery in progress" while it recovers the
+  // previous run's state: a celld step refused that way (before any code ran) is retried.
+  const celldAnswer = async (path: string) => {
+    let got: unknown;
+    for (let i = 0; i < 40; i++) {
+      got = await answer((p, init) => fetch(celld.base + p, init), path);
+      if (got !== "predecessor recovery in progress") break;
+      await new Promise((r2) => setTimeout(r2, 500));
+    }
+    return got;
+  };
   let celld = await celldDev(dir);
   try {
-    for (const [path, want] of steps.celld1)
-      expect(await answer((p, init) => fetch(celld.base + p, init), path)).toEqual(want);
+    for (const [path, want] of steps.celld1) expect(await celldAnswer(path)).toEqual(want);
   } finally {
     await stop(celld.p);
   }
@@ -112,7 +122,7 @@ async function roundTrip(
   celld = await celldDev(dir);
   try {
     for (const [path, want] of steps.celld2) {
-      const got = await answer((p, init) => fetch(celld.base + p, init), path);
+      const got = await celldAnswer(path);
       expect(
         got,
         celld
