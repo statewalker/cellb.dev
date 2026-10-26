@@ -11,6 +11,20 @@ const SKIP = new Set(["node_modules", "test-results", "playwright-report", "dist
 
 export function runMutants(mutants, cmd, { timeoutMs = 600_000 } = {}) {
   const root = process.cwd();
+  // --check: only verify that every mutant's anchor is still in its file (no runs), so moved
+  // code cannot leave a mutant that silently "survives" or errors only in a full run.
+  if (process.argv.includes("--check")) {
+    const stale = mutants.filter(([, file, from]) => {
+      try {
+        return !readFileSync(join(root, file), "utf8").includes(from);
+      } catch {
+        return true;
+      }
+    });
+    for (const [name, file] of stale) console.log(`STALE     ${name} (${file})`);
+    console.log(`anchors   ${mutants.length - stale.length}/${mutants.length} found`);
+    return stale.length;
+  }
   const work = mkdtempSync(join(tmpdir(), "mutants-"));
   cpSync(root, work, {
     recursive: true,

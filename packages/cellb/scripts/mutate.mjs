@@ -46,7 +46,7 @@ const mutants = [
   ],
   [
     "remote stubs always address by id",
-    "src/transport/cells-http.ts",
+    "src/transport/cells-link.ts",
     "const target = id.name !== undefined ? `name:${id.name}` : `id:${id}`;",
     "const target = `id:${id}`;",
     "p04 p05-router",
@@ -67,7 +67,7 @@ const mutants = [
   ],
   [
     "remote errors returned instead of thrown",
-    "src/transport/cells-http.ts",
+    "src/transport/cells-link.ts",
     'if (res.headers.get(H.kind) === "error") throw deserializeError(await res.json());',
     "",
     "p04 p05-router",
@@ -285,7 +285,7 @@ const mutants = [
   ],
   [
     "wake: retired entries kept",
-    "src/bucket/celld-cells.ts",
+    "src/bucket/ltx-log.ts",
     "if (id < identity || (id === identity && w.at == null))",
     "if (false)",
     "test/p11h-wake-index.test.ts",
