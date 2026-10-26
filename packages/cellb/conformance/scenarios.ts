@@ -404,11 +404,13 @@ const WL_AGREE = [
   "codeLoaderException",
   "ctxExports",
   "justLoad",
+  "moduleTypes",
   "passEnv",
   "passEnvCaps",
   "regressionDeadIoContextGetCode",
   "startupException",
   "suggestWorkerBundlerForTypeScriptModules",
+  "wasmModules",
 ];
 const WL_GAPS = [
   "abortIsolateDynamic",
@@ -420,9 +422,7 @@ const WL_GAPS = [
   "doStubViaRpcParam",
   "facetUafRegression",
   "facets",
-  "moduleTypes",
   "nullGlobalOutbound",
-  "wasmModules",
 ];
 const wdOverrides: Record<string, Partial<Scenario>> = {
   // `default` (most of sql-test.js) is split off: it needs sql.ingest. testRollbackKvInit
@@ -451,7 +451,7 @@ scenarios["wd-worker-loader-gaps"] = {
   project: "wd-worker-loader",
   steps: [{ path: `/?skip=${WL_AGREE.join(",")}` }],
   knownGap:
-    "no plain-object ctx.exports; WorkerCode compatibilityFlags, data/wasm modules, DO stubs in env/props; celld refuses allowExperimental and stub cloning",
+    "no plain-object ctx.exports; WorkerCode compatibilityFlags, DO stubs in env/props; celld refuses allowExperimental and stub cloning",
 };
 scenarios["miniflare2-details-relative-url"] = {
   project: "miniflare2-details",

@@ -15,7 +15,7 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 | `wd-stub-storage` | No storable `ctx.exports.<Entrypoint>({ props })` stubs. celld refuses to clone them too, differently. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | `WebSocketPair` ends have no `binaryType` and always deliver `ArrayBuffer`s, whatever `websocket_standard_binary_type` says; Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
-| `wd-worker-loader-gaps` | No plain-object `ctx.exports` entries; `WorkerCode.compatibilityFlags`, data and wasm module types, and Durable Object stubs in a loaded Worker's `env` or `props` are not supported. celld refuses `allowExperimental` and stub cloning, so most of these exports fail on celld as well. |
+| `wd-worker-loader-gaps` | No plain-object `ctx.exports` entries; `WorkerCode.compatibilityFlags` and Durable Object stubs in a loaded Worker's `env` or `props` are not supported. celld refuses `allowExperimental` and stub cloning, so most of these exports fail on celld as well. |
 | `miniflare2-details-relative-url` | A stub's `fetch()` of a relative URL: celld passes it to the object, which fails on `new URL()`; cellb rejects at the stub, as workerd does. |
 
 The `binaryType` default depends on a compatibility flag per project, but `WebSocketPair` is one
@@ -44,8 +44,8 @@ recorded on celld or workerd), not by a test of the mechanism alone.
 
 - **Stubs by reference across isolates** (functions, `RpcTarget`, stubs as arguments, results, `env`
   and `props`) — only if the RPC decision above goes to workerd.
-- **Small known gaps**, one at a time: `binaryType` per project; `WorkerCode` data and wasm modules;
-  plain-object `ctx.exports`; `sql.ingest()` only if wanted.
+- **Small known gaps**, one at a time: `binaryType` per project; plain-object `ctx.exports`;
+  `sql.ingest()` only if wanted.
 - **Idle databases.** Hibernation drops a cell's instance but keeps its SQLite database open; a
   second, longer idle time should close it and reopen on the next event.
 - **Firefox and WebKit.** Only Chromium is tested. Module ServiceWorkers, OPFS synchronous handles

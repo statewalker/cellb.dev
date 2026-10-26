@@ -2,7 +2,7 @@
   "celld": "0.6.3",
   "transcript": [
     {
-      "request": "GET /?skip=asyncCodeLoader,codeLoaderException,ctxExports,justLoad,passEnv,passEnvCaps,regressionDeadIoContextGetCode,startupException,suggestWorkerBundlerForTypeScriptModules",
+      "request": "GET /?skip=asyncCodeLoader,codeLoaderException,ctxExports,justLoad,moduleTypes,passEnv,passEnvCaps,regressionDeadIoContextGetCode,startupException,suggestWorkerBundlerForTypeScriptModules,wasmModules",
       "status": 200,
       "contentType": "application/json",
       "body": {
@@ -15,9 +15,7 @@
         "doStubViaRpcParam": "Error: worker loader: WorkerCode field `allowExperimental` is not supported",
         "facetUafRegression": "ReferenceError: gc is not defined",
         "facets": "TypeError: FacetStartupOptions.class must be a DurableObjectClass.",
-        "moduleTypes": "Error: worker loader: module \"binary.dat\" must be a string or wasm bytes",
-        "nullGlobalOutbound": "Error: rejected: Error: This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world. [at <anonymou",
-        "wasmModules": "ok"
+        "nullGlobalOutbound": "Error: rejected: Error: This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world. [at <anonymou"
       }
     }
   ]

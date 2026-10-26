@@ -91,6 +91,8 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
 - A fetch into the isolate gets a port of its own and crosses as HTTP/1.1 with streamed bodies
   (the cells-http wire of `src/transport/port.ts`): the first chunk of a response arrives while the
   loaded Worker is still producing the rest.
+- Its modules are source (`js`), `text`, `json` or `wasm` bytes. A `data` module is refused, as
+  celld refuses it: `worker loader: module "x" must be a string or wasm bytes`.
 - `globalOutbound: null` makes the isolate's `fetch` throw; a Fetcher redirects it.
 - Its `ctx.exports` holds its own `WorkerEntrypoint` classes, each a stub
   (`ctx.exports.Alt.greet()`) or called with `{ props }`; `getEntrypoint(name, { props })` props

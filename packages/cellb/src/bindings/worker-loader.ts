@@ -14,7 +14,9 @@ export interface WorkerCode {
   mainModule: string;
   modules: Record<
     string,
-    string | { js?: string; esModule?: string; text?: string; json?: unknown }
+    | string
+    | { js?: string; esModule?: string; text?: string; json?: unknown; wasm?: BufferSource }
+    | { data: BufferSource }
   >;
   env?: Record<string, unknown>;
   globalOutbound?: unknown;
@@ -38,11 +40,22 @@ export interface TailEvent {
   diagnosticsChannelEvents: unknown[];
 }
 
-/** One `WorkerCode.modules` entry as ES module source; text and JSON become a default export. */
-export function moduleText(m: WorkerCode["modules"][string]): string {
-  return typeof m === "string"
-    ? m
-    : (m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`);
+/**
+ * One `WorkerCode.modules` entry as ES module source; text and JSON become a default export,
+ * wasm bytes a compiled `WebAssembly.Module`.
+ */
+export function moduleText(entry: WorkerCode["modules"][string]): string {
+  if (typeof entry === "string") return entry;
+  const m = entry as Exclude<typeof entry, { data: BufferSource }>; // workerLoader refuses data
+  if (m.wasm) {
+    const bytes = ArrayBuffer.isView(m.wasm)
+      ? new Uint8Array(m.wasm.buffer, m.wasm.byteOffset, m.wasm.byteLength)
+      : new Uint8Array(m.wasm);
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return `export default new WebAssembly.Module(Uint8Array.from(atob("${btoa(bin)}"), (c) => c.charCodeAt(0)));`;
+  }
+  return m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`;
 }
 
 /**
@@ -107,6 +120,10 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
         if (!p) {
           p = (async () => {
             const code = await getCode();
+            // celld takes module source and wasm bytes only, not `data` modules.
+            for (const [name, m] of Object.entries(code.modules))
+              if (typeof m === "object" && "data" in m)
+                throw new Error(`worker loader: module "${name}" must be a string or wasm bytes`);
             const logs: TailLog[] = [];
             const sink: LogSink = (level, message) =>
               logs.push({ level, message, timestamp: Date.now() });

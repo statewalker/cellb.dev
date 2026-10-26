@@ -1,4 +1,4 @@
-import type { FilesApi } from "@statewalker/webrun-files";
+import { type FilesApi, readText } from "@statewalker/webrun-files";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { newModuleServer } from "@statewalker/webrun-modules";
 import { SiteBuilder, type SiteHandler } from "@statewalker/webrun-site-builder";
@@ -64,7 +64,12 @@ export function createProjectSite(opts: {
   });
   // One module server per loaded Worker: its globals proxy (one per project root in
   // webrun-modules) can then bind `console` to that Worker's own console (Tail Workers).
-  const loaded = new Map<string, { files: FilesApi; server: ReturnType<typeof newModuleServer> }>();
+  // `esm`: modules stored as ESM already (text, json, wasm entries), served as they are: the
+  // module server would serve `math.wasm` or `text.txt` by their extension.
+  const loaded = new Map<
+    string,
+    { files: FilesApi; server: ReturnType<typeof newModuleServer>; esm: Set<string> }
+  >();
   const loadedFor = (id: string) => {
     let l = loaded.get(id);
     if (!l) {
@@ -81,22 +86,31 @@ export function createProjectSite(opts: {
           fetch: `(globalThis.__cellsLoadedOutbound?.[${JSON.stringify(id)}] ?? globalThis.fetch)`,
         },
       });
-      l = { files, server };
+      l = { files, server, esm: new Set() };
       loaded.set(id, l);
     }
     return l;
   };
   return new SiteBuilder()
     .setEndpoint("/modules/*", (req) => modules.fetch(req))
-    .setEndpoint("/loaded/:id/*", (req, env) =>
-      loadedFor(decodeURIComponent(String(env.params.id))).server.fetch(req),
-    )
+    .setEndpoint("/loaded/:id/*", async (req, env) => {
+      const l = loadedFor(decodeURIComponent(String(env.params.id)));
+      const path = decodeURIComponent(
+        new URL(req.url).pathname.slice(`/loaded/${env.params.id}/~`.length),
+      );
+      if (!l.esm.has(path)) return l.server.fetch(req);
+      return new Response(await readText(l.files, path), {
+        headers: { "content-type": "text/javascript" },
+      });
+    })
     .setEndpoint("/loaded-src/:id/*", "PUT", async (req, env) => {
       const id = decodeURIComponent(String(env.params.id));
       const path = decodeURIComponent(
         new URL(req.url).pathname.slice(`/loaded-src/${env.params.id}`.length),
       );
-      await loadedFor(id).files.write(path, [new Uint8Array(await req.arrayBuffer())]);
+      const l = loadedFor(id);
+      await l.files.write(path, [new Uint8Array(await req.arrayBuffer())]);
+      if (req.headers.has(ESM_HEADER)) l.esm.add(path);
       return new Response(null, { status: 204 });
     })
     .setFiles("/src", opts.projectFiles)
@@ -126,6 +140,21 @@ export function workersHostRegistry(entries: {
   };
 }
 
+const ESM_HEADER = "x-cellb-esm";
+
+/**
+ * Stores one module of loaded code on the site (PUT /loaded-src/<id>/<name>). Source goes
+ * through webrun-modules; a text, json or wasm entry is stored as the ESM that wraps it.
+ */
+export function putLoadedModule(url: string, m: WorkerCode["modules"][string]): Promise<Response> {
+  const wrapped = typeof m === "object" && !("js" in m) && !("esModule" in m);
+  return fetch(url, {
+    method: "PUT",
+    body: moduleText(m),
+    headers: wrapped ? { [ESM_HEADER]: "1" } : {},
+  });
+}
+
 /**
  * Worker Loader over the site: `LOADER.get(id, () => code)` uploads the modules to
  * `/loaded-src/<id>/…` and imports `/loaded/<id>/~/<main>` — compiled by webrun-modules and
@@ -136,10 +165,7 @@ export function siteModuleLoader(baseUrl: string): ModuleLoader {
   return async (id: string, code: WorkerCode, logs?: LogSink) => {
     const dir = encodeURIComponent(id);
     for (const [name, m] of Object.entries(code.modules)) {
-      const res = await fetch(`${base}loaded-src/${dir}/${name}`, {
-        method: "PUT",
-        body: moduleText(m),
-      });
+      const res = await putLoadedModule(`${base}loaded-src/${dir}/${name}`, m);
       if (!res.ok) throw new Error(`Worker Loader: cannot store ${id}/${name}: ${res.status}`);
     }
     const outbound = outboundFetch(code);
