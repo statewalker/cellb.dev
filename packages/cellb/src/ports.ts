@@ -50,9 +50,10 @@ export interface SyncSqlDriver {
 }
 
 /**
- * Lease port: at most one live holder per name (a shard). `epoch` is a
- * monotonically increasing fencing token: every durable write of the holder
- * must carry it, so a paused ex-holder cannot overwrite its successor (P06).
+ * Lease port: per-cell ownership, at most one live holder per cell key. `epoch` is a
+ * monotonically increasing fencing token: every durable write of the holder must carry
+ * it, so a paused ex-holder cannot overwrite its successor. (Browser shards are not
+ * leased through this port: a shard worker holds the shard's Web Lock.)
  */
 export interface LeaseHandle {
   readonly name: string;
