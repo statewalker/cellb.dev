@@ -82,13 +82,19 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
   })` without `isolateScript`. The site serves `cloudflare:workers` as one entry of the realm's
   module registry, so all code of a realm shares it. With `isolateScript`, with `{ bundle }`, and
   on Node, each loaded Worker reads its own.
-- **`cloudflare:email` only loads, and only on Node.** It exists so code that imports it at top
-  level (the Agents SDK) starts; building an `EmailMessage` throws `cloudflare:email is not
-  supported by cellb`. A browser bundle that imports it fails to build.
-- **`AsyncLocalStorage` in a browser is not isolated between concurrent events.** The
-  `node:async_hooks` shim keeps one store at a time, and the Agents SDK and Flue find the current
-  agent through it. Two cells answering at once in one browser runtime can read each other's
-  context. Node uses the real module.
+- **`cloudflare:email` only loads.** It exists so code that imports it at top level (the Agents
+  SDK) starts; building an `EmailMessage` throws `cloudflare:email is not supported by cellb`. On
+  Node it is built in; a browser bundle maps the import to `src/project/cloudflare-email.ts` (as
+  `conformance/browser-bundle.ts` does), and a `{ site }` project cannot import it.
+- **`AsyncLocalStorage` in a browser does not follow a native `await`.** Browsers have no async
+  context (no TC39 `AsyncContext` in Chromium 156 or Firefox 157), and a native `await` resumes
+  without running any user code, so no shim can see it. The `node:async_hooks` shim runs every
+  `Promise.prototype.then` callback with the stores current when it was registered: code whose
+  `async`/`await` is compiled to generators keeps concurrent events apart, and the Agents SDK
+  finds the current agent that way (`browser-host.md` says how to build it). Code with native
+  `await` (a `{ site }` project, or a bundle that keeps `async`) holds one store until `run()`'s
+  promise settles: two cells answering at once can read each other's context. Node uses the real
+  module.
 - **Isolated facets in a browser are not in the fleet bucket.** `browserProjectRuntime` does not give
   its isolates the host's storage, so a Durable Object class of a loaded Worker keeps its database in
   the isolate's OPFS pool only. On Node they are logged through the parent.

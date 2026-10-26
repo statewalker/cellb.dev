@@ -10,6 +10,8 @@ import path from "path-browserify";
 import util from "util";
 import * as async_hooks from "./async_hooks.js";
 import * as crypto from "./crypto.js";
+import * as diagnostics_channel from "./diagnostics_channel.js";
+import * as os from "./os.js";
 import { process } from "./process.js";
 
 const modules: Record<string, unknown> = {
@@ -20,6 +22,8 @@ const modules: Record<string, unknown> = {
   "node:util": { ...util, default: util },
   "node:crypto": { ...crypto },
   "node:async_hooks": { ...async_hooks },
+  "node:diagnostics_channel": { ...diagnostics_channel },
+  "node:os": { ...os },
   "node:process": process,
 };
 

@@ -42,7 +42,7 @@ export function readWranglerConfig(dir: string): WranglerConfig {
 }
 
 /** A bare Node.js built-in specifier ("path", "fs/promises"), not one of a package. */
-const nodeBuiltinName = new RegExp(
+export const nodeBuiltinName = new RegExp(
   `^(${builtinModules
     .filter((m) => !m.startsWith("_") && !m.includes(":"))
     .map((m) => m.replace(/[/]/g, "\\/"))

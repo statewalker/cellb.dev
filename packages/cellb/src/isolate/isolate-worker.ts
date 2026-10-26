@@ -16,6 +16,7 @@ workersHostRegistry({
   ...workersGlobals,
   Response: workersGlobals.CellsResponse,
   WebSocket: workersGlobals.WorkersWebSocket,
+  Request: workersGlobals.CellsRequest,
 });
 
 // The global console is left alone (the dev server's client logs here too): loaded modules

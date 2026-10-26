@@ -35,13 +35,17 @@ page ── fetch("/app/…") ──► ServiceWorker (webrun-http-browser)
 ```
 
 `browserProjectRuntime` installs the Workers globals (`Response` that accepts status 101,
-`WebSocketPair`, `WebSocket`, `caches`, `HTMLRewriter`, and `Buffer`/`process` for
+`Request` that keeps `Upgrade`, `WebSocketPair`, `WebSocket`, `caches`, `HTMLRewriter`, and `Buffer`/`process` for
 `nodejs_compat`), makes the project the realm's Worker (`env` and `exports` of
 `cloudflare:workers`), imports the code and builds the runtime from the wrangler configuration.
 The code is either:
 
 - `{ bundle }` — one ES module built for browsers, whose `cloudflare:workers` import and Workers
-  globals read what the runtime installs; or
+  globals read what the runtime installs (`conformance/browser-bundle.ts` builds one with
+  esbuild). Under `nodejs_compat` it maps `node:*` and the bare names (`path`) to cellb's
+  polyfills and compiles `async`/`await` to generators (`supported: { "async-await": false,
+  "async-generator": false, "for-await": false }`), so `AsyncLocalStorage` follows every await:
+  the Agents SDK reads the current agent through it; or
 - `{ site }` — the base URL of an in-browser HTTP server made by `createProjectSite` and hosted by
   `@statewalker/webrun-site-host`, which compiles the project's sources on request
   (`@statewalker/webrun-modules`). Loaded Workers' code is uploaded to it and imported from URLs.
@@ -182,8 +186,10 @@ tabs or workers with no server. Its conditional writes are atomic only within on
 - **`Set-Cookie` is missing from responses in the browser.** A `Response` built in a browser drops
   it, and a ServiceWorker cannot hand one to a page. Node keeps it.
 - **A `Request` arrives without `Upgrade` or `Sec-WebSocket-Protocol`.** Browsers drop forbidden
-  headers from every `new Request()`. cellb carries them as own properties and `x-cellb-*` headers;
-  code that rebuilds requests outside cellb loses them.
+  headers from every `new Request()`. cellb carries them as own properties and `x-cellb-*` headers,
+  and the Worker's `Request` global keeps them when Worker code rebuilds or clones a request
+  (partyserver does). Code that builds requests with the host's own `Request` (page code, a
+  library loaded outside the Worker's globals) loses them, and the Worker answers over HTTP.
 - **The first request after the ServiceWorker was stopped is slower** (tens of milliseconds): the
   ServiceWorker asks a page to re-attach the shard links first. If no page is open, it fails.
 - **A browser fleet node owns cells but celld cannot reach them.** By design: celld refuses those

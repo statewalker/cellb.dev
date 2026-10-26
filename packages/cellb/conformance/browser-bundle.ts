@@ -11,7 +11,11 @@ import { build } from "esbuild";
 import type { WranglerConfig } from "../src/index.ts";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../src/node-compat/modules.ts";
 import { WORKERS_MODULE_SHIM } from "../src/project/browser-modules.ts";
-import { readAssetDirectory, readWranglerConfig } from "../src/project/node-project.ts";
+import {
+  nodeBuiltinName,
+  readAssetDirectory,
+  readWranglerConfig,
+} from "../src/project/node-project.ts";
 import { SCHEDULER_EXPRESSION } from "../src/project/scheduler.ts";
 import { WORKERS_GLOBAL_NAMES } from "../src/project/workers-global-names.ts";
 import { projectDir } from "./projects.ts";
@@ -28,8 +32,10 @@ export interface BrowserProject {
 
 const GLOBALS_SHIM = `${WORKERS_GLOBAL_NAMES.map((n) => `export const ${n} = globalThis.__cellsGlobals.${n};`).join(" ")} export const scheduler = ${SCHEDULER_EXPRESSION};`;
 
-export async function bundleProjectForBrowser(name: string): Promise<BrowserProject> {
-  const dir = projectDir(name);
+export async function bundleProjectForBrowser(
+  name: string,
+  dir = projectDir(name),
+): Promise<BrowserProject> {
   const config = readWranglerConfig(dir);
   let code: string | null = null;
   const nodeCompat = (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
@@ -44,6 +50,10 @@ export async function bundleProjectForBrowser(name: string): Promise<BrowserProj
       // Function names are observable (the npm assert polyfill reports its caller's name as the
       // operator); bundling must not rename them.
       keepNames: true,
+      // nodejs_compat: `await` through `then`, so AsyncLocalStorage follows it (browser-host.md).
+      supported: nodeCompat
+        ? { "async-await": false, "async-generator": false, "for-await": false }
+        : {},
       logLevel: "silent",
       inject: [
         "cells:globals",
@@ -54,6 +64,11 @@ export async function bundleProjectForBrowser(name: string): Promise<BrowserProj
           name: "cells-browser",
           setup(b) {
             // nodejs_compat: node:* → browser polyfills, bundled in.
+            // workerd's nodejs_compat also takes the bare names ("path").
+            if (nodeCompat)
+              b.onResolve({ filter: nodeBuiltinName }, (a) =>
+                b.resolve(`node:${a.path}`, { kind: a.kind, resolveDir: a.resolveDir }),
+              );
             if (nodeCompat)
               b.onResolve({ filter: /^node:/ }, (a) => {
                 const file = NODE_POLYFILL_FILES[a.path];
@@ -65,6 +80,9 @@ export async function bundleProjectForBrowser(name: string): Promise<BrowserProj
                   errors: [{ text: `${a.path} is not available in browsers (nodejs_compat)` }],
                 };
               });
+            b.onResolve({ filter: /^cloudflare:email$/ }, () => ({
+              path: resolve(app, "src/project/cloudflare-email.ts"),
+            }));
             b.onResolve({ filter: /^cloudflare:workers$|^cells:globals$/ }, (a) => ({
               path: a.path,
               namespace: "cells",

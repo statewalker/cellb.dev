@@ -96,6 +96,7 @@ async function importWorkerCode(
     ...workersGlobals,
     Response: workersGlobals.CellsResponse,
     WebSocket: workersGlobals.WorkersWebSocket,
+    Request: workersGlobals.CellsRequest,
     WebSocketPair: flags.includes("websocket_standard_binary_type")
       ? workersGlobals.StandardWebSocketPair
       : workersGlobals.WebSocketPair,

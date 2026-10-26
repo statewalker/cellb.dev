@@ -128,6 +128,7 @@ export function workersHostRegistry(entries: {
   HTMLRewriter: unknown;
   WebSocketRequestResponsePair?: unknown;
   WebSocket: unknown;
+  Request: unknown;
 }): void {
   const map = new Map<string, unknown>([
     ["cloudflare:workers", entries.workersModule],

@@ -16,7 +16,7 @@ scope.onmessage = async (e) => {
       code: string | null;
       assets: [string, string][];
     };
-    scenario: string;
+    scenario: Parameters<typeof runProject>[0]["scenario"];
     wsServer?: string;
     bucket?: Parameters<typeof runProject>[0]["bucket"];
     paths?: string[];

@@ -81,8 +81,8 @@ do not collide, and nothing needs celld or RustFS.
   keyless endpoint; the provider resolves a placeholder.
 - **`observe()` reports `absent`** when it is called before the conversation exists: send first.
 - **`run vite build first (pnpm test does)`** is what `vitest run` alone says without `dist/`.
-- What cellb still lacks for Agents SDK apps (browser `env`/`exports`, `AsyncLocalStorage` in
-  browsers, partyserver's WebSocket attachments) is in `../cellb/docs/gaps.md`.
+- What cellb still lacks for Agents SDK apps (`AsyncLocalStorage` across a native `await` in
+  browsers, `cloudflare:email` sending) is in `../cellb/docs/gaps.md`.
 
 ### Dependencies
 

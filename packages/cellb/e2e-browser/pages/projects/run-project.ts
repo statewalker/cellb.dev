@@ -5,6 +5,7 @@ import {
   formatLog,
   normalizeLogs,
   runScenario,
+  type Scenario,
   scenarios,
   type Target,
   withContentLength,
@@ -27,7 +28,8 @@ export function captureLogs(): string[] {
 
 export async function runProject(job: {
   name: string;
-  scenario: string;
+  /** A scenario's name, or a scenario itself (one not recorded on celld). */
+  scenario: string | Scenario;
   config: WranglerConfig;
   code: BrowserProjectOptions["code"];
   isolateScript: URL;
@@ -127,7 +129,7 @@ export async function runProject(job: {
           });
       }),
   };
-  const scenario = scenarios[job.scenario];
+  const scenario = typeof job.scenario === "string" ? scenarios[job.scenario] : job.scenario;
   job.logs.length = 0;
   const transcript = await runScenario(target, scenario);
   let logs: string[] | undefined;

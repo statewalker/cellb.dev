@@ -65,7 +65,8 @@
     "zod": "^3.25.0",
     "sqlite-vec-wasm-demo": "0.1.6",
     "html-rewriter-wasm": "^0.4.1",
-    "miniflare": "4.20260730.0"
+    "miniflare": "4.20260730.0",
+    "agents": "^0.20.1"
   },
   "private": true
 }

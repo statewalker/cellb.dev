@@ -478,5 +478,10 @@ recorded on celld/workerd), never by a test of the mechanism alone.
   stream. Done on `feat/firefox-request-body` (plan `2026-10-26-firefox-request-body.md`): the
   `kv`, `r2` and `miniflare` Firefox specs pass, and `peer-routing` proves the owner retry and the
   restored scheme in Firefox.
+- [x] **Agents SDK gaps** (WebSocket attachments, `env`/`exports` per Worker in browsers and
+  loaded Workers, `AsyncLocalStorage` in browsers). Done on `feat/agents-sdk-full` (plan
+  `2026-10-26-agents-sdk-full.md`): the `agents-host` scenario judged by workerd, the Flue example
+  over a WebSocket, and `e2e-browser/agents-sdk.spec.ts`. A native `await` in a browser stays a
+  platform limit (gaps.md).
 - Stays out, written in `docs/gaps.md` with the reason: limits per object, opaque-origin iframes
   for untrusted code, celld's log tier and `/peer/handoff`, Python Workers.

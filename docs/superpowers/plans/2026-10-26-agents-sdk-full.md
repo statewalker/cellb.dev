@@ -86,6 +86,12 @@ agent after the await (Task 3), and a WebSocket state message (Task 1). The proj
 Flue brings (0.20.1). If the `agents` package
 cannot be bundled for a browser, the spec is not added and the report says why.
 
+Found while doing it: bundling `agents` needs `node:diagnostics_channel` and `node:os`
+polyfills, bare built-in names (`path`) under `nodejs_compat`, and `cloudflare:email` mapped to
+cellb's module. partyserver rebuilds and clones the request before handing it to the agent, and a
+browser `Request` drops `Upgrade` there, so Worker code gets a `Request` global that keeps it
+(`CellsRequest`).
+
 ## Bar, docs
 
 Docs in the same commits: `gaps.md` (three entries closed or narrowed), `browser-host.md`,
