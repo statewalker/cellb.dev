@@ -459,7 +459,6 @@ scenarios["wd-worker-loader-stubs"] = {
     { path: `/?skip=${[...WL_AGREE, ...WL_GAPS.filter((n) => !WL_STUBS.includes(n))].join(",")}` },
   ],
   judge: "workerd",
-  knownGap: "stubs do not pass by reference yet (F3)",
 };
 scenarios["wd-websocket-constructor-gaps"] = {
   project: "wd-websocket-constructor",

@@ -18,28 +18,27 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 | `wd-worker-loader-gaps` | `WorkerCode.compatibilityFlags` and Durable Object stubs in a loaded Worker's `env` or `props` are not supported. celld refuses `allowExperimental` and stub cloning, so most of these exports fail on celld as well. |
 | `miniflare2-details-relative-url` | A stub's `fetch()` of a relative URL: celld passes it to the object, which fails on `new URL()`; cellb rejects at the stub, as workerd does. |
 
-## RPC across isolates is poorer than workerd's
+## Stubs pass by reference, as on workerd, except between nodes
 
-- Within one runtime, functions, `RpcTarget`s and stubs pass through a stub by reference, as on
-  workerd (`cross` in `src/core/handles.ts`); celld refuses them.
-- A loaded Worker's isolate talks to its parent over `@statewalker/webrun-rpc`
-  (`src/isolate/protocol.ts`). Errors keep their own properties (`name`, `code`) and bodies stream,
-  but values that cannot be cloned become stubs only as `env` entries — never as arguments, results
-  or `props`. Passing one fails with `DataCloneError`. A fetch into a loaded Worker crosses as
-  HTTP/1.1, so hop-by-hop request headers (`Connection`, `Upgrade`, `TE`, `Keep-Alive`) do not
-  reach it.
-- celld refuses the same things (`function () {} could not be cloned`, `Worker Loader env supports
-  only Service Binding capabilities.`), so cellb matches the judge. workerd passes stubs.
-  **Open decision:** keep celld's refusal, or follow workerd. Following workerd would make those
-  cases disagree with the celld goldens and be judged against `conformance/golden-workerd/` instead.
+- Functions, `RpcTarget`s and stubs pass by reference through a stub (`cross` in
+  `src/core/handles.ts`) and into or out of a loaded Worker's isolate, in its `env`, `props`,
+  arguments and results (`src/isolate/protocol.ts`). celld refuses them; these cases are judged
+  against workerd ([conformance.md](conformance.md#where-cellb-follows-workerd-instead)).
+- **There is no promise pipelining**: `stub.a().b()` waits for `a()` before calling `b()`.
+- **A stub into an isolate holds its value until released.** `stub[Symbol.dispose]()` or garbage
+  collection of the stub releases it; then the value's own `Symbol.dispose` runs. A stub used after
+  `Symbol.dispose` rejects with `A stub was used after it was disposed.`
+- **Stubs do not cross to another node.** An object owned by another tab, worker or peer is called
+  over cells-http or celld's tunnel with V8-serialized arguments: a function, `RpcTarget` or stub
+  there fails with `DataCloneError`.
+- A fetch into a loaded Worker crosses as HTTP/1.1, so hop-by-hop request headers (`Connection`,
+  `Upgrade`, `TE`, `Keep-Alive`) do not reach it.
 
 ## Planned work
 
 Each item is proven by a conformance case changing state (a `knownGap` removed, or a new step
 recorded on celld or workerd), not by a test of the mechanism alone.
 
-- **Stubs by reference across isolates** (functions, `RpcTarget`, stubs as arguments, results, `env`
-  and `props`) — only if the RPC decision above goes to workerd.
 - **Small known gaps**, one at a time: `sql.ingest()` only if wanted.
 
 ## Firefox and WebKit

@@ -111,19 +111,7 @@ export function serveIsolate(
   const handle = async (m: any) => {
     if (m.type === "load") {
       loadMsg = m;
-      // Host bindings: every method call goes back to the host.
-      const stubOf = (key: string) =>
-        new Proxy(
-          {},
-          {
-            get: (_t, method) =>
-              typeof method === "symbol" || method === "then"
-                ? undefined
-                : (...args: unknown[]) => call({ type: "stub", key, method, args }),
-          },
-        );
-      env = { ...m.env };
-      for (const k of m.stubs as string[]) env[k] = stubOf(k);
+      env = m.env; // host bindings arrive as stubs: every call goes back to the host
       // Logs go to the host (Tail Workers, and the host prints them): through the global
       // console, or — where the realm has other code that logs — a console scoped to the
       // loaded modules (importCode receives the sink).
