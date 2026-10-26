@@ -431,7 +431,7 @@ right twice); nothing if D10 = celld.
 Each task is proven by a conformance case changing state (a `knownGap` removed, or a new step
 recorded on celld/workerd), never by a test of the mechanism alone.
 
-- [ ] **F1 isolate port on webrun-rpc** (D10-independent). Replace `rpcPort` with
+- [x] **F1 isolate port on webrun-rpc** (D10-independent) — done on `feat/isolate-rpc`; one calls port carries both directions. Replace `rpcPort` with
   `callPort`/`listenPort` (`NO_TIMEOUT`) on a `multiplexPort` channel per direction. Errors keep
   their own properties (`code`), as stub calls in one isolate already do. Proof: a step in the
   `isolation-api` project throwing an error with `code` from a loaded Worker, recorded on celld;

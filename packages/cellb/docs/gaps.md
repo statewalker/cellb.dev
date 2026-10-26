@@ -26,11 +26,10 @@ the in-browser module server). A per-project default needs all three.
 
 - An `RpcTarget` passed through a stub is refused with `RPC stubs cannot cross isolate boundaries
   yet.` (`src/core/namespace.ts`). Functions pass by reference only inside one runtime.
-- A loaded Worker's isolate talks to its parent over a request/response port protocol
-  (`src/isolate/protocol.ts`): errors arrive with `name` and `message` only (a `code` property is
-  lost), request and response bodies are buffered whole, and values that cannot be cloned become
-  stubs only as `env` entries — never as arguments, results or `props`. Passing one fails with
-  `DataCloneError`.
+- A loaded Worker's isolate talks to its parent over `@statewalker/webrun-rpc`
+  (`src/isolate/protocol.ts`). Errors keep their own properties (`name`, `code`), but request and
+  response bodies are buffered whole, and values that cannot be cloned become stubs only as `env`
+  entries — never as arguments, results or `props`. Passing one fails with `DataCloneError`.
 - celld refuses the same things (`function () {} could not be cloned`, `Worker Loader env supports
   only Service Binding capabilities.`), so cellb matches the judge. workerd passes stubs.
   **Open decision:** keep celld's refusal, or follow workerd. Following workerd would make those
@@ -41,8 +40,6 @@ the in-browser module server). A per-project default needs all three.
 Each item is proven by a conformance case changing state (a `knownGap` removed, or a new step
 recorded on celld or workerd), not by a test of the mechanism alone.
 
-- **Isolate port on `@statewalker/webrun-rpc`.** Errors keep their own properties (`code`) across an
-  isolate.
 - **Streamed bodies across an isolate**, instead of buffered copies.
 - **Stubs by reference across isolates** (functions, `RpcTarget`, stubs as arguments, results, `env`
   and `props`) — only if the RPC decision above goes to workerd.

@@ -34,6 +34,16 @@
         },
         "leakedIntoHost": "undefined"
       }
+    },
+    {
+      "request": "GET /error",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "name": "RangeError",
+        "message": "refused",
+        "code": "E_REFUSED"
+      }
     }
   ]
 }
