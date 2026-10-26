@@ -26,8 +26,8 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 - **A call on a stub returns an RpcPromise**, as on workerd: `stub.a().b()` and
   `await stub.a().x.y` work before `a()` settles. Across an isolate's port `b` is sent at once,
   naming `a`'s pending answer; in one realm, and to an object on another node, `b` runs once `a()`
-  settles. It is a thenable, not a `Promise`: `instanceof Promise` is false, and it passes by
-  reference (as a function) if sent unawaited in a call. Only the first call on a loaded Worker's
+  settles. It is `instanceof Promise` but not a native promise, and it cannot be called itself
+  (`stub.getFn()()` fails: await the function first). Only the first call on a loaded Worker's
   entrypoint result is pipelined across the isolate; a call on that call's result waits for it.
 - **A stub into an isolate holds its value until released.** `stub[Symbol.dispose]()` or garbage
   collection of the stub releases it; then the value's own `Symbol.dispose` runs. A stub used after

@@ -111,7 +111,9 @@ const RPC_PROMISE = Symbol("cellb.rpc-promise");
 export function rpcPromise(result: Promise<unknown>, pipe: Pipe): any {
   const at = (path: string[]): any => {
     let value: Promise<unknown> | undefined;
-    return new Proxy(() => {}, {
+    // The result itself is a Promise-like object, not callable (node:assert calls a function
+    // given to `rejects`); a property path is callable.
+    return new Proxy(path.length ? () => {} : Object.create(Promise.prototype), {
       apply: (_t, _this, args) => rpcCall(() => pipe(path, args)),
       get(_t, prop) {
         if (prop === RPC_PROMISE) return true;
