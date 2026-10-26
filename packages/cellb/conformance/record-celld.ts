@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { freePort } from "../test/free-port.ts";
 import { startReferenceServer } from "../test/ws-reference-server.ts";
 import { httpTarget } from "./http-target.ts";
 import { projectDir } from "./projects.ts";
@@ -22,12 +23,11 @@ const celldVersion = (await import("node:child_process"))
   .pop();
 const here = import.meta.dirname;
 const names = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(scenarios);
-let port = 18_700;
 
 for (const name of names) {
   const dir = join(mkdtempSync(join(tmpdir(), `celld-${name}-`)), name);
   cpSync(projectDir(name), dir, { recursive: true });
-  const p = ++port;
+  const p = await freePort();
   const env = { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` };
   const ref = scenarios[name].wsServer ? await startReferenceServer() : undefined;
   const proc = spawn(celld, ["dev", ".", "--port", String(p), "--logs"], {

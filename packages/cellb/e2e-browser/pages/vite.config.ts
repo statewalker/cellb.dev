@@ -72,11 +72,12 @@ export default defineConfig({
   worker: { format: "es" },
   build: { target: "es2022", outDir: "dist", emptyOutDir: true },
   server: {
-    port: 5173,
+    // The port: Vite's default (5173) for `pnpm browser:dev`; Playwright passes a free one.
     strictPort: true,
     fs: { allow: allowedRoots() },
     // A local S3 (RustFS) reached from pages through the dev server: requests are signed for
-    // the real endpoint (s3ObjectStore's signAs), the proxy forwards them unchanged.
+    // the real endpoint (s3ObjectStore's signAs), the proxy forwards them unchanged. The
+    // default is interop-env.sh's shared RustFS; test runs set RUSTFS_ENDPOINT to their own.
     proxy: {
       "/s3": {
         target: process.env.RUSTFS_ENDPOINT ?? "http://127.0.0.1:9200",
@@ -85,6 +86,6 @@ export default defineConfig({
       },
     },
   },
-  preview: { port: 5173, strictPort: true },
+  preview: { strictPort: true },
   // No COOP/COEP needed: opfs-sahpool works without SharedArrayBuffer.
 });

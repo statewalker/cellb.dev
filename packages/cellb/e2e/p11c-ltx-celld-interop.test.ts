@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { filesApiLtxLog } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
+import { freePort } from "../test/free-port.js";
 
 // Both directions through celld's own storage format: the REAL celld writes a cell; cellb's
 // LTX log restores that database from celld's LTX files (same bucket keys); a new
@@ -18,7 +19,8 @@ import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 const CELLD = process.env.CELLD_BIN;
 const example = join(__dirname, "../conformance/celld-examples/counter");
 
-async function startCelld(dir: string, port: number): Promise<ChildProcess> {
+async function startCelld(dir: string): Promise<ChildProcess & { base: string }> {
+  const port = await freePort();
   const env = { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` };
   const p = spawn(CELLD!, ["dev", ".", "--port", String(port), "--logs"], {
     cwd: dir,
@@ -32,7 +34,7 @@ async function startCelld(dir: string, port: number): Promise<ChildProcess> {
     await new Promise((r) => setTimeout(r, 200));
   if (!log.includes("ready")) throw new Error(`celld did not start:\n${log.slice(-600)}`);
   (p as ChildProcess & { log: () => string }).log = () => log;
-  return p;
+  return Object.assign(p, { base: `http://127.0.0.1:${port}` });
 }
 const stop = async (p: ChildProcess) => {
   p.kill("SIGTERM");
@@ -52,8 +54,8 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     const dir = join(mkdtempSync(join(tmpdir(), "ltx-interop-")), "counter");
     cpSync(example, dir, { recursive: true });
     // 1. celld writes the cell (n = 1, 2, 3).
-    const celld = await startCelld(dir, 18_781);
-    for (let i = 0; i < 3; i++) await inc("http://127.0.0.1:18781");
+    const celld = await startCelld(dir);
+    for (let i = 0; i < 3; i++) await inc(celld.base);
     await stop(celld);
 
     // 2. Its bucket objects → a FilesApi at the same keys.
@@ -100,8 +102,8 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     const dir = join(mkdtempSync(join(tmpdir(), "ltx-reverse-")), "counter");
     cpSync(example, dir, { recursive: true });
     // celld creates the cell (n = 1..3), then stops.
-    let celld = await startCelld(dir, 18_783);
-    for (let i = 0; i < 3; i++) await inc("http://127.0.0.1:18783");
+    let celld = await startCelld(dir);
+    for (let i = 0; i < 3; i++) await inc(celld.base);
     await stop(celld);
     const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
     const files = new MemFilesApi();
@@ -154,9 +156,9 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     bump.run();
     bucket.close();
     rmSync(join(dir, ".celld/dev/runtime", cell), { recursive: true, force: true });
-    celld = await startCelld(dir, 18_784);
+    celld = await startCelld(dir);
     try {
-      const n = await inc("http://127.0.0.1:18784").catch((e) => {
+      const n = await inc(celld.base).catch((e) => {
         throw new Error(`${e.message}\n--- celld log ---\n${(celld as any).log().slice(-2500)}`);
       });
       expect(n).toBe(42);
@@ -169,9 +171,8 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     it(`the same Counter cell continues across celld → cellb (${driver}) → celld`, async () => {
       const dir = join(mkdtempSync(join(tmpdir(), "ltx-runtime-")), "counter");
       cpSync(example, dir, { recursive: true });
-      const port = driver === "node:sqlite" ? 18_785 : 18_792;
-      let celld = await startCelld(dir, port);
-      for (let i = 0; i < 3; i++) await inc(`http://127.0.0.1:${port}`); // n = 3 on celld
+      let celld = await startCelld(dir);
+      for (let i = 0; i < 3; i++) await inc(celld.base); // n = 3 on celld
       await stop(celld);
       const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
       const files = new MemFilesApi();
@@ -228,9 +229,9 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
       bump.run();
       bucket.close();
       rmSync(join(dir, ".celld/dev/runtime", cell), { recursive: true, force: true });
-      celld = await startCelld(dir, port + 1);
+      celld = await startCelld(dir);
       try {
-        const n = await inc(`http://127.0.0.1:${port + 1}`).catch((e) => {
+        const n = await inc(celld.base).catch((e) => {
           throw new Error(`${e.message}\n--- celld log ---\n${(celld as any).log().slice(-2500)}`);
         });
         expect(n).toBe(5);
@@ -249,8 +250,8 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
   it("values written by celld read identically in cellb", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "values-a-")), "kv-values");
     cpSync(valuesProject, dir, { recursive: true });
-    const celld = await startCelld(dir, 18_787);
-    await get("http://127.0.0.1:18787", "/write");
+    const celld = await startCelld(dir);
+    await get(celld.base, "/write");
     await stop(celld);
     const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
     const files = new MemFilesApi();
@@ -277,7 +278,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     const dir = join(mkdtempSync(join(tmpdir(), "values-b-")), "kv-values");
     cpSync(valuesProject, dir, { recursive: true });
     // celld starts once so its bucket exists (deploy), without touching the Store cell.
-    let celld = await startCelld(dir, 18_788);
+    let celld = await startCelld(dir);
     await stop(celld);
     const files = new MemFilesApi();
     const log = filesApiLtxLog(files, { epoch: 1 });
@@ -309,9 +310,9 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     );
     bump.run();
     bucket.close();
-    celld = await startCelld(dir, 18_789);
+    celld = await startCelld(dir);
     try {
-      expect(await get("http://127.0.0.1:18789", "/read")).toEqual(expectedRead());
+      expect(await get(celld.base, "/read")).toEqual(expectedRead());
     } finally {
       await stop(celld);
     }
@@ -321,9 +322,9 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     const dir = join(mkdtempSync(join(tmpdir(), "facet-store-")), "facet-store");
     cpSync(join(__dirname, "../conformance/projects/facet-store"), dir, { recursive: true });
     const visit = async (base: string) => (await fetch(`${base}/`)).json();
-    let celld = await startCelld(dir, 18_790);
-    await visit("http://127.0.0.1:18790");
-    expect(await visit("http://127.0.0.1:18790")).toEqual({ facet: 2, parent: 2 });
+    let celld = await startCelld(dir);
+    await visit(celld.base);
+    expect(await visit(celld.base)).toEqual({ facet: 2, parent: 2 });
     await stop(celld);
     const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
     const files = new MemFilesApi();
@@ -389,9 +390,9 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     bump.run();
     bucket.close();
     rmSync(join(dir, ".celld/dev/runtime"), { recursive: true, force: true });
-    celld = await startCelld(dir, 18_791);
+    celld = await startCelld(dir);
     try {
-      const v = await visit("http://127.0.0.1:18791").catch((e) => {
+      const v = await visit(celld.base).catch((e) => {
         throw new Error(`${e.message}\n--- celld log ---\n${(celld as any).log().slice(-2500)}`);
       });
       expect(
@@ -412,9 +413,9 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     const dir = join(mkdtempSync(join(tmpdir(), "facets-ex-")), "facets");
     cpSync(join(__dirname, "../conformance/celld-examples/facets"), dir, { recursive: true });
     const hit = async (base: string) => (await fetch(`${base}/`)).text();
-    let celld = await startCelld(dir, 18_796);
-    expect(await hit("http://127.0.0.1:18796")).toBe("0:hello, facet");
-    expect(await hit("http://127.0.0.1:18796")).toBe("1:hello, facet");
+    let celld = await startCelld(dir);
+    expect(await hit(celld.base)).toBe("0:hello, facet");
+    expect(await hit(celld.base)).toBe("1:hello, facet");
     await stop(celld);
     const bucket = new DatabaseSync(join(dir, ".celld/dev/objects.sqlite3"));
     const files = new MemFilesApi();
@@ -459,9 +460,9 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     bump.run();
     bucket.close();
     rmSync(join(dir, ".celld/dev/runtime"), { recursive: true, force: true });
-    celld = await startCelld(dir, 18_797);
+    celld = await startCelld(dir);
     try {
-      expect(await hit("http://127.0.0.1:18797")).toBe("3:hello, facet");
+      expect(await hit(celld.base)).toBe("3:hello, facet");
     } finally {
       await stop(celld);
     }

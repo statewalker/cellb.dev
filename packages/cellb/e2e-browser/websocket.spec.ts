@@ -117,7 +117,7 @@ test("the server side notices a client tab that died: the room count drops (hear
 }) => {
   const owner = await context.newPage();
   await open(owner); // hosts the shards and keeps one socket in the room
-  const room = `ws://localhost:5173/sharded/cells/room/d${Date.now()}`;
+  const room = `${new URL(owner.url()).origin.replace("http", "ws")}/sharded/cells/room/d${Date.now()}`;
   await owner.evaluate(async (url) => {
     const ws = new (window as any).__CellsWebSocket(url);
     (window as any).__ws = ws;

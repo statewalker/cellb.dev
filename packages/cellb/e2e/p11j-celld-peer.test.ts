@@ -12,6 +12,7 @@ import {
   sqliteObjectStore,
   startCelldPeerServer,
 } from "../src/node.js";
+import { freePort } from "../test/free-port.js";
 
 // A mixed fleet: a cellb node in Node speaks celld's peer protocol, so when it owns a
 // cell, celld ROUTES that cell's requests (fetch and JS RPC) to it through /peer/tunnel instead
@@ -19,7 +20,8 @@ import {
 const CELLD = process.env.CELLD_BIN;
 const examples = join(__dirname, "../conformance/celld-examples");
 
-async function celldDev(dir: string, port: number) {
+async function celldDev(dir: string) {
+  const port = await freePort();
   const p = spawn(CELLD!, ["dev", ".", "--port", String(port), "--logs"], {
     cwd: dir,
     env: { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` },
@@ -61,10 +63,10 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
   it("celld routes requests for a cell cellb owns to it (fetch)", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-fetch-")), "counter");
     cpSync(join(examples, "counter"), dir, { recursive: true });
-    const c0 = await celldDev(dir, 18_870); // creates the bucket and the fleet secret
+    const c0 = await celldDev(dir); // creates the bucket and the fleet secret
     await stop(c0.p);
     const w = await cellbPeer(dir);
-    const celld = await celldDev(dir, 18_871);
+    const celld = await celldDev(dir);
     try {
       expect(JSON.parse(await w.get("/increment?name=a")).n).toBe(1); // cellb owns the cell
       const viaCelld = await (await fetch(`${celld.base}/increment?name=a`)).text();
@@ -87,10 +89,10 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
   it("celld routes JS RPC to a cell cellb owns", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-rpc-")), "rpc");
     cpSync(join(examples, "rpc"), dir, { recursive: true });
-    const c0 = await celldDev(dir, 18_872);
+    const c0 = await celldDev(dir);
     await stop(c0.p);
     const w = await cellbPeer(dir);
-    const celld = await celldDev(dir, 18_873);
+    const celld = await celldDev(dir);
     try {
       const post = async (f: (u: string, init: RequestInit) => Promise<Response>) =>
         (await f("/", { method: "POST" })).text();
@@ -116,7 +118,7 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
   it("cellb routes requests and RPC for a cell celld owns to celld (the other direction)", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-out-")), "rpc");
     cpSync(join(examples, "rpc"), dir, { recursive: true });
-    const celld = await celldDev(dir, 18_874);
+    const celld = await celldDev(dir);
     try {
       expect(await (await fetch(`${celld.base}/`, { method: "POST" })).text()).toBe('{"count":1}'); // celld owns it
       const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
@@ -144,7 +146,7 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
   it("cellb routes a stub.fetch() for a cell celld owns to celld", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-out-fetch-")), "counter");
     cpSync(join(examples, "counter"), dir, { recursive: true });
-    const celld = await celldDev(dir, 18_876);
+    const celld = await celldDev(dir);
     try {
       expect(JSON.parse(await (await fetch(`${celld.base}/increment?name=a`)).text()).n).toBe(1);
       const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
@@ -173,15 +175,15 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
   it("a WebSocket opened at celld to a cell cellb owns crosses the tunnel", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-ws-")), "wsecho");
     cpSync(join(examples, "wsecho"), dir, { recursive: true });
-    const c0 = await celldDev(dir, 18_878);
+    const c0 = await celldDev(dir);
     await stop(c0.p);
     const w = await cellbPeer(dir);
-    const celld = await celldDev(dir, 18_879);
+    const celld = await celldDev(dir);
     try {
       // cellb takes the cell (one plain request makes it the owner)
       expect(await w.get("/")).toBe("websocket upgrade required");
       const { WebSocket } = await import("ws");
-      const ws = new WebSocket(`ws://127.0.0.1:18879/`);
+      const ws = new WebSocket(`${celld.base.replace("http", "ws")}/`);
       const got: string[] = [];
       await new Promise<void>((resolve, reject) => {
         ws.on("open", () => (ws.send("hello"), ws.send("again")));
@@ -219,11 +221,11 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
   it("a WebSocket opened at cellb to a cell celld owns crosses the tunnel", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "peer-ws-out-")), "wsecho");
     cpSync(join(examples, "wsecho"), dir, { recursive: true });
-    const celld = await celldDev(dir, 18_875); // 1888x+ is p11g's
+    const celld = await celldDev(dir);
     try {
       // celld takes the cell: one socket, one message
       const { WebSocket: Ws } = await import("ws");
-      const first = new Ws("ws://127.0.0.1:18875/");
+      const first = new Ws(`${celld.base.replace("http", "ws")}/`);
       await new Promise<void>((r) =>
         first.on("open", () => first.send("from celld")).on("message", () => r()),
       );

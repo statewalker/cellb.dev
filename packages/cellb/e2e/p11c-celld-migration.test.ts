@@ -6,6 +6,7 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { celldBucket } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
+import { freePort } from "../test/free-port.js";
 
 // Moves a Durable Object between the real celld and cellb through ONE bucket (celld
 // dev's local objects.sqlite3): celld → cellb → celld, each side restoring the
@@ -13,7 +14,8 @@ import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/nod
 const CELLD = process.env.CELLD_BIN;
 const ESBUILD_DIR = process.env.ESBUILD_DIR ?? "";
 
-async function celldDev(dir: string, port: number): Promise<ChildProcess> {
+async function celldDev(dir: string): Promise<ChildProcess & { base: string }> {
+  const port = await freePort();
   const p = spawn(CELLD!, ["dev", ".", "--port", String(port), "--logs"], {
     cwd: dir,
     env: { ...process.env, PATH: `${ESBUILD_DIR}:${process.env.PATH}` },
@@ -25,7 +27,7 @@ async function celldDev(dir: string, port: number): Promise<ChildProcess> {
   for (let i = 0; i < 150 && !log.includes("ready"); i++)
     await new Promise((r) => setTimeout(r, 200));
   if (!log.includes("ready")) throw new Error(`celld dev did not start:\n${log.slice(-2500)}`);
-  return p;
+  return Object.assign(p, { base: `http://127.0.0.1:${port}` });
 }
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => {
@@ -47,9 +49,9 @@ describe.skipIf(!CELLD)("P11c moving a Durable Object between celld and cellb (o
     cpSync(resolve(__dirname, "../conformance/projects/sql-counter"), dir, { recursive: true });
 
     // 1. celld owns the cell.
-    let celld = await celldDev(dir, 18_811);
-    expect(await bump("http://127.0.0.1:18811/")).toBe(1);
-    expect(await bump("http://127.0.0.1:18811/")).toBe(2);
+    let celld = await celldDev(dir);
+    expect(await bump(`${celld.base}/`)).toBe(1);
+    expect(await bump(`${celld.base}/`)).toBe(2);
     await stop(celld);
 
     // 2. cellb takes it over from the same bucket once celld's node lease expires.
@@ -83,9 +85,9 @@ describe.skipIf(!CELLD)("P11c moving a Durable Object between celld and cellb (o
     await new Promise((r) => setTimeout(r, 3_500)); // let cellb-test's node lease expire
 
     // 3. celld takes it back and continues from cellb's writes.
-    celld = await celldDev(dir, 18_812);
+    celld = await celldDev(dir);
     try {
-      expect(await bump("http://127.0.0.1:18812/")).toBe(5);
+      expect(await bump(`${celld.base}/`)).toBe(5);
     } finally {
       await stop(celld);
     }

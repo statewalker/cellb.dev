@@ -13,6 +13,7 @@ import {
   runInDurableObject,
 } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
+import { freePort } from "../test/free-port.js";
 
 // Hand-over while BOTH runtimes are up (celld dev and cellb on one bucket): each refuses
 // a cell whose owner is live, the cell moves only when its owner stops or loses its lease, and a
@@ -20,7 +21,8 @@ import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/nod
 const CELLD = process.env.CELLD_BIN;
 const counter = join(__dirname, "../conformance/celld-examples/counter");
 
-async function celldDev(dir: string, port: number) {
+async function celldDev(dir: string) {
+  const port = await freePort();
   const p = spawn(CELLD!, ["dev", ".", "--port", String(port), "--logs"], {
     cwd: dir,
     env: { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` },
@@ -69,7 +71,7 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
   it("each refuses a live owner's cell; the cell moves when its owner stops; celld reads our node record", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "live-")), "counter");
     cpSync(counter, dir, { recursive: true });
-    const c1 = await celldDev(dir, 18_860);
+    const c1 = await celldDev(dir);
     expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 1 });
     const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
     const w = await cellb(dir, store, "cellb-live");
@@ -84,7 +86,7 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
         20_000,
       ),
     ).toEqual({ n: 3 });
-    const c2 = await celldDev(dir, 18_862);
+    const c2 = await celldDev(dir);
     try {
       const refused = await inc((u) => fetch(c2.base + u)); // cellb is live: celld refuses
       expect(refused, JSON.stringify(refused)).toEqual({
@@ -109,7 +111,7 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
   it("a cellb node cut off from the bucket fences itself; celld takes the cell over, no split brain", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "partition-")), "counter");
     cpSync(counter, dir, { recursive: true });
-    const c0 = await celldDev(dir, 18_864);
+    const c0 = await celldDev(dir);
     await stop(c0.p); // the bucket exists; celld's own lease will expire
     const real = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
     let partitioned = false;
@@ -132,7 +134,7 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
     // Within the lease TTL (3 s) every cell stops: nothing more is acknowledged.
     await new Promise((r) => setTimeout(r, 3_500));
     expect(await w.inc()).toEqual({ refused: expect.any(String) });
-    const c1 = await celldDev(dir, 18_866);
+    const c1 = await celldDev(dir);
     try {
       expect(
         await until(
@@ -156,7 +158,7 @@ describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", { concurren
   it("both refuse a cell whose own.json is gone while its LTX remains; the released-record repair restores it", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "lost-")), "counter");
     cpSync(counter, dir, { recursive: true });
-    const c1 = await celldDev(dir, 18_868);
+    const c1 = await celldDev(dir);
     expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 1 });
     expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 2 });
     await stop(c1.p);
@@ -171,7 +173,7 @@ describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", { concurren
       expect(await w.inc()).toEqual({ refused: expect.stringContaining("ownership record lost") });
       // … and celld itself: `celld dev` reports the lost record (and, the cell refused, does
       // not become ready)
-      const c2 = await celldDev(dir, 18_869);
+      const c2 = await celldDev(dir);
       const asked = await inc((u) =>
         fetch(c2.base + u, { signal: AbortSignal.timeout(8_000) }).catch(
           (e) => new Response(String(e)),
@@ -201,7 +203,7 @@ describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", { concurren
     } finally {
       await w.close();
     }
-    const c3 = await celldDev(dir, 18_867);
+    const c3 = await celldDev(dir);
     try {
       expect(
         await until(

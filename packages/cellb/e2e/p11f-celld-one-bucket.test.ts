@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import { celldBucket, type OpenCellSql } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
+import { freePort } from "../test/free-port.js";
 
 // Interop the way it is meant to be used: celld and cellb share ONE bucket (celld dev's
 // objects.sqlite3) and hand cells over through celld's own ownership protocol — own.json
@@ -15,16 +16,13 @@ import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/nod
 const CELLD = process.env.CELLD_BIN;
 const ESBUILD_DIR = process.env.ESBUILD_DIR ?? "";
 // The tests run 4 at a time: each has its own project dir, so its own bucket
-// (.celld/dev/objects.sqlite3), node records and leases, and its own celld port — 19000+,
-// clear of the other celld files running in parallel (p11c 187xx-188xx, p11i/p11j 1886x-1887x,
-// p11g 1888x+).
+// (.celld/dev/objects.sqlite3), node records and leases, and its own celld port.
 vi.setConfig({ maxConcurrency: 4 });
-let port = 19_000;
 
 async function celldDev(
   dir: string,
 ): Promise<{ p: ChildProcess; base: string; log: () => string }> {
-  const at = port++;
+  const at = await freePort();
   const p = spawn(CELLD!, ["dev", ".", "--port", String(at), "--logs"], {
     cwd: dir,
     env: { ...process.env, PATH: `${ESBUILD_DIR}:${process.env.PATH}` },
