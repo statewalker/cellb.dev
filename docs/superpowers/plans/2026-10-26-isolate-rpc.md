@@ -74,3 +74,22 @@ adapter in `protocol.ts` covers it (and `parentPort`, which has `addEventListene
 `pnpm test` and Chromium `pnpm e2e` with the celld env, `pnpm mutate:check`, `pnpm -r typecheck`,
 `pnpm biome check .`. Baseline: 354 passed / 7 expected fail / 1 skipped (unit + e2e), 181 passed /
 14 skipped (Chromium); the new steps run inside the existing `isolation-api` cases.
+
+## Follow-up on the same branch (after F1/F2)
+
+Each item: one commit, proven by a workerd-test export moving from a `-gaps` scenario to the agreeing
+one (`WL_GAPS` → `WL_AGREE`, `WS_GAPS` → `WS_CONSTRUCTOR_OTHERS` in `conformance/scenarios.ts`),
+both goldens re-recorded on celld (only the skip lists change; the per-export answers must stay as
+recorded), red on cellb before, green after.
+
+1. **props across the isolate** (`justLoad`; celld "ok", cellb `reading 'props'`).
+   `getEntrypoint(name, {props})` reaches an isolated loaded Worker: the facade forwards
+   `ctx.props` on calls and fetches; plain-object entrypoint methods receive `(…args, env, ctx)`
+   as in workerd (`src/core/handles.ts`, `src/isolate/host.ts`, `src/isolate/isolate.ts`).
+2. **`ctx.exports.<Entrypoint>` in loaded Workers** (`ctxExports`).
+3. **`WorkerCode` module types** (`wasmModules` "ok"; `moduleTypes` matches celld's refusal of
+   `data` modules: `module "binary.dat" must be a string or wasm bytes`).
+4. **WebSocketPair `binaryType` per project** (`binaryTypeWebSocketPairDefault`,
+   `binaryMessageDeliveredAsBlob`, `binaryTypeSwitchMidStream`); `binaryTypeSetterInvalid` and
+   `closeReasonUSVString` are the host's own WebSocket/CloseEvent and stay gaps.
+`sql.ingest()` is skipped.
