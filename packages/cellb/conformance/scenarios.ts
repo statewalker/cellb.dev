@@ -348,6 +348,7 @@ export const scenarios: Record<string, Scenario> = {
   "storage-details": {
     steps: [{ path: "/kv" }, { path: "/sql" }, { path: "/txn" }, { path: "/alarms" }],
   },
+  "sql-ingest": { steps: [{ path: "/" }] },
   "miniflare2-details": { steps: ["/storage", "/stub"].map((path) => ({ path })) },
   "queues-details": {
     steps: [{ path: "/validate" }, { path: "/send" }, { waitMs: 3500 }, { path: "/log" }],
@@ -437,7 +438,7 @@ const WL_GAPS = [
   "nullGlobalOutbound",
 ];
 const wdOverrides: Record<string, Partial<Scenario>> = {
-  // `default` (most of sql-test.js) is split off: it needs sql.ingest. testRollbackKvInit
+  // `default` (most of sql-test.js) is split off: celld stops in it (wd-sql-default). testRollbackKvInit
   // reports the alarm time it finds (Date.now() + a year).
   "wd-sql": { steps: [{ path: "/?skip=default" }], textMask: [["\\b1\\d{12}\\b", "<ms>"]] },
   "wd-actor-fetch-rejection": {
@@ -486,7 +487,7 @@ scenarios["wd-sql-default"] = {
     },
   ],
   knownGap:
-    "sql.ingest() (experimental) is missing; celld itself stops at an ingest syntax-error message",
+    "cellb's exec() runs a script that ends in a comment where celld refuses it, an assertion before the one celld stops at (an ingest syntax error, reported with celld's own stack frames)",
 };
 
 // celld's deviations from workerd (conformance/record-workerd.ts); cellb follows celld.

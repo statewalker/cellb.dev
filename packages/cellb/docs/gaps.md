@@ -10,7 +10,7 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 
 | Scenario | What differs |
 |---|---|
-| `wd-sql-default` | `sql.ingest()` (experimental) does not exist. celld itself stops at an ingest syntax-error message, so even with it the two agree only up to there. |
+| `wd-sql-default` | `sql.exec('SELECT 1; -- comment')` runs; celld refuses it (workerd: `SQL code did not contain a statement`), so cellb fails an earlier assertion than celld. celld stops at `sql.ingest()`'s syntax error, which cellb words the same (`sql-ingest` agrees), but celld's report of it carries celld's own stack frames. |
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
@@ -40,13 +40,6 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   cannot read such a value; other stubs and `RpcTarget`s are refused with `DataCloneError`.
 - A fetch into a loaded Worker crosses as HTTP/1.1, so hop-by-hop request headers (`Connection`,
   `Upgrade`, `TE`, `Keep-Alive`) do not reach it.
-
-## Planned work
-
-Each item is proven by a conformance case changing state (a `knownGap` removed, or a new step
-recorded on celld or workerd), not by a test of the mechanism alone.
-
-- **Small known gaps**, one at a time: `sql.ingest()` only if wanted.
 
 ## Firefox and WebKit
 
