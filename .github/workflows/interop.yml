@@ -34,6 +34,8 @@ jobs:
           path: ~/.cache/cellb-interop/bin
           key: interop-bin-celld-0.6.3-rustfs-1.0.3
       - run: pnpm run typecheck
+      - name: Node — a Flue agent app on cellb
+        run: pnpm --dir ../flue-example test
       - name: Node — celld conformance and interop
         run: pnpm run interop
       - run: pnpm exec playwright install --with-deps chromium
