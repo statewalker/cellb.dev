@@ -20,9 +20,13 @@ mkdir -p "$ROOT/bin"
 rustfs_bin() {
   RUSTFS="$ROOT/bin/rustfs-$RUSTFS_VERSION"
   if [ ! -x "$RUSTFS" ]; then
-    curl -fsSL -o "$ROOT/rustfs.zip" \
+    # In a directory of its own, then one mv: concurrent runs never see a half-written binary.
+    local tmp
+    tmp="$(mktemp -d "$ROOT/rustfs.tmp.XXXXXX")"
+    curl -fsSL -o "$tmp/rustfs.zip" \
       "https://github.com/rustfs/rustfs/releases/download/$RUSTFS_VERSION/rustfs-linux-x86_64-musl-v$RUSTFS_VERSION.zip"
-    unzip -o -q "$ROOT/rustfs.zip" rustfs -d "$ROOT/bin" && mv "$ROOT/bin/rustfs" "$RUSTFS" && chmod +x "$RUSTFS"
+    unzip -q "$tmp/rustfs.zip" rustfs -d "$tmp" && chmod +x "$tmp/rustfs" && mv "$tmp/rustfs" "$RUSTFS"
+    rm -rf "$tmp"
   fi
 }
 if [ "${1:-}" = "--rustfs-bin" ]; then

@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { bundleProjectForBrowser } from "../conformance/browser-bundle.ts";
 import { s3ObjectStore } from "../src/index.ts";
-import { freePort } from "../test/free-port.ts";
+import { freePorts } from "../test/free-port.ts";
 
 // A real celld fleet node and cellb IN CHROMIUM (SQLite WASM on OPFS) share one S3
 // bucket (a local RustFS, reached from the page through the dev server's /s3 proxy): cells
@@ -35,7 +35,7 @@ const run = (args: string[], cwd: string) =>
     p.on("exit", (c) => (c === 0 ? res() : rej(new Error(out.slice(-1500)))));
   });
 async function celldNode(prefix: string): Promise<{ p: ChildProcess; base: string }> {
-  const [at, internal] = [await freePort(), await freePort()];
+  const [at, internal] = await freePorts(2);
   const p = spawn(
     CELLD!,
     [
@@ -55,12 +55,15 @@ async function celldNode(prefix: string): Promise<{ p: ChildProcess; base: strin
   p.stderr!.on("data", (d) => (log += d));
   for (let i = 0; i < 150 && !log.includes("readiness is open"); i++)
     await new Promise((r) => setTimeout(r, 200));
-  if (!log.includes("readiness is open"))
+  if (!log.includes("readiness is open")) {
+    p.kill("SIGKILL");
     throw new Error(`celld node did not start:\n${log.slice(-1500)}`);
+  }
   return { p, base: `http://127.0.0.1:${at}` };
 }
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => {
+    if (p.exitCode !== null || p.signalCode !== null) return r();
     p.once("exit", () => r());
     p.kill("SIGTERM");
   });

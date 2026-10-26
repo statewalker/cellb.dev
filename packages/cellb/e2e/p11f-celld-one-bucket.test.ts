@@ -32,11 +32,15 @@ async function celldDev(
   p.stderr!.on("data", (d) => (log += d));
   for (let i = 0; i < 150 && !log.includes("ready"); i++)
     await new Promise((r) => setTimeout(r, 200));
-  if (!log.includes("ready")) throw new Error(`celld dev did not start:\n${log.slice(-2500)}`);
+  if (!log.includes("ready")) {
+    p.kill("SIGKILL");
+    throw new Error(`celld dev did not start:\n${log.slice(-2500)}`);
+  }
   return { p, base: `http://127.0.0.1:${at}`, log: () => log };
 }
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => {
+    if (p.exitCode !== null || p.signalCode !== null) return r();
     p.once("exit", () => r());
     p.kill("SIGTERM");
   });
@@ -70,9 +74,12 @@ async function roundTrip(
     }
   };
   let celld = await celldDev(dir);
-  for (const [path, want] of steps.celld1)
-    expect(await answer((p, init) => fetch(celld.base + p, init), path)).toEqual(want);
-  await stop(celld.p);
+  try {
+    for (const [path, want] of steps.celld1)
+      expect(await answer((p, init) => fetch(celld.base + p, init), path)).toEqual(want);
+  } finally {
+    await stop(celld.p);
+  }
 
   const { runtime } = await loadNodeProject(dir, {
     openSql:

@@ -35,7 +35,11 @@ async function celldDev(dir: string) {
   return { p, base: `http://127.0.0.1:${port}`, log: () => log };
 }
 const stop = (p: ChildProcess) =>
-  new Promise<void>((r) => (p.once("exit", () => r()), p.kill("SIGTERM")));
+  new Promise<void>((r) => {
+    if (p.exitCode !== null || p.signalCode !== null) return r();
+    p.once("exit", () => r());
+    p.kill("SIGTERM");
+  });
 
 async function cellbPeer(dir: string) {
   const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));

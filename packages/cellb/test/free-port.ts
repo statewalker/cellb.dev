@@ -1,16 +1,25 @@
-import { createServer } from "node:net";
+import { createServer, type Server } from "node:net";
 
 /**
- * A TCP port on 127.0.0.1 that was free a moment ago: the OS picks it (listen on 0), the
- * listener closes, the caller binds it. Lets several runs (worktrees) share one machine.
+ * TCP ports on 127.0.0.1 that were free a moment ago: the OS picks them (listen on 0), the
+ * listeners close, the caller binds them. Lets several runs (worktrees) share one machine.
+ * All `n` listeners stay open until each has its port, so the ports are distinct.
  */
-export function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address() as { port: number };
-      server.close(() => resolve(port));
-    });
-  });
+export async function freePorts(n: number): Promise<number[]> {
+  const servers: Server[] = [];
+  try {
+    for (let i = 0; i < n; i++) {
+      const server = createServer();
+      servers.push(server);
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", () => resolve());
+      });
+    }
+    return servers.map((s) => (s.address() as { port: number }).port);
+  } finally {
+    await Promise.all(servers.map((s) => new Promise((r) => s.close(r))));
+  }
 }
+
+export const freePort = async (): Promise<number> => (await freePorts(1))[0];

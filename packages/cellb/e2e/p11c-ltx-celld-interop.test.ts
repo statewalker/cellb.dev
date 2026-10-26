@@ -31,11 +31,15 @@ async function startCelld(dir: string): Promise<ChildProcess & { base: string }>
   p.stderr!.on("data", (d) => (log += d));
   for (let i = 0; i < 150 && !log.includes("ready"); i++)
     await new Promise((r) => setTimeout(r, 200));
-  if (!log.includes("ready")) throw new Error(`celld did not start:\n${log.slice(-600)}`);
+  if (!log.includes("ready")) {
+    p.kill("SIGKILL");
+    throw new Error(`celld did not start:\n${log.slice(-600)}`);
+  }
   (p as ChildProcess & { log: () => string }).log = () => log;
   return Object.assign(p, { base: `http://127.0.0.1:${port}` });
 }
 const stop = async (p: ChildProcess) => {
+  if (p.exitCode !== null || p.signalCode !== null) return;
   p.kill("SIGTERM");
   await new Promise((r) => p.once("exit", r));
 };

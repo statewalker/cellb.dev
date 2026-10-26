@@ -2,6 +2,7 @@ import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { TestProject } from "vitest/node";
 import { signV4 } from "../src/bucket/s3-object-store.js";
 import { freePort } from "./free-port.js";
 
@@ -65,5 +66,13 @@ export async function setupTestBucket(): Promise<() => void> {
   return stop;
 }
 
-/** vitest's globalSetup (vitest.config.ts). */
-export const setup = setupTestBucket;
+/**
+ * vitest's globalSetup (vitest.config.ts): only when the run includes e2e/ tests, so
+ * `pnpm test:unit` never needs RustFS. vitest keeps the CLI filters in `filenamePattern`.
+ */
+export async function setup(project: TestProject): Promise<() => void> {
+  const filters = (project.vitest as unknown as { filenamePattern?: string[] }).filenamePattern;
+  const { testFiles } = await project.globTestFiles(filters);
+  if (!testFiles.some((f) => f.includes("/e2e/"))) return () => {};
+  return setupTestBucket();
+}

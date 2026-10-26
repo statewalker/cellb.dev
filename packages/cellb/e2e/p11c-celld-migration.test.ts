@@ -26,11 +26,15 @@ async function celldDev(dir: string): Promise<ChildProcess & { base: string }> {
   p.stderr!.on("data", (d) => (log += d));
   for (let i = 0; i < 150 && !log.includes("ready"); i++)
     await new Promise((r) => setTimeout(r, 200));
-  if (!log.includes("ready")) throw new Error(`celld dev did not start:\n${log.slice(-2500)}`);
+  if (!log.includes("ready")) {
+    p.kill("SIGKILL");
+    throw new Error(`celld dev did not start:\n${log.slice(-2500)}`);
+  }
   return Object.assign(p, { base: `http://127.0.0.1:${port}` });
 }
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => {
+    if (p.exitCode !== null || p.signalCode !== null) return r();
     p.once("exit", () => r());
     p.kill("SIGTERM");
   });

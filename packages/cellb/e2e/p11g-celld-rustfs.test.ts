@@ -6,7 +6,7 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { celldBucket, s3ObjectStore, wasmMemoryOpener } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, startCelldPeerServer } from "../src/node.js";
-import { freePort } from "../test/free-port.js";
+import { freePorts } from "../test/free-port.js";
 
 // A real celld fleet node and cellb on ONE S3 bucket served by a local RustFS: cells
 // move between them through celld's ownership protocol (own.json epochs, node leases), and
@@ -55,7 +55,7 @@ function run(cmd: string[], cwd: string): Promise<string> {
 async function celldNode(
   prefix: string,
 ): Promise<{ p: ChildProcess; base: string; log: () => string }> {
-  const [at, internal] = [await freePort(), await freePort()];
+  const [at, internal] = await freePorts(2);
   const p = spawn(
     CELLD!,
     [
@@ -75,8 +75,10 @@ async function celldNode(
   p.stderr!.on("data", (d) => (log += d));
   for (let i = 0; i < 150 && !log.includes("readiness is open"); i++)
     await new Promise((r) => setTimeout(r, 200));
-  if (!log.includes("readiness is open"))
+  if (!log.includes("readiness is open")) {
+    p.kill("SIGKILL");
     throw new Error(`celld node did not start:\n${log.slice(-2000)}`);
+  }
   return { p, base: `http://127.0.0.1:${at}`, log: () => log };
 }
 /** celld's WARN/ERROR lines, for diagnosing what it disliked in cellb's writes. */
@@ -87,6 +89,7 @@ const complaints = (log: string) =>
     .map((l) => l.replace(/^\S+\s+/, "").slice(0, 300));
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => {
+    if (p.exitCode !== null || p.signalCode !== null) return r();
     p.once("exit", () => r());
     p.kill("SIGTERM");
   });
@@ -306,7 +309,7 @@ describe.skipIf(!CELLD)(
         try {
           await runtime.fetch(new Request("http://w/increment?name=a")); // writes the node record
           await bucket.advertise(peer.addr);
-          const [diag, diagInternal] = [await freePort(), await freePort()];
+          const [diag, diagInternal] = await freePorts(2);
           const out = await run(
             [
               "diagnose",
