@@ -53,7 +53,7 @@ const wasm = async (): Promise<OpenCellSql> =>
 async function roundTrip(
   project: string,
   driver: "node" | "wasm" | "node-wal",
-  steps: { celld1: [string, unknown][]; webrun: [string, unknown][]; celld2: [string, unknown][] },
+  steps: { celld1: [string, unknown][]; cellb: [string, unknown][]; celld2: [string, unknown][] },
 ) {
   const dir = join(mkdtempSync(join(tmpdir(), "one-bucket-")), "p");
   cpSync(project, dir, { recursive: true });
@@ -86,7 +86,7 @@ async function roundTrip(
           : await wasm(),
     files: new MemFilesApi(),
     storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
-      node: "webrun-test",
+      node: "cellb-test",
       leaseTtlMs: 3_000,
     }),
   });
@@ -94,7 +94,7 @@ async function roundTrip(
     runtime.fetch(new Request(`http://w${p}`, init));
   // celld's node lease may still be live for a moment: a refused step ("owned by another
   // node", before any code ran) is retried until the hand-over.
-  for (const [path, want] of steps.webrun) {
+  for (const [path, want] of steps.cellb) {
     let got: unknown;
     for (let i = 0; i < 40; i++) {
       got = await answer(fetchW, path);
@@ -140,7 +140,7 @@ describe.skipIf(!CELLD)(
         () =>
           roundTrip(join(examples, "counter"), driver, {
             celld1: [["/increment?name=a", { n: 1, url: expect.any(String) }]],
-            webrun: [["/increment?name=a", { n: 2, url: expect.any(String) }]],
+            cellb: [["/increment?name=a", { n: 2, url: expect.any(String) }]],
             celld2: [["/increment?name=a", { n: 3, url: expect.any(String) }]],
           }),
         120_000,
@@ -151,7 +151,7 @@ describe.skipIf(!CELLD)(
         () =>
           roundTrip(join(ours, "facet-store"), driver, {
             celld1: [["/", { facet: 1, parent: 1 }]],
-            webrun: [["/", { facet: 2, parent: 2 }]],
+            cellb: [["/", { facet: 2, parent: 2 }]],
             celld2: [["/", { facet: 3, parent: 3 }]],
           }),
         120_000,
@@ -162,7 +162,7 @@ describe.skipIf(!CELLD)(
         () =>
           roundTrip(join(examples, "facets"), driver, {
             celld1: [["/", "0:hello, facet"]],
-            webrun: [["/", "1:hello, facet"]],
+            cellb: [["/", "1:hello, facet"]],
             celld2: [["/", "2:hello, facet"]],
           }),
         120_000,
@@ -173,7 +173,7 @@ describe.skipIf(!CELLD)(
         () =>
           roundTrip(join(ours, "kv-values"), driver, {
             celld1: [["/write", "written"]],
-            webrun: [
+            cellb: [
               ["/read", valuesRead()],
               ["/write", "written"],
             ],
@@ -197,7 +197,7 @@ describe.skipIf(!CELLD)(
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
         storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
-          node: "webrun-test",
+          node: "cellb-test",
           leaseTtlMs: 3_000,
         }),
       });
@@ -244,7 +244,7 @@ describe.skipIf(!CELLD)(
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
         storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
-          node: "webrun-test",
+          node: "cellb-test",
           leaseTtlMs: 3_000,
         }),
       });
@@ -282,7 +282,7 @@ describe.skipIf(!CELLD)(
         openSql: nodeSqliteOpener(),
         files: new MemFilesApi(),
         storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
-          node: "webrun-test",
+          node: "cellb-test",
           leaseTtlMs: 3_000,
         }),
       });
@@ -311,9 +311,9 @@ describe.skipIf(!CELLD)(
         () =>
           roundTrip(join(examples, "d1"), driver, {
             celld1: [['POST / {"name":"celld","message":"first"}', { id: 1, changes: 1 }]],
-            webrun: [
+            cellb: [
               ["/count", { count: 1 }],
-              ['POST / {"name":"webrun","message":"second"}', { id: 2, changes: 1 }],
+              ['POST / {"name":"cellb","message":"second"}', { id: 2, changes: 1 }],
             ],
             celld2: [
               ["/count", { count: 2 }],
@@ -328,7 +328,7 @@ describe.skipIf(!CELLD)(
         () =>
           roundTrip(join(examples, "kv"), driver, {
             celld1: [["PUT /greeting hello from celld", ""]],
-            webrun: [
+            cellb: [
               ["/greeting", "hello from celld"],
               ["PUT /greeting hello from cellb", ""],
             ],
@@ -351,7 +351,7 @@ describe.skipIf(!CELLD)(
           openSql: driver === "node" ? nodeSqliteOpener() : await wasm(),
           files: new MemFilesApi(),
           storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
-            node: "webrun-test",
+            node: "cellb-test",
             leaseTtlMs: 3_000,
           }),
         });
@@ -373,7 +373,7 @@ describe.skipIf(!CELLD)(
         let sent = "";
         for (let i = 0; i < 40 && !sent.includes("sent"); i++)
           sent = await (
-            await runtime.fetch(new Request("http://w/send?body=b-from-webrun&delay=4"))
+            await runtime.fetch(new Request("http://w/send?body=b-from-cellb&delay=4"))
           ).text();
         await runtime.close();
         // b is due before celld starts: celld waking a message cellb left NOT yet due
@@ -389,7 +389,7 @@ describe.skipIf(!CELLD)(
           }
           expect(log).toEqual([
             { body: "a-from-celld", attempts: 1 },
-            { body: "b-from-webrun", attempts: 1 },
+            { body: "b-from-cellb", attempts: 1 },
           ]);
         } finally {
           await stop(celld.p);
@@ -413,7 +413,7 @@ describe.skipIf(!CELLD)(
           openSql: driver === "node" ? nodeSqliteOpener() : await wasm(),
           files: new MemFilesApi(),
           storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
-            node: "webrun-test",
+            node: "cellb-test",
             leaseTtlMs: 3_000,
           }),
         });
@@ -457,16 +457,16 @@ describe.skipIf(!CELLD)(
     }
 
     // A queue is a cell (celld's own queue code on both sides): pending messages travel with it.
-    const handoff = async (direction: "celld→webrun" | "webrun→celld") => {
+    const handoff = async (direction: "celld→cellb" | "cellb→celld") => {
       const dir = join(mkdtempSync(join(tmpdir(), "queue-handoff-")), "queue-handoff");
       cpSync(join(ours, "queue-handoff"), dir, { recursive: true });
       let celld = await celldDev(dir);
       const store = () => sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-      const webrun = async () => {
+      const cellb = async () => {
         const { runtime } = await loadNodeProject(dir, {
           openSql: nodeSqliteOpener(),
           files: new MemFilesApi(),
-          storage: celldBucket(store(), { node: `webrun-${Date.now()}`, leaseTtlMs: 3_000 }),
+          storage: celldBucket(store(), { node: `cellb-${Date.now()}`, leaseTtlMs: 3_000 }),
         });
         const call = async (path: string) => {
           for (let i = 0; i < 60; i++) {
@@ -483,7 +483,7 @@ describe.skipIf(!CELLD)(
           },
         };
       };
-      if (direction === "celld→webrun") {
+      if (direction === "celld→cellb") {
         await fetch(`${celld.base}/send?body=now`);
         await fetch(`${celld.base}/send?body=later&delay=8`); // pending at hand-over
         await new Promise((r) => setTimeout(r, 2_500));
@@ -491,7 +491,7 @@ describe.skipIf(!CELLD)(
           { body: "now", attempts: 1 },
         ]);
         await stop(celld.p);
-        const w = await webrun();
+        const w = await cellb();
         try {
           let got: unknown[] = [];
           for (let i = 0; i < 40 && got.length < 2; i++) {
@@ -507,7 +507,7 @@ describe.skipIf(!CELLD)(
         }
       } else {
         await stop(celld.p); // deployed; the queue cell does not exist yet
-        const w = await webrun();
+        const w = await cellb();
         await w.call("/send?body=now");
         await w.call("/send?body=later&delay=8");
         await new Promise((r) => setTimeout(r, 2_500));
@@ -539,27 +539,27 @@ describe.skipIf(!CELLD)(
     };
     it(
       "Queues: a delayed message sent on celld is delivered by cellb",
-      () => handoff("celld→webrun"),
+      () => handoff("celld→cellb"),
       120_000,
     );
     it(
       "Queues: a delayed message sent on cellb is delivered by celld",
-      () => handoff("webrun→celld"),
+      () => handoff("cellb→celld"),
       120_000,
     );
 
     // A workflow instance is a cell (celld's own workflow code on both sides): a sleeping or
     // waiting instance resumes on the other runtime, with its finished steps memoized.
-    const flow = async (direction: "celld→webrun" | "webrun→celld") => {
+    const flow = async (direction: "celld→cellb" | "cellb→celld") => {
       const dir = join(mkdtempSync(join(tmpdir(), "workflow-handoff-")), "workflow-api");
       cpSync(join(ours, "workflow-api"), dir, { recursive: true });
       let celld = await celldDev(dir);
-      const webrun = async () => {
+      const cellb = async () => {
         const { runtime } = await loadNodeProject(dir, {
           openSql: nodeSqliteOpener(),
           files: new MemFilesApi(),
           storage: celldBucket(sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3")), {
-            node: `webrun-${Date.now()}`,
+            node: `cellb-${Date.now()}`,
             leaseTtlMs: 3_000,
           }),
         });
@@ -586,13 +586,13 @@ describe.skipIf(!CELLD)(
         }
         return s;
       };
-      if (direction === "celld→webrun") {
+      if (direction === "celld→cellb") {
         await celldCall("/create?id=s1&kind=steps"); // step a runs, then a 2 s sleep
         await celldCall("/create?id=e1&kind=event"); // waits for an event
         await new Promise((r) => setTimeout(r, 600));
         expect((await celldCall("/status?id=s1")).status).toBe("waiting");
         await stop(celld.p);
-        const w = await webrun();
+        const w = await cellb();
         try {
           // The sleep ends on cellb; step a is NOT run again (memoized in celld's records:
           // this process's run counter stays 0).
@@ -611,7 +611,7 @@ describe.skipIf(!CELLD)(
         }
       } else {
         await stop(celld.p);
-        const w = await webrun();
+        const w = await cellb();
         await w.call("/create?id=s2&kind=steps");
         await w.call("/create?id=e2&kind=event");
         await new Promise((r) => setTimeout(r, 600));
@@ -636,12 +636,12 @@ describe.skipIf(!CELLD)(
     };
     it(
       "Workflows: a sleeping and a waiting instance from celld complete in cellb",
-      () => flow("celld→webrun"),
+      () => flow("celld→cellb"),
       120_000,
     );
     it(
       "Workflows: a sleeping and a waiting instance from cellb complete in celld",
-      () => flow("webrun→celld"),
+      () => flow("cellb→celld"),
       120_000,
     );
 
@@ -663,13 +663,13 @@ describe.skipIf(!CELLD)(
         () =>
           roundTrip(join(ours, "r2-handoff"), driver, {
             celld1: [["/put?key=a/one&body=written-by-celld&who=celld", { put: "a/one" }]],
-            webrun: [
+            cellb: [
               ["/get?key=a/one", note("written-by-celld", "celld")],
-              ["/put?key=b/two&body=written-by-webrun&who=webrun", { put: "b/two" }],
+              ["/put?key=b/two&body=written-by-cellb&who=cellb", { put: "b/two" }],
               ["/list", ["a/one", "b/two"]],
             ],
             celld2: [
-              ["/get?key=b/two", note("written-by-webrun", "webrun")],
+              ["/get?key=b/two", note("written-by-cellb", "cellb")],
               ["/list", ["a/one", "b/two"]],
             ],
           }),

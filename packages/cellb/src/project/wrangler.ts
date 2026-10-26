@@ -228,7 +228,7 @@ export function createProjectRuntime(
         crons,
         (c, x) => scheduled.call(module.default, c, env, x),
         host.clock ?? systemClock,
-        cronState(host.openSql("__webrun-cells/cron")),
+        cronState(host.openSql("__cellb/cron")),
       );
       const close = runtime.close.bind(runtime);
       runtime.close = async () => {

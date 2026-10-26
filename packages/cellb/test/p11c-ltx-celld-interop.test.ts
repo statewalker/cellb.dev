@@ -148,7 +148,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     }
     put.run(
       `cells/${cell}/own.json`,
-      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
+      Buffer.from(JSON.stringify({ node: "cellb", epoch: epoch + 1 })),
       Date.now(),
     );
     bump.run();
@@ -222,7 +222,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
       }
       put.run(
         `cells/${cell}/own.json`,
-        Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
+        Buffer.from(JSON.stringify({ node: "cellb", epoch: epoch + 1 })),
         Date.now(),
       );
       bump.run();
@@ -304,7 +304,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     }
     put.run(
       `cells/${cell}/own.json`,
-      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: 1 })),
+      Buffer.from(JSON.stringify({ node: "cellb", epoch: 1 })),
       Date.now(),
     );
     bump.run();
@@ -383,7 +383,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     }
     put.run(
       `cells/${root}/own.json`,
-      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
+      Buffer.from(JSON.stringify({ node: "cellb", epoch: epoch + 1 })),
       Date.now(),
     );
     bump.run();
@@ -453,7 +453,7 @@ describe.skipIf(!CELLD)("P11c LTX interop with the real celld (both directions)"
     }
     put.run(
       `cells/${rootKey}/own.json`,
-      Buffer.from(JSON.stringify({ node: "webrun-cells", epoch: epoch + 1 })),
+      Buffer.from(JSON.stringify({ node: "cellb", epoch: epoch + 1 })),
       Date.now(),
     );
     bump.run();

@@ -35,9 +35,9 @@ async function celldDev(dir: string, port: number) {
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => (p.once("exit", () => r()), p.kill("SIGTERM")));
 
-async function webrunPeer(dir: string) {
+async function cellbPeer(dir: string) {
   const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-  const node = "webrun-peer";
+  const node = "cellb-peer";
   const bucket = celldBucket(store, { node, leaseTtlMs: 3_000 });
   const { runtime } = await loadNodeProject(dir, {
     openSql: nodeSqliteOpener(),
@@ -63,7 +63,7 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
     cpSync(join(examples, "counter"), dir, { recursive: true });
     const c0 = await celldDev(dir, 18_870); // creates the bucket and the fleet secret
     await stop(c0.p);
-    const w = await webrunPeer(dir);
+    const w = await cellbPeer(dir);
     const celld = await celldDev(dir, 18_871);
     try {
       expect(JSON.parse(await w.get("/increment?name=a")).n).toBe(1); // cellb owns the cell
@@ -89,7 +89,7 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
     cpSync(join(examples, "rpc"), dir, { recursive: true });
     const c0 = await celldDev(dir, 18_872);
     await stop(c0.p);
-    const w = await webrunPeer(dir);
+    const w = await cellbPeer(dir);
     const celld = await celldDev(dir, 18_873);
     try {
       const post = async (f: (u: string, init: RequestInit) => Promise<Response>) =>
@@ -120,7 +120,7 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
     try {
       expect(await (await fetch(`${celld.base}/`, { method: "POST" })).text()).toBe('{"count":1}'); // celld owns it
       const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-      const node = "webrun-caller";
+      const node = "cellb-caller";
       const bucket = celldBucket(store, { node, leaseTtlMs: 3_000 });
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
@@ -148,7 +148,7 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
     try {
       expect(JSON.parse(await (await fetch(`${celld.base}/increment?name=a`)).text()).n).toBe(1);
       const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-      const node = "webrun-caller-2";
+      const node = "cellb-caller-2";
       const bucket = celldBucket(store, { node, leaseTtlMs: 3_000 });
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),
@@ -175,7 +175,7 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
     cpSync(join(examples, "wsecho"), dir, { recursive: true });
     const c0 = await celldDev(dir, 18_878);
     await stop(c0.p);
-    const w = await webrunPeer(dir);
+    const w = await cellbPeer(dir);
     const celld = await celldDev(dir, 18_879);
     try {
       // cellb takes the cell (one plain request makes it the owner)
@@ -229,7 +229,7 @@ describe.skipIf(!CELLD)("P11j cellb as a celld peer (mixed fleet)", () => {
       );
       first.close();
       const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-      const node = "webrun-ws-caller";
+      const node = "cellb-ws-caller";
       const bucket = celldBucket(store, { node, leaseTtlMs: 3_000 });
       const { runtime } = await loadNodeProject(dir, {
         openSql: nodeSqliteOpener(),

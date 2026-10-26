@@ -12,14 +12,14 @@ const mutants = [
   [
     "pages spawn shard workers without the Web Lock",
     "browser/sharded/main.ts",
-    "await navigator.locks.request(`webrun-cells:shard:${shard}`, async () => {",
+    "await navigator.locks.request(`cellb:shard:${shard}`, async () => {",
     "await (async (cb) => cb())(async () => {",
     "sharded",
   ],
   [
     "cell worker uses in-memory SQLite (no OPFS)",
     "browser/cell-worker.ts",
-    'const openSql = await sahpoolOpener(sqlite3, { name: "webrun-cells-e2e", initialCapacity: 16 });',
+    'const openSql = await sahpoolOpener(sqlite3, { name: "cellb-e2e", initialCapacity: 16 });',
     'const openSql = (await import("../src/adapters/wasm-sqlite.js")).wasmMemoryOpener(sqlite3);',
     "cells",
   ],

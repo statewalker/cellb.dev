@@ -64,7 +64,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   // takes its cells over (logic/lib.rs apply_node_lease_result) — a split brain. With an
   // address celld routes a request for our cell to it; a node that does not accept celld's
   // peer protocol (a browser) gets an unroutable placeholder, so the request fails instead.
-  let addr = opts.addr || `${opts.node}.webrun-cells.invalid:9`;
+  let addr = opts.addr || `${opts.node}.cellb.invalid:9`;
   // celld's per-process generation is its signed-probe public key (Ed25519, peer_probe.rs):
   // `probe_public_key` = `ownership_index_generation`. A real key lets `celld diagnose --peer`
   // verify that a probe reached this node.

@@ -110,7 +110,7 @@ async function attach(shard: number, w: Worker): Promise<void> {
 }
 
 async function own(shard: number): Promise<void> {
-  await navigator.locks.request(`webrun-cells:shard:${shard}`, async () => {
+  await navigator.locks.request(`cellb:shard:${shard}`, async () => {
     const w = new Worker(new URL("./shard-worker.ts", import.meta.url), { type: "module" });
     const ready = once(w, "ready");
     w.postMessage({ type: "init", shard, shards: SHARDS });

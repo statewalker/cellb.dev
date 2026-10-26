@@ -196,12 +196,15 @@ Vite. Unit 352 / 7 / 1, Chromium 181 / 14. The snippet above closes through `app
   internals keep deep imports, because internal seams are allowed.
 - [x] Seam test: one import test per entry point that runs a counter through it (Node and Chromium).
 
-### R5 one name: cellb
-- [ ] Wire and internal names (switched freely, since both ends ship together): `x-webrun-cells-*`
+### R5 one name: cellb — done `bc3349a` and the commit that ticks these boxes
+The `__cells*` globals keep their names (they never carried `webrun-cells`); the interop tests'
+`webrun-*` node identities and helpers became `cellb-*`. Unit 352 / 7 / 1, Chromium 181 / 14. The old
+cache dir `~/.cache/webrun-cells-interop` is left on disk for manual deletion.
+- [x] Wire and internal names (switched freely, since both ends ship together): `x-webrun-cells-*`
   headers, the `application/x-webrun-cells-values` content type, `webrun-cells.internal`, the
   `webrun-cells:*` module specifiers, `Symbol.for("webrun-cells…")`, the `__cells*` globals, page
   titles, CI name, cache directory, error messages and prose.
-- [ ] Persisted and protocol names (D7: rename, no migration): database names, OPFS pools, Web Lock
+- [x] Persisted and protocol names (D7: rename, no migration): database names, OPFS pools, Web Lock
   names, the `.invalid` peer address.
 
 ### R6 documentation

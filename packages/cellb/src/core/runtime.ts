@@ -143,7 +143,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   const hostsByClass = new Map<string, (id: DurableObjectId) => ObjectHost>();
   const alarms = new AlarmScheduler({
     clock,
-    openIndex: () => opts.openSql("__webrun-cells/alarms"),
+    openIndex: () => opts.openSql("__cellb/alarms"),
     fire: (e) => fireAlarm(e),
   });
   // One alarm() at a time per object (as on Cloudflare): a re-armed alarm that comes due

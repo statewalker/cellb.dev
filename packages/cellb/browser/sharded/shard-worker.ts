@@ -47,7 +47,7 @@ scope.addEventListener("message", async (e) => {
   const m = e.data;
   if (m?.type === "init") {
     const sqlite3 = await (sqlite3InitModule as any)({ print() {}, printErr: console.error });
-    const openSql = await sahpoolOpener(sqlite3, { name: `webrun-cells-shard-${m.shard}` });
+    const openSql = await sahpoolOpener(sqlite3, { name: `cellb-shard-${m.shard}` });
     host = createShardHost({
       shard: m.shard,
       shards: m.shards,
@@ -61,7 +61,7 @@ scope.addEventListener("message", async (e) => {
     });
     // A lock only this worker holds: released by the browser the moment the worker
     // (or its tab) dies — the router's liveness signal (MessagePorts report nothing).
-    const ownerLock = `webrun-cells:owner:${m.shard}:${crypto.randomUUID()}`;
+    const ownerLock = `cellb:owner:${m.shard}:${crypto.randomUUID()}`;
     await new Promise<void>(
       (held) => void navigator.locks.request(ownerLock, () => (held(), new Promise(() => {}))),
     );

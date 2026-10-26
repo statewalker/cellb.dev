@@ -48,7 +48,7 @@ test("second tab uses the first tab's shards, then takes over (Web Locks) when i
   await t2.waitForFunction(
     async () => {
       const q = await navigator.locks.query();
-      const mine = (l: { name?: string }) => l.name?.startsWith("webrun-cells:shard:");
+      const mine = (l: { name?: string }) => l.name?.startsWith("cellb:shard:");
       return q.held!.filter(mine).length === 2 && q.pending!.filter(mine).length === 2;
     },
     null,

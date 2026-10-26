@@ -90,7 +90,7 @@ const stop = (p: ChildProcess) =>
     p.kill("SIGTERM");
   });
 
-async function webrun(project: string, prefix: string) {
+async function cellb(project: string, prefix: string) {
   const store = s3ObjectStore({
     endpoint: ENDPOINT,
     bucket: "cells",
@@ -98,7 +98,7 @@ async function webrun(project: string, prefix: string) {
     region: "us-east-1",
     ...KEYS,
   });
-  const bucket = celldBucket(store, { node: `webrun-${prefix}`, leaseTtlMs: 3_000 });
+  const bucket = celldBucket(store, { node: `cellb-${prefix}`, leaseTtlMs: 3_000 });
   const { runtime } = await loadNodeProject(project, {
     // P11G_DRIVER=wasm: the same with SQLite WASM (memdb + page hook), as in browsers
     openSql:
@@ -156,11 +156,11 @@ describe.skipIf(!CELLD)(
         expect((await json(await fetch(`${node.base}/increment?name=a`))).n).toBe(1);
         expect((await json(await fetch(`${node.base}/increment?name=a`))).n).toBe(2);
         await stop(node.p);
-        const w = await webrun(dir, prefix);
+        const w = await cellb(dir, prefix);
         const third = await w.call("/increment?name=a");
         expect(third.n, JSON.stringify(third)).toBe(3);
         await w.close();
-        await new Promise((r) => setTimeout(r, 3_500)); // webrun's node lease expires
+        await new Promise((r) => setTimeout(r, 3_500)); // cellb's node lease expires
         node = await celldNode(prefix);
         try {
           const fourth = (await json(await fetch(`${node.base}/increment?name=a`))).n;
@@ -193,7 +193,7 @@ describe.skipIf(!CELLD)(
         let node = await celldNode(prefix);
         expect((await json(await fetch(`${node.base}/arm`))).armed).toBe(true);
         await stop(node.p);
-        const w = await webrun(dir, prefix);
+        const w = await cellb(dir, prefix);
         let got: any;
         for (let i = 0; i < 30; i++) {
           got = await w.call("/");
@@ -240,7 +240,7 @@ describe.skipIf(!CELLD)(
         let node = await celldNode(prefix);
         expect(await json(await fetch(`${node.base}/`))).toEqual({ facet: 1, parent: 1 });
         await stop(node.p);
-        const w = await webrun(dir, prefix);
+        const w = await cellb(dir, prefix);
         expect(await w.call("/")).toEqual({ facet: 2, parent: 2 });
         await w.close();
         const store = s3ObjectStore({
@@ -289,7 +289,7 @@ describe.skipIf(!CELLD)(
           region: "us-east-1",
           ...KEYS,
         });
-        const name = "webrun-probed";
+        const name = "cellb-probed";
         const bucket = celldBucket(store, { node: name, leaseTtlMs: 10_000 });
         const { runtime } = await loadNodeProject(dir, {
           openSql: nodeSqliteOpener(),

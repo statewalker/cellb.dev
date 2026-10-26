@@ -43,7 +43,7 @@ const inc = async (f: (u: string) => Promise<Response>) => {
     return { refused: text };
   }
 };
-async function webrun(dir: string, store: ObjectStore, node: string) {
+async function cellb(dir: string, store: ObjectStore, node: string) {
   const bucket = celldBucket(store, { node, leaseTtlMs: 3_000 });
   const { runtime } = await loadNodeProject(dir, {
     openSql: nodeSqliteOpener(),
@@ -72,7 +72,7 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
     const c1 = await celldDev(dir, 18_860);
     expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 1 });
     const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-    const w = await webrun(dir, store, "webrun-live");
+    const w = await cellb(dir, store, "cellb-live");
     expect(await w.inc()).toEqual({ refused: expect.stringContaining("owned by another") }); // celld is live
     expect(await inc((u) => fetch(c1.base + u))).toEqual({ n: 2 }); // celld keeps serving
     await stop(c1.p);
@@ -120,7 +120,7 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
       list: (p) => (partitioned ? Promise.reject(new Error("partition")) : real.list(p)),
       delete: (k) => (partitioned ? Promise.reject(new Error("partition")) : real.delete(k)),
     };
-    const w = await webrun(dir, store, "webrun-cut");
+    const w = await cellb(dir, store, "cellb-cut");
     expect(
       await until(
         () => w.inc(),
@@ -166,7 +166,7 @@ describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", { concurren
     await store.delete(own); // e.g. a bucket lifecycle rule
     rmSync(join(dir, ".celld/dev/runtime"), { recursive: true, force: true });
     // cellb refuses, as celld 0.6.3 does …
-    const w = await webrun(dir, store, "webrun-lost");
+    const w = await cellb(dir, store, "cellb-lost");
     try {
       expect(await w.inc()).toEqual({ refused: expect.stringContaining("ownership record lost") });
       // … and celld itself: `celld dev` reports the lost record (and, the cell refused, does

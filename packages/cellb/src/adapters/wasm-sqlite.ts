@@ -217,7 +217,7 @@ export async function sahpoolOpener(
   opts: { name?: string; initialCapacity?: number } = {},
 ): Promise<OpenCellSql & { reserve(n: number): Promise<number> }> {
   const pool = await sqlite3.installOpfsSAHPoolVfs({
-    name: opts.name ?? "webrun-cells",
+    name: opts.name ?? "cellb",
     initialCapacity: opts.initialCapacity ?? 16,
   });
   const open: OpenCellSql = (cellKey) => {

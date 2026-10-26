@@ -6,7 +6,7 @@ import { createCellRuntime, serveRuntime } from "../src/index.js";
 import { worker } from "../test/fixtures.js";
 
 const sqlite3 = await (sqlite3InitModule as any)({ print() {}, printErr: console.error });
-const openSql = await sahpoolOpener(sqlite3, { name: "webrun-cells-e2e", initialCapacity: 16 });
+const openSql = await sahpoolOpener(sqlite3, { name: "cellb-e2e", initialCapacity: 16 });
 
 const runtime = createCellRuntime({
   worker,

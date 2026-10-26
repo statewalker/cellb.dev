@@ -17,7 +17,7 @@ import { KVNamespaceObject } from "../../vendor/miniflare/kv-namespace.js";
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 const ready = (async () => {
   const sqlite3 = await (sqlite3InitModule as any)({ print() {}, printErr: console.error });
-  const openSql = await sahpoolOpener(sqlite3, { name: "webrun-cells-miniflare" });
+  const openSql = await sahpoolOpener(sqlite3, { name: "cellb-miniflare" });
   const root = await navigator.storage.getDirectory();
   const files = new BrowserFilesApi({
     rootHandle: await root.getDirectoryHandle("miniflare-blobs", { create: true }),

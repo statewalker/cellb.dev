@@ -54,7 +54,7 @@ describe.skipIf(!CELLD)("P11c moving a Durable Object between celld and cellb (o
 
     // 2. cellb takes it over from the same bucket once celld's node lease expires.
     const store = sqliteObjectStore(join(dir, ".celld/dev/objects.sqlite3"));
-    const bucket = celldBucket(store, { node: "webrun-test", leaseTtlMs: 3_000 });
+    const bucket = celldBucket(store, { node: "cellb-test", leaseTtlMs: 3_000 });
     const { runtime } = await loadNodeProject(dir, {
       openSql: nodeSqliteOpener(),
       files: new MemFilesApi(),
@@ -80,7 +80,7 @@ describe.skipIf(!CELLD)("P11c moving a Durable Object between celld and cellb (o
     expect(
       keys.some((k) => /\/ltx\/e\d+\/0000\/0000000000000001-0000000000000001\.ltx$/.test(k)),
     ).toBe(true);
-    await new Promise((r) => setTimeout(r, 3_500)); // let webrun-test's node lease expire
+    await new Promise((r) => setTimeout(r, 3_500)); // let cellb-test's node lease expire
 
     // 3. celld takes it back and continues from cellb's writes.
     celld = await celldDev(dir, 18_812);
