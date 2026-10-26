@@ -206,10 +206,6 @@ bucket specs pass. What differs:
   `Request.body`; Worker code that streams the request body sees `undefined`. Use
   `await request.arrayBuffer()` (or `text()`), which works everywhere. Specs: `celld-projects` and
   `site-projects` `kv` and `r2`, `miniflare`.
-- **`Worker failed: rejected: Error: v8: missing version header`** on a JS-RPC call through a link
-  (a page's stub, a DO → DO call across shards). cellb rebuilt requests from `req.body` when adding
-  or stripping its control headers. Specs: `cells` "RPC stubs from the page…", `sharded` "objects
-  are spread…".
 - **`Worker failed: rejected: Error: Handler does not export a fetch() function.`** or
   `Loaded worker does not export class "App"` from a Worker Loader on an in-browser site.
   `@statewalker/webrun-site-host` rebuilds each request from `request.body`, so the loader's

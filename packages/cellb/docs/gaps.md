@@ -67,9 +67,10 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
 - **Firefox has no `Request.body`.** Worker code that reads `request.body` gets `undefined`: celld's
   `kv` and `r2` examples store nothing, Miniflare's KV simulator throws. Firefox also stores a
   `ReadableStream` given as a request body as the text `[object ReadableStream]`.
-- **cellb rebuilds requests from `req.body`** when it adds or strips its control headers
-  (`src/transport/cells-link.ts`, `cells-http.ts`), so in Firefox a JS-RPC call over a link loses
-  its arguments: `Worker failed: rejected: Error: v8: missing version header`.
+- **Two cellb paths still read `req.body`**, untested in Firefox: a request retried at the owner
+  after `CellOwnedElsewhereError` is not cloned first (`src/core/runtime.ts`), and a request whose
+  scheme is restored from `x-cellb-proto` is rebuilt from `req.body` (`src/transport/cells-http.ts`).
+  In Firefox both would send an empty body.
 - **`@statewalker/webrun-site-host` drops request bodies in Firefox** for the same reason, so the
   Worker Loader's uploads to an in-browser site arrive empty and every loaded Worker exports
   nothing. Projects bundled into the worker are not affected.

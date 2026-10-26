@@ -170,14 +170,5 @@ export function stripControl(req: Request): Request {
   let changed = false;
   for (const h of Object.values(H)) if (headers.has(h)) headers.delete(h), (changed = true);
   if (!changed) return req;
-  return keepUpgrade(
-    req,
-    new Request(req.url, {
-      method: req.method,
-      headers,
-      body: req.body,
-      signal: req.signal,
-      duplex: "half",
-    } as RequestInit),
-  );
+  return keepUpgrade(req, new Request(req, { headers })); // keeps the body in Firefox too (addHeaders)
 }
