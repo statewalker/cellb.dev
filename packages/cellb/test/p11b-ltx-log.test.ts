@@ -3,13 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import {
   createCellRuntime,
   DurableObject,
   filesApiLtxLog,
   type OpenCellSql,
   runInDurableObject,
+  wasmMemoryOpener,
 } from "../src/index.js";
 import { decodeLtx } from "../src/ltx/ltx.js";
 import { nodeSqliteOpener } from "../src/node.js";

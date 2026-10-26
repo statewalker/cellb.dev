@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it, vi } from "vitest";
-import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
-import { celldBucket, type OpenCellSql } from "../src/index.js";
+import { celldBucket, type OpenCellSql, wasmMemoryOpener } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
 import { freePort } from "../test/free-port.js";
 

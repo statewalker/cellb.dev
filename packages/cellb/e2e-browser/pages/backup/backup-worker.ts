@@ -3,9 +3,8 @@
 // (webrun-files-browser), restore-on-open through sahpool importDb.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
-import { filesApiBackup } from "../../../src/adapters/files-backup.js";
 import { sahpoolOpener } from "../../../src/browser.js";
-import { type CellRuntime, createCellRuntime } from "../../../src/index.js";
+import { type CellRuntime, createCellRuntime, filesApiBackup } from "../../../src/index.js";
 import { worker } from "../../../test/fixtures.js";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;

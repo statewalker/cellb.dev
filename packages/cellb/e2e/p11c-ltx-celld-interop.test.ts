@@ -6,8 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import v8 from "node:v8";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
-import { filesApiLtxLog } from "../src/index.js";
+import { filesApiLtxLog, wasmMemoryOpener } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 import { freePort } from "../test/free-port.js";
 

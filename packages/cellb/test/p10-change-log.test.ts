@@ -1,12 +1,12 @@
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import {
   createCellRuntime,
   DurableObject,
   filesApiChangeLog,
   type OpenCellSql,
   runInDurableObject,
+  wasmMemoryOpener,
 } from "../src/index.js";
 import { nodeSqliteOpener } from "../src/node.js";
 

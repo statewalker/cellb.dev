@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
+import { wasmMemoryOpener } from "../src/index.js";
 
 // The page hook (src/adapters/wasm-page-hook.ts): the main database file's xWrite is wrapped,
 // so a commit's changed pages are known without reading the whole database.

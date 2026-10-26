@@ -1,14 +1,14 @@
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
-import { filesApiBackup } from "../src/adapters/files-backup.js";
-import { wasmMemoryOpener } from "../src/adapters/wasm-sqlite.js";
 import {
   type BackupInfo,
   type CellBackup,
   createCellRuntime,
+  filesApiBackup,
   type OpenCellSql,
   runInDurableObject,
+  wasmMemoryOpener,
 } from "../src/index.js";
 import { nodeSqliteOpener } from "../src/node.js";
 import { FakeClock } from "./fake-clock.js";
