@@ -19,7 +19,7 @@ import {
  *
  * Calls (one port, both directions):
  *   host → isolate   load {source|url, plain env, stub names, outbound}   → loaded {exports}
- *                    call {name, method, args}                            → result
+ *                    call {name, method, args, props}                     → result
  *   isolate → host   stub {key, method, args}                             → result
  *                    log {level, args}
  * Fetches: one port per request (meta: its target and URL), HTTP/1.1 with streamed bodies,
@@ -35,7 +35,9 @@ export interface PortLike {
 }
 
 /** Where a fetch goes in the isolate: an export of the loaded Worker, or one of its facets. */
-export type FetchTarget = { name: string } | { className: string; cellKey: string };
+export type FetchTarget =
+  | { name: string; props?: unknown }
+  | { className: string; cellKey: string };
 type Fetch = (target: FetchTarget, req: Request) => Promise<Response>;
 
 export type Call = <T = unknown>(msg: object) => Promise<T>;

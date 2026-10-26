@@ -65,7 +65,8 @@ export function asyncStub(
 
 /**
  * A stub of a WorkerEntrypoint (or a default export object): a fresh instance per call,
- * as workerd creates one per request; `ctx.props` carries copied startup properties.
+ * as workerd creates one per request; `ctx.props` carries copied startup properties. Methods
+ * of a plain object receive `(…args, env, ctx)`, as its `fetch` receives `(request, env, ctx)`.
  */
 export function entrypointStub(
   target: unknown,
@@ -73,6 +74,11 @@ export function entrypointStub(
   props: unknown,
   exports?: unknown,
 ): Record<string, any> {
+  const objectCtx = () => ({
+    waitUntil() {},
+    passThroughOnException() {},
+    props: clone(props ?? {}),
+  });
   const make = () => {
     if (typeof target === "function") {
       const ctx = {
@@ -91,7 +97,7 @@ export function entrypointStub(
       const fn = instance?.[method];
       if (typeof fn !== "function")
         throw new TypeError(`The RPC receiver does not implement the method "${method}".`);
-      return fn.apply(instance, typeof target === "function" ? args : [...args]);
+      return fn.apply(instance, typeof target === "function" ? args : [...args, env, objectCtx()]);
     },
     async (req) => {
       const instance = make();
@@ -99,11 +105,7 @@ export function entrypointStub(
         throw new Error("Handler does not export a fetch() function.");
       return typeof target === "function"
         ? instance.fetch(req)
-        : instance.fetch(req, env, {
-            waitUntil() {},
-            passThroughOnException() {},
-            props: clone(props ?? {}),
-          });
+        : instance.fetch(req, env, objectCtx());
     },
   );
 }

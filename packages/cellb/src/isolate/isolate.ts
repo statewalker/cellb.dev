@@ -106,7 +106,7 @@ export function serveIsolate(
   const fetchTarget = async (t: FetchTarget, req: Request): Promise<Response> =>
     "className" in t
       ? (await facet(t.className, t.cellKey)).stub.fetch(req)
-      : exported(t.name).fetch(req);
+      : exported(t.name, t.props).fetch(req);
   const handle = async (m: any) => {
     if (m.type === "load") {
       loadMsg = m;

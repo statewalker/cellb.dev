@@ -82,7 +82,7 @@ one (`WL_GAPS` → `WL_AGREE`, `WS_GAPS` → `WS_CONSTRUCTOR_OTHERS` in `conform
 both goldens re-recorded on celld (only the skip lists change; the per-export answers must stay as
 recorded), red on cellb before, green after.
 
-1. **props across the isolate** (`justLoad`; celld "ok", cellb `reading 'props'`).
+1. [x] **props across the isolate** (`justLoad`; celld "ok", cellb `reading 'props'`).
    `getEntrypoint(name, {props})` reaches an isolated loaded Worker: the facade forwards
    `ctx.props` on calls and fetches; plain-object entrypoint methods receive `(…args, env, ctx)`
    as in workerd (`src/core/handles.ts`, `src/isolate/host.ts`, `src/isolate/isolate.ts`).

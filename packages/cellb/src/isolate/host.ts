@@ -64,8 +64,16 @@ export function isolatedModuleLoader(opts: {
         {
           get(_t, prop) {
             if (prop === "then" || typeof prop === "symbol") return undefined;
-            if (prop === "fetch") return (req: Request) => fetch({ name }, req);
-            return (...args: unknown[]) => call({ type: "call", name, method: prop, args });
+            // Called as a plain-object entrypoint (entrypointStub): `ctx` comes last, after `env`
+            // (the isolate has its own); its props cross with the call.
+            if (prop === "fetch")
+              return (req: Request, _env: unknown, ctx?: { props?: unknown }) =>
+                fetch({ name, props: ctx?.props }, req);
+            return (...args: unknown[]) => {
+              const ctx = args.pop() as { props?: unknown };
+              args.pop();
+              return call({ type: "call", name, method: prop, args, props: ctx.props });
+            };
           },
         },
       );

@@ -402,6 +402,7 @@ const WS_CONSTRUCTOR_OTHERS = [
 const WL_AGREE = [
   "asyncCodeLoader",
   "codeLoaderException",
+  "justLoad",
   "passEnv",
   "passEnvCaps",
   "startupException",
@@ -418,7 +419,6 @@ const WL_GAPS = [
   "doStubViaRpcParam",
   "facetUafRegression",
   "facets",
-  "justLoad",
   "moduleTypes",
   "nullGlobalOutbound",
   "regressionDeadIoContextGetCode",

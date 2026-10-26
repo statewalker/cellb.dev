@@ -2,12 +2,13 @@
   "celld": "0.6.3",
   "transcript": [
     {
-      "request": "GET /?skip=abortIsolateDynamic,abortIsolateDynamicAnonymous,basics,compatDateFlags,ctxExports,doStubViaEnv,doStubViaProps,doStubViaRpcParam,facetUafRegression,facets,justLoad,moduleTypes,nullGlobalOutbound,regressionDeadIoContextGetCode,wasmModules",
+      "request": "GET /?skip=abortIsolateDynamic,abortIsolateDynamicAnonymous,basics,compatDateFlags,ctxExports,doStubViaEnv,doStubViaProps,doStubViaRpcParam,facetUafRegression,facets,moduleTypes,nullGlobalOutbound,regressionDeadIoContextGetCode,wasmModules",
       "status": 200,
       "contentType": "application/json",
       "body": {
         "asyncCodeLoader": "ok",
         "codeLoaderException": "ok",
+        "justLoad": "ok",
         "passEnv": "ok",
         "passEnvCaps": "ok",
         "startupException": "ok",
