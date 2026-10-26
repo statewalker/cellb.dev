@@ -136,7 +136,8 @@ await app.runtime.close();               // closes runtime, then storage, in ord
 
 ## 3. Tasks
 
-Order: cleanup → cycles → ports → **test time (R7)** → storage bundle → entry points → names → docs.
+Order: cleanup → cycles → ports → **test time (R7)** → storage bundle → entry points → names → docs →
+test-folder layout (R8).
 R7 changes tests only and goes right after R2, so every later task verifies in ~2 min, not ~7. Each task moves
 files in a `git mv` commit (import paths only), then changes code in the next commit if needed.
 
@@ -277,6 +278,29 @@ per file.
   delivers `b-from-webrun`; both drivers failed in the same run). Under concurrency the handoff
   test itself passed in all 12 runs that included it (6 of p11f alone, 6 of the full suite), so it
   did not get flakier.
+
+### R8 test-folder layout — done `7e01196..b4c7b4d` and the commit that ticks these boxes
+The rule: unit tests in `test/`, browser unit tests in `test-browser/`, end-to-end tests in `e2e/`,
+browser end-to-end tests in `e2e-browser/`; no empty folders (so no `test-browser/`: every Chromium
+test drives a page through a dev server). Bar: vitest with celld 354 passed / 7 expected fail /
+1 skipped (R7's 352 + the two new import-guard cases), Chromium 181 passed / 14 skipped,
+`MUTANTS=0,1 pnpm mutate` and `MUTANTS=1,2 pnpm mutate:browser` kill theirs, `pnpm -r typecheck`
+and `pnpm biome check .` exit 0, no stale `browser/` path outside `docs/history`.
+- [x] `e2e/`: the six files that start a real celld and/or RustFS (p11c migration, p11c LTX
+  interop, p11f, p11g, p11i, p11j). No other test spawns celld (p05c forks a Node child only; p09
+  compares with recorded goldens). They import no test helper, so nothing else moved. vitest
+  includes `test/**` and `e2e/**`; `pnpm test` runs both as before, `test:unit` / `test:e2e` one
+  folder each; `pnpm interop` runs `e2e/` plus p09.
+- [x] `e2e-browser/`: the Playwright specs at its top level; every page and worker of `browser/`
+  under `e2e-browser/pages/` (the Vite root, so page URLs did not change); `browser/probes-e2e` →
+  `e2e-browser/probes/` (the main config ignores `*.probe.spec.ts`). Playwright, Vite, tsconfig,
+  package scripts, both mutation harnesses, `.gitignore`, README and `docs/browser-host.md` follow.
+- [x] The isolate worker is library code: `src/isolate/isolate-worker.ts`, exported as
+  `@statewalker/cellb/isolate-worker`. With Vite an embedder writes
+  `import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url"` and passes
+  `isolateScript: new URL(isolateWorker, import.meta.url)` (Vite does not resolve a bare specifier
+  inside `new URL(…, import.meta.url)`; `?worker&url` also bundles it for a build). The no-`node:`
+  import guard covers `src/browser.ts` and the worker too.
 
 ## 4. Decisions (answered 2026-10-24)
 
