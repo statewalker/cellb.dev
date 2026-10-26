@@ -61,6 +61,8 @@ export default defineConfig({
       "entry/index.html",
       "peers/index.html",
       "entry/entry-worker.ts",
+      "shards/index.html",
+      "shards/shard-worker.ts",
       "miniflare/mf-worker.ts",
       "cell-worker.ts",
       "sharded/shard-worker.ts",

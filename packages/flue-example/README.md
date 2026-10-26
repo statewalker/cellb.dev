@@ -53,9 +53,9 @@ module, and a Dedicated Worker (`browser/flue-worker.ts`) hosts it with `browser
    and after an `await`; the Node suite checks the same with the real `node:async_hooks`.
 7. Four messages sent to one conversation at once all settle, none is lost.
 
-8. 32 conversations run over 1 and over 4 workers (`window.__runFlueSharded`): each worker hosts
-   the app with its own OPFS pool, owns its share of the conversations (`shardOf`), and routes the
-   others to their owner over MessagePorts; worker 0 takes the requests.
+8. 32 conversations run over 1 and over 4 workers with cellb's `startProjectShards`
+   (`browser/flue-shard-worker.ts` is the worker): each worker hosts the app with its own OPFS
+   pool and owns its share of the conversations, and requests enter through every worker.
 
 Concurrent conversations in one browser runtime take turns: it is one thread, and each Flue turn
 makes 21 SQLite commits on OPFS there. Spreading them over workers runs them in parallel (see

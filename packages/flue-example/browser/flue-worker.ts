@@ -4,7 +4,7 @@
 
 import { createFlueClient } from "@flue/sdk";
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { linkOverPort, serveRuntime, shardOf, type WranglerConfig } from "@statewalker/cellb";
+import type { WranglerConfig } from "@statewalker/cellb";
 import { browserProjectRuntime } from "@statewalker/cellb/browser";
 
 interface Job {
@@ -23,7 +23,6 @@ interface Job {
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 scope.onmessage = async (e) => {
   const reply = (v: unknown) => (e.ports[0] as MessagePort).postMessage(v);
-  if ((e.data as { shard?: unknown }).shard !== undefined) return onShardMessage(e, reply);
   try {
     const job = e.data as Job;
     const run =
@@ -200,72 +199,4 @@ async function runOneConversation({ config, bundle, run, messages = 4 }: Job) {
   } finally {
     await host.close();
   }
-}
-
-// ─── Sharded: one runtime per worker ─────────────────────────────────────────────────────
-// The page starts `shards` workers and wires a MessageChannel between every two. Each worker
-// hosts the app, owns the cells with shardOf(id, shards) === shard, serves its runtime to the
-// others, and routes every other cell to its owner. Worker 0 is the ingress and the driver.
-
-interface ShardInit extends Job {
-  shard: number;
-  shards: number;
-  /** For ports[1..]: the shard each one links to (`link`) or serves (`serve`). */
-  peers: { shard: number; role: "link" | "serve" }[];
-}
-
-let shardHost: Awaited<ReturnType<typeof browserProjectRuntime>> | undefined;
-
-async function onShardMessage(e: MessageEvent, reply: (v: unknown) => void) {
-  try {
-    const job = e.data as ShardInit & { drive?: boolean };
-    if (job.drive) {
-      if (!shardHost) throw new Error("shard not started");
-      return reply({ ok: true, ...(await driveWhoami(shardHost.runtime, job.conversations ?? 8)) });
-    }
-    const sends = new Map<number, (req: Request) => Promise<Response>>();
-    const serving: MessagePort[] = [];
-    for (const [i, peer] of job.peers.entries()) {
-      const port = e.ports[i + 1] as MessagePort;
-      if (peer.role === "link") sends.set(peer.shard, (await linkOverPort(port)).send);
-      else serving.push(port);
-    }
-    shardHost = await browserProjectRuntime({
-      config: job.config,
-      code: { bundle: job.bundle },
-      sqlite3: await (sqlite3InitModule as any)({ print() {}, printErr() {} }),
-      pool: `flue-shard-${job.run}-${job.shard}`,
-      filesDir: `flue-shard-files-${job.run}-${job.shard}`,
-      route: (_key, id) => {
-        const owner = shardOf(id.toString(), job.shards);
-        return owner === job.shard ? undefined : sends.get(owner);
-      },
-    });
-    for (const port of serving) await serveRuntime(port, shardHost.runtime);
-    reply({ ok: true });
-  } catch (err) {
-    reply({ ok: false, error: String((err as Error)?.stack ?? err) });
-  }
-}
-
-async function driveWhoami(
-  runtime: Awaited<ReturnType<typeof browserProjectRuntime>>["runtime"],
-  conversations: number,
-) {
-  const ids = Array.from({ length: conversations }, (_, i) => `who-${i}`);
-  const results = await Promise.all(
-    ids.map(async (id) => {
-      const client = createFlueClient({
-        url: `http://app.test/agents/assistant/${id}`,
-        fetch: (input, init) => runtime.fetch(new Request(input, init)),
-      });
-      try {
-        const sent = await client.send({ message: { kind: "user", body: "whoami" } });
-        return { id, text: (await client.read(sent)).text };
-      } catch (err) {
-        return { id, error: String(err) };
-      }
-    }),
-  );
-  return { results, problems };
 }

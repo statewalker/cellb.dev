@@ -3,7 +3,7 @@
 A browser has no server process, no `node:sqlite` and no way for a ServiceWorker to accept a
 WebSocket. cellb still runs a project's Workers and Durable Objects there: SQLite WASM on OPFS in a
 Dedicated Worker, requests through a ServiceWorker, WebSockets over MessagePorts. This page covers
-the two ways to wire it, the S3 setup for a fleet bucket, what fails, and what differs in Firefox
+the three ways to wire it, the S3 setup for a fleet bucket, what fails, and what differs in Firefox
 and WebKit.
 
 ## What a browser forces
@@ -17,20 +17,7 @@ and WebKit.
   event waits for room (about three files per cell: the database and its journal), and the pool
   grows in the background whenever less than half of it is free.
 - **One worker is one thread.** Its cells interleave; their SQLite I/O runs on that thread. For
-  parallel work, run one `browserProjectRuntime` per worker, each with its own `pool`, and give
-  each a `route` that sends the cells it does not own to their worker:
-
-  ```ts
-  // In worker `shard` of `shards`; `links[j]` = (await linkOverPort(portToWorker[j])).send,
-  // and every worker serves its runtime to the others: serveRuntime(portFromWorker[j], runtime).
-  route: (_key, id) => {
-    const owner = shardOf(id.toString(), shards);
-    return owner === shard ? undefined : links[owner];
-  },
-  ```
-
-  Any worker can take a request; a Durable Object call runs in the worker that owns the object
-  (packages/flue-example's browser test runs a Flue app this way).
+  parallel work, spread the project over several workers (next section).
 - **Journals stay in the pool.** `sahpoolOpener` opens databases with `journal_mode=PERSIST`: the
   rollback journal keeps its pool slot between commits instead of being created and deleted on each
   one. The database file is the same as with the default `DELETE` (only WAL marks it).
@@ -46,7 +33,7 @@ and WebKit.
 - **Without an open page nothing runs.** No page means no Dedicated Worker and no SQLite. Cells that
   must stay reachable live on a fleet bucket that server nodes share.
 
-## Two topologies
+## Three topologies
 
 ### A project in one worker: `browserProjectRuntime`
 
@@ -80,6 +67,37 @@ Vite, `import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url"`
 
 The host app (`e2e-browser/pages/host`; `pnpm browser:dev`, then `/host/`) is this topology: pick a
 project folder, a node name and a bucket, and the project is served at its own URL.
+
+### A project over several workers: `startProjectShards`
+
+```
+page: startProjectShards({ shards: 4, spawn, config, code, name })  → { fetch, shards, close }
+        │ ingress, round robin
+        ▼
+worker i: serveProjectShard({ sqlite3 })
+            browserProjectRuntime(…, pool `<name>-i`, route)
+            owns the cells with shardOf(id, 4) === i; other cells → worker shardOf(id) over a port
+```
+
+Each worker hosts the whole project with its own OPFS pool and owns the cells `shardOf` gives
+it; a Durable Object call from any worker runs in the owner's worker, so cells run in parallel
+threads. Any worker takes ingress (the Worker's `fetch`), and `fetch` spreads requests over them.
+The worker script is one line:
+
+```ts
+import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
+import { serveProjectShard } from "@statewalker/cellb/browser";
+serveProjectShard({ sqlite3: () => sqlite3InitModule({ print() {}, printErr() {} }) });
+```
+
+- Placement is fixed by the cell id: a few dozen cells spread unevenly (hashing), and nothing
+  rebalances them.
+- The workers belong to the page: closing it stops them. With `bucket`, each shard is a fleet
+  node (`<node>-s<i>`) and another page takes the cells over once their leases lapse; use S3, as an
+  OPFS bucket has one writer at a time. Sharing one set of workers between tabs is what
+  `CellRouter` below does for plain cells.
+- `browserProjectRuntime({ route })` is the building block: any placement that maps a cell to the
+  worker hosting it works the same way.
 
 ### A sharded origin: `CellRouter` in the ServiceWorker
 
