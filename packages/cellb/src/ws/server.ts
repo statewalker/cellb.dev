@@ -12,6 +12,11 @@ export class CfWebSocket extends EventTarget {
   static readonly READY_STATE_OPEN = 1;
   static readonly READY_STATE_CLOSING = 2;
   static readonly READY_STATE_CLOSED = 3;
+  // workerd's global WebSocket (the WorkersWebSocket proxy's target) has the DOM names too.
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSING = 2;
+  static readonly CLOSED = 3;
   readyState = 1;
   url: string | null = null;
 
