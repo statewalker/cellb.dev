@@ -6,7 +6,7 @@ import type { PortLike } from "./protocol.js";
 /**
  * Isolated loading in browsers: each loaded Worker runs in its own Dedicated Worker
  * (`isolateScript`, e.g. src/isolate/isolate-worker.ts). With `siteBaseUrl` (the in-browser
- * HTTP server of note 19) its modules are uploaded and imported from URLs; otherwise they
+ * HTTP server, docs/browser-host.md) its modules are uploaded and imported from URLs; otherwise they
  * travel to the isolate and become Blob-URL modules there.
  */
 export function browserIsolatedLoader(opts: {

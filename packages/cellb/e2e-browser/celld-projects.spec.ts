@@ -15,7 +15,7 @@ import { startReferenceServer } from "../test/ws-reference-server.ts";
 const golden = (name: string) =>
   JSON.parse(readFileSync(join(import.meta.dirname, `../conformance/golden/${name}.json`), "utf8"));
 
-/** Projects that cannot run in a browser realm (documented in note 18). */
+/** Projects that cannot run in a browser realm, with the reason (none at present). */
 const browserGaps: Record<string, string> = {};
 
 for (const name of Object.keys(scenarios)) {

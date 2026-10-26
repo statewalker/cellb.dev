@@ -212,7 +212,7 @@ export const scenarios: Record<string, Scenario> = {
       { path: "/about.html" },
       { path: "/about/" },
       { path: "/docs" },
-      // "/docs/" omitted: celld 0.6.2–0.6.3 does not serve nested index files (bug; see note 18).
+      // "/docs/" omitted: celld 0.6.2–0.6.3 does not serve nested index files (a bug; docs/celld-compatibility.md).
       { path: "/style.css" },
       { path: "/data.unknownext", headers: { range: "bytes=2-5" } },
       { path: "/data.unknownext", headers: { range: "bytes=50-60" } },
@@ -300,7 +300,7 @@ export const scenarios: Record<string, Scenario> = {
   "node-compat": { steps: [{ path: "/" }] },
   "assets-force": {
     steps: // "/about/" and "/docs/" omitted: celld 0.6.2–0.6.3 answer 404 for every path ending in "/"
-      // except the root (bug; see note 18) — unit-tested against Cloudflare's behaviour instead.
+      // except the root (a bug; docs/celld-compatibility.md) — unit-tested against Cloudflare's behaviour instead.
       [
         "/",
         "/index.html",
@@ -316,7 +316,7 @@ export const scenarios: Record<string, Scenario> = {
   },
   "assets-drop": {
     steps: // "/about/" and "/docs/" omitted: celld 0.6.2–0.6.3 answer 404 for every path ending in "/"
-      // except the root (bug; see note 18) — unit-tested against Cloudflare's behaviour instead.
+      // except the root (a bug; docs/celld-compatibility.md) — unit-tested against Cloudflare's behaviour instead.
       [
         "/",
         "/index.html",

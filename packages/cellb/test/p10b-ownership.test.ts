@@ -34,7 +34,7 @@ function node(name: string, files: MemFilesApi, leases: MemoryLeases, clock: Fak
 }
 
 describe("P10b per-cell ownership with lease epochs fencing the log", () => {
-  it("one owner per cell; takeover after the lease expires restores from the log and continues", async () => {
+  it("one owner per cell; after the owner is partitioned (its lease lost), the next node restores from the log and continues", async () => {
     const clock = new FakeClock(1_000_000);
     const files = new MemFilesApi();
     const leases = new MemoryLeases();

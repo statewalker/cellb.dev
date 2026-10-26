@@ -141,7 +141,7 @@ export function createAssets(files: AssetFiles, config: AssetsConfig, hasWorker:
     }
     if (path.endsWith("/")) {
       // `/` and `/dir/` → index.html. (celld 0.6.2 serves only the root index here and
-      // falls through for nested ones — a celld bug; we follow Cloudflare, see note 18.)
+      // falls through for nested ones — a celld bug; we follow Cloudflare, see docs/celld-compatibility.md.)
       return exists(`${path}index.html`) ? { file: `${path}index.html` } : undefined;
     }
     if (exists(path)) return { file: path };

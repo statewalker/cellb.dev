@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { filesApiLtxLog } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
-// A facet whose class comes from a Worker Loader runs inside the isolate (note 21) — and its
+// A facet whose class comes from a Worker Loader runs inside the isolate (docs/architecture.md) — and its
 // database is now logged through the host like any facet: one LTX stream under the root,
 // celld's key, so a fresh node restores it.
 const project = join(__dirname, "../conformance/projects/isolation-api");

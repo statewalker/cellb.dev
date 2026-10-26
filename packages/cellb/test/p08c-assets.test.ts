@@ -13,7 +13,7 @@ const get = (path: string, headers: HeadersInit = {}) =>
 
 // Behaviour beyond what celld's corpus pins down (assets-api covers the rest against celld).
 describe("P08c static assets", () => {
-  it("serves a nested index at dir/ (Cloudflare; celld 0.6.2–0.6.3 fall through here — a celld bug, note 18)", async () => {
+  it("serves a nested index at dir/ (Cloudflare; celld 0.6.2–0.6.3 fall through here — a celld bug, docs/celld-compatibility.md)", async () => {
     const a = createAssets(files, {}, false);
     const r = a.route(get("/docs/"))!;
     expect([r.status, await r.text()]).toEqual([200, "docs"]);
