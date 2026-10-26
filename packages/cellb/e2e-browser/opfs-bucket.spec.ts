@@ -33,6 +33,13 @@ test("cells, facets and R2 objects continue across browser nodes through an OPFS
   expect(n(await run("counter", "browser-a", inc, poolA))).toEqual([4]);
   expect(await run("facet-store", "browser-a", ["/"])).toEqual([{ facet: 1, parent: 1 }]);
   expect(await run("facet-store", "browser-b", ["/"])).toEqual([{ facet: 2, parent: 2 }]);
+  // A facet whose class comes from a Worker Loader lives in the isolate's own OPFS pool: it is
+  // logged to the bucket too, and browser-a taking the cell back rebuilds that pool from it.
+  const boxes = (xs: { a: { n: number }; b: { n: number } }[]) => xs.map((x) => [x.a.n, x.b.n]);
+  const facet = ["/facet"];
+  expect(boxes(await run("isolation-api", "browser-a", facet, poolA))).toEqual([[1, 2]]);
+  expect(boxes(await run("isolation-api", "browser-b", facet))).toEqual([[3, 4]]);
+  expect(boxes(await run("isolation-api", "browser-a", facet, poolA))).toEqual([[5, 6]]);
   expect(await run("r2-handoff", "browser-a", ["/put?key=k&body=from-a&who=a"])).toEqual([
     { put: "k" },
   ]);

@@ -186,8 +186,6 @@ tabs or workers with no server. Its conditional writes are atomic only within on
   ServiceWorker asks a page to re-attach the shard links first. If no page is open, it fails.
 - **A browser fleet node owns cells but celld cannot reach them.** By design: celld refuses those
   requests while the browser node lives, and takes the cells after its node lease lapses.
-- **Isolated facets in a browser are not in the fleet bucket.** A Durable Object class of a loaded
-  Worker keeps its database in the isolate's OPFS pool only; see [gaps.md](gaps.md).
 
 ## Firefox and WebKit
 
