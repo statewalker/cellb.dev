@@ -77,17 +77,24 @@ Dedicated Workers all work in Firefox 157. What fails, by cause (error text and 
   service bindings to other scripts, the Workers AI binding (`ai`), and compatibility flags it
   does not know. A Flue app (packages/flue-example) leaves out Flue's `cloudflare` provider for
   that reason; renaming a Flue agent renames its class, so it needs `renamed_classes`.
-- **`env` and `exports` of `cloudflare:workers` exist for a Node project's own Worker only.** In
-  a browser, and in a loaded Worker run in its own thread, `import { env } from
-  "cloudflare:workers"` fails to build (`No matching export`). A loaded Worker compiled in the
-  project's realm gets empty objects.
-- **`cloudflare:email` only loads, and only on Node.** It exists so code that imports it at top
-  level (the Agents SDK) starts; building an `EmailMessage` throws `cloudflare:email is not
-  supported by cellb`. A browser bundle that imports it fails to build.
+- **`env` and `exports` of `cloudflare:workers` exist for a project's own Worker only, and in a
+  browser only for a bundle.** A Node project and a browser bundle (`bundleWorkerForBrowser`) get
+  the project's own; a project on an in-browser site (`code: { site }`) does not, because the site's
+  module registry is shared with its loaded Workers, which must not see the project's bindings.
+  Loaded Workers get empty objects, except one run in its own Node thread, where `import { env }
+  from "cloudflare:workers"` fails to build (`No matching export`).
+- **`cloudflare:email` only loads.** It exists so code that imports it at top level (the Agents SDK)
+  starts, on Node and in browser bundles; building an `EmailMessage` throws `cloudflare:email is not
+  supported by cellb`. An in-browser site does not provide it.
+- **`node:fs` and `node:os` in a browser have no host behind them.** With nodejs_compat a browser
+  bundle gets `node:fs` whose calls fail with `ENOENT` (`existsSync` is false) and `node:os` with
+  fixed answers (`EOL` is `"\n"`, no CPUs, no memory); they let libraries that probe for files load.
 - **`AsyncLocalStorage` in a browser is not isolated between concurrent events.** The
   `node:async_hooks` shim keeps one store at a time, and the Agents SDK and Flue find the current
   agent through it. Two cells answering at once in one browser runtime can read each other's
-  context. Node uses the real module.
+  context. A Flue app with two conversations at once keeps each conversation's messages apart
+  (packages/flue-example's browser test), but code that reads the store after an `await` while
+  another cell runs gets that cell's store. Node uses the real module.
 - **Agents SDK WebSocket connections are ignored.** `partyserver` reads attachments through the
   global `WebSocket.prototype` (`deserializeAttachment`), which a Worker's bundle takes from the
   host and which lacks them, so it does not recognise any accepted socket as its own: `onConnect`

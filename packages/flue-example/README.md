@@ -18,7 +18,8 @@ Agents SDK app uses them.
 
 ```
 pnpm install            # at the repository root; needs network access
-pnpm test               # in this directory: vite build, then vitest run
+pnpm test               # in this directory: vite build, then vitest run (Node)
+pnpm test:browser       # vite build, then Playwright in Chromium
 ```
 
 `vite build` runs `flue()` and `@cloudflare/vite-plugin` and emits `dist/flue_example/`: a Worker
@@ -35,6 +36,18 @@ What `test/flue-on-cellb.test.ts` proves:
 2. A reply is observed live over SSE while two conversations run at once.
 3. A node stops in the middle of a model call. A second node on the same fleet bucket, with no local
    state, takes the cell over, and Flue's recovery finishes the submission there.
+
+What `test/browser/flue-in-browser.spec.ts` proves, with the same build run in Chromium:
+`bundleWorkerForBrowser` (from `@statewalker/cellb/node`) turns `dist/flue_example/` into one ES
+module, and a Dedicated Worker (`browser/flue-worker.ts`) hosts it with `browserProjectRuntime`
+(SQLite WASM on OPFS) and drives it with `@flue/sdk`, inside the browser:
+
+1. A prompt runs through the tool call to the reply, and the history reads back.
+2. A reply is observed live over SSE.
+3. Two conversations run at once (their model calls interleave), and each one's stored history
+   holds its own question and answer only.
+4. A second runtime on the same OPFS pool (a page reload) reads the first conversation back.
+5. Nothing is logged as a warning or an error on the way.
 
 The core of it, against the build:
 
@@ -53,12 +66,13 @@ const reply = await client.read(await client.send({ message: { kind: "user", bod
 
 ## Internals
 
-### Everything runs in the test process
+### Everything runs on this machine
 
 The fake model (`test/fake-llm.ts`) listens on a port the OS picks; the fleet bucket is a
 `memoryObjectStore()` per test; each test copies the build to a temporary directory and points its
 `LLM_BASE_URL` var at the fake. Nothing is shared between runs, so parallel runs in other worktrees
-do not collide, and nothing needs celld or RustFS.
+do not collide, and nothing needs celld or RustFS. The browser test uses the same fake (it answers
+CORS preflights, since the worker's origin is the Vite server's) and a fresh OPFS pool per run.
 
 ### Decisions a reader would otherwise undo
 
@@ -78,14 +92,17 @@ do not collide, and nothing needs celld or RustFS.
   keyless endpoint; the provider resolves a placeholder.
 - **`observe()` reports `absent`** when it is called before the conversation exists: send first.
 - **`run vite build first (pnpm test does)`** is what `vitest run` alone says without `dist/`.
-- What cellb still lacks for Agents SDK apps (browser `env`/`exports`, `AsyncLocalStorage` in
-  browsers, partyserver's WebSocket attachments) is in `../cellb/docs/gaps.md`.
+- **The browser test's Chromium** is `PW_CHROMIUM`, else Playwright's own, else the one
+  `@sparticuz/chromium` unpacks (as in `packages/cellb`).
+- What cellb still lacks for Agents SDK apps (`AsyncLocalStorage` isolation in browsers,
+  partyserver's WebSocket attachments, `env` on an in-browser site) is in `../cellb/docs/gaps.md`.
 
 ### Dependencies
 
 `@flue/runtime`, `@flue/vite`, `@flue/sdk` (pinned together: the build and the client must agree),
 `@earendil-works/pi-ai` (Flue's model layer), `hono` (the app's router), `@cloudflare/vite-plugin`
-and `wrangler` (Flue's Cloudflare build), `@statewalker/cellb` (the runtime under test).
+and `wrangler` (Flue's Cloudflare build), `@statewalker/cellb` (the runtime under test),
+`@playwright/test`, `@sparticuz/chromium` and `@sqlite.org/sqlite-wasm` (the browser test).
 
 ## License
 

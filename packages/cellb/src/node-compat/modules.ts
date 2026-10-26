@@ -15,4 +15,7 @@ export const NODE_POLYFILL_FILES: Record<string, string> = {
   "node:crypto": "crypto.ts",
   "node:async_hooks": "async_hooks.ts",
   "node:process": "process.ts",
+  "node:diagnostics_channel": "diagnostics_channel.ts",
+  "node:os": "os.ts",
+  "node:fs": "fs.ts",
 };

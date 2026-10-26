@@ -10,6 +10,7 @@ import { installNodeGlobals } from "../node-compat/install.js";
 import { browserModuleLoader, WORKERS_MODULE_SHIM } from "./browser-modules.js";
 import * as workersModule from "./cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "./site.js";
+import { type WorkerScope, workerScope } from "./worker-scope.js";
 import * as workersGlobals from "./workers-globals-module.js";
 import { createProjectRuntime, type WranglerConfig } from "./wrangler.js";
 
@@ -50,8 +51,9 @@ export interface BrowserProjectOptions {
   /**
    * The project's Worker code, imported in this realm once its Workers globals (and with
    * nodejs_compat `Buffer` and `process`) are installed:
-   * - `bundle`: one ES module built for browsers, whose `cloudflare:workers` is
-   *   `WORKERS_MODULE_SHIM` and whose Workers globals read `globalThis.__cellsGlobals`
+   * - `bundle`: one ES module built for browsers (`bundleWorkerForBrowser`), whose
+   *   `cloudflare:workers` is `PROJECT_WORKERS_MODULE_SHIM` and whose Workers globals read
+   *   `globalThis.__cellsGlobals`
    *   (`null`: the project has no `main`). Worker Loader code becomes Blob-URL modules.
    * - `site`: the base URL of the project's site (`createProjectSite`, hosted by
    *   webrun-site-host). `main` and Worker Loader code are imported from it.
@@ -87,6 +89,7 @@ async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
 async function importWorkerCode(
   config: WranglerConfig,
   code: BrowserProjectOptions["code"],
+  scope: WorkerScope,
 ): Promise<WorkerModule> {
   const flags = config.compatibility_flags ?? [];
   const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
@@ -114,6 +117,7 @@ async function importWorkerCode(
   }
   const g = globalThis as Record<string, unknown>;
   g.__cellsWorkersModule = workersModule;
+  g.__cellsProjectScope = scope; // `env` and `exports` of the bundle's cloudflare:workers
   g.__cellsGlobals = globals;
   return code.bundle
     ? await import(
@@ -127,7 +131,8 @@ async function importWorkerCode(
  * builds its Worker Loader; `close()` also releases the node's bucket lease.
  */
 export async function browserProjectRuntime(opts: BrowserProjectOptions) {
-  const module = await importWorkerCode(opts.config, opts.code);
+  const scope = workerScope(opts.config.vars);
+  const module = await importWorkerCode(opts.config, opts.code, scope);
   const site = "site" in opts.code ? opts.code.site : undefined;
   const openSql = await sahpoolOpener(opts.sqlite3 as never, {
     name: opts.pool,
@@ -156,6 +161,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       : undefined,
     storage: shared, // R2 objects in the fleet bucket too, as celld keeps them
   });
+  scope.bind(runtime);
   return {
     runtime,
     unsupported,
