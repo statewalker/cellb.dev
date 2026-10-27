@@ -8,7 +8,8 @@ import {
 import { ctxExports } from "../core/handles.js";
 import { workerScope } from "./worker-scope.js";
 
-const WORKERS_CLASSES =
+/** `cloudflare:workers`' classes and default export, read from `globalThis.__cellsWorkersModule`. */
+export const WORKERS_CLASSES =
   "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
 
 /**

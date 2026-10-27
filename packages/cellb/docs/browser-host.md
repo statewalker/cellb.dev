@@ -54,10 +54,13 @@ page ── fetch("/app/…") ──► ServiceWorker (webrun-http-browser)
 code and builds the runtime from the wrangler configuration. The code is either:
 
 - `{ bundle }` — one ES module built for browsers, whose `cloudflare:workers` import and Workers
-  globals read what the runtime installs. `bundleWorkerForBrowser(entry, { nodeCompat })` from
-  `@statewalker/cellb/node` builds it: `cloudflare:workers` with the project's own `env` and
-  `exports`, `cloudflare:email`, and with nodejs_compat the `node:*` polyfills (bare names such as
-  `"path"` too). A Flue app built for Cloudflare runs this way (packages/flue-example); or
+  globals read what the runtime installs. `bundleWorkerForBrowser(entry | { files, entry },
+  { nodeCompat })` from `@statewalker/cellb/node` builds it with `@statewalker/webrun-bundler`,
+  reading every file (the packages' too) through a FilesApi: `cloudflare:workers` with the project's
+  own `env` and `exports`, `cloudflare:email`, and with nodejs_compat the `node:*` modules (bare
+  names such as `"path"` too), which are this realm's polyfills, the ones a site's modules get. The
+  bundle carries its source map inline, so DevTools shows the project's files and its packages'
+  sources. A Flue app built for Cloudflare runs this way (packages/flue-example); or
 - `{ site }` — the base URL of an in-browser HTTP server made by `createProjectSite` and hosted by
   `@statewalker/webrun-site-host`, which compiles the project's sources on request
   (`@statewalker/webrun-modules`). Loaded Workers' code is uploaded to it and imported from URLs.

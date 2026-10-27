@@ -69,8 +69,10 @@ triggers, Worker Loaders and service bindings to the script's own entrypoints. I
 does not support in `unsupported` instead of ignoring it. The hosts differ only in how they load
 `main` and what they pass as `host`:
 
-- `loadNodeProject(dir, host)` bundles `main` with esbuild and runs it in the Node process; loaded
-  Workers run in worker threads. The bundle's `cloudflare:workers` also exports the project's own
+- `loadNodeProject(dir | { files, root }, host)` reads the project through a FilesApi (a directory
+  through `NodeFilesApi`), bundles `main` with `@statewalker/webrun-bundler` (esbuild; every file,
+  the packages' included, read through the FilesApi; a source map back to them), imports it from a
+  `data:` URL and runs it in the Node process; loaded Workers run in worker threads. The bundle's `cloudflare:workers` also exports the project's own
   `env` and `exports` (the configuration's `vars` while the module is evaluated, the runtime's
   objects once it exists), as code built for Cloudflare reads them at top level; a loaded Worker's
   reads its own (its `WorkerCode.env`, and stubs of its own entrypoints); `cloudflare:email`

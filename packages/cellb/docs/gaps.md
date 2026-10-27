@@ -90,7 +90,7 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   `node:async_hooks` polyfill keeps each `run()` to its synchronous part and makes continuations
   carry their stores (`Promise.prototype.then`, timers, `queueMicrotask`); a native `await` bypasses
   `then`, so with nodejs_compat `await` is lowered to generators: by `bundleWorkerForBrowser`
-  (esbuild) in a bundle, by `createProjectSite` (`lowerAwait`, after webrun-modules) in a site's
+  (webrun-bundler, esbuild) in a bundle, by `createProjectSite` (`lowerAwait`, after webrun-modules) in a site's
   modules. Both then answer as on Node (test/async-context-worker.ts, 16 objects at once). Not
   lowered: async generators' own awaits, async functions that use `super` or `new.target` (on a
   site; esbuild lowers those too), and top-level await; code there resumes in no store after an

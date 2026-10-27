@@ -226,8 +226,11 @@ describe("P14 Node.js modules a browser bundle has no polyfill for", () => {
       };`,
     );
     const code = await bundleWorkerForBrowser(join(dir, "index.js"), { nodeCompat: true });
-    const g = globalThis as { __cellsGlobals?: object };
-    g.__cellsGlobals ??= {}; // the Workers globals a browser host installs; this code reads none
+    // What a browser host installs: the Workers globals and the realm's node:* polyfills (the
+    // bundle's Buffer and process); this code reads neither.
+    const g = globalThis as { __cellsGlobals?: object; __cellsNodeModules?: object };
+    g.__cellsGlobals ??= {};
+    g.__cellsNodeModules ??= {};
     const mod = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
     const fails = (key: string) => `${key} is not available in browsers (nodejs_compat)`;
     expect(mod.probe()).toEqual({

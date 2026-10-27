@@ -54,9 +54,9 @@ export interface BrowserProjectOptions {
    * The project's Worker code, imported in this realm once its Workers globals (and with
    * nodejs_compat `Buffer` and `process`) are installed:
    * - `bundle`: one ES module built for browsers (`bundleWorkerForBrowser`), whose
-   *   `cloudflare:workers` is `PROJECT_WORKERS_MODULE_SHIM` and whose Workers globals read
-   *   `globalThis.__cellsGlobals`
-   *   (`null`: the project has no `main`). Worker Loader code becomes Blob-URL modules.
+   *   `cloudflare:workers` is `PROJECT_WORKERS_MODULE_SHIM`, whose Workers globals read
+   *   `globalThis.__cellsGlobals` and whose `node:*` modules (nodejs_compat) are this realm's
+   *   polyfills (`globalThis.__cellsNodeModules`) (`null`: the project has no `main`). Worker Loader code becomes Blob-URL modules.
    * - `site`: the base URL of the project's site (`createProjectSite`, hosted by
    *   webrun-site-host). `main` and Worker Loader code are imported from it.
    */
@@ -140,6 +140,10 @@ async function importWorkerCode(
   g.__cellsWorkersModule = workersModule;
   g.__cellsProjectScope = scope; // `env` and `exports` of the bundle's cloudflare:workers
   g.__cellsGlobals = globals;
+  g.__cellsEmailModule = await import("./cloudflare-email.js");
+  // nodejs_compat: the bundle's `node:*` modules are this realm's polyfills (bundleWorkerForBrowser).
+  if (nodeCompat)
+    g.__cellsNodeModules = (await import("../node-compat/browser-registry.js")).nodeRegistryEntries;
   return code.bundle
     ? await import(
         /* @vite-ignore */ URL.createObjectURL(new Blob([code.bundle], { type: "text/javascript" }))

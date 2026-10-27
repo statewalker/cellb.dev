@@ -32,7 +32,11 @@ step yet), so import it through a bundler, Vite or vitest.
 | `@statewalker/cellb/browser` | `browserProjectRuntime`, `sahpoolOpener`, `createProjectSite`, `serviceWorkerConnector` |
 
 Node 22.13 or later is needed for `node:sqlite`. `loadNodeProject` bundles a project with
-`esbuild`, which the embedder must install.
+`@statewalker/webrun-bundler` on `esbuild`, which the embedder must install. Every file of the
+project and its packages is read through a FilesApi: `loadNodeProject(dir)` reads a directory with
+`NodeFilesApi`, `loadNodeProject({ files })` any FilesApi (a `MemFilesApi` in tests). No file is
+written: the bundle is imported from a `data:` URL, carries its source map, and names itself
+`cellb-worker:/<main>` in stack traces.
 
 A runtime is a `(Request) ⇒ Response` handler: mount `runtime.fetch` on `node:http`, a
 ServiceWorker or a test, and call `runtime.close()` when done. `close()` takes final backups,

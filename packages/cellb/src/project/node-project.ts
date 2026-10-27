@@ -1,15 +1,9 @@
-import {
-  existsSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
-import { builtinModules } from "node:module";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Worker as NodeWorker } from "node:worker_threads";
+import { type FilesApi, readFile, readText, tryReadText } from "@statewalker/webrun-files";
+import { NodeFilesApi } from "@statewalker/webrun-files-node";
 import { build } from "esbuild";
 import { applyD1Migrations } from "../bindings/d1-migrations.js";
 import {
@@ -23,8 +17,20 @@ import type { WorkerModule } from "../core/runtime.js";
 import { isolatedModuleLoader } from "../isolate/host.js";
 import type { PortLike } from "../isolate/protocol.js";
 import type { CellStorage } from "../ports.js";
+import { PROJECT_WORKERS_MODULE_SHIM, WORKERS_CLASSES } from "./browser-modules.js";
+import * as cloudflareEmail from "./cloudflare-email.js";
+import * as workersModule from "./cloudflare-workers.js";
 import { parseJsonc } from "./jsonc.js";
+import { SCHEDULER_EXPRESSION } from "./scheduler.js";
+import {
+  BARE_BUILTINS,
+  bundleWorkerSource,
+  EMAIL_MODULE_SHIM,
+  type WorkerSource,
+} from "./worker-bundler.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
+import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
+import * as workersGlobals from "./workers-globals-module.js";
 import {
   createProjectRuntime,
   loadTimeEnv,
@@ -33,56 +39,81 @@ import {
   type WranglerConfig,
 } from "./wrangler.js";
 
-/** Reads `wrangler.jsonc` / `wrangler.json` of a project directory (celld reads the same files). */
-export function readWranglerConfig(dir: string): WranglerConfig {
-  for (const name of ["wrangler.jsonc", "wrangler.json"]) {
-    const p = join(dir, name);
-    if (existsSync(p)) return parseJsonc(readFileSync(p, "utf8")) as WranglerConfig;
-  }
-  throw new Error(`no wrangler.jsonc or wrangler.json in ${dir}`);
+/** A project: a directory on disk, or a directory of a FilesApi. */
+export type ProjectSource = string | { files: FilesApi; root?: string };
+
+/** The FilesApi and directory a project is read from. */
+function projectFiles(project: ProjectSource): { files: FilesApi; root: string } {
+  return typeof project === "string"
+    ? { files: new NodeFilesApi({ rootDir: resolve(project) }), root: "/" }
+    : { files: project.files, root: project.root ?? "/" };
 }
 
-/** A bare Node.js built-in specifier ("path", "fs/promises"), not one of a package. */
-const nodeBuiltinName = new RegExp(
-  `^(${builtinModules
-    .filter((m) => !m.startsWith("_") && !m.includes(":"))
-    .map((m) => m.replace(/[/]/g, "\\/"))
-    .join("|")})$`,
-);
+const at = (root: string, path: string) =>
+  `${root === "/" ? "" : root.replace(/\/+$/, "")}/${path.replace(/^\.?\/+/, "")}`;
+
+/** Reads `wrangler.jsonc` / `wrangler.json` of a project (celld reads the same files). */
+export async function readWranglerConfig(project: ProjectSource): Promise<WranglerConfig> {
+  const { files, root } = projectFiles(project);
+  for (const name of ["wrangler.jsonc", "wrangler.json"]) {
+    const text = await tryReadText(files, at(root, name));
+    if (text !== undefined) return parseJsonc(text) as WranglerConfig;
+  }
+  throw new Error(
+    `no wrangler.jsonc or wrangler.json in ${typeof project === "string" ? project : root}`,
+  );
+}
+
+/** The runtime's modules that Node bundles read (`cloudflare:workers` classes, `cloudflare:email`). */
+function installRuntimeModules() {
+  const g = globalThis as Record<string, unknown>;
+  g.__cellsWorkersModule ??= workersModule;
+  g.__cellsEmailModule ??= cloudflareEmail;
+}
+
+/** A per-bundle value on `globalThis[registry][key]`, read back by the bundle's own modules. */
+function register(registry: string, value: unknown): string {
+  const g = globalThis as unknown as Record<string, Record<string, unknown>>;
+  const key = `k${Math.random().toString(36).slice(2)}`;
+  g[registry] ??= {};
+  g[registry][key] = value;
+  return `globalThis.${registry}[${JSON.stringify(key)}]`;
+}
 
 /**
- * Node host: bundles `main` with esbuild (as `celld deploy` does) and builds the runtime.
- * `cloudflare:workers` resolves to cellb's module so user classes extend the
- * runtime's own DurableObject / WorkerEntrypoint.
+ * Node host: bundles Worker code (a file, a file of a FilesApi, or Worker Loader modules) with
+ * webrun-bundler, reading every file through a FilesApi, and imports it from a `data:` URL (no
+ * file is written). The runtime's own modules are the host's: `cloudflare:workers` gives the
+ * runtime's DurableObject / WorkerEntrypoint (user classes extend them) and the Worker's own
+ * `env` and `exports`; the Workers globals and `cloudflare:email` are the runtime's; with
+ * nodejs_compat, `node:*` (and the bare names) are Node's own modules.
  */
-/** Bundles Worker code (a file, or in-memory modules) with the runtime's module mappings, then imports it. */
 export async function bundleWorker(
-  entry: { path: string } | { modules: Record<string, string>; main: string },
+  entry: WorkerSource,
   logs?: LogSink,
   outbound?: typeof fetch,
   opts: { nodeCompat?: boolean; standardBinaryType?: boolean; scope?: WorkerScope } = {},
 ): Promise<WorkerModule> {
+  installRuntimeModules();
   // `env` and `exports` of `cloudflare:workers` belong to one Worker: the bundle reads them
   // from its own scope (empty objects for code that has none).
-  const scopeKey = opts.scope ? `s${Math.random().toString(36).slice(2)}` : "";
-  if (opts.scope) {
-    const g = globalThis as Record<string, unknown>;
-    g.__cellsWorkerScopes ??= {};
-    (g.__cellsWorkerScopes as Record<string, unknown>)[scopeKey] = opts.scope;
-  }
+  const scope = opts.scope ? register("__cellsWorkerScopes", opts.scope) : "";
+  const workers = `${WORKERS_CLASSES} export const env = ${scope ? `${scope}.env` : "{}"}, exports = ${scope ? `${scope}.exports` : "{}"};`;
+  // The Workers globals, with this project's `websocket_standard_binary_type`.
+  const globals = register("__cellsBundleGlobals", {
+    ...workersGlobals,
+    Request: workersGlobals.CellsRequest,
+    Response: workersGlobals.CellsResponse,
+    WebSocketPair: opts.standardBinaryType
+      ? workersGlobals.StandardWebSocketPair
+      : workersGlobals.WebSocketPair,
+  });
+  const globalsShim = `${WORKERS_GLOBAL_NAMES.map((n) => `export const ${n} = ${globals}.${n};`).join(" ")} export const scheduler = ${SCHEDULER_EXPRESSION};`;
   // Loaded code gets a bundle-local `fetch` (globalOutbound policy)…
-  const outboundKey = outbound ? `o${Math.random().toString(36).slice(2)}` : "";
-  if (outbound) {
-    const g = globalThis as Record<string, unknown>;
-    g.__cellsOutbound ??= {};
-    (g.__cellsOutbound as Record<string, unknown>)[outboundKey] = outbound;
-  }
+  const fetchShim = outbound && `export const fetch = ${register("__cellsOutbound", outbound)};`;
   // …and a bundle-local `console` that also feeds its Tail Workers.
-  const consoleKey = logs ? `c${Math.random().toString(36).slice(2)}` : "";
+  let consoleShim: string | undefined;
   if (logs) {
-    const g = globalThis as Record<string, unknown>;
-    g.__cellsConsoles ??= {};
-    const registry = g.__cellsConsoles as Record<string, unknown>;
     const real = globalThis.console;
     const wrap =
       (level: "log" | "info" | "warn" | "error" | "debug") =>
@@ -90,119 +121,40 @@ export async function bundleWorker(
         logs(level, args);
         real[level](...args);
       };
-    registry[consoleKey] = Object.assign(Object.create(real), {
+    const console = Object.assign(Object.create(real), {
       log: wrap("log"),
       info: wrap("info"),
       warn: wrap("warn"),
       error: wrap("error"),
       debug: wrap("debug"),
     });
+    consoleShim = `export const console = ${register("__cellsConsoles", console)};`;
   }
-  const outDir = mkdtempSync(join(tmpdir(), "cells-worker-"));
-  const out = join(outDir, "worker.mjs");
-  const cfWorkers = resolve(import.meta.dirname, "cloudflare-workers.ts");
-  // This bundle's `cloudflare:workers`: the runtime's classes plus its own `env` and `exports`.
-  // A file of its own, kept out of the bundle so it adds no names to the Worker's scope.
-  const workersModule = join(outDir, "cloudflare-workers.mjs");
-  writeFileSync(
-    workersModule,
-    [
-      `export * from ${JSON.stringify(cfWorkers)};`,
-      `const scope = globalThis.__cellsWorkerScopes?.[${JSON.stringify(scopeKey)}];`,
-      "export const env = scope ? scope.env : {};",
-      "export const exports = scope ? scope.exports : {};",
-    ].join("\n"),
-  );
-  const memory = "modules" in entry ? entry.modules : undefined;
-  await build({
-    entryPoints: [
-      memory ? `memory:${(entry as { main: string }).main}` : (entry as { path: string }).path,
-    ],
-    outfile: out,
-    bundle: true,
-    format: "esm",
+  const shims: Record<string, string | undefined> = {
+    "cloudflare:workers": workers,
+    "cloudflare:email": EMAIL_MODULE_SHIM,
+    "cellb:globals": globalsShim,
+    "cellb:fetch": fetchShim,
+    "cellb:console": consoleShim,
+  };
+  const { code } = await bundleWorkerSource(entry, {
     platform: "neutral",
-    target: "es2022",
-    logLevel: "silent",
+    // nodejs_compat on a Node host: `node:*` are the real Node.js modules; workerd's
+    // nodejs_compat also takes the bare names ("path", "fs/promises").
+    external: opts.nodeCompat ? ["node:*", ...BARE_BUILTINS] : [],
     inject: [
-      resolve(import.meta.dirname, "workers-globals.ts"),
-      ...(logs ? ["cellb:console"] : []),
-      ...(outbound ? ["cellb:fetch"] : []),
+      "cellb:globals",
+      ...(fetchShim ? ["cellb:fetch"] : []),
+      ...(consoleShim ? ["cellb:console"] : []),
     ],
-    plugins: [
-      {
-        name: "cells-modules",
-        setup(b) {
-          b.onResolve({ filter: /^cellb:console$/ }, () => ({
-            path: "console",
-            namespace: "cells-console",
-          }));
-          // nodejs_compat on a Node host: `node:*` are the real Node.js modules.
-          if (opts.nodeCompat) {
-            b.onResolve({ filter: /^node:/ }, (a) => ({ path: a.path, external: true }));
-            // workerd's nodejs_compat also takes the bare names ("path", "fs/promises").
-            b.onResolve({ filter: nodeBuiltinName }, (a) => ({
-              path: `node:${a.path}`,
-              external: true,
-            }));
-          }
-          b.onResolve({ filter: /^cellb:compat$/ }, () => ({
-            path: "compat",
-            namespace: "cells-compat",
-          }));
-          b.onLoad({ filter: /.*/, namespace: "cells-compat" }, () => ({
-            contents: `export const standardBinaryType = ${!!opts.standardBinaryType};`,
-            loader: "js",
-          }));
-          b.onResolve({ filter: /^cellb:fetch$/ }, () => ({
-            path: "fetch",
-            namespace: "cells-fetch",
-          }));
-          b.onLoad({ filter: /.*/, namespace: "cells-fetch" }, () => ({
-            contents: `export const fetch = globalThis.__cellsOutbound[${JSON.stringify(outboundKey)}];`,
-            loader: "js",
-          }));
-          b.onLoad({ filter: /.*/, namespace: "cells-console" }, () => ({
-            contents: `export const console = globalThis.__cellsConsoles[${JSON.stringify(consoleKey)}];`,
-            loader: "js",
-          }));
-          b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({
-            path: workersModule,
-            external: true,
-          }));
-          b.onResolve({ filter: /^cloudflare:email$/ }, () => ({
-            path: resolve(import.meta.dirname, "cloudflare-email.ts"),
-            external: true,
-          }));
-          b.onResolve({ filter: /^cellb:ws$/ }, () => ({
-            path: resolve(import.meta.dirname, "workers-globals-module.ts"),
-            external: true,
-          }));
-          if (!memory) return;
-          b.onResolve({ filter: /^memory:/ }, (a) => ({
-            path: a.path.slice(7),
-            namespace: "memory",
-          }));
-          b.onResolve({ filter: /^\.{1,2}\// }, (a) =>
-            a.namespace === "memory"
-              ? {
-                  path: new URL(a.path, `file:///${a.importer}`).pathname.slice(1),
-                  namespace: "memory",
-                }
-              : undefined,
-          );
-          b.onLoad({ filter: /.*/, namespace: "memory" }, (a) => ({
-            contents: memory[a.path],
-            loader: "js",
-          }));
-        },
-      },
-    ],
+    modules: (spec) => shims[spec],
+    name: "path" in entry ? entry.path : "main" in entry ? entry.main : entry.entry,
   });
-  return (await import(/* @vite-ignore */ out)) as WorkerModule;
+  const url = `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`;
+  return (await import(/* @vite-ignore */ url)) as WorkerModule;
 }
 
-/** Worker Loader on Node: compiles `WorkerCode.modules` with esbuild (as celld compiles loaded code). */
+/** Worker Loader on Node: bundles `WorkerCode.modules` (as celld compiles loaded code). */
 export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
   const outbound = outboundFetch(code);
   const modules: Record<string, string> = {};
@@ -218,10 +170,11 @@ export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
 };
 
 export async function loadNodeProject(
-  dir: string,
+  dir: ProjectSource,
   host: Omit<ProjectHost, "loadModules"> & Partial<Pick<ProjectHost, "loadModules">>,
 ): Promise<ProjectRuntime & { config: WranglerConfig }> {
-  const config = readWranglerConfig(dir);
+  const { files, root } = projectFiles(dir);
+  const config = await readWranglerConfig({ files, root });
   if (!config.main && !config.assets)
     throw new Error("wrangler config has neither `main` nor `assets`");
   const flags = config.compatibility_flags ?? [];
@@ -230,15 +183,18 @@ export async function loadNodeProject(
   // The module reads `env` from `cloudflare:workers` while it is evaluated, before the
   // runtime exists: until then the scope holds the configuration's vars (and `ai`).
   const scope = workerScope(loadTimeEnv(config, host.ai));
-  const module = config.main
-    ? await bundleWorker({ path: resolve(dir, config.main) }, undefined, undefined, {
-        nodeCompat,
-        standardBinaryType,
-        scope,
-      })
+  // A project on disk is bundled from the disk's root, so that its packages resolve from the
+  // folders above it as Node finds them; a FilesApi project from its own root.
+  const main = config.main
+    ? typeof dir === "string"
+      ? { path: resolve(dir, config.main) }
+      : { files, root, entry: at("/", config.main) }
+    : undefined;
+  const module = main
+    ? await bundleWorker(main, undefined, undefined, { nodeCompat, standardBinaryType, scope })
     : ({ default: {} } as WorkerModule);
   const assetFiles = config.assets?.directory
-    ? readAssetDirectory(resolve(dir, config.assets.directory))
+    ? await readAssetDirectory({ files, root: at(root, config.assets.directory) })
     : undefined;
   const project = createProjectRuntime(config, module, {
     loadModules: nodeModuleLoader,
@@ -252,17 +208,13 @@ export async function loadNodeProject(
 }
 
 /** Reads an assets directory into "/path" → bytes (what `celld deploy` uploads). */
-export function readAssetDirectory(root: string): Map<string, Uint8Array> {
-  const files = new Map<string, Uint8Array>();
-  const walk = (dir: string, prefix: string) => {
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name);
-      if (statSync(full).isDirectory()) walk(full, `${prefix}${name}/`);
-      else files.set(`${prefix}${name}`, new Uint8Array(readFileSync(full)));
-    }
-  };
-  walk(root, "/");
-  return files;
+export async function readAssetDirectory(dir: ProjectSource): Promise<Map<string, Uint8Array>> {
+  const { files, root } = projectFiles(dir);
+  const base = root === "/" ? "" : root.replace(/\/+$/, "");
+  const out = new Map<string, Uint8Array>();
+  for await (const f of files.list(root, { recursive: true }))
+    if (f.kind === "file") out.set(f.path.slice(base.length), await readFile(files, f.path));
+  return out;
 }
 
 /**
@@ -270,30 +222,33 @@ export function readAssetDirectory(root: string): Map<string, Uint8Array> {
  * `migrations_dir` (default "migrations") of the `d1_databases` entry and applies what is new.
  */
 export async function applyNodeD1Migrations(
-  dir: string,
+  dir: ProjectSource,
   runtime: { env: Record<string, unknown> },
   database: string,
 ) {
-  const config = readWranglerConfig(dir);
+  const { files, root } = projectFiles(dir);
+  const config = await readWranglerConfig({ files, root });
   const d1 = config.d1_databases?.find(
     (d) => d.database_name === database || d.binding === database,
   );
   if (!d1) throw new Error(`no d1_databases entry named ${database}`);
-  const mdir = resolve(dir, (d1 as { migrations_dir?: string }).migrations_dir ?? "migrations");
-  const files: [string, string][] = existsSync(mdir)
-    ? readdirSync(mdir).map((f) => [f, readFileSync(join(mdir, f), "utf8")])
-    : [];
+  const mdir = at(root, (d1 as { migrations_dir?: string }).migrations_dir ?? "migrations");
+  const migrations: [string, string][] = [];
+  for await (const f of files.list(mdir))
+    if (f.kind === "file") migrations.push([f.name, await readText(files, f.path)]);
   return applyD1Migrations(
     runtime.env[d1.binding] as never,
-    files,
+    migrations,
     (d1 as { migrations_table?: string }).migrations_table ?? "d1_migrations",
   );
 }
 
 /**
  * Loaded Workers in worker threads (one realm each), like celld's isolates. The code is
- * bundled with esbuild (cloudflare:workers bundled in) and imported in the thread from a
- * data: URL; Durable Object classes for facets still load in this realm.
+ * bundled with webrun-bundler (its `cloudflare:workers` reads the thread's runtime) and
+ * imported in the thread from a data: URL; Durable Object classes for facets still load in
+ * this realm. The thread's own entry (cellb's isolate runtime) is built once, from cellb's
+ * sources.
  */
 let isolateEntry: Promise<string> | undefined;
 export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): ModuleLoader {
@@ -309,56 +264,22 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
       await isolateEntry;
       const modules: Record<string, string> = {};
       for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
-      const out = await build({
-        entryPoints: [`memory:${code.mainModule}`],
-        write: false,
-        bundle: true,
-        format: "esm",
-        platform: "neutral",
-        target: "es2022",
-        logLevel: "silent",
-        plugins: [
-          {
-            name: "isolate-modules",
-            setup(b) {
-              // The loaded Worker is its thread's own: `env` and `exports` are the scope
-              // serveIsolate keeps for it.
-              b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({
-                path: "cloudflare:workers",
-                namespace: "isolate-workers",
-              }));
-              b.onLoad({ filter: /.*/, namespace: "isolate-workers" }, () => ({
-                contents: [
-                  'export * from "./cloudflare-workers.ts";',
-                  "export const env = globalThis.__cellsProjectScope.env, exports = globalThis.__cellsProjectScope.exports;",
-                ].join("\n"),
-                loader: "js",
-                resolveDir: import.meta.dirname,
-              }));
-              b.onResolve({ filter: /^cloudflare:email$/ }, () => ({
-                path: resolve(import.meta.dirname, "cloudflare-email.ts"),
-              }));
-              b.onResolve({ filter: /^memory:/ }, (a) => ({
-                path: a.path.slice(7),
-                namespace: "memory",
-              }));
-              b.onResolve({ filter: /^\.{1,2}\// }, (a) =>
-                a.namespace === "memory"
-                  ? {
-                      path: new URL(a.path, `file:///${a.importer}`).pathname.slice(1),
-                      namespace: "memory",
-                    }
-                  : undefined,
-              );
-              b.onLoad({ filter: /.*/, namespace: "memory" }, (a) => ({
-                contents: modules[a.path],
-                loader: "js",
-              }));
-            },
-          },
-        ],
-      });
-      return { source: out.outputFiles[0].text };
+      // The loaded Worker is its thread's own: `cloudflare:workers` gives the thread's runtime
+      // classes and the scope serveIsolate keeps for it (node-entry installs both).
+      const { code: source } = await bundleWorkerSource(
+        { modules, main: code.mainModule },
+        {
+          platform: "neutral",
+          modules: (spec) =>
+            spec === "cloudflare:workers"
+              ? PROJECT_WORKERS_MODULE_SHIM
+              : spec === "cloudflare:email"
+                ? EMAIL_MODULE_SHIM
+                : undefined,
+          name: code.mainModule,
+        },
+      );
+      return { source };
     },
   });
 }
