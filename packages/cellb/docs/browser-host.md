@@ -60,6 +60,9 @@ code and builds the runtime from the wrangler configuration. The code is either:
 - `{ site }` — the base URL of an in-browser HTTP server made by `createProjectSite` and hosted by
   `@statewalker/webrun-site-host`, which compiles the project's sources on request
   (`@statewalker/webrun-modules`). Loaded Workers' code is uploaded to it and imported from URLs.
+  The project's `cloudflare:workers` has its own `env` and `exports` (loaded Workers get empty
+  ones), and `cloudflare:email` loads; `await` is not lowered, so `AsyncLocalStorage` keeps
+  run-at-a-time stores there (see below).
 
 With `isolateScript`, each loaded Worker runs in its own Dedicated Worker; without it, it runs in
 this worker's realm. The package ships that worker as `@statewalker/cellb/isolate-worker`; with

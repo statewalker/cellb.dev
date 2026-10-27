@@ -75,15 +75,17 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
   embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
   image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.
-- **`env` and `exports` of `cloudflare:workers` exist for a project's own Worker only, and in a
-  browser only for a bundle.** A Node project and a browser bundle (`bundleWorkerForBrowser`) get
-  the project's own; a project on an in-browser site (`code: { site }`) does not, because the site's
-  module registry is shared with its loaded Workers, which must not see the project's bindings.
-  Loaded Workers get empty objects, except one run in its own Node thread, where `import { env }
-  from "cloudflare:workers"` fails to build (`No matching export`).
+- **`env` and `exports` of `cloudflare:workers` exist for a project's own Worker only.** A Node
+  project, a browser bundle (`bundleWorkerForBrowser`) and a project on an in-browser site
+  (`code: { site }`) get the project's own. Loaded Workers get empty objects, except one run in its
+  own Node thread, where `import { env } from "cloudflare:workers"` fails to build (`No matching
+  export`). On a site the project and its loaded Workers share the realm's module registry: its
+  `cloudflare:workers` entry answers by the module that asks (a loaded Worker's proxy is a module
+  under `<site>loaded/`, found on the stack); anything else that reads the entry gets the
+  project's.
 - **`cloudflare:email` only loads.** It exists so code that imports it at top level (the Agents SDK)
   starts, on Node and in browser bundles; building an `EmailMessage` throws `cloudflare:email is not
-  supported by cellb`. An in-browser site does not provide it.
+  supported by cellb`. An in-browser site provides it too.
 - **`node:fs` and `node:os` in a browser have no host behind them.** With nodejs_compat a browser
   bundle gets `node:fs` whose calls fail with `ENOENT` (`existsSync` is false) and `node:os` with
   fixed answers (`EOL` is `"\n"`, no CPUs, no memory); they let libraries that probe for files load.

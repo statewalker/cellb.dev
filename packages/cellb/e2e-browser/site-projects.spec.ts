@@ -51,3 +51,75 @@ for (const name of Object.keys(scenarios)) {
     }
   });
 }
+
+// A project on a site gets its own `env` and `exports` from `cloudflare:workers` (at load too)
+// and `cloudflare:email`; the Workers it loads share the realm's module registry, and get empty
+// ones — whether they run in isolates or in the project's own realm.
+const SITE_ENV_WORKER = `
+import { DurableObject, env, exports } from "cloudflare:workers";
+import * as cf from "cloudflare:workers";
+import { EmailMessage } from "cloudflare:email";
+const atLoad = env.GREETING;
+export class Box extends DurableObject { hi() { return "box " + env.GREETING; } }
+export default {
+  async fetch(req, e) {
+    if (new URL(req.url).pathname === "/loaded") {
+      const w = e.LOADER.get("w1", () => ({
+        compatibilityDate: "2026-10-01",
+        mainModule: "w.js",
+        modules: {
+          "w.js": 'import { env, exports } from "cloudflare:workers";' +
+            "export default { fetch() { return Response.json({ env: Object.keys(env), exports: Object.keys(exports) }); } };",
+        },
+      }));
+      return w.getEntrypoint().fetch(req);
+    }
+    let email;
+    try { new EmailMessage("a@x", "b@x", "raw"); } catch (err) { email = err.message; }
+    return Response.json({
+      atLoad,
+      now: env.GREETING,
+      namespace: cf.env.GREETING,
+      viaExports: await exports.Box.getByName("a").hi(),
+      email,
+    });
+  },
+};
+`;
+for (const noIsolate of [false, true])
+  test(`a site's project has its own env and exports; loaded Workers ${noIsolate ? "in its realm" : "in isolates"} do not`, async ({
+    page,
+  }) => {
+    const config = {
+      name: "site-env",
+      main: "index.js",
+      vars: { GREETING: "hi" },
+      worker_loaders: [{ binding: "LOADER" }],
+      durable_objects: { bindings: [{ name: "BOX", class_name: "Box" }] },
+      migrations: [{ tag: "v1", new_sqlite_classes: ["Box"] }],
+    };
+    const b64 = (s: string) => Buffer.from(s).toString("base64");
+    await page.goto("/site-projects/");
+    await page.waitForFunction(() => document.body.dataset.ready === "true");
+    const r = await page.evaluate((job) => (window as any).__runOnSite(job), {
+      name: "site-env",
+      scenario: "",
+      config,
+      files: [
+        ["/index.js", b64(SITE_ENV_WORKER)],
+        ["/wrangler.json", b64(JSON.stringify(config))],
+      ],
+      assets: [],
+      paths: ["/", "/loaded"],
+      noIsolate,
+    });
+    expect(r.ok, r.error).toBe(true);
+    expect(JSON.parse(r.answers[0])).toEqual({
+      atLoad: "hi",
+      now: "hi",
+      namespace: "hi",
+      viaExports: "box hi",
+      email: "cloudflare:email is not supported by cellb",
+    });
+    expect(JSON.parse(r.answers[1])).toEqual({ env: [], exports: [] });
+  });
