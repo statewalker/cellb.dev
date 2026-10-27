@@ -128,8 +128,7 @@ CORS preflights, since the worker's origin is the Vite server's) and a fresh OPF
 - **`run vite build first (pnpm test does)`** is what `vitest run` alone says without `dist/`.
 - **The browser test's Chromium** is `PW_CHROMIUM`, else Playwright's own, else the one
   `@sparticuz/chromium` unpacks (as in `packages/cellb`).
-- What cellb still lacks for Agents SDK apps (`AsyncLocalStorage` isolation in browsers,
-  `env` on an in-browser site) is in `../cellb/docs/gaps.md`.
+- What cellb still lacks for Agents SDK apps is in `../cellb/docs/gaps.md`.
 
 ### Dependencies
 

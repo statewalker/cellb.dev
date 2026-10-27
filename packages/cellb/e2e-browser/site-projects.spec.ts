@@ -8,6 +8,11 @@ import {
   goldenDir,
   scenarios,
 } from "../conformance/scenarios.ts";
+import {
+  ASYNC_CONTEXT_CONFIG,
+  ASYNC_CONTEXT_WORKER,
+  expectedSeen,
+} from "../test/async-context-worker.ts";
 import { startReferenceServer } from "../test/ws-reference-server.ts";
 
 // The celld projects served by an IN-BROWSER HTTP SERVER: the page mounts a
@@ -127,3 +132,31 @@ for (const noIsolate of [false, true])
       noIsolate ? { env: [], exports: [] } : { env: ["NAME"], exports: ["Echo"] },
     );
   });
+
+// node:async_hooks on a site: its modules' awaits are lowered as they are served, so 16 objects at
+// once keep their own stores, as in a bundle (agents-sdk-host.spec) and on Node (test/p13).
+test("AsyncLocalStorage on a site keeps each concurrent object's store, as on Node", async ({
+  page,
+}) => {
+  const b64 = (s: string) => Buffer.from(s).toString("base64");
+  await page.goto("/site-projects/");
+  await page.waitForFunction(() => document.body.dataset.ready === "true");
+  const r = await page.evaluate((job) => (window as any).__runOnSite(job), {
+    name: "site-als",
+    scenario: "",
+    config: ASYNC_CONTEXT_CONFIG,
+    files: [
+      ["/index.js", b64(ASYNC_CONTEXT_WORKER)],
+      ["/wrangler.json", b64(JSON.stringify(ASYNC_CONTEXT_CONFIG))],
+    ],
+    assets: [],
+    paths: ["/", "/"],
+  });
+  expect(r.ok, r.error).toBe(true);
+  for (const answer of r.answers) {
+    const run = JSON.parse(answer);
+    expect(run.outside).toBeNull();
+    for (const [name, seen] of Object.entries(run.results))
+      expect(seen).toEqual(expectedSeen(name));
+  }
+});

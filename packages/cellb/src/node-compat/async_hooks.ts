@@ -8,15 +8,16 @@
  *   were scheduled: `Promise.prototype.then` (so `catch`, `finally` and `await` on a thenable),
  *   `setTimeout`, `setInterval` and `queueMicrotask`;
  * - a native `await` does not call `then`, so code that relies on propagation is compiled with
- *   `async`/`await` lowered to generators (`bundleWorkerForBrowser` does it with nodejs_compat):
- *   each `await` then goes through `Promise.prototype.then`.
+ *   `async`/`await` lowered to generators (with nodejs_compat, `bundleWorkerForBrowser` does it
+ *   with esbuild, an in-browser site with `lowerAwait`): each `await` then goes through
+ *   `Promise.prototype.then`.
  *
  * Code that is not lowered (cellb itself) resumes after a native `await` in the root frame: it
  * neither sees nor leaks another event's stores.
  *
- * Without `installAsyncContext()` (an in-browser site, whose modules are compiled without
- * lowering), `run()` keeps its store set until its promise settles instead: one run at a time
- * sees its store after `await`, concurrent runs share whichever was set last.
+ * Without `installAsyncContext()` (code compiled without lowering), `run()` keeps its store set
+ * until its promise settles instead: one run at a time sees its store after `await`, concurrent
+ * runs share whichever was set last.
  */
 type Frame = ReadonlyMap<AsyncLocalStorage<unknown>, unknown>;
 

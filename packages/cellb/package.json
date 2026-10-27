@@ -34,19 +34,20 @@
     "@noble/hashes": "^1.8.0",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
     "@statewalker/webrun-files": "^0.10.0",
+    "@statewalker/webrun-http-browser": "catalog:",
     "@statewalker/webrun-http-streams": "^0.2.2",
     "@statewalker/webrun-rpc": "^0.4.0",
-    "@statewalker/webrun-streams": "^0.2.0",
-    "worker-timers": "^8.0.0",
-    "sqlite-vec": "^0.1.7",
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",
-    "@statewalker/webrun-http-browser": "catalog:",
+    "@statewalker/webrun-streams": "^0.2.0",
+    "acorn": "^8.19.0",
+    "assert": "^2.1.0",
+    "buffer": "^6.0.3",
     "events": "^3.3.0",
     "path-browserify": "^1.0.1",
+    "sqlite-vec": "^0.1.7",
     "util": "^0.12.5",
-    "buffer": "^6.0.3",
-    "assert": "^2.1.0"
+    "worker-timers": "^8.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -56,16 +57,16 @@
     "@statewalker/webrun-http-browser": "^0.6.0",
     "@statewalker/webrun-modules": "catalog:",
     "@types/node": "catalog:",
+    "@types/ws": "catalog:",
     "esbuild": "^0.28.0",
+    "html-rewriter-wasm": "^0.4.1",
+    "miniflare": "4.20260730.0",
+    "sqlite-vec-wasm-demo": "0.1.6",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
     "ws": "catalog:",
-    "@types/ws": "catalog:",
-    "zod": "^3.25.0",
-    "sqlite-vec-wasm-demo": "0.1.6",
-    "html-rewriter-wasm": "^0.4.1",
-    "miniflare": "4.20260730.0"
+    "zod": "^3.25.0"
   },
   "private": true
 }

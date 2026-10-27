@@ -92,6 +92,9 @@ importers:
       '@statewalker/webrun-streams':
         specifier: ^0.2.0
         version: 0.2.2
+      acorn:
+        specifier: ^8.19.0
+        version: 8.19.0
       assert:
         specifier: ^2.1.0
         version: 2.1.0

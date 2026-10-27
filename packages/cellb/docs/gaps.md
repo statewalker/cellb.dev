@@ -89,12 +89,13 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **`AsyncLocalStorage` in a browser carries its stores only through code it can see.** The
   `node:async_hooks` polyfill keeps each `run()` to its synchronous part and makes continuations
   carry their stores (`Promise.prototype.then`, timers, `queueMicrotask`); a native `await` bypasses
-  `then`, so `bundleWorkerForBrowser` lowers `await` to generators in nodejs_compat bundles. A
-  bundle then answers as on Node (test/async-context-worker.ts, 16 objects at once). An in-browser
-  site's modules are compiled without lowering, so there the polyfill keeps its run-at-a-time
-  stores: a `run()`'s store stays set until its promise settles, which is right for one run at a
-  time and shared between concurrent ones (two cells answering at once can read each other's).
-  Event listeners (`addEventListener`, MessagePort `onmessage`) do not carry stores, on Node either.
+  `then`, so with nodejs_compat `await` is lowered to generators: by `bundleWorkerForBrowser`
+  (esbuild) in a bundle, by `createProjectSite` (`lowerAwait`, after webrun-modules) in a site's
+  modules. Both then answer as on Node (test/async-context-worker.ts, 16 objects at once). Not
+  lowered: async generators' own awaits, async functions that use `super` or `new.target` (on a
+  site; esbuild lowers those too), and top-level await; code there resumes in no store after an
+  `await`, rather than in another event's. Event listeners (`addEventListener`, MessagePort
+  `onmessage`) do not carry stores, on Node either.
 - **An object's events start in the async context the runtime was made in.** A call to an object
   is a new event, as on Cloudflare: the callee (and its constructor) does not see the caller's
   `AsyncLocalStorage` stores. Where Cloudflare has none, cellb has the stores that were current
