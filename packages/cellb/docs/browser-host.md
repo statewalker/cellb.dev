@@ -3,7 +3,7 @@
 A browser has no server process, no `node:sqlite` and no way for a ServiceWorker to accept a
 WebSocket. cellb still runs a project's Workers and Durable Objects there: SQLite WASM on OPFS in a
 Dedicated Worker, requests through a ServiceWorker, WebSockets over MessagePorts. This page covers
-the two ways to wire it, the S3 setup for a fleet bucket, what fails, and what differs in Firefox
+the four ways to wire it, the S3 setup for a fleet bucket, what fails, and what differs in Firefox
 and WebKit.
 
 ## What a browser forces
@@ -12,6 +12,19 @@ and WebKit.
   `sahpoolOpener` (the opfs-sahpool VFS) needs no COOP/COEP headers, so any static host works.
 - **An opfs-sahpool pool is exclusive.** A second worker opening the same pool name fails with
   `NoModificationAllowedError`. Storage is therefore partitioned: one pool per worker.
+- **An opfs-sahpool pool has a fixed number of files until it grows**, and growing is asynchronous
+  while opening a database is not. `sahpoolOpener` gives the runtime `room(cellKey)`: a cell's first
+  event waits for room (about three files per cell: the database and its journal), and the pool
+  grows in the background whenever less than half of it is free.
+- **One worker is one thread.** Its cells interleave; their SQLite I/O runs on that thread. For
+  parallel work, spread the project over several workers (next section).
+- **Journals stay in the pool.** `sahpoolOpener` opens databases with `journal_mode=PERSIST`: the
+  rollback journal keeps its pool slot between commits instead of being created and deleted on each
+  one. The database file is the same as with the default `DELETE` (only WAL marks it).
+- **`AsyncLocalStorage` needs help.** Browsers have no async context yet: for a nodejs_compat
+  bundle, `browserProjectRuntime` makes promise and timer continuations carry their stores, and
+  `bundleWorkerForBrowser` lowers `await` so that it goes through them. An in-browser site keeps
+  run-at-a-time stores ([gaps.md](gaps.md)).
 - **A ServiceWorker cannot spawn workers** and is stopped when idle, dropping every port it held.
   It can route requests, hold Web Locks and pass MessagePorts, so it routes and a page owns the
   workers.
@@ -20,7 +33,7 @@ and WebKit.
 - **Without an open page nothing runs.** No page means no Dedicated Worker and no SQLite. Cells that
   must stay reachable live on a fleet bucket that server nodes share.
 
-## Two topologies
+## Four topologies
 
 ### A project in one worker: `browserProjectRuntime`
 
@@ -39,7 +52,10 @@ page ── fetch("/app/…") ──► ServiceWorker (webrun-http-browser)
 code and builds the runtime from the wrangler configuration. The code is either:
 
 - `{ bundle }` — one ES module built for browsers, whose `cloudflare:workers` import and Workers
-  globals read what the runtime installs; or
+  globals read what the runtime installs. `bundleWorkerForBrowser(entry, { nodeCompat })` from
+  `@statewalker/cellb/node` builds it: `cloudflare:workers` with the project's own `env` and
+  `exports`, `cloudflare:email`, and with nodejs_compat the `node:*` polyfills (bare names such as
+  `"path"` too). A Flue app built for Cloudflare runs this way (packages/flue-example); or
 - `{ site }` — the base URL of an in-browser HTTP server made by `createProjectSite` and hosted by
   `@statewalker/webrun-site-host`, which compiles the project's sources on request
   (`@statewalker/webrun-modules`). Loaded Workers' code is uploaded to it and imported from URLs.
@@ -51,6 +67,67 @@ Vite, `import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url"`
 
 The host app (`e2e-browser/pages/host`; `pnpm browser:dev`, then `/host/`) is this topology: pick a
 project folder, a node name and a bucket, and the project is served at its own URL.
+
+### A project over several workers: `startProjectShards`
+
+```
+page: startProjectShards({ shards: 4, spawn, config, code, name })  → { fetch, shards, close }
+        │ ingress, round robin
+        ▼
+worker i: serveProjectShard({ sqlite3 })
+            browserProjectRuntime(…, pool `<name>-i`, route)
+            owns the cells with shardOf(id, 4) === i; other cells → worker shardOf(id) over a port
+```
+
+Each worker hosts the whole project with its own OPFS pool and owns the cells `shardOf` gives
+it; a Durable Object call from any worker runs in the owner's worker, so cells run in parallel
+threads. Any worker takes ingress (the Worker's `fetch`), and `fetch` spreads requests over them.
+The worker script is one line:
+
+```ts
+import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
+import { serveProjectShard } from "@statewalker/cellb/browser";
+serveProjectShard({ sqlite3: () => sqlite3InitModule({ print() {}, printErr() {} }) });
+```
+
+- Placement is fixed by the cell id: a few dozen cells spread unevenly (hashing), and nothing
+  rebalances them.
+- The workers belong to the page: closing it stops them. To share them between tabs, use the
+  next topology.
+- `browserProjectRuntime({ route })` is the building block: any placement that maps a cell to the
+  worker hosting it works the same way.
+
+### A project shared by the tabs: `joinProjectShards` and `installProjectRouter`
+
+```
+ServiceWorker: installProjectRouter(self, { basePath: "/app/" })
+  /app/<name>/…  ─► the project's CellRouter ─► the live shard with the fewest requests in flight
+  shard → shard  ─► the shard the sender named (x-cellb-shard)
+
+every tab: joinProjectShards({ name, shards: 4, spawn, config, code, serviceWorker })
+  presence lock  cellb:<name>:tab:<joined-at>-<uuid>
+  shard i        → tab (i mod n) of the n tabs present, oldest first; one Web Lock per shard
+  shard worker:  serveProjectShard({ sqlite3 }) — pool <name>-shard-i, linked to the router
+```
+
+Every tab of the origin sends requests to `<basePath><name>/…`; the ServiceWorker passes them,
+with their URL unchanged (as a Worker on a Cloudflare route sees them; `stripBase: true` gives
+the Worker `/…` instead), to a shard worker, wherever it runs. The tabs split the shards evenly:
+each computes the same owners from the tabs present and takes its own, so a project of 4 shards
+runs 4 / 0 in one tab, 2 / 2 in two, 2 / 1 / 1 in three — more tabs, more processes, more cores.
+
+- **A tab joins or leaves (`close()`):** the shards whose owner changes are handed over. The router
+  stops sending the shard new requests (they wait for the next owner), lets the ones in flight
+  finish for up to `drainMs` (5 s), then the old worker closes its runtime and gives up its OPFS
+  pool, and the next owner opens the same pool: the cells move with the shard. A long-poll or
+  SSE stream still open keeps the drain waiting until `drainMs`.
+- **A tab closes or crashes:** it runs no code. Its locks are released, the router sees each shard
+  worker's own lock go and fails the requests in flight there (`ShardOwnerLostError`), and the
+  other tabs take the shards over within `checkMs` (1 s).
+- **The ServiceWorker restarts:** it asks the tabs for their shards' links again.
+- Placement inside the project is still by cell id (`shardOf`): a few dozen cells spread unevenly.
+- With `bucket`, each shard is a fleet node (`<node>-s<i>`); use S3, as an OPFS bucket has one
+  writer at a time.
 
 ### A sharded origin: `CellRouter` in the ServiceWorker
 
@@ -167,6 +244,13 @@ tabs or workers with no server. Its conditional writes are atomic only within on
 
 - **`NoModificationAllowedError` when a worker opens SQLite.** Another worker holds the same pool
   name. Give each worker its own `pool`, or let only the shard-lock holder open a shard's pool.
+- **`SAH pool is full` when many cells start at once.** A burst of new databases or journals
+  outran the pool's growth (`browserProjectRuntime` starts with 64 files). With `sahpoolOpener`,
+  pass a larger `initialCapacity` for workloads that open many cells together.
+- **`AsyncLocalStorage.getStore()` returns another cell's store, or `undefined` after an
+  `await`**, in a browser. The code was not bundled by `bundleWorkerForBrowser` with nodejs_compat:
+  an in-browser site keeps run-at-a-time stores (shared between concurrent runs), and a bundle of
+  your own whose `await` is not lowered loses its store at the first `await`.
 - **Every S3 request fails with a CORS error** in the console, or `PUT` succeeds but ownership never
   works. The bucket lacks a CORS rule, or does not expose `etag`: conditional writes need it.
 - **`SignatureDoesNotMatch` through a proxy.** `signAs` is missing or differs from the host the proxy

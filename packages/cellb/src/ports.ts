@@ -80,7 +80,14 @@ export const systemClock: Clock = {
 };
 
 /** Opens (or creates) the SQLite database of a cell. */
-export type OpenCellSql = (cellKey: string) => SyncSqlDriver;
+export type OpenCellSql = ((cellKey: string) => SyncSqlDriver) & {
+  /**
+   * Opening is synchronous, but a store may need time to make room (an OPFS pool grows
+   * asynchronously). Called before a cell's first event: a promise to await before opening
+   * `cellKey`, or undefined when it can open now. The runtime then opens it.
+   */
+  room?(cellKey: string): Promise<void> | undefined;
+};
 
 /**
  * Durability port: called after every local commit. The output gate holds

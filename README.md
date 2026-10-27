@@ -20,7 +20,7 @@ docs/superpowers/      plans for work on the repository
    (`e2e/`), which skip without `CELLD_BIN`.
 3. `pnpm exec playwright test`: the Chromium end-to-end suite.
 4. `cd packages/flue-example && pnpm test`: builds a Flue app with Flue's own Cloudflare build and
-   runs it on cellb against a fake model endpoint.
+   runs it on cellb against a fake model endpoint; `pnpm test:browser` runs the same app in Chromium.
 5. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
    and RustFS releases and starts RustFS on `127.0.0.1:9200`.
 

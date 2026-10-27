@@ -4,12 +4,14 @@ import type { AssetFiles } from "../bindings/assets.js";
 import { celldBucket } from "../bucket/celld-cells.js";
 import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js";
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
-import type { WorkerModule } from "../core/runtime.js";
+import type { CellRuntimeOptions, WorkerModule } from "../core/runtime.js";
 import { browserIsolatedLoader } from "../isolate/browser.js";
+import { installAsyncContext } from "../node-compat/async_hooks.js";
 import { installNodeGlobals } from "../node-compat/install.js";
 import { browserModuleLoader, WORKERS_MODULE_SHIM } from "./browser-modules.js";
 import * as workersModule from "./cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "./site.js";
+import { type WorkerScope, workerScope } from "./worker-scope.js";
 import * as workersGlobals from "./workers-globals-module.js";
 import { createProjectRuntime, type WranglerConfig } from "./wrangler.js";
 
@@ -50,8 +52,9 @@ export interface BrowserProjectOptions {
   /**
    * The project's Worker code, imported in this realm once its Workers globals (and with
    * nodejs_compat `Buffer` and `process`) are installed:
-   * - `bundle`: one ES module built for browsers, whose `cloudflare:workers` is
-   *   `WORKERS_MODULE_SHIM` and whose Workers globals read `globalThis.__cellsGlobals`
+   * - `bundle`: one ES module built for browsers (`bundleWorkerForBrowser`), whose
+   *   `cloudflare:workers` is `PROJECT_WORKERS_MODULE_SHIM` and whose Workers globals read
+   *   `globalThis.__cellsGlobals`
    *   (`null`: the project has no `main`). Worker Loader code becomes Blob-URL modules.
    * - `site`: the base URL of the project's site (`createProjectSite`, hosted by
    *   webrun-site-host). `main` and Worker Loader code are imported from it.
@@ -71,6 +74,12 @@ export interface BrowserProjectOptions {
   filesDir: string;
   assetFiles?: AssetFiles;
   bucket?: BrowserBucket;
+  /**
+   * Cells this runtime does not host: where to send their events (a `Send` over a MessagePort
+   * to the runtime that hosts them, `linkOverPort`), or undefined to host the cell here. With
+   * one runtime per worker and `shardOf` as the placement, cells run in parallel threads.
+   */
+  route?: CellRuntimeOptions["route"];
 }
 
 async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
@@ -87,10 +96,17 @@ async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
 async function importWorkerCode(
   config: WranglerConfig,
   code: BrowserProjectOptions["code"],
+  scope: WorkerScope,
 ): Promise<WorkerModule> {
   const flags = config.compatibility_flags ?? [];
   const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
-  if (nodeCompat) installNodeGlobals();
+  if (nodeCompat) {
+    installNodeGlobals();
+    // node:async_hooks: continuations carry their AsyncLocalStorage stores. Only for a bundle:
+    // bundleWorkerForBrowser lowers its awaits so that they go through them; a site's modules
+    // keep native awaits and the polyfill's run-at-a-time stores.
+    if ("bundle" in code) installAsyncContext();
+  }
   const globals = {
     ...workersGlobals,
     Response: workersGlobals.CellsResponse,
@@ -114,6 +130,7 @@ async function importWorkerCode(
   }
   const g = globalThis as Record<string, unknown>;
   g.__cellsWorkersModule = workersModule;
+  g.__cellsProjectScope = scope; // `env` and `exports` of the bundle's cloudflare:workers
   g.__cellsGlobals = globals;
   return code.bundle
     ? await import(
@@ -127,11 +144,12 @@ async function importWorkerCode(
  * builds its Worker Loader; `close()` also releases the node's bucket lease.
  */
 export async function browserProjectRuntime(opts: BrowserProjectOptions) {
-  const module = await importWorkerCode(opts.config, opts.code);
+  const scope = workerScope(opts.config.vars);
+  const module = await importWorkerCode(opts.config, opts.code, scope);
   const site = "site" in opts.code ? opts.code.site : undefined;
   const openSql = await sahpoolOpener(opts.sqlite3 as never, {
     name: opts.pool,
-    initialCapacity: 32,
+    initialCapacity: 64, // grows on demand (sahpoolOpener)
   });
   const root = await navigator.storage.getDirectory();
   const files = new BrowserFilesApi({
@@ -155,11 +173,16 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
         })
       : undefined,
     storage: shared, // R2 objects in the fleet bucket too, as celld keeps them
+    route: opts.route,
   });
+  scope.bind(runtime);
   return {
     runtime,
     unsupported,
     bucket: shared,
-    close: () => runtime.close(),
+    close: async () => {
+      await runtime.close();
+      openSql.release(); // the pool's files, for the next worker that opens it
+    },
   };
 }

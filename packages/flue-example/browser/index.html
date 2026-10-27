@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Flue on cellb in a browser</title>
+<body>
+  <script type="module">
+    import { createFlueClient } from "@flue/sdk";
+    import { startProjectShards } from "@statewalker/cellb/browser";
+
+    // One Dedicated Worker per run: it hosts the app with browserProjectRuntime (SQLite WASM
+    // on OPFS) and drives it with Flue's own client.
+    window.__runFlue = (job) =>
+      new Promise((resolve) => {
+        const w = new Worker(new URL("./flue-worker.ts", import.meta.url), { type: "module" });
+        const { port1, port2 } = new MessageChannel();
+        port1.onmessage = (e) => {
+          resolve(e.data);
+          w.terminate();
+        };
+        w.onerror = (e) => resolve({ ok: false, error: e.message });
+        w.postMessage(job, [port2]);
+      });
+    // The app over `shards` workers (startProjectShards): each owns its share of the
+    // conversations; the page drives them with Flue's client, entering through every worker.
+    window.__runFlueSharded = async (job) => {
+      const workers = [];
+      const app = await startProjectShards({
+        shards: job.shards,
+        spawn: () => {
+          const w = new Worker(new URL("./flue-shard-worker.ts", import.meta.url), {
+            type: "module",
+          });
+          workers.push(w);
+          return w;
+        },
+        config: job.config,
+        code: { bundle: job.bundle },
+        name: `flue-shards-${job.run}`,
+      });
+      try {
+        const ids = Array.from({ length: job.conversations }, (_, i) => `who-${i}`);
+        const results = await Promise.all(
+          ids.map(async (id) => {
+            const client = createFlueClient({
+              url: `http://app.test/agents/assistant/${id}`,
+              fetch: (input, init) => app.fetch(new Request(input, init)),
+            });
+            try {
+              const sent = await client.send({ message: { kind: "user", body: "whoami" } });
+              return { id, text: (await client.read(sent)).text };
+            } catch (err) {
+              return { id, error: String(err) };
+            }
+          }),
+        );
+        const problems = (
+          await Promise.all(
+            workers.map(
+              (w) =>
+                new Promise((resolve) => {
+                  const { port1, port2 } = new MessageChannel();
+                  port1.onmessage = (e) => resolve(e.data);
+                  w.postMessage({ type: "problems" }, [port2]);
+                }),
+            ),
+          )
+        ).flat();
+        return { ok: true, results, problems };
+      } catch (err) {
+        return { ok: false, error: String(err?.stack ?? err) };
+      } finally {
+        await app.close();
+      }
+    };
+    document.body.dataset.ready = "true";
+  </script>
+</body>

@@ -5,19 +5,11 @@
  * from host registries set by the browser runtime — the ~deps idea, done at bundle time.
  */
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { build } from "esbuild";
 import type { WranglerConfig } from "../src/index.ts";
-import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../src/node-compat/modules.ts";
-import { WORKERS_MODULE_SHIM } from "../src/project/browser-modules.ts";
+import { bundleWorkerForBrowser } from "../src/project/browser-bundle.ts";
 import { readAssetDirectory, readWranglerConfig } from "../src/project/node-project.ts";
-import { SCHEDULER_EXPRESSION } from "../src/project/scheduler.ts";
-import { WORKERS_GLOBAL_NAMES } from "../src/project/workers-global-names.ts";
 import { projectDir } from "./projects.ts";
-
-const app = resolve(import.meta.dirname, "..");
-const requireFromApp = createRequire(resolve(app, "package.json"));
 
 export interface BrowserProject {
   name: string;
@@ -26,59 +18,12 @@ export interface BrowserProject {
   assets: [string, string][]; // path, base64
 }
 
-const GLOBALS_SHIM = `${WORKERS_GLOBAL_NAMES.map((n) => `export const ${n} = globalThis.__cellsGlobals.${n};`).join(" ")} export const scheduler = ${SCHEDULER_EXPRESSION};`;
-
 export async function bundleProjectForBrowser(name: string): Promise<BrowserProject> {
   const dir = projectDir(name);
   const config = readWranglerConfig(dir);
   let code: string | null = null;
   const nodeCompat = (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
-  if (config.main) {
-    const out = await build({
-      entryPoints: [resolve(dir, config.main)],
-      write: false,
-      bundle: true,
-      format: "esm",
-      platform: "browser",
-      target: "es2022",
-      // Function names are observable (the npm assert polyfill reports its caller's name as the
-      // operator); bundling must not rename them.
-      keepNames: true,
-      logLevel: "silent",
-      inject: [
-        "cells:globals",
-        ...(nodeCompat ? [resolve(app, "src/node-compat/globals.ts")] : []),
-      ],
-      plugins: [
-        {
-          name: "cells-browser",
-          setup(b) {
-            // nodejs_compat: node:* → browser polyfills, bundled in.
-            if (nodeCompat)
-              b.onResolve({ filter: /^node:/ }, (a) => {
-                const file = NODE_POLYFILL_FILES[a.path];
-                if (file) return { path: resolve(app, "src/node-compat", file) };
-                const pkg = NODE_POLYFILL_PACKAGES[a.path];
-                // "buffer/" (trailing slash): the npm package, not the Node.js built-in of that name
-                if (pkg) return { path: requireFromApp.resolve(`${pkg}/`) };
-                return {
-                  errors: [{ text: `${a.path} is not available in browsers (nodejs_compat)` }],
-                };
-              });
-            b.onResolve({ filter: /^cloudflare:workers$|^cells:globals$/ }, (a) => ({
-              path: a.path,
-              namespace: "cells",
-            }));
-            b.onLoad({ filter: /.*/, namespace: "cells" }, (a) => ({
-              contents: a.path === "cloudflare:workers" ? WORKERS_MODULE_SHIM : GLOBALS_SHIM,
-              loader: "js",
-            }));
-          },
-        },
-      ],
-    });
-    code = out.outputFiles[0].text;
-  }
+  if (config.main) code = await bundleWorkerForBrowser(resolve(dir, config.main), { nodeCompat });
   const assets: [string, string][] = [];
   if (config.assets?.directory)
     for (const [p, bytes] of readAssetDirectory(resolve(dir, config.assets.directory)))

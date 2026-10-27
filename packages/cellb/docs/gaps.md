@@ -72,17 +72,44 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   service bindings to other scripts, the Workers AI binding (`ai`), and compatibility flags it
   does not know. A Flue app (packages/flue-example) leaves out Flue's `cloudflare` provider for
   that reason; renaming a Flue agent renames its class, so it needs `renamed_classes`.
-- **`env` and `exports` of `cloudflare:workers` exist for a Node project's own Worker only.** In
-  a browser, and in a loaded Worker run in its own thread, `import { env } from
-  "cloudflare:workers"` fails to build (`No matching export`). A loaded Worker compiled in the
-  project's realm gets empty objects.
-- **`cloudflare:email` only loads, and only on Node.** It exists so code that imports it at top
-  level (the Agents SDK) starts; building an `EmailMessage` throws `cloudflare:email is not
-  supported by cellb`. A browser bundle that imports it fails to build.
-- **`AsyncLocalStorage` in a browser is not isolated between concurrent events.** The
-  `node:async_hooks` shim keeps one store at a time, and the Agents SDK and Flue find the current
-  agent through it. Two cells answering at once in one browser runtime can read each other's
-  context. Node uses the real module.
+- **`env` and `exports` of `cloudflare:workers` exist for a project's own Worker only, and in a
+  browser only for a bundle.** A Node project and a browser bundle (`bundleWorkerForBrowser`) get
+  the project's own; a project on an in-browser site (`code: { site }`) does not, because the site's
+  module registry is shared with its loaded Workers, which must not see the project's bindings.
+  Loaded Workers get empty objects, except one run in its own Node thread, where `import { env }
+  from "cloudflare:workers"` fails to build (`No matching export`).
+- **`cloudflare:email` only loads.** It exists so code that imports it at top level (the Agents SDK)
+  starts, on Node and in browser bundles; building an `EmailMessage` throws `cloudflare:email is not
+  supported by cellb`. An in-browser site does not provide it.
+- **`node:fs` and `node:os` in a browser have no host behind them.** With nodejs_compat a browser
+  bundle gets `node:fs` whose calls fail with `ENOENT` (`existsSync` is false) and `node:os` with
+  fixed answers (`EOL` is `"\n"`, no CPUs, no memory); they let libraries that probe for files load.
+- **`AsyncLocalStorage` in a browser carries its stores only through code it can see.** The
+  `node:async_hooks` polyfill keeps each `run()` to its synchronous part and makes continuations
+  carry their stores (`Promise.prototype.then`, timers, `queueMicrotask`); a native `await` bypasses
+  `then`, so `bundleWorkerForBrowser` lowers `await` to generators in nodejs_compat bundles. A
+  bundle then answers as on Node (test/async-context-worker.ts, 16 objects at once). An in-browser
+  site's modules are compiled without lowering, so there the polyfill keeps its run-at-a-time
+  stores: a `run()`'s store stays set until its promise settles, which is right for one run at a
+  time and shared between concurrent ones (two cells answering at once can read each other's).
+  Event listeners (`addEventListener`, MessagePort `onmessage`) do not carry stores, on Node either.
+- **A called object starts in its caller's async context.** Its `AsyncLocalStorage` stores are the
+  caller's (on Node and in a browser), where on Cloudflare a call to another object is a new event
+  with none. The Agents SDK and Flue set their own stores at each entry, so they are not affected;
+  code that reads a store it did not set in the callee sees the caller's. Changing it means
+  starting each event in the root context, which the celld conformance harness (test/p09) relies
+  on not doing: it attributes Durable Object logs to a scenario through such a store.
+- **A browser runtime is one thread, and OPFS writes are its cost.** Its cells interleave, and
+  each commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool
+  call, two model turns) makes 21 commits (155 when commits ended with each microtask); in this
+  repository's CI-like container an OPFS write costs about 0.75 ms whatever its size, and those
+  writes are about 80% of the worker's time. For parallel threads, spread the project over
+  several workers (`startProjectShards`): 32 Flue conversations take 16 s on one worker and 11 s on
+  four there, where four workers writing OPFS at once slow each other's writes. With
+  `joinProjectShards`, the tabs of an origin share the shards (an even split, moved as tabs come
+  and go); placement of cells within the shards stays by hash. Opening a cell reserves
+  room in the OPFS pool first and the pool grows on demand; a database or journal that SQLite
+  creates mid-event (`SAH pool is full`) can still fail if a burst outruns the background growth.
 - **Agents SDK WebSocket connections are ignored.** `partyserver` reads attachments through the
   global `WebSocket.prototype` (`deserializeAttachment`), which a Worker's bundle takes from the
   host and which lacks them, so it does not recognise any accepted socket as its own: `onConnect`

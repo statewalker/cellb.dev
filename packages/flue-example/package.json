@@ -8,7 +8,8 @@
   "scripts": {
     "build": "vite build",
     "test": "vite build && vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:browser": "vite build && playwright test"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^1.4.0",
@@ -19,6 +20,9 @@
     "@cloudflare/vite-plugin": "^1.65.0",
     "@flue/sdk": "2.3.0",
     "@flue/vite": "2.3.0",
+    "@playwright/test": "^1.63.0",
+    "@sparticuz/chromium": "^153.0.0",
+    "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
     "@statewalker/cellb": "workspace:*",
     "@statewalker/webrun-files-mem": "^0.10.0",
     "@types/node": "catalog:",

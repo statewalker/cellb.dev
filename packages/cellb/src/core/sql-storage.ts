@@ -6,6 +6,27 @@ const FORBIDDEN_INTERNAL = /\b_cf_\w*/i;
 /** Creating or dropping an object with an internal name (any case): celld refuses it outright. */
 const FORBIDDEN_DDL = /^\s*(CREATE|DROP)\b[^(]*?\b_cf_/i;
 
+/**
+ * Runs `fn` after the current macrotask, as workerd commits an implicit transaction after the
+ * current turn of its event loop: the writes of every microtask until then share one commit.
+ * `setImmediate` on Node; a MessageChannel message in browsers (no timer clamping).
+ */
+const afterTurn: (fn: () => void) => void = (() => {
+  const g = globalThis as { setImmediate?: (fn: () => void) => unknown };
+  if (typeof g.setImmediate === "function") return (fn) => void g.setImmediate!(fn);
+  if (typeof MessageChannel === "function") {
+    const queue: (() => void)[] = [];
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      for (const f of queue.splice(0)) f();
+    };
+    return (fn) => {
+      if (queue.push(fn) === 1) channel.port2.postMessage(null);
+    };
+  }
+  return (fn) => void setTimeout(fn, 0);
+})();
+
 /** The SQL text with string literals and comments blanked out (quoted identifiers stay). */
 function withoutLiterals(sql: string): string {
   return sql.replace(/'(?:[^']|'')*'|--[^\n]*|\/\*[\s\S]*?\*\//g, " ");
@@ -191,7 +212,7 @@ export class SqlStorage {
     return () => {
       if (released) return;
       released = true;
-      if (--this.#holds === 0) queueMicrotask(() => this.commit());
+      if (--this.#holds === 0) afterTurn(() => this.commit());
     };
   }
 
@@ -257,7 +278,7 @@ export class SqlStorage {
       this.#schemaAtBegin = this.#schemaVersion();
     }
     this.#inTxn = true;
-    queueMicrotask(() => this.commit());
+    afterTurn(() => this.commit());
   }
 }
 

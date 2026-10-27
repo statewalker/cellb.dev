@@ -9,6 +9,9 @@ import {
   cellsHttpHandler,
   connectRuntime,
   createCellRuntime,
+  DurableObject,
+  type DurableObjectNamespace,
+  linkOverPort,
   remoteRuntime,
   serveRuntime,
 } from "../src/index.js";
@@ -221,5 +224,41 @@ describe("P04b cells in a separate thread (stand-in for the browser Dedicated Wo
     const b = await spawn();
     expect(await b.remote.env.COUNTER.getByName("t").value()).toBe(20);
     b.port1.close();
+  });
+});
+
+describe("P04 a routed object behaves as a local one", () => {
+  class Slow extends DurableObject {
+    async fetch() {
+      await new Promise((r) => setTimeout(r, 30));
+      return new Response("done");
+    }
+  }
+  const runtime = (route?: Parameters<typeof createCellRuntime>[0]["route"]) =>
+    createCellRuntime({
+      worker: { Slow, default: {} },
+      durableObjects: { SLOW: { className: "Slow" } },
+      openSql: nodeSqliteOpener(),
+      route,
+    });
+
+  it("an aborted caller does not reject stub.fetch(), locally or over a port", async () => {
+    const host = runtime();
+    const { port1, port2 } = new MessageChannel();
+    const stop = await serveRuntime(port1 as any, host);
+    const link = await linkOverPort(port2 as any);
+    const front = runtime(() => link.send); // every cell lives on `host`
+    for (const rt of [host, front]) {
+      const aborted = new AbortController();
+      const stub = (rt.env.SLOW as DurableObjectNamespace).getByName("a");
+      const res = stub.fetch(new Request("http://x/", { signal: aborted.signal }));
+      aborted.abort();
+      expect(await (await res).text()).toBe("done");
+    }
+    await link.close();
+    await stop();
+    port1.close();
+    port2.close();
+    await Promise.all([host.close(), front.close()]);
   });
 });

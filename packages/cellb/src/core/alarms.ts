@@ -100,4 +100,12 @@ export class AlarmScheduler {
     for (const t of this.#timers.values()) this.#clock.clearTimeout(t);
     this.#timers.clear();
   }
+
+  /** Closes the index database (after the objects that record into it have closed). */
+  close(): void {
+    this.stop();
+    const db = this.#indexDb;
+    this.#indexDb = null; // stays closed: later records are dropped
+    db?.close();
+  }
 }

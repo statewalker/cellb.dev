@@ -228,18 +228,22 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
 });
 
 describe("P02 implicit transaction (node:sqlite file, observed from a 2nd connection)", () => {
-  it("implicit transaction: sync writes become visible to other connections only after the handler yields", async () => {
+  it("implicit transaction: writes become visible to other connections only after the turn ends", async () => {
     const dir = mkdtempSync(join(tmpdir(), "cells-"));
     const { inObject } = baseProbeRuntime({ openSql: nodeSqliteOpener(dir) });
     const seen = await inObject("i", async (ctx) => {
       const file = join(dir, `Probe_${ctx.id.toString()}.sqlite`);
+      // The implicit transaction commits after the current turn of the event loop (as workerd),
+      // so the writes of several microtasks share one commit.
+      const turn = () => new Promise((r) => setImmediate(r));
       ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS t (x)");
-      await Promise.resolve(); // commit schema
+      await turn(); // commit schema
       const spy = new NodeSqliteDriver(file);
       ctx.storage.sql.exec("INSERT INTO t VALUES (1)");
+      await Promise.resolve(); // a microtask: still the same transaction
       ctx.storage.sql.exec("INSERT INTO t VALUES (2)");
       const before = spy.exec("SELECT count(*) AS n FROM t", []).rows[0][0];
-      await Promise.resolve(); // yield → implicit COMMIT
+      await turn(); // the turn ends → implicit COMMIT
       const after = spy.exec("SELECT count(*) AS n FROM t", []).rows[0][0];
       spy.close();
       return { before, after };
