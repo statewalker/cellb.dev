@@ -496,5 +496,10 @@ recorded on celld/workerd), never by a test of the mechanism alone.
 - [x] **globalOutbound in an isolate** (gap from F3): the isolate's global `fetch()` goes back to
   the host's Fetcher. Done on `feat/rpc-extras`: `overrideGlobalOutbound` leaves the vendored skip
   list and passes in `wd-worker-loader`.
+- [x] **F12 Agents SDK: `env`/`exports` in loaded Workers** (what `feat/agents-sdk-full` added that
+  main lacked): done on `feat/agents-sdk-rest` (plan `2026-10-27-agents-sdk-rest.md`). A loaded
+  Worker reads its own from `cloudflare:workers` on Node (thread and realm), in a browser bundle's
+  realm and in isolates (`test/p13`, `agents-sdk-host.spec.ts`, `site-projects.spec.ts`). A Worker
+  loaded into a site project's realm still gets empty objects.
 - Stays out, written in `docs/gaps.md` with the reason: limits per object, opaque-origin iframes
   for untrusted code, celld's log tier and `/peer/handoff`, Python Workers.
