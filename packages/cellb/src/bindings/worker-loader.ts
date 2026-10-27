@@ -6,7 +6,9 @@ import {
   entrypointStub,
   ISOLATED,
   type IsolatedClass,
+  pipeTo,
   REFUSE,
+  rpcPromise,
 } from "../core/handles.js";
 
 /** workerd's refusal of a loaded Worker's entrypoint passed on to another Worker. */
@@ -143,30 +145,23 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
         }
         return p;
       };
-      /** Runs one invocation of loaded code, then hands its logs/exceptions to the Tail Workers. */
-      const traced = async <T>(
-        l: Loaded,
-        request: Request | undefined,
-        run: () => Promise<T>,
-      ): Promise<T> => {
+      /**
+       * Runs one invocation of loaded code, then hands its logs/exceptions to the Tail Workers.
+       * Returns the run's result as is (an RpcPromise stays one, for pipelining).
+       */
+      const traced = (l: Loaded, request: Request | undefined, run: () => unknown): unknown => {
         const from = l.logs.length;
         const t0 = Date.now();
-        const exceptions: TailEvent["exceptions"] = [];
-        let outcome: TailEvent["outcome"] = "ok";
+        let r: unknown;
         try {
-          return await run();
+          r = run();
         } catch (e) {
-          outcome = "exception";
-          exceptions.push({
-            name: (e as Error)?.name ?? "Error",
-            message: String((e as Error)?.message ?? e),
-            timestamp: Date.now(),
-          });
-          throw e;
-        } finally {
+          r = Promise.reject(e);
+        }
+        const report = (exceptions: TailEvent["exceptions"]) => {
           const event: TailEvent = {
             scriptName: id,
-            outcome,
+            outcome: exceptions.length ? "exception" : "ok",
             eventTimestamp: t0,
             event: request ? { request: { url: request.url, method: request.method } } : null,
             logs: l.logs.splice(from),
@@ -174,7 +169,19 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             diagnosticsChannelEvents: [],
           };
           for (const t of l.code.tails ?? []) void Promise.resolve(t.tail([event])).catch(() => {});
-        }
+        };
+        Promise.resolve(r).then(
+          () => report([]),
+          (e) =>
+            report([
+              {
+                name: (e as Error)?.name ?? "Error",
+                message: String((e as Error)?.message ?? e),
+                timestamp: Date.now(),
+              },
+            ]),
+        );
+        return r;
       };
       return {
         getDurableObjectClass(name: string) {
@@ -223,15 +230,24 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
               get(_t, prop) {
                 if (prop === REFUSE) return DYNAMIC_ENTRYPOINT;
                 if (prop === "then" || typeof prop === "symbol") return undefined;
-                return async (...args: unknown[]) => {
-                  const l = await loaded();
-                  const stub = entrypointStub(l.module[name], l.env, options.props, l.exports);
-                  const request =
-                    prop === "fetch"
-                      ? new Request(args[0] as RequestInfo, args[1] as RequestInit)
-                      : undefined;
-                  return traced(l, request, () =>
-                    stub[prop as string](...(request ? [request] : args)),
+                return (...args: unknown[]) => {
+                  // Boxed, so awaiting the load does not await the call: calls on its
+                  // RpcPromise are pipelined.
+                  const run = loaded().then((l) => {
+                    const stub = entrypointStub(l.module[name], l.env, options.props, l.exports);
+                    const request =
+                      prop === "fetch"
+                        ? new Request(args[0] as RequestInfo, args[1] as RequestInit)
+                        : undefined;
+                    return {
+                      r: traced(l, request, () =>
+                        stub[prop as string](...(request ? [request] : args)),
+                      ),
+                    };
+                  });
+                  return rpcPromise(
+                    run.then((b) => b.r),
+                    (path, a) => run.then((b) => pipeTo(b.r, path, a)),
                   );
                 };
               },

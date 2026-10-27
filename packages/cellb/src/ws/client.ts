@@ -1,4 +1,5 @@
 import {
+  byteSize,
   CellsCloseEvent,
   checkClose,
   DEFAULT_HEARTBEAT_MS,
@@ -58,7 +59,13 @@ export function createWebSocketClass(
     readyState = 0;
     protocol = "";
     extensions = "";
-    bufferedAmount = 0;
+    #buffered = 0;
+    /** Sizes of the messages posted and not acknowledged yet, in order (the port keeps it). */
+    #unacked: number[] = [];
+    /** Bytes sent and not yet received by the server end (it acknowledges each message). */
+    get bufferedAmount(): number {
+      return this.#buffered;
+    }
     #binaryType: "blob" | "arraybuffer" = "blob";
     get binaryType(): "blob" | "arraybuffer" {
       return this.#binaryType;
@@ -169,6 +176,10 @@ export function createWebSocketClass(
         return;
       }
       if (f.t === "p") return;
+      if (f.t === "a") {
+        this.#buffered -= this.#unacked.shift() ?? 0;
+        return;
+      }
       if (f.t === "m") {
         if (this.readyState !== 1) return;
         let data: unknown = f.d;
@@ -197,16 +208,17 @@ export function createWebSocketClass(
         throw new DOMException("Still in CONNECTING state.", "InvalidStateError");
       if (this.readyState !== 1) return; // spec: silently discarded after closing
       if (data instanceof Blob) {
-        void data
-          .arrayBuffer()
-          .then(
-            (b) =>
-              this.readyState === 1 &&
-              this.#port!.postMessage({ t: "m", d: b } satisfies Frame, [b]),
-          );
+        this.#buffered += data.size;
+        void data.arrayBuffer().then((b) => this.readyState === 1 && this.#post(b));
         return;
       }
       const d = toFrameData(data);
+      this.#buffered += byteSize(d);
+      this.#post(d);
+    }
+
+    #post(d: string | ArrayBuffer): void {
+      this.#unacked.push(byteSize(d));
       this.#port!.postMessage({ t: "m", d } satisfies Frame, typeof d === "string" ? [] : [d]);
     }
 

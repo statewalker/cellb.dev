@@ -1,4 +1,9 @@
-import type { LogSink, ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
+import {
+  type LogSink,
+  type ModuleLoader,
+  outboundFetch,
+  type WorkerCode,
+} from "../bindings/worker-loader.js";
 import { ISOLATED, type IsolatedClass } from "../core/handles.js";
 import type { CellStorage } from "../ports.js";
 import { hostPort, type PortLike } from "./protocol.js";
@@ -21,33 +26,37 @@ export function isolatedModuleLoader(opts: {
   return async (id: string, code: WorkerCode, logs?: LogSink) => {
     // The env crosses as any call does: bindings and other stubs by reference.
     const env: Record<string, unknown> = { ...code.env };
-    const outbound = code.globalOutbound === null ? "blocked" : undefined;
-    if (code.globalOutbound && typeof code.globalOutbound === "object")
-      env.__outbound = code.globalOutbound;
+    // The loaded code's global fetch(): blocked in the isolate, or sent back here to the Fetcher.
+    const fetcher = outboundFetch(code);
+    const outbound = code.globalOutbound === null ? "blocked" : fetcher ? "fetcher" : undefined;
     const where = await opts.prepare(id, code);
     const isolate = opts.spawn(id);
-    const { call, fetch } = await hostPort(isolate.port, async (m) => {
-      if (m.type === "durable") {
-        const st = opts.storage?.() ?? {};
-        if (m.op === "load") return st.backup?.load?.(m.cellKey);
-        if (m.op === "committed" && st.durability) {
-          const info = m.info;
-          const token = info.image;
-          await st.durability.committed(m.cellKey, {
-            ...info,
-            image:
-              typeof token === "number"
-                ? () => call<Uint8Array | undefined>({ type: "image", token })
-                : token,
-          });
+    const { call, fetch } = await hostPort(
+      isolate.port,
+      async (m) => {
+        if (m.type === "durable") {
+          const st = opts.storage?.() ?? {};
+          if (m.op === "load") return st.backup?.load?.(m.cellKey);
+          if (m.op === "committed" && st.durability) {
+            const info = m.info;
+            const token = info.image;
+            await st.durability.committed(m.cellKey, {
+              ...info,
+              image:
+                typeof token === "number"
+                  ? () => call<Uint8Array | undefined>({ type: "image", token })
+                  : token,
+            });
+          }
+          return;
         }
-        return;
-      }
-      if (m.type === "log") {
-        logs?.(m.level, m.args);
-        (console as any)[m.level](...m.args);
-      }
-    });
+        if (m.type === "log") {
+          logs?.(m.level, m.args);
+          (console as any)[m.level](...m.args);
+        }
+      },
+      fetcher,
+    );
     const exports = await call<Record<string, string>>({
       type: "load",
       ...where,

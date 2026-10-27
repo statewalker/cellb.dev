@@ -30,7 +30,7 @@ export async function runProject(job: {
   scenario: string;
   config: WranglerConfig;
   code: BrowserProjectOptions["code"];
-  isolateScript: URL;
+  isolateScript?: URL;
   assets: [string, string][];
   wsServer?: string;
   logs: string[];
@@ -49,7 +49,7 @@ export async function runProject(job: {
         node: string;
       }
     | { opfs: string; node: string };
-  /** With `bucket`: fetch these paths (retrying while another node still owns the cell). */
+  /** Fetch these paths and answer their texts (with `bucket`: retrying while another node still owns the cell). */
   paths?: string[];
   /** The OPFS SQLite pool (default: a fresh one per run); a node's own pool persists across runs. */
   pool?: string;
@@ -90,8 +90,7 @@ export async function runProject(job: {
           },
   });
   const { runtime, unsupported } = host;
-  const shared = host.bucket;
-  if (shared && job.paths) {
+  if (job.paths) {
     const answers: string[] = [];
     for (const path of job.paths) {
       let text = "";

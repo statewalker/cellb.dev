@@ -10,7 +10,7 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 
 | Scenario | What differs |
 |---|---|
-| `wd-sql-default` | `sql.ingest()` (experimental) does not exist. celld itself stops at an ingest syntax-error message, so even with it the two agree only up to there. |
+| `wd-sql-default` | `sql.exec('SELECT 1; -- comment')` runs; celld refuses it (workerd: `SQL code did not contain a statement`), so cellb fails an earlier assertion than celld. celld stops at `sql.ingest()`'s syntax error, which cellb words the same (`sql-ingest` agrees), but celld's report of it carries celld's own stack frames. |
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
@@ -23,7 +23,12 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   `src/core/handles.ts`) and into or out of a loaded Worker's isolate, in its `env`, `props`,
   arguments and results (`src/isolate/protocol.ts`). celld refuses them; these cases are judged
   against workerd ([conformance.md](conformance.md#where-cellb-follows-workerd-instead)).
-- **There is no promise pipelining**: `stub.a().b()` waits for `a()` before calling `b()`.
+- **A call on a stub returns an RpcPromise**, as on workerd: `stub.a().b()` and
+  `await stub.a().x.y` work before `a()` settles. Across an isolate's port `b` is sent at once,
+  naming `a`'s pending answer; in one realm, and to an object on another node, `b` runs once `a()`
+  settles. It is `instanceof Promise` but not a native promise, and it cannot be called itself
+  (`stub.getFn()()` fails: await the function first). Only the first call on a loaded Worker's
+  entrypoint result is pipelined across the isolate; a call on that call's result waits for it.
 - **A stub into an isolate holds its value until released.** `stub[Symbol.dispose]()` or garbage
   collection of the stub releases it; then the value's own `Symbol.dispose` runs. A stub used after
   `Symbol.dispose` rejects with `A stub was used after it was disposed.`
@@ -32,21 +37,11 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   or stub in either is refused with `DataCloneError: Functions, RpcTargets and stubs cannot be sent
   to another node: they pass by reference only within one runtime.` (`toAnotherNode` in
   `src/core/handles.ts`).
-- **A loaded Worker's `globalOutbound` Fetcher does not route its `fetch()` in an isolate.** The
-  isolate sees it only as `env.__outbound`; its global `fetch` is the realm's own (`null` still
-  blocks it). Loaded in the host's realm, the Fetcher does route `fetch()`.
 - **Only `ctx.exports.X({ props })` stubs and class handles can be stored** in Durable Object
   storage (as V8 host objects, `[name, props]`, restored against the Worker's `ctx.exports`). celld
   cannot read such a value; other stubs and `RpcTarget`s are refused with `DataCloneError`.
 - A fetch into a loaded Worker crosses as HTTP/1.1, so hop-by-hop request headers (`Connection`,
   `Upgrade`, `TE`, `Keep-Alive`) do not reach it.
-
-## Planned work
-
-Each item is proven by a conformance case changing state (a `knownGap` removed, or a new step
-recorded on celld or workerd), not by a test of the mechanism alone.
-
-- **Small known gaps**, one at a time: `sql.ingest()` only if wanted.
 
 ## Firefox and WebKit
 
@@ -75,15 +70,17 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
   embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
   image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.
-- **`env` and `exports` of `cloudflare:workers` exist for a project's own Worker only, and in a
-  browser only for a bundle.** A Node project and a browser bundle (`bundleWorkerForBrowser`) get
-  the project's own; a project on an in-browser site (`code: { site }`) does not, because the site's
-  module registry is shared with its loaded Workers, which must not see the project's bindings.
-  Loaded Workers get empty objects, except one run in its own Node thread, where `import { env }
-  from "cloudflare:workers"` fails to build (`No matching export`).
+- **`env` and `exports` of `cloudflare:workers` exist for a project's own Worker only.** A Node
+  project, a browser bundle (`bundleWorkerForBrowser`) and a project on an in-browser site
+  (`code: { site }`) get the project's own. Loaded Workers get empty objects, except one run in its
+  own Node thread, where `import { env } from "cloudflare:workers"` fails to build (`No matching
+  export`). On a site the project and its loaded Workers share the realm's module registry: its
+  `cloudflare:workers` entry answers by the module that asks (a loaded Worker's proxy is a module
+  under `<site>loaded/`, found on the stack); anything else that reads the entry gets the
+  project's.
 - **`cloudflare:email` only loads.** It exists so code that imports it at top level (the Agents SDK)
   starts, on Node and in browser bundles; building an `EmailMessage` throws `cloudflare:email is not
-  supported by cellb`. An in-browser site does not provide it.
+  supported by cellb`. An in-browser site provides it too.
 - **`node:fs` and `node:os` in a browser have no host behind them.** With nodejs_compat a browser
   bundle gets `node:fs` whose calls fail with `ENOENT` (`existsSync` is false) and `node:os` with
   fixed answers (`EOL` is `"\n"`, no CPUs, no memory); they let libraries that probe for files load.
@@ -122,26 +119,22 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   own client socket, so a class that extends the global gets a host socket, not an instance of
   itself. Its `Request` global carries `Upgrade` and `Sec-WebSocket-*` into copies of a request,
   which a browser's `new Request()` drops; the host's own requests count as instances of it.
-- **Isolated facets in a browser are not in the fleet bucket.** `browserProjectRuntime` does not give
-  its isolates the host's storage, so a Durable Object class of a loaded Worker keeps its database in
-  the isolate's OPFS pool only. On Node they are logged through the parent.
-- **An isolated facet restores only into an empty database.** A Durable Object class of a loaded
-  Worker runs in the isolate's own runtime, which holds no cell lease, so taking the root cell does
-  not rebuild the facet's local database from the bucket as it does for the root and its local
-  facets. On Node the isolate's SQLite is in memory (its opener takes a `dataDir` that nothing sets
-  yet), so it starts empty and is restored correctly; an isolate given a persistent directory would
-  serve the facet's old local state after taking a cell back and log it over the newer one.
-- **The upstream Worker Loader exports `overrideGlobalOutbound` and `inheritGlobalOutbound` are left
-  out** of the vendored run. `WorkerCode.globalOutbound` itself is implemented (`null` blocks
-  `fetch`; a Fetcher redirects it) and matches celld in the `runtime-api` project; the comment in
-  `scripts/vendor-workerd-tests.mjs` that calls it ignored is out of date.
+- **The upstream Worker Loader export `inheritGlobalOutbound` is left out** of the vendored run.
+  `WorkerCode.globalOutbound` itself is implemented (`null` blocks `fetch`; a Fetcher redirects
+  it, in the host's realm and in an isolate, where the request crosses back to the host), matches
+  celld in the `runtime-api` project, and passes `overrideGlobalOutbound` in `wd-worker-loader`.
+  `inheritGlobalOutbound` stays out for good: it needs the test Worker's own `globalOutbound`, a
+  `.wd-test` setting with no wrangler equivalent, so on celld and cellb it would fetch
+  `https://example.com` for real.
 - **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked, then
   written; two tabs using it at once can both win.
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.
-- **`bufferedAmount` is always 0** on cellb's WebSockets: there is no backpressure on socket ports.
-- **The input gate does not hold non-storage I/O.** A timer or `fetch` completion can interleave
-  with another event while the gate is closed. celld behaves the same; workerd does not
-  (`wd-actor-block-concurrency-timer`).
+- **The input gate does not hold timers, as on celld.** A timer set before
+  `blockConcurrencyWhile()` fires while its callback runs; workerd holds it until the callback
+  ends. `wd-actor-block-concurrency-timer` records celld doing the same as cellb, and celld is the
+  judge, so this stays (following workerd would need a `judge: "workerd"` reason of the stub kind).
+  workerd's input gate also defers outbound `fetch` completions while storage is in flight; cellb
+  does not, and what celld does there is not recorded.
 - **celld examples not run:** `python` (Pyodide Python Workers), `wasm` (needs the Rust toolchain to
   build), `container` and `sandbox` (Docker or Podman), `pi` and `opencode` (outbound access to model
   endpoints).

@@ -197,11 +197,15 @@ docs/               topic pages
   instance or KV namespace written by celld continues on cellb, and back.
 - **celld judges conformance**, because cellb's storage must be celld's; workerd is recorded to
   pin where celld differs, and judges only where cellb follows it on purpose: stubs, functions and
-  `RpcTarget`s pass by reference, which celld refuses ([docs/conformance.md](docs/conformance.md)).
+  `RpcTarget`s pass by reference, and calls on a pending result are pipelined, which celld
+  refuses ([docs/conformance.md](docs/conformance.md)).
 - **The gates use no `AsyncLocalStorage`**, which browsers lack.
 - **A browser origin has a fixed number of shards**, because an OPFS pool is exclusive per worker
   ([docs/browser-host.md](docs/browser-host.md)).
-- **WebSockets travel over MessagePorts**, because a ServiceWorker cannot accept them.
+- **WebSockets travel over MessagePorts**, because a ServiceWorker cannot accept them. A port
+  has no send buffer to measure, so the server end acknowledges each message it dispatched and
+  a client's `bufferedAmount` counts the bytes not acknowledged yet: the WHATWG signal a sender
+  throttles on. workerd's server-side WebSocket has no `bufferedAmount`, and cellb's has none.
 - **Each loaded Worker gets a realm of its own**, a thread or a Dedicated Worker: as in celld's
   isolates, loaded code must not see the host's globals or env.
 - **`idFromName` is synchronous**, with `@noble/hashes` instead of `crypto.subtle`, which is

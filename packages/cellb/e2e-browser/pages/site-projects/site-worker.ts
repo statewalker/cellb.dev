@@ -17,6 +17,9 @@ scope.onmessage = async (e) => {
     assets: [string, string][];
     scenario: string;
     wsServer?: string;
+    paths?: string[];
+    /** Loaded Workers in this realm instead of isolates. */
+    noIsolate?: boolean;
   };
   const logs = captureLogs();
   try {
@@ -26,7 +29,8 @@ scope.onmessage = async (e) => {
       config: job.config,
       code: { site: job.baseUrl },
       // Loaded Workers run isolated, each in its own Dedicated Worker (as celld's isolates).
-      isolateScript: new URL(isolateWorker, import.meta.url),
+      isolateScript: job.noIsolate ? undefined : new URL(isolateWorker, import.meta.url),
+      paths: job.paths,
       assets: job.assets,
       wsServer: job.wsServer,
       logs,

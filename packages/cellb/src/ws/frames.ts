@@ -3,7 +3,8 @@ export type Frame =
   | { t: "m"; d: string | ArrayBuffer } // message
   | { t: "c"; code: number; reason: string } // close (initiating or echo)
   | { t: "p"; hb: number } // ping (client → server), carries the heartbeat period
-  | { t: "q" }; // pong (server → client)
+  | { t: "q" } // pong (server → client)
+  | { t: "a" }; // ack: the server end dispatched the oldest message not acknowledged yet
 
 /**
  * MessagePorts never report that the other side died (no `close` event in
@@ -12,6 +13,11 @@ export type Frame =
  * pings stop for 3·hb. This is what makes a socket notice a closed tab.
  */
 export const DEFAULT_HEARTBEAT_MS = 10_000;
+
+/** What a message adds to the sender's `bufferedAmount` (WHATWG: UTF-8 bytes of a string). */
+export function byteSize(d: string | ArrayBuffer): number {
+  return typeof d === "string" ? new TextEncoder().encode(d).byteLength : d.byteLength;
+}
 
 export function toFrameData(data: unknown): string | ArrayBuffer {
   if (typeof data === "string") return data;

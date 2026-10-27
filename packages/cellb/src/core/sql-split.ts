@@ -1,8 +1,12 @@
-const TRIGGER = /^\s*CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TRIGGER\b/i;
+/** A trigger's creation, also under EXPLAIN (`sql.ingest()` prepares each statement so). */
+const TRIGGER = /^\s*(?:EXPLAIN\s+)?CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TRIGGER\b/i;
 
-/** Splits a param-less SQL script on top-level `;` (respects quotes, comments, triggers). */
-export function splitSqlStatements(sql: string): string[] {
-  const out: string[] = [];
+/**
+ * The statements of a SQL script ended by a top-level `;` (quotes, comments and trigger bodies
+ * respected), each without its comments, with the offset just past its `;`; then the text after
+ * the last one, with `end` undefined.
+ */
+function* scanSql(sql: string): Generator<{ text: string; end?: number }> {
   let cur = "";
   for (let i = 0; i < sql.length; i++) {
     const c = sql[i];
@@ -23,10 +27,31 @@ export function splitSqlStatements(sql: string): string[] {
         cur += c;
         continue;
       }
-      if (cur.trim()) out.push(cur.trim());
+      yield { text: cur, end: i + 1 };
       cur = "";
     } else cur += c;
   }
-  if (cur.trim()) out.push(cur.trim());
+  yield { text: cur };
+}
+
+/** Splits a param-less SQL script on top-level `;` (respects quotes, comments, triggers). */
+export function splitSqlStatements(sql: string): string[] {
+  const out: string[] = [];
+  for (const { text } of scanSql(sql)) if (text.trim()) out.push(text.trim());
   return out.length ? out : [sql];
+}
+
+/**
+ * The complete statements at the start of a chunk of SQL text (each ended by a top-level `;`,
+ * as `sqlite3_complete` sees it) and the text after the last of them, untouched.
+ */
+export function completeSqlStatements(sql: string): { statements: string[]; remainder: string } {
+  const statements: string[] = [];
+  let rest = 0;
+  for (const { text, end } of scanSql(sql)) {
+    if (end === undefined) break;
+    if (text.trim()) statements.push(text.trim());
+    rest = end;
+  }
+  return { statements, remainder: sql.slice(rest) };
 }

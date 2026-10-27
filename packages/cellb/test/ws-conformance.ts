@@ -209,6 +209,18 @@ export const cases: Record<string, (env: WsEnv) => Promise<void>> = {
     ws.close();
   },
 
+  async "bufferedAmount: grows by the bytes sent, falls back to 0 once they went out"(env) {
+    const { ws, ev } = await opened(env);
+    ws.send("é".repeat(1000)); // 2000 UTF-8 bytes
+    ws.send(new Uint8Array(3000));
+    same(ws.bufferedAmount, 5000, "bufferedAmount right after send()");
+    await ev.message();
+    await ev.message();
+    for (let i = 0; ws.bufferedAmount > 0 && i < 100; i++) await sleep(20);
+    same(ws.bufferedAmount, 0, "bufferedAmount once the server received both");
+    ws.close();
+  },
+
   async "broadcast: every socket of the room receives"(env) {
     const room = env.room(uniq());
     const a = new env.WS(room);

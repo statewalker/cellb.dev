@@ -121,6 +121,9 @@ async function importWorkerCode(
   if ("site" in code) {
     workersHostRegistry({
       workersModule,
+      projectWorkersModule: { ...workersModule, env: scope.env, exports: scope.exports },
+      loadedPrefix: `${code.site}loaded/`,
+      emailModule: await import("./cloudflare-email.js"),
       ...globals,
       // Loaded on demand, after installNodeGlobals(): the npm `util` polyfill reads `process`
       // when it is imported.
@@ -174,6 +177,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
           isolateScript: opts.isolateScript,
           siteBaseUrl: site,
           storagePrefix: `${opts.pool}-iso`,
+          storage: () => shared, // facets of loaded code are logged like the root's own
         })
       : undefined,
     storage: shared, // R2 objects in the fleet bucket too, as celld keeps them

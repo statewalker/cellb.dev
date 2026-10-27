@@ -60,6 +60,9 @@ code and builds the runtime from the wrangler configuration. The code is either:
 - `{ site }` — the base URL of an in-browser HTTP server made by `createProjectSite` and hosted by
   `@statewalker/webrun-site-host`, which compiles the project's sources on request
   (`@statewalker/webrun-modules`). Loaded Workers' code is uploaded to it and imported from URLs.
+  The project's `cloudflare:workers` has its own `env` and `exports` (loaded Workers get empty
+  ones), and `cloudflare:email` loads; `await` is not lowered, so `AsyncLocalStorage` keeps
+  run-at-a-time stores there (see below).
 
 With `isolateScript`, each loaded Worker runs in its own Dedicated Worker; without it, it runs in
 this worker's realm. The package ships that worker as `@statewalker/cellb/isolate-worker`; with
@@ -293,8 +296,6 @@ tabs or workers with no server. Its conditional writes are atomic only within on
   ServiceWorker asks a page to re-attach the shard links first. If no page is open, it fails.
 - **A browser fleet node owns cells but celld cannot reach them.** By design: celld refuses those
   requests while the browser node lives, and takes the cells after its node lease lapses.
-- **Isolated facets in a browser are not in the fleet bucket.** A Durable Object class of a loaded
-  Worker keeps its database in the isolate's OPFS pool only; see [gaps.md](gaps.md).
 
 ## Firefox and WebKit
 
