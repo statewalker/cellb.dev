@@ -16,20 +16,34 @@ const pkg = resolve(import.meta.dirname, "../..");
 const requireFromPkg = createRequire(resolve(pkg, "package.json"));
 
 /**
- * A Node.js module with no browser polyfill, as CommonJS so that any named import binds: each
- * export is a function (a class too) that throws when called, the module's default is the same.
+ * A Node.js module with no browser polyfill, as an ES module: every export the module has on
+ * this Node.js (the bundler runs on it) is a function that throws when called (a class to extend
+ * too), and the default export answers any member the same way.
  */
-const nodeStub = (name: string) => `
-const fail = (what) => { throw new Error(${JSON.stringify(name)} + (what ? "." + what : "") + " is not available in browsers (nodejs_compat)"); };
-const exports_ = {};
-module.exports = new Proxy(exports_, {
-  get(target, key) {
-    if (typeof key === "symbol" || key === "__esModule" || key === "then") return undefined;
-    if (!(key in target)) target[key] = function () { fail(String(key)); };
-    return target[key];
-  },
-});
-`;
+function nodeStub(name: string): string {
+  let names: string[] = [];
+  try {
+    names = Object.keys(requireFromPkg(name)).filter((n) => n !== "default");
+  } catch {
+    // not a module of this Node.js: the default export only
+  }
+  const what = JSON.stringify(name);
+  return [
+    `const fail = (key) => { throw new Error(${what} + "." + key + " is not available in browsers (nodejs_compat)"); };`,
+    "const stub = (key) => function () { fail(key); };",
+    ...names.map(
+      (n, i) =>
+        `const s${i} = stub(${JSON.stringify(n)}); export { s${i} as ${JSON.stringify(n)} };`,
+    ),
+    "export default new Proxy(Object.create(null), {",
+    "  get(target, key) {",
+    '    if (typeof key === "symbol" || key === "then" || key === "__esModule") return undefined;',
+    "    if (!Object.hasOwn(target, key)) target[key] = stub(String(key));",
+    "    return target[key];",
+    "  },",
+    "});",
+  ].join("\n");
+}
 
 const GLOBALS_SHIM = `${WORKERS_GLOBAL_NAMES.map((n) => `export const ${n} = globalThis.__cellsGlobals.${n};`).join(" ")} export const scheduler = ${SCHEDULER_EXPRESSION};`;
 

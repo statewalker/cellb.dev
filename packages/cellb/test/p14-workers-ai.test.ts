@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
+import { bundleWorkerForBrowser, loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
 // Workers AI (`env.AI`) served by an OpenAI-compatible endpoint: a fake one here, which echoes
 // what it was asked and records every request.
@@ -28,6 +28,23 @@ async function fakeOpenAi() {
         );
       }
       const last = body.messages.at(-1).content;
+      if (body.tools?.length && last === "weather?" && body.stream) {
+        // As OpenAI-compatible servers stream tool calls: the name first, then the arguments in
+        // fragments, each keyed by the call's index.
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        const chunk = (delta: unknown, finish: string | null = null) =>
+          res.write(`data: ${JSON.stringify({ choices: [{ delta, finish_reason: finish }] })}\n\n`);
+        chunk({
+          tool_calls: [{ index: 0, id: "c1", function: { name: "weather", arguments: "" } }],
+        });
+        for (const part of ['{"ci', 'ty":"Pa', 'ris"}'])
+          chunk({ tool_calls: [{ index: 0, function: { arguments: part } }] });
+        chunk({
+          tool_calls: [{ index: 1, id: "c2", function: { name: "time", arguments: "{}" } }],
+        });
+        chunk({}, "tool_calls");
+        return res.end("data: [DONE]\n\n");
+      }
       if (body.tools?.length && last === "weather?") {
         res.writeHead(200, { "content-type": "application/json" });
         return res.end(
@@ -94,6 +111,11 @@ export default {
         tools: [{ name: "weather", description: "Weather", parameters: { type: "object" } }],
       }),
       stream: await read(await ai.run("@cf/meta/llama-3.1-8b-instruct", { prompt: "go", stream: true })),
+      streamedTools: await read(await ai.run("@cf/meta/llama-3.1-8b-instruct", {
+        messages: [{ role: "user", content: "weather?" }],
+        tools: [{ name: "weather", description: "Weather", parameters: { type: "object" } }],
+        stream: true,
+      })),
       raw: { status: raw.status, type: raw.headers.get("content-type"), lines: await read(raw.body) },
       embed: await ai.run("@cf/baai/bge-small-en-v1.5", { text: ["ab", "abcd"] }),
       refused,
@@ -144,6 +166,11 @@ describe("P14 Workers AI over an OpenAI-compatible endpoint", () => {
         'data: {"response":"go "}',
         "data: [DONE]",
       ]);
+      // Tool calls stream in fragments; Workers AI's stream carries the whole calls, once.
+      expect(r.streamedTools).toEqual([
+        'data: {"response":"","tool_calls":[{"name":"weather","arguments":{"city":"Paris"}},{"name":"time","arguments":{}}]}',
+        "data: [DONE]",
+      ]);
       // The endpoint's own response, as Flue's provider reads it.
       expect(r.raw.status).toBe(200);
       expect(r.raw.type).toBe("text/event-stream");
@@ -172,5 +199,43 @@ describe("P14 Workers AI over an OpenAI-compatible endpoint", () => {
     } finally {
       await p.runtime.close();
     }
+  });
+});
+
+describe("P14 Node.js modules a browser bundle has no polyfill for", () => {
+  it("load as stubs whose named and default exports throw when called", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "p14-stub-"));
+    writeFileSync(
+      join(dir, "index.js"),
+      `import { spawn, ChildProcess } from "node:child_process";
+      import * as cp from "node:child_process";
+      import readline from "node:readline";
+      class Mine extends ChildProcess {} // a class to extend, as libraries do at load
+      export const probe = () => {
+        const out = {};
+        const calls = {
+          spawn,
+          namespace: () => cp.exec(),
+          defaultMember: () => readline.createInterface(),
+          toString: () => readline.toString(), // Object.prototype's names are stubs too
+          subclass: () => new Mine(),
+        };
+        for (const [k, f] of Object.entries(calls))
+          try { f(); out[k] = "ran"; } catch (e) { out[k] = e.message; }
+        return out;
+      };`,
+    );
+    const code = await bundleWorkerForBrowser(join(dir, "index.js"), { nodeCompat: true });
+    const g = globalThis as { __cellsGlobals?: object };
+    g.__cellsGlobals ??= {}; // the Workers globals a browser host installs; this code reads none
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
+    const fails = (key: string) => `${key} is not available in browsers (nodejs_compat)`;
+    expect(mod.probe()).toEqual({
+      spawn: fails("node:child_process.spawn"),
+      namespace: fails("node:child_process.exec"),
+      defaultMember: fails("node:readline.createInterface"),
+      toString: fails("node:readline.toString"),
+      subclass: fails("node:child_process.ChildProcess"),
+    });
   });
 });
