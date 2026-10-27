@@ -348,6 +348,7 @@ export const scenarios: Record<string, Scenario> = {
   "storage-details": {
     steps: [{ path: "/kv" }, { path: "/sql" }, { path: "/txn" }, { path: "/alarms" }],
   },
+  "sql-ingest": { steps: [{ path: "/" }] },
   "miniflare2-details": { steps: ["/storage", "/stub"].map((path) => ({ path })) },
   "queues-details": {
     steps: [{ path: "/validate" }, { path: "/send" }, { waitMs: 3500 }, { path: "/log" }],
@@ -362,6 +363,17 @@ export const scenarios: Record<string, Scenario> = {
     headers: ["location", "set-cookie", "x-multi"],
     // stack frames point into each engine's own bundle
     textMask: [[" \\[at [^\\]]*\\]", ""]],
+  },
+  // Calls and property reads on a stub call's pending result (promise pipelining).
+  "worker-details-pipeline": {
+    project: "worker-details",
+    steps: [{ path: "/pipeline" }],
+    judge: "workerd",
+  },
+  "isolation-api-pipeline": {
+    project: "isolation-api",
+    steps: [{ path: "/pipeline" }],
+    judge: "workerd",
   },
   // An RpcTarget returned by a Durable Object method: celld refuses it, workerd passes it.
   "worker-details-rpc-target": {
@@ -417,6 +429,7 @@ const WL_AGREE = [
   "ctxExports",
   "justLoad",
   "moduleTypes",
+  "overrideGlobalOutbound",
   "passEnv",
   "passEnvCaps",
   "regressionDeadIoContextGetCode",
@@ -437,7 +450,7 @@ const WL_GAPS = [
   "nullGlobalOutbound",
 ];
 const wdOverrides: Record<string, Partial<Scenario>> = {
-  // `default` (most of sql-test.js) is split off: it needs sql.ingest. testRollbackKvInit
+  // `default` (most of sql-test.js) is split off: celld stops in it (wd-sql-default). testRollbackKvInit
   // reports the alarm time it finds (Date.now() + a year).
   "wd-sql": { steps: [{ path: "/?skip=default" }], textMask: [["\\b1\\d{12}\\b", "<ms>"]] },
   "wd-actor-fetch-rejection": {
@@ -485,12 +498,8 @@ scenarios["wd-sql-default"] = {
       path: "/?skip=testCursorUaf,testMultiStatement,testRollbackKvInit,testSessionsAPIBookmark",
     },
   ],
-  // celld stops at ingest's syntax-error message (its wording misses workerd's "at offset").
-  // cellb words syntax errors as workerd does and gets past ingest, to workerd's wording of
-  // other errors (": SQLITE_MISMATCH", ": SQLITE_AUTH"), where it follows celld's.
-  judge: "workerd",
   knownGap:
-    "workerd's wording of SQLite errors (': SQLITE_<CODE>', its authorizer messages); cellb words them as celld does",
+    "both stop at the same assertion (an ingest syntax error); celld reports it with its own stack frames",
 };
 
 // celld's deviations from workerd (conformance/record-workerd.ts); cellb follows celld.
@@ -502,6 +511,10 @@ const workerdDiffers: Record<string, string> = {
   "worker-details":
     "celld wraps handler failures in a JSON 'Worker failed' body and accepts non-Response returns",
   "worker-details-rpc-target": "celld refuses an RpcTarget across a stub; workerd passes it",
+  "worker-details-pipeline":
+    "celld returns a plain Promise from a stub call: no calls or reads on it",
+  "isolation-api-pipeline":
+    "celld pipelines property reads from a loaded Worker but refuses its RpcTarget results",
   "wd-worker-loader":
     "celld refuses `data` modules and does not point TypeScript sources at worker-bundler",
   "wd-worker-loader-gaps":

@@ -31,6 +31,8 @@ celld transcript is recorded too, so the difference stays on file, and it carrie
 | `wd-stub-storage` | stores `ctx.exports.X({ props })` stubs and class handles in Durable Object storage |
 | `wd-worker-loader-stubs` | passes `ctx.exports` stubs and Durable Object stubs into a loaded Worker's `env`, `props` and arguments |
 | `worker-details-rpc-target` | returns an `RpcTarget` from a Durable Object method as a stub |
+| `worker-details-pipeline` | calls and property reads on a Durable Object stub call's result before it settles (`stub.target().inc()`, `stub.nested().inner.n`) |
+| `isolation-api-pipeline` | the same on a loaded Worker's entrypoint, and from loaded code on a host binding's `RpcTarget` result |
 
 Every other scenario is still judged by celld; a new `judge: "workerd"` needs a reason of this kind,
 not a convenience.
@@ -76,7 +78,7 @@ differently. The workerd test configuration (`.wd-test`) is translated by hand i
 
 ## WebSockets are compared with the platform's own
 
-A shared case module encodes 19 WHATWG WebSocket behaviours with no Node- or DOM-only imports.
+A shared case module encodes 20 WHATWG WebSocket behaviours with no Node- or DOM-only imports.
 They run against cellb's sockets (in-process, across worker-thread shards, through a ServiceWorker
 router to shard workers) and against the platform's native `WebSocket` talking to a real `ws`
 server that speaks the same protocol as the test `Room` object. Chrome's native WebSocket is the

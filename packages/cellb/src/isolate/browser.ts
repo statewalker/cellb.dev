@@ -1,5 +1,5 @@
 import type { ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
-import type { CellBackup, CellDurability } from "../ports.js";
+import type { CellStorage } from "../ports.js";
 import { putLoadedModule } from "../project/site.js";
 import { isolatedModuleLoader } from "./host.js";
 import type { PortLike } from "./protocol.js";
@@ -16,7 +16,7 @@ export function browserIsolatedLoader(opts: {
   /** Prefix of the OPFS SQLite pool each isolate keeps its facets in (one pool per loaded id). */
   storagePrefix?: string;
   /** The host's storage: facets of loaded code are logged and restored through it. */
-  storage?: () => { durability?: CellDurability; backup?: CellBackup };
+  storage?: () => CellStorage | undefined;
 }): ModuleLoader {
   const storageName = (id: string) =>
     `${opts.storagePrefix ?? "isolate"}-${id}`.replace(/[^\w.-]/g, "_");

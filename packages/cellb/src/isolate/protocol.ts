@@ -6,10 +6,11 @@ import {
   type MessageTarget,
   multiplexPort,
   NO_TIMEOUT,
+  type PortMux,
   serveDuplexOverPort,
   structuredCodec,
 } from "@statewalker/webrun-rpc";
-import { cross, STUB } from "../core/handles.js";
+import { cross, pipeTo, rpcPromise, STUB } from "../core/handles.js";
 import { withUrl } from "../core/request-body.js";
 
 /**
@@ -21,14 +22,19 @@ import { withUrl } from "../core/request-body.js";
  * Functions, `RpcTarget`s and stubs anywhere in a call or result cross by reference (as
  * workerd passes them): the far side gets a stub whose calls come back.
  *
- * Calls (one port, both directions):
+ * Calls (one port, both directions; each names an `answer`, which the serving side keeps until
+ * the caller has the result, so calls on it can be sent before then — promise pipelining):
  *   host → isolate   load {source|url, env, outbound}                     → loaded {exports}
  *                    call {name, method, args, props}                     → result
  *   isolate → host   log {level, args}
- *   either way       ref {id, method?, args}  (a call on a stub of the other side's value)
- *                    release {id}             (that stub was disposed or collected)
+ *   either way       ref {id|on, path, args}  (a call on a stub of the other side's value, or
+ *                                              on answer `on`: `path` is the property path
+ *                                              called, [] the value itself)
+ *                    release {id|answer}      (that stub was disposed or collected; the caller
+ *                                              has that answer)
  * Fetches: one port per request (meta: its target and URL), HTTP/1.1 with streamed bodies,
- * as cells-http over a port (src/transport/port.ts).
+ * as cells-http over a port (src/transport/port.ts): host → isolate to an export or facet,
+ * isolate → host for the loaded code's global `fetch()` when a `globalOutbound` Fetcher routes it.
  */
 export interface PortLike {
   postMessage(msg: unknown, transfer?: Transferable[]): void;
@@ -51,46 +57,47 @@ type Handle = (msg: any) => Promise<unknown>;
 /**
  * The host's end of an isolate's port: one webrun-rpc multiplexer over it, a calls port on
  * which each side calls the other (`callPort`/`listenPort`, no timeout: a call lasts as long
- * as the work it starts), and a port per fetch.
+ * as the work it starts), and a port per fetch. `outbound` serves the loaded code's global
+ * `fetch()` (its `globalOutbound` Fetcher).
  */
 export async function hostPort(
   port: PortLike,
   handle: Handle,
+  outbound?: (req: Request) => Promise<Response>,
 ): Promise<{ call: Call; fetch: Fetch }> {
-  const mux = multiplexPort(messageTarget(port), { codec: structuredCodec, side: "initiator" });
+  const mux = multiplexPort(messageTarget(port), {
+    codec: structuredCodec,
+    side: "initiator",
+    onPort(p, meta) {
+      const m = meta as { kind?: string; url: string } | undefined;
+      if (m?.kind !== "outbound" || !outbound) return false;
+      serveFetch(p, m.url, outbound);
+      return true;
+    },
+  });
   const call = callsOver(await mux.openPort({ kind: "calls" }), handle);
-  const fetch: Fetch = (target, req) =>
-    fetchOverDuplex(
-      (input) =>
-        (async function* () {
-          // The URL rides in the meta: the HTTP/1.1 wire drops its scheme.
-          yield* duplexOverPort(await mux.openPort({ kind: "fetch", target, url: req.url }))(input);
-        })(),
-      req,
-    );
+  const fetch: Fetch = (target, req) => fetchOver(mux, { kind: "fetch", target }, req);
   return { call, fetch };
 }
 
 /**
  * The isolate's end: accepts the ports the host opens. Everything the isolate calls the host
- * for happens while serving a host call, so the calls port is open by then.
+ * for happens while serving a host call, so the calls port is open by then. `outbound` sends
+ * a fetch to the host's `globalOutbound`.
  */
-export function isolatePort(port: PortLike, handle: Handle, fetch: Fetch): { call: Call } {
+export function isolatePort(
+  port: PortLike,
+  handle: Handle,
+  fetch: Fetch,
+): { call: Call; outbound: (req: Request) => Promise<Response> } {
   let calls: Call | undefined;
-  multiplexPort(messageTarget(port), {
+  const mux = multiplexPort(messageTarget(port), {
     codec: structuredCodec,
     side: "responder",
     onPort(p, meta) {
       const m = meta as { kind?: string; target: FetchTarget; url: string } | undefined;
       if (m?.kind === "fetch") {
-        serveDuplexOverPort(
-          p,
-          serveFetchOverDuplex((req) =>
-            withUrl(req, m.url)
-              .then((r) => fetch(m.target, r))
-              .catch(throwOwn),
-          ),
-        );
+        serveFetch(p, m.url, (r) => fetch(m.target, r));
         return true;
       }
       if (m?.kind !== "calls" || calls) return false;
@@ -98,7 +105,29 @@ export function isolatePort(port: PortLike, handle: Handle, fetch: Fetch): { cal
       return true;
     },
   });
-  return { call: (msg) => calls!(msg) };
+  return {
+    call: (msg) => calls!(msg),
+    outbound: (req) => fetchOver(mux, { kind: "outbound" }, req),
+  };
+}
+
+/** A fetch over a new port of `mux`; the URL rides in the meta (the HTTP/1.1 wire drops its scheme). */
+function fetchOver(mux: PortMux, meta: object, req: Request): Promise<Response> {
+  return fetchOverDuplex(
+    (input) =>
+      (async function* () {
+        yield* duplexOverPort(await mux.openPort({ ...meta, url: req.url }))(input);
+      })(),
+    req,
+  );
+}
+
+/** Serves the fetch on port `p` (its URL from the meta) with `fetch`. */
+function serveFetch(p: MessageTarget, url: string, fetch: (req: Request) => Promise<Response>) {
+  serveDuplexOverPort(
+    p,
+    serveFetchOverDuplex((req) => withUrl(req, url).then(fetch).catch(throwOwn)),
+  );
 }
 
 /** Marks a value passed by reference in a message: `{ [REF]: id }`. */
@@ -108,10 +137,13 @@ const REF = "\u0000cellb.ref";
  * The calls of one port, with values passed by reference: each side keeps the values it
  * passed (by id, and how many ids hold each); the other side calls them through stubs. A
  * stub's `Symbol.dispose` (or its garbage collection) releases its id; the last release of a
- * value runs the value's own `Symbol.dispose`, as workerd does for an `RpcTarget`.
+ * value runs the value's own `Symbol.dispose`, as workerd does for an `RpcTarget`. A call
+ * returns an RpcPromise: calls on it go to the other side at once, naming its answer.
  */
 function callsOver(port: MessageTarget, handle: Handle): Call {
   const values = new Map<number, any>();
+  const answers = new Map<number, unknown>();
+  let lastAnswer = 0;
   const holders = new Map<unknown, number>();
   let lastId = 0;
   const encode = (v: unknown) =>
@@ -136,23 +168,21 @@ function callsOver(port: MessageTarget, handle: Handle): Call {
       v[Symbol.dispose]?.();
     }
   };
-  const collected = new FinalizationRegistry<number>((id) => {
-    call({ type: "release", id }).catch(() => {});
-  });
+  const send = (msg: object) => callPort(port, msg, { timeout: NO_TIMEOUT }).catch(() => {});
+  const collected = new FinalizationRegistry<number>((id) => send({ type: "release", id }));
   const stubOf = (id: number) => {
-    const invoke = (method: string | undefined, args: unknown[]) =>
-      call({ type: "ref", id, method, args });
+    const invoke = (path: string[], args: unknown[]) => call({ type: "ref", id, path, args });
     const stub: any = new Proxy(() => {}, {
-      apply: (_t, _this, args) => invoke(undefined, args),
+      apply: (_t, _this, args) => invoke([], args),
       get(_t, prop) {
         if (prop === STUB) return true;
         if (prop === Symbol.dispose)
           return () => {
             collected.unregister(stub);
-            call({ type: "release", id }).catch(() => {});
+            send({ type: "release", id });
           };
         if (prop === "then" || typeof prop === "symbol") return undefined;
-        return (...args: unknown[]) => invoke(prop, args);
+        return (...args: unknown[]) => invoke([prop], args);
       },
     });
     collected.register(stub, id, stub);
@@ -167,16 +197,40 @@ function callsOver(port: MessageTarget, handle: Handle): Call {
     }
     return v;
   };
-  const serve = async (m: any) => {
-    if (m.type === "release") return release(m.id);
+  const run = (m: any): unknown => {
     if (m.type !== "ref") return handle(m);
+    if (m.on !== undefined) return pipeTo(answers.get(m.on), m.path, m.args);
     const v = values.get(m.id);
     if (v === undefined) throw new Error("A stub was used after it was disposed.");
-    return m.method === undefined ? v(...m.args) : v[m.method](...m.args);
+    return pipeTo(v, m.path, m.args);
+  };
+  // The answer is kept as the message arrives: a pipelined call on it may arrive before it
+  // settles.
+  const serve = async (m: any) => {
+    if (m.type === "release") {
+      if (m.answer === undefined) release(m.id);
+      else answers.delete(m.answer);
+      return;
+    }
+    let r: unknown;
+    try {
+      r = run(m);
+    } catch (e) {
+      r = Promise.reject(e);
+    }
+    answers.set(m.answer, r);
+    return r;
   };
   listenPort(port, (msg) => serve(decode(msg)).then(encode).catch(throwOwn));
-  const call: Call = async (msg) =>
-    decode(await callPort(port, encode(msg), { timeout: NO_TIMEOUT }));
+  const call: Call = (msg) => {
+    const answer = ++lastAnswer;
+    const result = (async () =>
+      decode(await callPort(port, encode({ ...msg, answer }), { timeout: NO_TIMEOUT })))();
+    // Calls on the answer sent before now are ahead of this release on the port.
+    const done = () => send({ type: "release", answer });
+    result.then(done, done);
+    return rpcPromise(result, (path, args) => call({ type: "ref", on: answer, path, args }));
+  };
   return call;
 }
 

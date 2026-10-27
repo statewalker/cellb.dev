@@ -96,6 +96,7 @@ export class CfWebSocket extends EventTarget {
     if (f.t === "m") {
       const data = typeof f.d !== "string" && this.#binaryType === "blob" ? new Blob([f.d]) : f.d;
       this.dispatchEvent(new MessageEvent("message", { data }));
+      this[kPort]?.postMessage({ t: "a" } satisfies Frame); // the sender's bufferedAmount drains
       return;
     }
     if (f.t !== "c") return;

@@ -1,5 +1,5 @@
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
-import { cross, STUB } from "./handles.js";
+import { cross, rpcCall, STUB } from "./handles.js";
 import { type DurableObjectId, idFromName, newUniqueId, validateId } from "./id.js";
 import type { ObjectHost } from "./object-host.js";
 import type { DurableObjectState } from "./state.js";
@@ -133,7 +133,7 @@ export function runInDurableObject<T>(
   return local.deliver(fn);
 }
 
-/** Stub = Proxy: `fetch` → fetch handler, any other property → JS-RPC call. */
+/** Stub = Proxy: `fetch` → fetch handler, any other property → JS-RPC call (an RpcPromise). */
 function createStub(id: DurableObjectId, endpoint: () => ObjectEndpoint): DurableObjectStub {
   const target = { id, name: id.name };
   // Only id and name are own enumerable keys, as in workerd and celld: Object.keys(stub) is
@@ -160,7 +160,7 @@ function createStub(id: DurableObjectId, endpoint: () => ObjectEndpoint): Durabl
     get(t, prop, recv) {
       if (prop in t) return Reflect.get(t, prop, recv);
       if (prop === "then" || typeof prop === "symbol") return undefined;
-      return (...args: unknown[]) => endpoint().call(String(prop), args);
+      return (...args: unknown[]) => rpcCall(() => endpoint().call(String(prop), args));
     },
   }) as unknown as DurableObjectStub;
 }

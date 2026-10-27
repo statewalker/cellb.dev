@@ -41,3 +41,9 @@ the three two-tab `sharded` specs (`UNCONTROLLED_NAVIGATION`) and `storage-detai
 
 Not done: no unit test for the message on Node (V8 already produces V8 text there); the proof is the
 Firefox spec.
+
+## Follow-up
+
+5. **The sharded demo's ServiceWorker kept POST bodies out in Firefox**: it rebuilt each ingress
+   request with `body: req.body`. It now uses `withUrl` (`src/core/request-body.ts`). Proof: a new
+   `sharded` step POSTs to `/sharded/cells/echo` (red in Firefox: body `""`; green after).

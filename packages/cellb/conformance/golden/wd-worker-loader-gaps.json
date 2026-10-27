@@ -2,7 +2,7 @@
   "celld": "0.6.3",
   "transcript": [
     {
-      "request": "GET /?skip=asyncCodeLoader,codeLoaderException,ctxExports,justLoad,moduleTypes,passEnv,passEnvCaps,regressionDeadIoContextGetCode,startupException,suggestWorkerBundlerForTypeScriptModules,wasmModules",
+      "request": "GET /?skip=asyncCodeLoader,codeLoaderException,ctxExports,justLoad,moduleTypes,overrideGlobalOutbound,passEnv,passEnvCaps,regressionDeadIoContextGetCode,startupException,suggestWorkerBundlerForTypeScriptModules,wasmModules",
       "status": 200,
       "contentType": "application/json",
       "body": {

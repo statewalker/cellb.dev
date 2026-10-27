@@ -11,6 +11,7 @@
         "ctxExports": "ok",
         "justLoad": "ok",
         "moduleTypes": "ok",
+        "overrideGlobalOutbound": "ok",
         "passEnv": "ok",
         "passEnvCaps": "ok",
         "regressionDeadIoContextGetCode": "ok",

@@ -1,5 +1,5 @@
 import { deserialize, type HostObjects, serialize } from "../v8/serialize.js";
-import { isWorkerEntrypoint, RpcTarget } from "./durable-object.js";
+import { isRpcTarget, isWorkerEntrypoint } from "./durable-object.js";
 import type { DurableObjectState } from "./state.js";
 
 export type DurableObjectClass = new (ctx: DurableObjectState, env: any) => any;
@@ -64,7 +64,7 @@ export function cross<T>(
   if (typeof refused === "string") throw new DOMException(refused, "DataCloneError");
   if (
     typeof v === "function" ||
-    v instanceof RpcTarget ||
+    isRpcTarget(v) ||
     (v as Record<symbol, unknown>)[STUB] === true ||
     isClassHandle(v)
   )
@@ -98,12 +98,72 @@ export function toAnotherNode<T>(v: T): T {
   return v;
 }
 
+/** Where a call on an RpcPromise goes: the property path from its result, and the arguments. */
+export type Pipe = (path: string[], args: unknown[]) => unknown;
+
+const RPC_PROMISE = Symbol("cellb.rpc-promise");
+
+/**
+ * workerd's RpcPromise: what a call on a stub returns. It is awaited as a promise, and used
+ * before it settles (promise pipelining): a property read gives the RpcPromise of that path,
+ * and a call on a path goes through `pipe` at once, without waiting for `result`.
+ */
+export function rpcPromise(result: Promise<unknown>, pipe: Pipe): any {
+  const at = (path: string[]): any => {
+    let value: Promise<unknown> | undefined;
+    // The result itself is a Promise-like object, not callable (node:assert calls a function
+    // given to `rejects`); a property path is callable.
+    return new Proxy(path.length ? () => {} : Object.create(Promise.prototype), {
+      apply: (_t, _this, args) => rpcCall(() => pipe(path, args)),
+      get(_t, prop) {
+        if (prop === RPC_PROMISE) return true;
+        if (prop === "then" || prop === "catch" || prop === "finally") {
+          value ??= result.then((v) => path.reduce((o: any, k) => o[k], v));
+          return value[prop].bind(value);
+        }
+        if (typeof prop === "symbol") return undefined;
+        return at([...path, prop]);
+      },
+    });
+  };
+  return at([]);
+}
+
+/**
+ * Runs a call and returns its result as an RpcPromise (`map` applies to the settled value);
+ * calls on it go to the result: at once if the result is an RpcPromise itself, else once it
+ * settles.
+ */
+export function rpcCall(call: () => unknown, map?: (v: unknown) => unknown): any {
+  let r: unknown;
+  try {
+    r = call();
+  } catch (e) {
+    r = Promise.reject(e);
+  }
+  const result = Promise.resolve(r);
+  return rpcPromise(map ? result.then(map) : result, (path, args) => pipeTo(r, path, args));
+}
+
+/** Calls `path` of `r` (a value, a promise of one, or an RpcPromise) with `args`. */
+export function pipeTo(r: unknown, path: string[], args: unknown[]): unknown {
+  const callAt = (v: any) => {
+    if (!path.length) return v(...args);
+    const receiver = path.slice(0, -1).reduce((o, k) => o[k], v);
+    return receiver[path[path.length - 1]](...args);
+  };
+  return (r as Record<symbol, unknown>)?.[RPC_PROMISE]
+    ? callAt(r)
+    : Promise.resolve(r).then(callAt);
+}
+
 /**
  * A stub over an asynchronously obtained target: `fetch` and JS-RPC methods, arguments
- * and results crossing as between isolates.
+ * and results crossing as between isolates. A method's result is an RpcPromise over what
+ * `call` returns.
  */
 export function asyncStub(
-  call: (method: string, args: unknown[]) => Promise<unknown>,
+  call: (method: string, args: unknown[]) => unknown,
   fetch: (req: Request) => Promise<Response>,
 ): Record<string, any> {
   return new Proxy(
@@ -115,7 +175,7 @@ export function asyncStub(
         if (prop === "fetch")
           return (input: RequestInfo | URL, init?: RequestInit) =>
             fetch(new Request(input as RequestInfo, init));
-        return async (...args: unknown[]) => cross(await call(String(prop), cross(args)));
+        return (...args: unknown[]) => rpcCall(() => call(String(prop), cross(args)), cross);
       },
     },
   );
@@ -150,7 +210,7 @@ export function entrypointStub(
     return target as any;
   };
   return asyncStub(
-    async (method, args) => {
+    (method, args) => {
       const instance = make();
       const fn = instance?.[method];
       if (typeof fn !== "function")
@@ -220,7 +280,7 @@ export function storedExports(exports: Record<string, unknown>): HostObjects {
     encode(v) {
       const e = (v as Record<symbol, { name: string; props: unknown } | undefined>)[EXPORT];
       if (e) return serialize([e.name, e.props], host);
-      if ((v as Record<symbol, unknown>)[STUB] === true || v instanceof RpcTarget)
+      if ((v as Record<symbol, unknown>)[STUB] === true || isRpcTarget(v))
         throw new DOMException(
           "Only ctx.exports.<name>({ props }) stubs and class handles can be stored.",
           "DataCloneError",

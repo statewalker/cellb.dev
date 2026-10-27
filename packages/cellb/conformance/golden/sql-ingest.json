@@ -1,0 +1,53 @@
+{
+  "celld": "0.6.3",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "remainders": [
+          "   ",
+          " SELECT 2",
+          "",
+          "SELECT 1",
+          "",
+          "   ",
+          " -- a comment",
+          " /* a comment */",
+          " SELECT 'c",
+          " CREATE TRIGGER tr AFTER INSERT ON t BEGIN SELECT 1;"
+        ],
+        "writes": {
+          "remainder": " DELE",
+          "statementCount": 4,
+          "rowsWritten": 4
+        },
+        "trigger": {
+          "remainder": "",
+          "statementCount": 2,
+          "rowsWritten": 2
+        },
+        "afterWrites": ["z", "b", "t"],
+        "syntax": "Error: SQL error: prepare ingested SQL: near \"bunk\": syntax error",
+        "misspelled": "Error: SQL error: prepare ingested SQL: near \"INSER\": syntax error",
+        "noTable": "Error: SQL error: prepare ingested SQL: no such table: missing",
+        "constraint": "Error: SQL error: step ingested SQL: UNIQUE constraint failed: t.id",
+        "partly": "Error: SQL error: prepare ingested SQL: near \"bunk\": syntax error",
+        "afterPartly": ["z", "b", "t", "before"],
+        "transaction": "Error: SQL error: prepare ingested SQL: not authorized",
+        "internal": "Error: SQL error: prepare ingested SQL: access to _cf_KV.scope is prohibited",
+        "parameter": {
+          "remainder": "",
+          "statementCount": 1,
+          "rowsWritten": 0
+        },
+        "notString": {
+          "remainder": "42",
+          "statementCount": 0,
+          "rowsWritten": 0
+        }
+      }
+    }
+  ]
+}

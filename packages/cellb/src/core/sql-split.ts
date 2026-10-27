@@ -1,8 +1,12 @@
-const TRIGGER = /^\s*CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TRIGGER\b/i;
+/** A trigger's creation, also under EXPLAIN (`sql.ingest()` prepares each statement so). */
+const TRIGGER = /^\s*(?:EXPLAIN\s+)?CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TRIGGER\b/i;
 
-/** Splits a param-less SQL script on top-level `;` (respects quotes, comments, triggers). */
-export function splitSqlStatements(sql: string): string[] {
-  const out: string[] = [];
+/**
+ * The statements of a SQL script ended by a top-level `;` (quotes, comments and trigger bodies
+ * respected), each without its comments, with the offset just past its `;`; then the text after
+ * the last one, with `end` undefined.
+ */
+function* scanSql(sql: string): Generator<{ text: string; end?: number }> {
   let cur = "";
   for (let i = 0; i < sql.length; i++) {
     const c = sql[i];
@@ -23,59 +27,43 @@ export function splitSqlStatements(sql: string): string[] {
         cur += c;
         continue;
       }
-      if (cur.trim()) out.push(cur.trim());
+      yield { text: cur, end: i + 1 };
       cur = "";
     } else cur += c;
   }
-  if (cur.trim()) out.push(cur.trim());
+  yield { text: cur };
+}
+
+/** Splits a param-less SQL script on top-level `;` (respects quotes, comments, triggers). */
+export function splitSqlStatements(sql: string): string[] {
+  const out: string[] = [];
+  for (const { text } of scanSql(sql)) if (text.trim()) out.push(text.trim());
   return out.length ? out : [sql];
 }
 
 /**
- * The complete statements at the start of `sql` (each ended by a top-level `;`, a trigger body
- * as one), and what follows the last of them: the `remainder` of workerd's `sql.ingest()`, kept
- * as it is (whitespace, a comment, an unfinished statement or string).
+ * The complete statements at the start of a chunk of SQL text (each ended by a top-level `;`,
+ * as `sqlite3_complete` sees it) and the text after the last of them, untouched.
  */
-export function takeCompleteStatements(sql: string): { statements: string[]; remainder: string } {
+export function completeSqlStatements(sql: string): { statements: string[]; remainder: string } {
   const statements: string[] = [];
-  let start = 0; // where the current statement begins
-  let code = ""; // the current statement without comments, to recognize a trigger
-  for (let i = 0; i < sql.length; i++) {
-    const c = sql[i];
-    if (c === "'" || c === '"' || c === "`" || c === "[") {
-      const end = sql.indexOf(c === "[" ? "]" : c, i + 1);
-      if (end < 0) break; // an unfinished string: incomplete
-      code += sql.slice(i, end + 1);
-      i = end;
-    } else if (c === "-" && sql[i + 1] === "-") {
-      const end = sql.indexOf("\n", i);
-      if (end < 0) break;
-      i = end;
-    } else if (c === "/" && sql[i + 1] === "*") {
-      const end = sql.indexOf("*/", i + 2);
-      if (end < 0) break;
-      i = end + 1;
-    } else if (c === ";") {
-      if (TRIGGER.test(code) && !/\bEND\s*$/i.test(code)) {
-        code += c;
-        continue;
-      }
-      if (code.trim()) statements.push(sql.slice(start, i + 1).trim());
-      start = i + 1;
-      code = "";
-    } else code += c;
+  let rest = 0;
+  for (const { text, end } of scanSql(sql)) {
+    if (end === undefined) break;
+    if (text.trim()) statements.push(text.trim());
+    rest = end;
   }
-  return { statements, remainder: sql.slice(start) };
+  return { statements, remainder: sql.slice(rest) };
 }
 
 const COMMENTS = /--[^\n]*(\n|$)|\/\*[\s\S]*?(\*\/|$)/g;
 
-/** Whether `sql` is comments and nothing else (an empty `sql` is not). */
-export function onlyComments(sql: string): boolean {
-  return sql.replace(COMMENTS, " ").trim() === "" && sql.trim() !== "";
-}
-
-/** Whether `sql` holds a statement: anything but whitespace, comments and `;`. */
-export function hasStatement(sql: string): boolean {
-  return sql.replace(COMMENTS, " ").replace(/;/g, " ").trim() !== "";
+/**
+ * Whether `sql` holds no statement to run (workerd and celld: "SQL code did not contain a
+ * statement"): nothing but whitespace, comments and `;`, or a last statement of comments alone.
+ */
+export function lacksStatement(sql: string): boolean {
+  if (sql.replace(COMMENTS, " ").replace(/;/g, " ").trim() === "") return true;
+  const { remainder } = completeSqlStatements(sql);
+  return remainder.trim() !== "" && remainder.replace(COMMENTS, " ").trim() === "";
 }
