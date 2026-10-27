@@ -9,4 +9,5 @@ export {
   StandardWebSocketPair,
   WebSocketPair,
   WebSocketRequestResponsePair,
+  WorkersWebSocket as WebSocket,
 } from "../ws/server.js";

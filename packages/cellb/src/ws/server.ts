@@ -122,6 +122,46 @@ export class CfWebSocket extends EventTarget {
   }
 }
 
+/** The host's own WebSocket (Node's, or the browser's): the client sockets Worker code opens. */
+const HostWebSocket = (
+  globalThis as { WebSocket?: new (url: string, p?: string | string[]) => object }
+).WebSocket;
+
+/**
+ * The `WebSocket` global of Worker code. On workerd one class covers both ends of a
+ * WebSocketPair and the client sockets `new WebSocket(url)` opens, and libraries rely on that:
+ * the Agents SDK (partyserver) reads attachments with
+ * `WebSocket.prototype.deserializeAttachment.call(ws)` and compares `readyState` with
+ * `WebSocket.READY_STATE_OPEN`. So its prototype is the server end's (`CfWebSocket`), its
+ * statics are workerd's, `instanceof` holds for both kinds, and `new WebSocket(url)` still opens
+ * the host's client socket.
+ */
+export const WorkersWebSocket = (() => {
+  function WebSocket(this: unknown, url: string, protocols?: string | string[]): object {
+    if (!new.target)
+      throw new TypeError("Failed to construct 'WebSocket': Please use the 'new' operator.");
+    if (!HostWebSocket) throw new Error("WebSocket clients are not available in this realm.");
+    return new HostWebSocket(url, protocols);
+  }
+  WebSocket.prototype = CfWebSocket.prototype;
+  const states = { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 } as const;
+  for (const [name, value] of Object.entries(states)) {
+    Object.defineProperty(WebSocket, name, { value, enumerable: true });
+    Object.defineProperty(WebSocket, `READY_STATE_${name}`, { value, enumerable: true });
+  }
+  Object.defineProperty(WebSocket, Symbol.hasInstance, {
+    value: (v: unknown) =>
+      v instanceof CfWebSocket || (HostWebSocket !== undefined && v instanceof HostWebSocket),
+  });
+  return WebSocket as unknown as typeof CfWebSocket & {
+    new (url: string, protocols?: string | string[]): CfWebSocket;
+    readonly CONNECTING: 0;
+    readonly OPEN: 1;
+    readonly CLOSING: 2;
+    readonly CLOSED: 3;
+  };
+})();
+
 /** `new WebSocketPair()` → `{ 0: client, 1: server }`, entangled over a MessageChannel. */
 export class WebSocketPair {
   0: CfWebSocket;

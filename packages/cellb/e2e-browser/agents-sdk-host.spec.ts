@@ -4,6 +4,11 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { bundleWorkerForBrowser } from "../src/node.ts";
 import {
+  AGENTS_WEBSOCKET_CONFIG,
+  AGENTS_WEBSOCKET_WORKER,
+  EXPECTED_GLOBALS,
+} from "../test/agents-websocket-worker.ts";
+import {
   ASYNC_CONTEXT_CONFIG,
   ASYNC_CONTEXT_WORKER,
   expectedSeen,
@@ -91,4 +96,22 @@ test("AsyncLocalStorage keeps each concurrent object's store, as on Node", async
     for (const [name, seen] of Object.entries(run.results))
       expect(seen).toEqual(expectedSeen(name));
   }
+});
+
+// The global WebSocket of a browser bundle is workerd's, as the Agents SDK reads it (test/p13
+// runs the same Worker on Node, with real sockets).
+test("the global WebSocket is workerd's: attachments, READY_STATE_*, one class", async ({
+  page,
+}) => {
+  const dir = mkdtempSync(join(tmpdir(), "agents-ws-"));
+  writeFileSync(join(dir, "index.js"), AGENTS_WEBSOCKET_WORKER);
+  const code = await bundleWorkerForBrowser(join(dir, "index.js"));
+  await page.goto("/entry/");
+  await page.waitForFunction(() => document.body.dataset.ready === "true");
+  const r = await page.evaluate((p) => (window as any).__runProject(p), {
+    config: AGENTS_WEBSOCKET_CONFIG,
+    code,
+  });
+  expect(r.ok, r.error).toBe(true);
+  expect(r.counts).toEqual([EXPECTED_GLOBALS, EXPECTED_GLOBALS]);
 });

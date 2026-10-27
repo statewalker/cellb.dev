@@ -12,6 +12,7 @@ export {
   CellsResponse as Response,
   caches,
   HTMLRewriter,
+  WebSocket,
   WebSocketRequestResponsePair,
 } from "cellb:ws";
 
