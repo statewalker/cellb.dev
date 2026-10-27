@@ -55,3 +55,15 @@ export function completeSqlStatements(sql: string): { statements: string[]; rema
   }
   return { statements, remainder: sql.slice(rest) };
 }
+
+const COMMENTS = /--[^\n]*(\n|$)|\/\*[\s\S]*?(\*\/|$)/g;
+
+/**
+ * Whether `sql` holds no statement to run (workerd and celld: "SQL code did not contain a
+ * statement"): nothing but whitespace, comments and `;`, or a last statement of comments alone.
+ */
+export function lacksStatement(sql: string): boolean {
+  if (sql.replace(COMMENTS, " ").replace(/;/g, " ").trim() === "") return true;
+  const { remainder } = completeSqlStatements(sql);
+  return remainder.trim() !== "" && remainder.replace(COMMENTS, " ").trim() === "";
+}

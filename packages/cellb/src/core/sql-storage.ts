@@ -1,6 +1,6 @@
 import type { CommitChanges, SqlResult, SyncSqlDriver } from "../ports.js";
 import { LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE } from "./celld-schema.js";
-import { completeSqlStatements } from "./sql-split.js";
+import { completeSqlStatements, lacksStatement } from "./sql-split.js";
 
 const FORBIDDEN_TXN = /^\s*(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
 const FORBIDDEN_INTERNAL = /\b_cf_\w*/i;
@@ -168,6 +168,9 @@ export class SqlStorage {
     if (refused) throw new Error(`SQL error: prepare SQL cursor: ${refused}`);
     if (bindings.length && countParameters(query) !== bindings.length)
       throw new Error("SQL error: Wrong number of parameter bindings for SQL query.");
+    // Statement after statement, as workerd and celld prepare them: none at all, or a last one
+    // of comments alone, is refused.
+    if (lacksStatement(query)) throw new Error("SQL code did not contain a statement.");
     return new SqlStorageCursor<T>(this.internalExec(query, bindings));
   }
 

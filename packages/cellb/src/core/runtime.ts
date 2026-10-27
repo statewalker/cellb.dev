@@ -11,6 +11,7 @@ import { v8Codec, v8CodecWith } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
+import { asyncRoot } from "./async-context.js";
 import type { ExecutionContext } from "./durable-object.js";
 import { ctxExports, type DurableObjectClass, storedExports } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
@@ -127,6 +128,8 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   const codec = opts.codec ?? v8Codec;
   const hosts = new Map<string, ObjectHost>();
   const background = new Set<Promise<unknown>>();
+  // Events start in the context the runtime was made in, not their caller's (Cloudflare).
+  const eventsRoot = asyncRoot();
   const waitUntil = (p: Promise<unknown>) => {
     const t = p.catch(() => {}).finally(() => background.delete(t));
     background.add(t);
@@ -232,6 +235,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           onAlarmChange: (at) => alarms.set({ cellKey, className, idHex: id.toString() }, at),
           exports: exportsObj,
           facet: opts.facets,
+          asyncRoot: eventsRoot,
           acquire: ownership ? (key) => ownership.tryAcquire(key) : undefined,
           sqlExtensions: opts.sqlExtensions,
           deleteAllPreservesAlarm: opts.deleteAllPreservesAlarm,

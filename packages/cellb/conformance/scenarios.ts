@@ -499,7 +499,7 @@ scenarios["wd-sql-default"] = {
     },
   ],
   knownGap:
-    "cellb's exec() runs a script that ends in a comment where celld refuses it, an assertion before the one celld stops at (an ingest syntax error, reported with celld's own stack frames)",
+    "both stop at the same assertion (an ingest syntax error); celld reports it with its own stack frames",
 };
 
 // celld's deviations from workerd (conformance/record-workerd.ts); cellb follows celld.

@@ -2,9 +2,8 @@
  * A Worker that reads one AsyncLocalStorage store across every kind of continuation, in many
  * Durable Objects at once. Run on Node (the real node:async_hooks) and in a browser (cellb's
  * polyfill), it must answer the same: each object sees its own store everywhere, and the Worker's
- * fetch, outside any run(), sees none. The object it calls sees the CALLER's store: cellb starts a
- * called object's event in the caller's async context (both run in one realm). On Cloudflare that
- * event starts with no store; docs/gaps.md has the difference.
+ * fetch, outside any run(), sees none. The object it calls sees no store either: a call to an object
+ * is a new event, which starts in the runtime's own async context, as on Cloudflare.
  */
 export const ASYNC_CONTEXT_WORKER = `
 import { DurableObject, env } from "cloudflare:workers";
@@ -76,7 +75,7 @@ export function expectedSeen(name: string) {
     inTimeout: name,
     inMicrotask: name,
     inThen: name,
-    calleeSees: name, // Cloudflare: null (docs/gaps.md)
+    calleeSees: null, // a new event: not the caller's store
     afterRpc: name,
     inForAwait: name,
     inAll: name,

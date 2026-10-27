@@ -10,7 +10,7 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 
 | Scenario | What differs |
 |---|---|
-| `wd-sql-default` | `sql.exec('SELECT 1; -- comment')` runs; celld refuses it (workerd: `SQL code did not contain a statement`), so cellb fails an earlier assertion than celld. celld stops at `sql.ingest()`'s syntax error, which cellb words the same (`sql-ingest` agrees), but celld's report of it carries celld's own stack frames. |
+| `wd-sql-default` | cellb and celld stop at the same assertion, `sql.ingest()`'s syntax error, which cellb words as celld does (`sql-ingest` agrees), but celld's report of it carries celld's own stack frames. |
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
@@ -95,12 +95,12 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   stores: a `run()`'s store stays set until its promise settles, which is right for one run at a
   time and shared between concurrent ones (two cells answering at once can read each other's).
   Event listeners (`addEventListener`, MessagePort `onmessage`) do not carry stores, on Node either.
-- **A called object starts in its caller's async context.** Its `AsyncLocalStorage` stores are the
-  caller's (on Node and in a browser), where on Cloudflare a call to another object is a new event
-  with none. The Agents SDK and Flue set their own stores at each entry, so they are not affected;
-  code that reads a store it did not set in the callee sees the caller's. Changing it means
-  starting each event in the root context, which the celld conformance harness (test/p09) relies
-  on not doing: it attributes Durable Object logs to a scenario through such a store.
+- **An object's events start in the async context the runtime was made in.** A call to an object
+  is a new event, as on Cloudflare: the callee (and its constructor) does not see the caller's
+  `AsyncLocalStorage` stores. Where Cloudflare has none, cellb has the stores that were current
+  when `createCellRuntime` ran, so a host can scope a whole runtime (test/p09 attributes each
+  scenario's logs this way). On Node this needs `process.getBuiltinModule` (Node 22.3 and later);
+  in a browser it goes through cellb's `node:async_hooks` polyfill.
 - **A browser runtime is one thread, and OPFS writes are its cost.** Its cells interleave, and
   each commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool
   call, two model turns) makes 21 commits (155 when commits ended with each microtask); in this
