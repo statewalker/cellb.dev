@@ -13,7 +13,7 @@ import { browserModuleLoader } from "./browser-modules.js";
 import * as workersModule from "./cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "./site.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
-import * as workersGlobals from "./workers-globals-module.js";
+import { workersGlobalsFor } from "./workers-globals-module.js";
 import { createProjectRuntime, loadTimeEnv, type WranglerConfig } from "./wrangler.js";
 
 /**
@@ -110,14 +110,7 @@ async function importWorkerCode(
     // keep native awaits and the polyfill's run-at-a-time stores.
     if ("bundle" in code) installAsyncContext();
   }
-  const globals = {
-    ...workersGlobals,
-    Request: workersGlobals.CellsRequest,
-    Response: workersGlobals.CellsResponse,
-    WebSocketPair: flags.includes("websocket_standard_binary_type")
-      ? workersGlobals.StandardWebSocketPair
-      : workersGlobals.WebSocketPair,
-  };
+  const globals = workersGlobalsFor(flags);
   if ("site" in code) {
     workersHostRegistry({
       workersModule,

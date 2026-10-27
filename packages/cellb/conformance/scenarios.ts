@@ -47,6 +47,12 @@ export interface Scenario {
   uniqueLogs?: boolean;
 }
 
+/**
+ * Scenarios about loaded Workers that also run with the loaded code in the project's realm
+ * (no isolates): they must answer the same either way.
+ */
+export const LOADED_IN_REALM = ["worker-loader-props", "worker-loader-flags-binary-type"];
+
 /** The recordings a scenario is compared with: celld's, or workerd's for `judge: "workerd"`. */
 export const goldenDir = (name: string) =>
   scenarios[name].judge === "workerd" ? "golden-workerd" : "golden";
@@ -351,6 +357,10 @@ export const scenarios: Record<string, Scenario> = {
   "sql-ingest": { steps: [{ path: "/" }] },
   "sql-exec": { steps: [{ path: "/" }] },
   "worker-loader-props": { steps: [{ path: "/" }], judge: "workerd" },
+  "worker-loader-flags-binary-type": {
+    project: "worker-loader-flags",
+    steps: [{ path: "/binary-type" }],
+  },
   "miniflare2-details": { steps: ["/storage", "/stub"].map((path) => ({ path })) },
   "queues-details": {
     steps: [{ path: "/validate" }, { path: "/send" }, { waitMs: 3500 }, { path: "/log" }],

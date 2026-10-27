@@ -9,8 +9,7 @@ import { resolve } from "node:path";
 import { build } from "esbuild";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
 import { PROJECT_WORKERS_MODULE_SHIM } from "./browser-modules.js";
-import { SCHEDULER_EXPRESSION } from "./scheduler.js";
-import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
+import { GLOBALS_SHIM } from "./workers-global-names.js";
 
 const pkg = resolve(import.meta.dirname, "../..");
 const requireFromPkg = createRequire(resolve(pkg, "package.json"));
@@ -30,8 +29,6 @@ module.exports = new Proxy(exports_, {
   },
 });
 `;
-
-const GLOBALS_SHIM = `${WORKERS_GLOBAL_NAMES.map((n) => `export const ${n} = globalThis.__cellsGlobals.${n};`).join(" ")} export const scheduler = ${SCHEDULER_EXPRESSION};`;
 
 /** A bare Node.js built-in name ("path", "fs/promises"): nodejs_compat takes it as `node:…`. */
 const bareBuiltin = new Set(builtinModules.filter((m) => !m.startsWith("_") && !m.includes(":")));

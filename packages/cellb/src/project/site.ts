@@ -12,6 +12,7 @@ import {
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
 import { SCHEDULER_EXPRESSION } from "./scheduler.js";
 import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
+import { workersGlobalsFor } from "./workers-globals-module.js";
 
 /**
  * A project served by an in-browser "HTTP server" (webrun-site-builder handler, hosted in a
@@ -86,6 +87,14 @@ export function createProjectSite(opts: {
         provided,
         globals: {
           ...globals,
+          // The Workers globals of this load's compatibility flags (siteModuleLoader), else
+          // the realm's.
+          ...Object.fromEntries(
+            WORKERS_GLOBAL_NAMES.map((n) => [
+              n,
+              `(globalThis.__cellsLoadedGlobals?.[${JSON.stringify(id)}]?.${n} ?? ${host}(${JSON.stringify(n)}))`,
+            ]),
+          ),
           console: `(globalThis.${LOADED_CONSOLES}?.[${JSON.stringify(id)}] ?? globalThis.console)`,
           fetch: `(globalThis.__cellsLoadedOutbound?.[${JSON.stringify(id)}] ?? globalThis.fetch)`,
         },
@@ -201,14 +210,17 @@ export function siteModuleLoader(baseUrl: string): ModuleLoader {
       const res = await putLoadedModule(`${base}loaded-src/${dir}/${name}`, m);
       if (!res.ok) throw new Error(`Worker Loader: cannot store ${id}/${name}: ${res.status}`);
     }
+    const g = globalThis as Record<string, unknown>;
+    g.__cellsLoadedGlobals ??= {};
+    (g.__cellsLoadedGlobals as Record<string, unknown>)[id] = workersGlobalsFor(
+      code.compatibilityFlags,
+    );
     const outbound = outboundFetch(code);
     if (outbound) {
-      const g = globalThis as Record<string, unknown>;
       g.__cellsLoadedOutbound ??= {};
       (g.__cellsLoadedOutbound as Record<string, unknown>)[id] = outbound;
     }
     if (logs) {
-      const g = globalThis as Record<string, unknown>;
       g[LOADED_CONSOLES] ??= {};
       const real = globalThis.console;
       const wrap =

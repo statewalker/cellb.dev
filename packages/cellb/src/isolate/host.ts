@@ -62,6 +62,7 @@ export function isolatedModuleLoader(opts: {
       ...where,
       env,
       outbound,
+      flags: code.compatibilityFlags ?? [],
     });
     const facade = (name: string) =>
       new Proxy(

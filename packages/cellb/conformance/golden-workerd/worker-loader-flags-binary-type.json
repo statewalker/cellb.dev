@@ -1,0 +1,14 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /binary-type",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "none": "arraybuffer",
+        "standard": "blob"
+      }
+    }
+  ]
+}

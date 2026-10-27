@@ -8,20 +8,13 @@ import * as emailModule from "../project/cloudflare-email.js";
 import * as workersModule from "../project/cloudflare-workers.js";
 import { workersHostRegistry } from "../project/site.js";
 import { realmWorkerScope } from "../project/worker-scope.js";
-import * as workersGlobals from "../project/workers-globals-module.js";
+import { workersGlobalsFor } from "../project/workers-globals-module.js";
 import { serveIsolate } from "./isolate.js";
 import type { PortLike } from "./protocol.js";
 
 (globalThis as Record<string, unknown>).__cellsWorkersModule = workersModule;
 // The loaded Worker's own `env` and `exports` (serveIsolate binds the realm's scope to them).
 const scope = realmWorkerScope();
-workersHostRegistry({
-  workersModule: { ...workersModule, env: scope.env, exports: scope.exports },
-  emailModule,
-  ...workersGlobals,
-  Request: workersGlobals.CellsRequest,
-  Response: workersGlobals.CellsResponse,
-});
 
 // The global console is left alone (the dev server's client logs here too): loaded modules
 // get a console of their own that reports to the host.
@@ -36,6 +29,13 @@ serveIsolate(
       debug: (...a: unknown[]) => logs("debug", a),
     });
     if (load.url) {
+      // A site's modules read `cloudflare:workers` and the Workers globals of this one Worker
+      // from the realm's registry.
+      workersHostRegistry({
+        workersModule: { ...workersModule, env: scope.env, exports: scope.exports },
+        emailModule,
+        ...workersGlobalsFor(load.flags),
+      });
       // The site's per-id module server binds `console` to __cellsLoadedConsoles[id].
       const g = globalThis as Record<string, any>;
       g.__cellsLoadedConsoles ??= {};
@@ -44,7 +44,7 @@ serveIsolate(
     }
     return browserModuleLoader(PROJECT_WORKERS_MODULE_SHIM)(
       "isolate",
-      { mainModule: load.mainModule, modules: load.modules },
+      { mainModule: load.mainModule, modules: load.modules, compatibilityFlags: load.flags },
       (level, args) => logs(level, args),
     );
   },

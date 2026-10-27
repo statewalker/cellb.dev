@@ -6,6 +6,7 @@ import {
   alignBrowserDifferences,
   alignDocumentedDifferences,
   goldenDir,
+  LOADED_IN_REALM,
   scenarios,
 } from "../conformance/scenarios.ts";
 import { startReferenceServer } from "../test/ws-reference-server.ts";
@@ -23,11 +24,16 @@ const golden = (name: string) =>
     ),
   );
 
-for (const name of Object.keys(scenarios)) {
+// Each scenario with loaded Workers in isolates; LOADED_IN_REALM also in the project's realm.
+const runs = [
+  ...Object.keys(scenarios).map((name) => ({ name, noIsolate: false })),
+  ...LOADED_IN_REALM.map((name) => ({ name, noIsolate: true })),
+];
+for (const { name, noIsolate } of runs) {
   const s = scenarios[name];
   const wait =
     (s.settleMs ?? 1500) + s.steps.reduce((n, st) => n + ("waitMs" in st ? st.waitMs : 0), 0);
-  test(name, async ({ page }) => {
+  test(noIsolate ? `${name} — loaded in the project's realm` : name, async ({ page }) => {
     test.skip(!!s.knownGap, `known gap: ${s.knownGap}`);
     test.setTimeout(wait + 60_000);
     const ref = s.wsServer ? await startReferenceServer() : undefined;
@@ -38,6 +44,7 @@ for (const name of Object.keys(scenarios)) {
         ...projectForSite(name),
         scenario: name,
         wsServer: ref ? `ws://127.0.0.1:${ref.port}` : undefined,
+        noIsolate,
       });
       expect(r.ok, r.error).toBe(true);
       if (r.moduleUrl)

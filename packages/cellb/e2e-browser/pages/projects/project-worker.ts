@@ -9,7 +9,7 @@ import { captureLogs, runProject } from "./run-project.js";
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 scope.onmessage = async (e) => {
   const reply = (v: unknown) => (e.ports[0] as MessagePort).postMessage(v);
-  const { project, scenario, wsServer, bucket, paths, pool } = e.data as {
+  const { project, scenario, wsServer, bucket, paths, pool, noIsolate } = e.data as {
     project: {
       name: string;
       config: WranglerConfig;
@@ -21,6 +21,8 @@ scope.onmessage = async (e) => {
     bucket?: Parameters<typeof runProject>[0]["bucket"];
     paths?: string[];
     pool?: string;
+    /** Loaded Workers in this realm instead of isolates. */
+    noIsolate?: boolean;
   };
   const logs = captureLogs();
   try {
@@ -29,7 +31,7 @@ scope.onmessage = async (e) => {
       scenario,
       config: project.config,
       code: { bundle: project.code },
-      isolateScript: new URL(isolateWorker, import.meta.url),
+      isolateScript: noIsolate ? undefined : new URL(isolateWorker, import.meta.url),
       assets: project.assets,
       wsServer,
       bucket,

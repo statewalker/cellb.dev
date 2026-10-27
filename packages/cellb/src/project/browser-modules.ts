@@ -6,7 +6,10 @@ import {
   type WorkerCode,
 } from "../bindings/worker-loader.js";
 import { ctxExports } from "../core/handles.js";
+import { SCHEDULER_EXPRESSION } from "./scheduler.js";
 import { workerScope } from "./worker-scope.js";
+import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
+import { workersGlobalsFor } from "./workers-globals-module.js";
 
 const WORKERS_CLASSES =
   "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
@@ -25,7 +28,8 @@ export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env 
  * module. `cloudflare:workers` resolves to a shim reading the runtime's own classes from
  * `globalThis.__cellsWorkersModule` and the loaded code's own `env` and `exports` (or to
  * `workersModuleShim`, the same for every load); relative imports resolve to the Blob URLs of
- * sibling modules; with a log sink the module gets a module-scoped `console` (Tail Workers).
+ * sibling modules; each module gets the Workers globals of the code's compatibility flags, and
+ * with a log sink a module-scoped `console` (Tail Workers).
  */
 export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
   const blob = (text: string) => URL.createObjectURL(new Blob([text], { type: "text/javascript" }));
@@ -43,7 +47,13 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
         `${WORKERS_CLASSES} const s = globalThis.__cellsWorkerScopes[${JSON.stringify(key)}]; export const env = s.env, exports = s.exports;`,
       );
     }
-    let consolePrelude = "";
+    const g = globalThis as Record<string, unknown>;
+    const globalsKey = `g${Math.random().toString(36).slice(2)}`;
+    g.__cellsWorkerGlobals ??= {};
+    (g.__cellsWorkerGlobals as Record<string, unknown>)[globalsKey] = workersGlobalsFor(
+      code.compatibilityFlags,
+    );
+    let prelude = `const { ${WORKERS_GLOBAL_NAMES.join(", ")} } = globalThis.__cellsWorkerGlobals[${JSON.stringify(globalsKey)}], scheduler = ${SCHEDULER_EXPRESSION};\n`;
     if (logs) {
       const key = `c${Math.random().toString(36).slice(2)}`;
       const g = globalThis as Record<string, unknown>;
@@ -62,7 +72,7 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
         error: wrap("error"),
         debug: wrap("debug"),
       });
-      consolePrelude = `const console = globalThis.__cellsConsoles[${JSON.stringify(key)}];\n`;
+      prelude += `const console = globalThis.__cellsConsoles[${JSON.stringify(key)}];\n`;
     }
     const outbound = outboundFetch(code);
     if (outbound) {
@@ -70,7 +80,7 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
       const g = globalThis as Record<string, unknown>;
       g.__cellsOutbound ??= {};
       (g.__cellsOutbound as Record<string, unknown>)[key] = outbound;
-      consolePrelude += `const fetch = globalThis.__cellsOutbound[${JSON.stringify(key)}];\n`;
+      prelude += `const fetch = globalThis.__cellsOutbound[${JSON.stringify(key)}];\n`;
     }
     const urls = new Map<string, string>();
     const source = (name: string) => {
@@ -91,9 +101,7 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
           return all;
         },
       );
-      const url = URL.createObjectURL(
-        new Blob([consolePrelude + text], { type: "text/javascript" }),
-      );
+      const url = URL.createObjectURL(new Blob([prelude + text], { type: "text/javascript" }));
       urls.set(name, url);
       return url;
     };

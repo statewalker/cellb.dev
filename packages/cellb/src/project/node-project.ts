@@ -25,6 +25,7 @@ import type { PortLike } from "../isolate/protocol.js";
 import type { CellStorage } from "../ports.js";
 import { parseJsonc } from "./jsonc.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
+import { GLOBALS_SHIM } from "./workers-global-names.js";
 import {
   createProjectRuntime,
   loadTimeEnv,
@@ -212,6 +213,7 @@ export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
   const scope = workerScope(env);
   const module = (await bundleWorker({ modules, main: code.mainModule }, logs, outbound, {
     scope,
+    standardBinaryType: code.compatibilityFlags?.includes("websocket_standard_binary_type"),
   })) as Record<string, unknown>;
   scope.bind({ env, exports: ctxExports(module, env) });
   return module;
@@ -317,10 +319,19 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
         platform: "neutral",
         target: "es2022",
         logLevel: "silent",
+        inject: ["cells:globals"],
         plugins: [
           {
             name: "isolate-modules",
             setup(b) {
+              b.onResolve({ filter: /^cells:globals$/ }, () => ({
+                path: "globals",
+                namespace: "cells-globals",
+              }));
+              b.onLoad({ filter: /.*/, namespace: "cells-globals" }, () => ({
+                contents: GLOBALS_SHIM,
+                loader: "js",
+              }));
               // The loaded Worker is its thread's own: `env` and `exports` are the scope
               // serveIsolate keeps for it.
               b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({
