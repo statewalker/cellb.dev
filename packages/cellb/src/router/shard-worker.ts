@@ -19,6 +19,11 @@ export interface ShardWorker {
    * (a ServiceWorker is killed when idle and loses its ports).
    */
   link(down: CellPort, up: CellPort, ctl?: ControlPort): Promise<void>;
+  /**
+   * Drops the links of a router that is gone (a stopped ServiceWorker leaves no trace on its
+   * ports): calls into other shards wait for the next `link`, and `onUnlinked` is told so.
+   */
+  unlink(): void;
 }
 
 /** Runs one shard: hosts the cells of shard `shard`, forwards the others upstream. */
@@ -37,7 +42,12 @@ export function createShardWorker(opts: ShardWorkerOptions): ShardWorker {
  * `route` sends the cells of other shards up to the router (waiting until it is linked);
  * `attach(runtime)` gives the runtime its links to the router.
  */
-export function shardRouting(opts: { shard: number; shards: number }): {
+export function shardRouting(opts: {
+  shard: number;
+  shards: number;
+  /** A call into another shard waits after `unlink`: wake the router (once per `unlink`). */
+  onUnlinked?: () => void;
+}): {
   route: NonNullable<CellRuntimeOptions["route"]>;
   attach(runtime: CellRuntime): ShardWorker;
 } {
@@ -46,10 +56,34 @@ export function shardRouting(opts: { shard: number; shards: number }): {
   const pending: (() => void)[] = [];
   const ports = new PortRendezvous();
   let wsSeq = 0;
+  let unlinked = false;
+  let wokeAt = 0;
+  /** Calls in flight over the current links: a dead link never answers them. */
+  let inflight = new Set<(err: Error) => void>();
+  const dropInflight = () => {
+    const lost = inflight;
+    inflight = new Set();
+    const err = new Error(
+      "The router was lost while this call was in flight; it may or may not have been applied",
+    );
+    for (const fail of lost) fail(err);
+  };
 
   const rawUp: Send = async (req) => {
+    // Woken once per unlink, again if the router is still not back after a while.
+    if (!upstream && unlinked && Date.now() - wokeAt > 2_000) {
+      wokeAt = Date.now();
+      opts.onUnlinked?.();
+    }
     while (!upstream) await new Promise<void>((r) => pending.push(r));
-    return upstream(req);
+    const send = upstream;
+    const calls = inflight;
+    return new Promise<Response>((resolve, reject) => {
+      calls.add(reject);
+      send(req)
+        .then(resolve, reject)
+        .finally(() => calls.delete(reject));
+    });
   };
   // DO → DO calls into other shards. A WebSocket upgrade gets an id; the owning
   // shard hands the socket's port over the control channel (via the router).
@@ -107,6 +141,16 @@ export function shardRouting(opts: { shard: number; shards: number }): {
     return {
       runtime,
       link,
+      unlink() {
+        if (!upstream) return;
+        upstream = undefined;
+        unlinked = true;
+        wokeAt = 0;
+        dropInflight();
+        const [prevStop, prevClose] = [stopDown, closeUp];
+        stopDown = closeUp = undefined;
+        void Promise.allSettled([prevStop?.(), prevClose?.()]);
+      },
     };
   };
   const link: ShardWorker["link"] = async (down, upPort, ctl) => {
@@ -122,7 +166,10 @@ export function shardRouting(opts: { shard: number; shards: number }): {
     });
     const l = await linkOverPort(upPort);
     closeUp = l.close;
+    // A new router: the previous one is gone, and so are the answers to calls sent to it.
+    if (upstream) dropInflight();
     upstream = l.send;
+    unlinked = false;
     for (const w of pending.splice(0)) w();
     await Promise.allSettled([prevStop?.(), prevClose?.()]);
   };

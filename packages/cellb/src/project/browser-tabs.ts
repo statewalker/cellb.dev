@@ -19,12 +19,14 @@
 import { CellRouter } from "../router/cell-router.js";
 import { linkOverPort, serveHandlerOverPort } from "../transport/port.js";
 import type { BrowserBucket, BrowserProjectOptions } from "./browser-host.js";
-import { TAB_INIT, TAB_LINK, type TabShardInit } from "./browser-shards.js";
+import { SHARD_WAKE, TAB_INIT, TAB_LINK, TAB_WATCH, type TabShardInit } from "./browser-shards.js";
 
 const ATTACH = "cellb:attach";
 const NEED_LINKS = "cellb:need-links";
 const SOCKET = "cellb:ws";
 const DRAIN = "cellb:drain";
+/** A shard's call waits for the ServiceWorker: this message starts it, and it asks for links. */
+const WAKE = "cellb:wake";
 
 /**
  * The tab that should run `shard`: the tabs sorted by id (ids start with the time the tab joined),
@@ -121,10 +123,10 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
     const linked = await ask(w, { type: TAB_LINK }, [down.port2, up.port2, ctl.port2]);
     if (!linked.ok) throw new Error(linked.error);
     const sw = await opts.serviceWorker();
-    await new Promise<void>((resolve, reject) => {
+    const routerLock = await new Promise<string>((resolve, reject) => {
       const { port1, port2 } = new MessageChannel();
       port1.onmessage = (e) => (
-        port1.close(), e.data?.ok ? resolve() : reject(new Error(e.data?.error))
+        port1.close(), e.data?.ok ? resolve(e.data.routerLock) : reject(new Error(e.data?.error))
       );
       sw.postMessage(
         {
@@ -141,6 +143,15 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
         [port2, down.port1, up.port1, ctl.port1],
       );
     });
+    // The shard drops these links once the ServiceWorker is gone, and wakes it when it needs it.
+    const watching = await ask(w, { type: TAB_WATCH, routerLock });
+    if (!watching.ok) throw new Error(watching.error);
+  };
+
+  /** Starts the ServiceWorker again: it asks the tabs for their shards' links. */
+  const wake = async () => {
+    const sw = await opts.serviceWorker();
+    sw.postMessage({ type: WAKE, name: opts.name });
   };
   const owners = new Map<number, string>(); // shard → its worker's owner lock
 
@@ -166,6 +177,9 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
       .request(`${prefix}:shard:${shard}`, { signal: h.stop.signal }, async () => {
         const w = opts.spawn(shard);
         h.worker = w;
+        w.addEventListener("message", (e) => {
+          if (e.data?.type === SHARD_WAKE) void wake().catch(() => {});
+        });
         try {
           const started = await ask(w, {
             type: TAB_INIT,
@@ -278,6 +292,15 @@ export function installProjectRouter(
   },
 ): { routers: Map<string, CellRouter> } {
   const base = opts.basePath.endsWith("/") ? opts.basePath : `${opts.basePath}/`;
+  // Held while this ServiceWorker lives: the browser releases it when it stops the worker, which
+  // tells the shards that their links to it are dead (MessagePorts report nothing).
+  const routerLock = `cellb:router:${crypto.randomUUID()}`;
+  const lockHeld = new Promise<void>((held) => {
+    void navigator.locks.request(routerLock, () => {
+      held();
+      return new Promise<void>(() => {});
+    });
+  });
   const routers = new Map<string, CellRouter>();
   const created = new Map<string, () => void>();
   const ready = new Map<string, Promise<void>>();
@@ -345,7 +368,8 @@ export function installProjectRouter(
             await serveHandlerOverPort(m.up, router.internal);
             const link = await linkOverPort(m.down);
             router.attach(m.shard, link.send, m.ownerLock, m.ctl);
-            reply?.postMessage({ ok: true });
+            await lockHeld;
+            reply?.postMessage({ ok: true, routerLock });
           } catch (err) {
             reply?.postMessage({ ok: false, error: String((err as Error)?.message ?? err) });
           }
@@ -358,6 +382,9 @@ export function installProjectRouter(
           reply?.postMessage({ ok: true });
         })(),
       );
+    else if (m?.type === WAKE)
+      // Started by this message: stay up until a tab has linked the project's shards again.
+      e.waitUntil(routerNamed(m.name).catch(() => {}));
     else if (m?.type === SOCKET)
       e.waitUntil(
         (async () => {

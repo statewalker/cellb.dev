@@ -124,7 +124,15 @@ runs 4 / 0 in one tab, 2 / 2 in two, 2 / 1 / 1 in three — more tabs, more proc
 - **A tab closes or crashes:** it runs no code. Its locks are released, the router sees each shard
   worker's own lock go and fails the requests in flight there (`ShardOwnerLostError`), and the
   other tabs take the shards over within `checkMs` (1 s).
-- **The ServiceWorker restarts:** it asks the tabs for their shards' links again.
+- **The ServiceWorker restarts:** it asks the tabs for their shards' links again. The browser stops
+  an idle ServiceWorker, and its ports die without telling anyone. A request to it starts it
+  again, but a call that begins in a shard (an alarm, a timer, a WebSocket message) to an object
+  in another shard does not. So the router holds a Web Lock (`cellb:router:<uuid>`) while it
+  lives, and each shard watches it. When the lock is released, the shard drops its links, and its
+  next call into another shard waits: the shard asks its tab to post a message to the
+  ServiceWorker, which starts it again, and that call goes through once the links are back. A call
+  already in flight when the ServiceWorker stopped has lost its answer: it fails ("The router was
+  lost while this call was in flight"), and may or may not have been applied.
 - Placement inside the project is still by cell id (`shardOf`): a few dozen cells spread unevenly.
 - With `bucket`, each shard is a fleet node (`<node>-s<i>`); use S3, as an OPFS bucket has one
   writer at a time.
