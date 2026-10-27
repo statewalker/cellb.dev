@@ -26,6 +26,7 @@ import { parseJsonc } from "./jsonc.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import {
   createProjectRuntime,
+  loadTimeEnv,
   type ProjectHost,
   type ProjectRuntime,
   type WranglerConfig,
@@ -222,8 +223,8 @@ export async function loadNodeProject(
   const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
   const standardBinaryType = flags.includes("websocket_standard_binary_type");
   // The module reads `env` from `cloudflare:workers` while it is evaluated, before the
-  // runtime exists: until then the scope holds the configuration's vars.
-  const scope = workerScope(config.vars);
+  // runtime exists: until then the scope holds the configuration's vars (and `ai`).
+  const scope = workerScope(loadTimeEnv(config, host.ai));
   const module = config.main
     ? await bundleWorker({ path: resolve(dir, config.main) }, undefined, undefined, {
         nodeCompat,

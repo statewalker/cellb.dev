@@ -2,6 +2,12 @@ export { type FilesApiBackupOptions, filesApiBackup } from "./adapters/files-bac
 export { type ChangeLogOptions, filesApiChangeLog } from "./adapters/files-changelog.js";
 export { type FilesApiLtxLogOptions, filesApiLtxLog } from "./adapters/files-ltx.js";
 export { wasmMemoryOpener } from "./adapters/wasm-sqlite.js";
+export {
+  AiError,
+  type AiRunOptions,
+  type WorkersAiOptions,
+  workersAi,
+} from "./bindings/workers-ai.js";
 export { type CelldBucketOptions, celldBucket } from "./bucket/celld-cells.js";
 export {
   filesApiObjectStore,

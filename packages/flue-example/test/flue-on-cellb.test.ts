@@ -44,6 +44,7 @@ describe("a Flue agent app on cellb", () => {
     const { runtime, unsupported } = await loadNodeProject(deployment(llm.baseUrl), {
       openSql: nodeSqliteOpener(),
       files: new MemFilesApi(),
+      ai: { baseUrl: llm.baseUrl, models: { "*": "tiny" } }, // env.AI, for the `cloud` agent
     });
     try {
       expect(unsupported).toEqual([]);
@@ -73,6 +74,36 @@ describe("a Flue agent app on cellb", () => {
       const roles = history.messages.map((m) => m.role);
       expect(roles[0]).toBe("user");
       expect(roles.at(-1)).toBe("assistant");
+    } finally {
+      await runtime.close();
+    }
+  }, 60_000);
+
+  it("answers through Workers AI: Flue's cloudflare provider on cellb's env.AI", async () => {
+    const before = llm.requests.length;
+    const { runtime, unsupported } = await loadNodeProject(deployment(llm.baseUrl), {
+      openSql: nodeSqliteOpener(),
+      files: new MemFilesApi(),
+      ai: {
+        baseUrl: llm.baseUrl,
+        models: { "@cf/meta/llama-3.3-70b-instruct-fp8-fast": "tiny-cf" },
+      },
+    });
+    try {
+      expect(unsupported).toEqual([]);
+      const client = createFlueClient({
+        url: "http://app.test/agents/cloud/conv-cf",
+        fetch: (input, init) => runtime.fetch(new Request(input, init)),
+      });
+      const reply = await client.read(
+        await client.send({ message: { kind: "user", body: "What is the answer?" } }),
+      );
+      expect(reply.text).toContain("42");
+      // Both model turns went through env.AI.run(), to the model the `ai` option maps the id to.
+      const mine = llm.requests.slice(before);
+      expect(mine.map((r) => r.model)).toEqual(["tiny-cf", "tiny-cf"]);
+      expect(mine[0].stream).toBe(true);
+      expect(mine[0].tools?.map((t) => t.function.name)).toContain("lookup_answer");
     } finally {
       await runtime.close();
     }

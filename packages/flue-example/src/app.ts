@@ -5,6 +5,7 @@ import { setProvider } from "@flue/runtime";
 import { createAgentRouter } from "@flue/runtime/routing";
 import { Hono } from "hono";
 import { Assistant } from "./agents/assistant.ts";
+import { Cloud } from "./agents/cloud.ts";
 
 // The model endpoint comes from the Worker's env, read while the module is evaluated.
 setProvider(
@@ -35,6 +36,7 @@ setProvider(
 const base = String(env.BASE_PATH ?? "");
 const app = new Hono();
 app.route(`${base}/agents/assistant`, createAgentRouter(Assistant));
+app.route(`${base}/agents/cloud`, createAgentRouter(Cloud));
 app.get(`${base}/ping`, (c) => c.text("pong"));
 
 export default app;

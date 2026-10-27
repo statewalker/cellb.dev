@@ -42,6 +42,8 @@ export interface TabShardInit {
   config: BrowserProjectOptions["config"];
   code: BrowserProjectOptions["code"];
   assetFiles?: BrowserProjectOptions["assetFiles"];
+  /** The OpenAI-compatible endpoint behind the project's `ai` binding. */
+  ai?: BrowserProjectOptions["ai"];
   bucket?: BrowserBucket;
   pool: string;
   filesDir: string;
@@ -55,6 +57,8 @@ interface ShardInit {
   config: BrowserProjectOptions["config"];
   code: BrowserProjectOptions["code"];
   assetFiles?: BrowserProjectOptions["assetFiles"];
+  /** The OpenAI-compatible endpoint behind the project's `ai` binding. */
+  ai?: BrowserProjectOptions["ai"];
   bucket?: BrowserBucket;
   pool: string;
   filesDir: string;
@@ -130,6 +134,7 @@ export function serveProjectShard(opts: {
           config: init.config,
           code: init.code,
           assetFiles: init.assetFiles,
+          ai: init.ai,
           bucket: init.bucket,
           sqlite3: await sqlite3(),
           pool: init.pool,
@@ -161,6 +166,7 @@ export function serveProjectShard(opts: {
         config: init.config,
         code: init.code,
         assetFiles: init.assetFiles,
+        ai: init.ai,
         bucket: init.bucket,
         sqlite3: await sqlite3(),
         pool: init.pool,
@@ -198,6 +204,8 @@ export async function startProjectShards(opts: {
   config: BrowserProjectOptions["config"];
   code: BrowserProjectOptions["code"];
   assetFiles?: BrowserProjectOptions["assetFiles"];
+  /** The OpenAI-compatible endpoint behind the project's `ai` binding. */
+  ai?: BrowserProjectOptions["ai"];
   /** Each shard is its own fleet node, named `<node>-s<shard>`. */
   bucket?: BrowserBucket;
   /** Prefix of the shards' OPFS pools and files directories (`<name>-<shard>`). */
@@ -240,6 +248,7 @@ export async function startProjectShards(opts: {
             config: opts.config,
             code: opts.code,
             assetFiles: opts.assetFiles,
+            ai: opts.ai,
             bucket: opts.bucket && { ...opts.bucket, node: `${opts.bucket.node}-s${i}` },
             pool: `${opts.name}-${i}`,
             filesDir: `${opts.name}-files-${i}`,

@@ -39,11 +39,13 @@ test("a Flue agent app runs on cellb in a browser", async ({ page }) => {
       config,
       bundle,
       run: Date.now().toString(36),
+      ai: { baseUrl: llm.baseUrl, models: { "*": "tiny" } }, // env.AI, for the `cloud` agent
     });
     expect(r.ok, r.error).toBe(true);
     expect(r.problems).toEqual([]);
     expect(r.unsupported).toEqual([]);
     expect(r.ping).toBe("pong");
+    expect(r.cloudReply).toContain("42"); // through env.AI
     expect(r.reply).toContain("42");
     expect(r.roles[0]).toBe("user");
     expect(r.roles.at(-1)).toBe("assistant");
@@ -71,8 +73,10 @@ test("a Flue agent app runs on cellb in a browser", async ({ page }) => {
       )
       .filter(Boolean);
     expect(order.slice(0, 2).sort()).toEqual(["question-a", "question-b"]);
-    // Every conversation went through the model twice: the tool call, then the answer.
-    expect(llm.requests.length).toBe(8);
+    // Every conversation went through the model twice: the tool call, then the answer (four
+    // conversations of the local model, one of the cloud agent's through env.AI).
+    expect(llm.requests.length).toBe(10);
+    expect(llm.requests.filter((q) => q.model === "tiny").length).toBe(10);
   } finally {
     await llm.close();
   }
