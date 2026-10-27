@@ -53,8 +53,8 @@ for (const name of Object.keys(scenarios)) {
 }
 
 // A project on a site gets its own `env` and `exports` from `cloudflare:workers` (at load too)
-// and `cloudflare:email`; the Workers it loads share the realm's module registry, and get empty
-// ones — whether they run in isolates or in the project's own realm.
+// and `cloudflare:email`. A Worker it loads into an isolate gets its own; one loaded into the
+// project's realm shares the realm's module registry, and gets empty ones.
 const SITE_ENV_WORKER = `
 import { DurableObject, env, exports } from "cloudflare:workers";
 import * as cf from "cloudflare:workers";
@@ -68,9 +68,11 @@ export default {
         compatibilityDate: "2026-10-01",
         mainModule: "w.js",
         modules: {
-          "w.js": 'import { env, exports } from "cloudflare:workers";' +
+          "w.js": 'import { WorkerEntrypoint, env, exports } from "cloudflare:workers";' +
+            "export class Echo extends WorkerEntrypoint {}" +
             "export default { fetch() { return Response.json({ env: Object.keys(env), exports: Object.keys(exports) }); } };",
         },
+        env: { NAME: "w1" },
       }));
       return w.getEntrypoint().fetch(req);
     }
@@ -87,7 +89,7 @@ export default {
 };
 `;
 for (const noIsolate of [false, true])
-  test(`a site's project has its own env and exports; loaded Workers ${noIsolate ? "in its realm" : "in isolates"} do not`, async ({
+  test(`a site's project has its own env and exports; loaded Workers ${noIsolate ? "in its realm do not" : "in isolates too"}`, async ({
     page,
   }) => {
     const config = {
@@ -121,5 +123,7 @@ for (const noIsolate of [false, true])
       viaExports: "box hi",
       email: "cloudflare:email is not supported by cellb",
     });
-    expect(JSON.parse(r.answers[1])).toEqual({ env: [], exports: [] });
+    expect(JSON.parse(r.answers[1])).toEqual(
+      noIsolate ? { env: [], exports: [] } : { env: ["NAME"], exports: ["Echo"] },
+    );
   });

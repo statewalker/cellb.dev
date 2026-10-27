@@ -3,17 +3,20 @@
 
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { sahpoolOpener } from "../adapters/wasm-sqlite.js";
-import { browserModuleLoader, WORKERS_MODULE_SHIM } from "../project/browser-modules.js";
+import { browserModuleLoader, PROJECT_WORKERS_MODULE_SHIM } from "../project/browser-modules.js";
 import * as emailModule from "../project/cloudflare-email.js";
 import * as workersModule from "../project/cloudflare-workers.js";
 import { workersHostRegistry } from "../project/site.js";
+import { realmWorkerScope } from "../project/worker-scope.js";
 import * as workersGlobals from "../project/workers-globals-module.js";
 import { serveIsolate } from "./isolate.js";
 import type { PortLike } from "./protocol.js";
 
 (globalThis as Record<string, unknown>).__cellsWorkersModule = workersModule;
+// The loaded Worker's own `env` and `exports` (serveIsolate binds the realm's scope to them).
+const scope = realmWorkerScope();
 workersHostRegistry({
-  workersModule,
+  workersModule: { ...workersModule, env: scope.env, exports: scope.exports },
   emailModule,
   ...workersGlobals,
   Request: workersGlobals.CellsRequest,
@@ -39,7 +42,7 @@ serveIsolate(
       g.__cellsLoadedConsoles[load.consoleId] = own;
       return (await import(/* @vite-ignore */ load.url)) as Record<string, unknown>;
     }
-    return browserModuleLoader(WORKERS_MODULE_SHIM)(
+    return browserModuleLoader(PROJECT_WORKERS_MODULE_SHIM)(
       "isolate",
       { mainModule: load.mainModule, modules: load.modules },
       (level, args) => logs(level, args),

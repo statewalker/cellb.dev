@@ -13,6 +13,11 @@ import {
   ASYNC_CONTEXT_WORKER,
   expectedSeen,
 } from "../test/async-context-worker.ts";
+import {
+  EXPECTED_LOADED_SCOPE,
+  LOADED_SCOPE_CONFIG,
+  LOADED_SCOPE_WORKER,
+} from "../test/loaded-scope-worker.ts";
 
 // What the Agents SDK (and Flue, built on it) needs from a browser host, in one project:
 // `env` and `exports` of cloudflare:workers, cloudflare:email, and the nodejs_compat modules it
@@ -115,3 +120,22 @@ test("the global WebSocket is workerd's: attachments, READY_STATE_*, one class",
   expect(r.ok, r.error).toBe(true);
   expect(r.counts).toEqual([EXPECTED_GLOBALS, EXPECTED_GLOBALS]);
 });
+
+// Loaded Workers read their own env and exports, as on Node (test/p13).
+for (const isolated of [false, true])
+  test(`a loaded Worker gets its own env and exports${isolated ? ", in its own worker" : ""}`, async ({
+    page,
+  }) => {
+    const dir = mkdtempSync(join(tmpdir(), "agents-loaded-"));
+    writeFileSync(join(dir, "index.js"), LOADED_SCOPE_WORKER);
+    const code = await bundleWorkerForBrowser(join(dir, "index.js"));
+    await page.goto("/entry/");
+    await page.waitForFunction(() => document.body.dataset.ready === "true");
+    const r = await page.evaluate((p) => (window as any).__runProject(p), {
+      config: LOADED_SCOPE_CONFIG,
+      code,
+      isolated,
+    });
+    expect(r.ok, r.error).toBe(true);
+    expect(r.counts[0]).toEqual(EXPECTED_LOADED_SCOPE);
+  });

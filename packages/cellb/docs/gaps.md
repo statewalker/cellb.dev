@@ -70,13 +70,13 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
   embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
   image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.
-- **`env` and `exports` of `cloudflare:workers` are empty in Workers loaded in a browser.** A Node
-  project, a browser bundle (`bundleWorkerForBrowser`) and a project on an in-browser site
-  (`code: { site }`) get the project's own, and on Node a loaded Worker gets its own (its
-  `WorkerCode.env`), in its thread and in the project's realm. In a browser loaded Workers get
-  empty objects. On a site the project and its loaded Workers share the realm's module registry: its
-  `cloudflare:workers` entry answers by the module that asks (a loaded Worker's proxy is a module
-  under `<site>loaded/`, found on the stack); anything else that reads the entry gets the
+- **`env` and `exports` of `cloudflare:workers` are empty in a Worker loaded into a site
+  project's realm.** Every project gets its own, and a loaded Worker gets its own (its
+  `WorkerCode.env`, and stubs of its own entrypoints) on Node, in a browser bundle's realm, and in
+  an isolate (`isolateScript`). On an in-browser site without `isolateScript` the project and its
+  loaded Workers share the realm's module registry: its `cloudflare:workers` entry answers by the
+  module that asks (a loaded Worker's proxy is a module under `<site>loaded/`, found on the
+  stack), and gives loaded code empty objects; anything else that reads the entry gets the
   project's.
 - **`cloudflare:email` only loads.** It exists so code that imports it at top level (the Agents SDK)
   starts, on Node and in browser bundles; building an `EmailMessage` throws `cloudflare:email is not

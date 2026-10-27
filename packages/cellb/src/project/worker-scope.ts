@@ -34,3 +34,14 @@ export function workerScope(vars: Record<string, unknown> = {}): WorkerScope {
     },
   };
 }
+
+/**
+ * The scope of the Worker a loaded Worker's isolate runs, made on first use. It is
+ * `globalThis.__cellsProjectScope`, which the realm's `cloudflare:workers` reads, as a browser
+ * project's bundle reads its own (`PROJECT_WORKERS_MODULE_SHIM`).
+ */
+export function realmWorkerScope(): WorkerScope {
+  const g = globalThis as { __cellsProjectScope?: WorkerScope };
+  g.__cellsProjectScope ??= workerScope();
+  return g.__cellsProjectScope;
+}

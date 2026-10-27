@@ -9,7 +9,7 @@ import type { CellRuntimeOptions, WorkerModule } from "../core/runtime.js";
 import { browserIsolatedLoader } from "../isolate/browser.js";
 import { installAsyncContext } from "../node-compat/async_hooks.js";
 import { installNodeGlobals } from "../node-compat/install.js";
-import { browserModuleLoader, WORKERS_MODULE_SHIM } from "./browser-modules.js";
+import { browserModuleLoader } from "./browser-modules.js";
 import * as workersModule from "./cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "./site.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
@@ -171,7 +171,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
     openSql,
     files,
     assetFiles: opts.assetFiles,
-    loadModules: site ? siteModuleLoader(site) : browserModuleLoader(WORKERS_MODULE_SHIM),
+    loadModules: site ? siteModuleLoader(site) : browserModuleLoader(),
     isolatedModules: opts.isolateScript
       ? browserIsolatedLoader({
           isolateScript: opts.isolateScript,

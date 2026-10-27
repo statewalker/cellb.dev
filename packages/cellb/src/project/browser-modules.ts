@@ -5,19 +5,16 @@ import {
   outboundFetch,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
+import { ctxExports } from "../core/handles.js";
+import { workerScope } from "./worker-scope.js";
 
 const WORKERS_CLASSES =
   "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
 
 /**
- * `cloudflare:workers` for loaded code: the runtime's classes from `globalThis.__cellsWorkersModule`.
- * Its `env` and `exports` are empty: loaded code never sees the project's bindings this way.
- */
-export const WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env = {}, exports = {};`;
-
-/**
  * `cloudflare:workers` for a project's own bundle: the classes, and the project's `env` and
- * `exports` from `globalThis.__cellsProjectScope` (set by `browserProjectRuntime`). The shim is
+ * `exports` from `globalThis.__cellsProjectScope` (set by `browserProjectRuntime`, and by
+ * `serveIsolate` for the loaded Worker an isolate runs). The shim is
  * bundled with the Worker, so it declares no names beyond its exports: esbuild would rename the
  * Worker's own variables of the same name, and those names show in error messages.
  */
@@ -26,12 +23,26 @@ export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env 
 /**
  * Worker Loader in a browser realm: each module of a WorkerCode becomes a Blob-URL ES
  * module. `cloudflare:workers` resolves to a shim reading the runtime's own classes from
- * `globalThis.__cellsWorkersModule`; relative imports resolve to the Blob URLs of sibling
- * modules; with a log sink the module gets a module-scoped `console` (Tail Workers).
+ * `globalThis.__cellsWorkersModule` and the loaded code's own `env` and `exports` (or to
+ * `workersModuleShim`, the same for every load); relative imports resolve to the Blob URLs of
+ * sibling modules; with a log sink the module gets a module-scoped `console` (Tail Workers).
  */
-export function browserModuleLoader(workersModuleShim: string): ModuleLoader {
-  const shimUrl = URL.createObjectURL(new Blob([workersModuleShim], { type: "text/javascript" }));
+export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
+  const blob = (text: string) => URL.createObjectURL(new Blob([text], { type: "text/javascript" }));
+  const fixedShimUrl = workersModuleShim && blob(workersModuleShim);
   return async (_id: string, code: WorkerCode, logs?: LogSink) => {
+    const env = code.env ?? {};
+    const scope = fixedShimUrl ? undefined : workerScope(env);
+    let shimUrl = fixedShimUrl;
+    if (scope) {
+      const key = `s${Math.random().toString(36).slice(2)}`;
+      const g = globalThis as Record<string, unknown>;
+      g.__cellsWorkerScopes ??= {};
+      (g.__cellsWorkerScopes as Record<string, unknown>)[key] = scope;
+      shimUrl = blob(
+        `${WORKERS_CLASSES} const s = globalThis.__cellsWorkerScopes[${JSON.stringify(key)}]; export const env = s.env, exports = s.exports;`,
+      );
+    }
     let consolePrelude = "";
     if (logs) {
       const key = `c${Math.random().toString(36).slice(2)}`;
@@ -86,6 +97,11 @@ export function browserModuleLoader(workersModuleShim: string): ModuleLoader {
       urls.set(name, url);
       return url;
     };
-    return (await import(/* @vite-ignore */ urlOf(code.mainModule))) as Record<string, unknown>;
+    const module = (await import(/* @vite-ignore */ urlOf(code.mainModule))) as Record<
+      string,
+      unknown
+    >;
+    scope?.bind({ env, exports: ctxExports(module, env) });
+    return module;
   };
 }

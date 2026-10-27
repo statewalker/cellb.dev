@@ -3,11 +3,13 @@
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import type { WranglerConfig } from "@statewalker/cellb";
 import { browserProjectRuntime } from "@statewalker/cellb/browser";
+import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 scope.onmessage = async (e) => {
   const reply = (v: unknown) => (e.ports[0] as MessagePort).postMessage(v);
-  const project = e.data as { config: WranglerConfig; code: string | null };
+  // `isolated`: loaded Workers run in Dedicated Workers of their own.
+  const project = e.data as { config: WranglerConfig; code: string | null; isolated?: boolean };
   try {
     const run = Date.now().toString(36);
     const host = await browserProjectRuntime({
@@ -16,6 +18,7 @@ scope.onmessage = async (e) => {
       sqlite3: await (sqlite3InitModule as any)({ print() {}, printErr() {} }),
       pool: `entry-${run}`,
       filesDir: `entry-files-${run}`,
+      isolateScript: project.isolated ? new URL(isolateWorker, import.meta.url) : undefined,
     });
     const counts: unknown[] = [];
     for (let i = 0; i < 2; i++)
