@@ -1,0 +1,50 @@
+{
+  "celld": "0.6.3",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "\"\"": "Error: SQL error: SQL code did not contain a statement",
+        "\"   \"": "Error: SQL error: SQL code did not contain a statement",
+        "\";\"": "Error: SQL error: SQL code did not contain a statement",
+        "\"-- a comment\"": "Error: SQL error: SQL code did not contain a statement",
+        "\"SELECT 1 AS n\"": [
+          {
+            "n": 1
+          }
+        ],
+        "\"SELECT 1 AS n;\"": [
+          {
+            "n": 1
+          }
+        ],
+        "\"SELECT 1 AS n;   \"": [
+          {
+            "n": 1
+          }
+        ],
+        "\"SELECT 1 AS n; -- a comment\"": "Error: SQL error: SQL code did not contain a statement",
+        "\"SELECT 1 AS n; /* a comment */\"": "Error: SQL error: SQL code did not contain a statement",
+        "\"SELECT 1 AS n -- a comment\"": [
+          {
+            "n": 1
+          }
+        ],
+        "\"SELECT 1 AS n; SELECT 2 AS n\"": [
+          {
+            "n": 2
+          }
+        ],
+        "\"SELECT 1 AS n; ;\"": "Error: SQL error: SQL code did not contain a statement",
+        "\"SELECT 1 AS n;; SELECT 2 AS n\"": [
+          {
+            "n": 2
+          }
+        ],
+        "\"SELECT ';' AS n; -- a comment\"": "Error: SQL error: SQL code did not contain a statement"
+      }
+    }
+  ]
+}

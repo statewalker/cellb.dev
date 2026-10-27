@@ -349,6 +349,7 @@ export const scenarios: Record<string, Scenario> = {
     steps: [{ path: "/kv" }, { path: "/sql" }, { path: "/txn" }, { path: "/alarms" }],
   },
   "sql-ingest": { steps: [{ path: "/" }] },
+  "sql-exec": { steps: [{ path: "/" }] },
   "miniflare2-details": { steps: ["/storage", "/stub"].map((path) => ({ path })) },
   "queues-details": {
     steps: [{ path: "/validate" }, { path: "/send" }, { waitMs: 3500 }, { path: "/log" }],
@@ -499,7 +500,7 @@ scenarios["wd-sql-default"] = {
     },
   ],
   knownGap:
-    "cellb's exec() runs a script that ends in a comment where celld refuses it, an assertion before the one celld stops at (an ingest syntax error, reported with celld's own stack frames)",
+    "cellb and celld stop at the same assertion (ingest's syntax error): celld's own assert.throws rethrows that error with celld's stack frames, Node's reports that the message did not match",
 };
 
 // celld's deviations from workerd (conformance/record-workerd.ts); cellb follows celld.
@@ -524,6 +525,8 @@ const workerdDiffers: Record<string, string> = {
   "ws-details": "celld rejects with Error (workerd TypeError) and allows send() before accept()",
   "wd-sql":
     "celld lacks getCurrentBookmark() and keeps an alarm set inside a rolled-back transactionSync()",
+  "sql-exec":
+    "workerd words a refused script `SQL code did not contain a statement.`, celld `SQL error: SQL code did not contain a statement`",
   "wd-sql-default":
     "workerd runs it up to gc() (no --expose-gc); celld stops at ingest's syntax-error message",
   "wd-actor-block-concurrency-timer":

@@ -42,6 +42,16 @@ export function splitSqlStatements(sql: string): string[] {
 }
 
 /**
+ * Whether a script ends in a statement: only whitespace after its last one. `exec()` refuses
+ * a script with no statement, or with a comment or an empty `;` after the last.
+ */
+export function endsInStatement(sql: string): boolean {
+  let end = -1;
+  for (const { text, end: e } of scanSql(sql)) if (text.trim()) end = e ?? sql.length;
+  return end >= 0 && !sql.slice(end).trim();
+}
+
+/**
  * The complete statements at the start of a chunk of SQL text (each ended by a top-level `;`,
  * as `sqlite3_complete` sees it) and the text after the last of them, untouched.
  */

@@ -10,7 +10,7 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 
 | Scenario | What differs |
 |---|---|
-| `wd-sql-default` | `sql.exec('SELECT 1; -- comment')` runs; celld refuses it (workerd: `SQL code did not contain a statement`), so cellb fails an earlier assertion than celld. celld stops at `sql.ingest()`'s syntax error, which cellb words the same (`sql-ingest` agrees), but celld's report of it carries celld's own stack frames. |
+| `wd-sql-default` | cellb and celld stop at the same assertion, on `sql.ingest()`'s syntax error, which cellb words as celld does (`sql-ingest` agrees). celld's own `assert.throws` rethrows that error with celld's stack frames; Node's `node:assert` reports `The input did not match the regular expression`. |
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
