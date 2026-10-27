@@ -529,8 +529,11 @@ describe.skipIf(!CELLD)(
         await w.close();
         celld = await celldDev(dir);
         try {
+          // celld wakes cells from its wake index by minute (wake/entries/<UTC minute>/…): a
+          // message due in a later minute than celld started in is woken at its next scan, up
+          // to a minute on. So up to 80 s here; within one minute it is a few seconds.
           let got: unknown[] = [];
-          for (let i = 0; i < 40 && got.length < 2; i++) {
+          for (let i = 0; i < 160 && got.length < 2; i++) {
             await new Promise((r) => setTimeout(r, 500));
             got = await (await fetch(`${celld.base}/`)).json();
           }
@@ -559,7 +562,7 @@ describe.skipIf(!CELLD)(
     it(
       "Queues: a delayed message sent on cellb is delivered by celld",
       () => handoff("cellb→celld"),
-      120_000,
+      150_000, // celld may take up to a minute to wake the queue (above)
     );
 
     // A workflow instance is a cell (celld's own workflow code on both sides): a sleeping or

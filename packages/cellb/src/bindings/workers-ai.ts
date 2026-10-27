@@ -119,6 +119,8 @@ export function workersAi(opts: WorkersAiOptions, fetchImpl: typeof fetch = (r, 
 }
 
 interface OpenAiToolCall {
+  /** In a streamed chunk: which call a fragment belongs to. */
+  index?: number;
   id?: string;
   function?: { name?: string; arguments?: string };
 }
@@ -137,23 +139,33 @@ function toWorkersAiToolCall(tc: OpenAiToolCall) {
 
 /**
  * OpenAI chat-completion chunks (`data: {"choices":[{"delta":…}]}`) → Workers AI's stream
- * (`data: {"response":"…"}`, then `data: [DONE]`); usage, and tool calls when a chunk carries
- * them, ride along as Workers AI sends them.
+ * (`data: {"response":"…"}`, then `data: [DONE]`), usage riding along. Tool calls stream in
+ * fragments (a name, then pieces of the arguments' JSON, keyed by `index`): they are gathered and
+ * sent whole, once, before `[DONE]`, as `{ response: "", tool_calls: [{ name, arguments }] }`.
  */
 function toWorkersAiStream(): TransformStream<Uint8Array, Uint8Array> {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let buffer = "";
   let done = false;
+  const calls = new Map<number, { name: string; arguments: string }>();
   const emit = (c: TransformStreamDefaultController<Uint8Array>, data: string) =>
     c.enqueue(encoder.encode(`data: ${data}\n\n`));
+  const finish = (c: TransformStreamDefaultController<Uint8Array>) => {
+    if (done) return;
+    done = true;
+    if (calls.size) {
+      const toolCalls = [...calls.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([, call]) => toWorkersAiToolCall({ function: call }));
+      emit(c, JSON.stringify({ response: "", tool_calls: toolCalls }));
+    }
+    emit(c, "[DONE]");
+  };
   const line = (c: TransformStreamDefaultController<Uint8Array>, l: string) => {
     if (!l.startsWith("data:")) return;
     const data = l.slice(5).trim();
-    if (data === "[DONE]") {
-      done = true;
-      return emit(c, "[DONE]");
-    }
+    if (data === "[DONE]") return finish(c);
     let chunk: {
       choices?: { delta?: { content?: string | null; tool_calls?: OpenAiToolCall[] } }[];
       usage?: unknown;
@@ -164,10 +176,16 @@ function toWorkersAiStream(): TransformStream<Uint8Array, Uint8Array> {
       return;
     }
     const delta = chunk.choices?.[0]?.delta;
+    for (const [i, tc] of (delta?.tool_calls ?? []).entries()) {
+      const index = tc.index ?? i;
+      const call = calls.get(index) ?? { name: "", arguments: "" };
+      call.name += tc.function?.name ?? "";
+      call.arguments += tc.function?.arguments ?? "";
+      calls.set(index, call);
+    }
     const out: Json = { response: delta?.content ?? "" };
-    if (delta?.tool_calls?.length) out.tool_calls = delta.tool_calls.map(toWorkersAiToolCall);
     if (chunk.usage) out.usage = chunk.usage;
-    if (out.response === "" && !out.tool_calls && !out.usage) return;
+    if (out.response === "" && !out.usage) return;
     emit(c, JSON.stringify(out));
   };
   return new TransformStream({
@@ -183,7 +201,7 @@ function toWorkersAiStream(): TransformStream<Uint8Array, Uint8Array> {
     flush(c) {
       buffer += decoder.decode();
       if (buffer) line(c, buffer.trim());
-      if (!done) emit(c, "[DONE]");
+      finish(c);
     },
   });
 }
