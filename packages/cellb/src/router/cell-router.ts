@@ -48,6 +48,8 @@ interface Link {
   token: unknown;
   inflight: Set<AbortController>;
   ctl?: ControlPort;
+  /** Being handed over: no new requests (they wait for the next owner), the current ones finish. */
+  draining?: boolean;
 }
 
 /**
@@ -74,7 +76,10 @@ export class CellRouter {
   }
 
   get attachedShards(): number[] {
-    return [...this.#links.keys()].sort((a, b) => a - b);
+    return [...this.#links]
+      .filter(([, l]) => !l.draining)
+      .map(([shard]) => shard)
+      .sort((a, b) => a - b);
   }
 
   /**
@@ -106,6 +111,21 @@ export class CellRouter {
     this.#fail(shard, link);
   }
 
+  /**
+   * A planned hand-over of `shard`: new requests wait for the next owner to attach, the ones in
+   * flight get up to `timeoutMs` to finish, then the link goes (the rest fail as when an owner is
+   * lost). Only the link attached with `token` is drained.
+   */
+  async drain(shard: number, token: unknown, timeoutMs: number): Promise<void> {
+    const link = this.#links.get(shard);
+    if (!link || link.token !== token) return;
+    link.draining = true;
+    const end = Date.now() + timeoutMs;
+    while (link.inflight.size && Date.now() < end && this.#links.get(shard) === link)
+      await new Promise((r) => setTimeout(r, 20));
+    this.detach(shard, link.send);
+  }
+
   /** Number of requests currently forwarded to a shard (diagnostics/tests). */
   inflight(shard: number): number {
     return this.#links.get(shard)?.inflight.size ?? 0;
@@ -117,8 +137,7 @@ export class CellRouter {
    * request; resolves with the client end's port (transfer it to the page).
    */
   async connectWebSocket(url: string, protocols: string[] = [], headers?: [string, string][]) {
-    const live = this.attachedShards;
-    const shard = live.length ? live[this.#rr++ % live.length] : 0;
+    const shard = this.#pick();
     const link = await this.#linkFor(shard);
     if (!link.ctl) throw new Error(`shard ${shard} has no control channel: WebSockets unavailable`);
     const id = `r:${++this.#wsSeq}`;
@@ -199,9 +218,24 @@ export class CellRouter {
     }, this.#opts.livenessIntervalMs ?? 1000);
   }
 
-  ingress = async (req: Request): Promise<Response> => {
+  /**
+   * The shard for ingress: the live one with the fewest requests in flight (a long request
+   * keeps its shard busy, wherever its Durable Objects run), round robin among equals.
+   */
+  #pick(): number {
     const live = this.attachedShards;
-    const shard = live.length ? live[this.#rr++ % live.length] : 0;
+    if (!live.length) return 0;
+    const start = this.#rr++ % live.length;
+    let best = live[start];
+    for (let i = 1; i < live.length; i++) {
+      const s = live[(start + i) % live.length];
+      if (this.inflight(s) < this.inflight(best)) best = s;
+    }
+    return best;
+  }
+
+  ingress = async (req: Request): Promise<Response> => {
+    const shard = this.#pick();
     try {
       return await this.#forward(shard, stripControl(req));
     } catch (e) {
@@ -223,6 +257,12 @@ export class CellRouter {
   };
 
   shardOfRequest(req: Request): number {
+    const explicit = req.headers.get(H.shard);
+    if (explicit !== null) {
+      const shard = Number(explicit);
+      if (Number.isInteger(shard) && shard >= 0 && shard < this.#opts.shards) return shard;
+      throw new Error(`Invalid cell shard "${explicit}"`);
+    }
     const binding = req.headers.get(H.binding) ?? "";
     const target = req.headers.get(H.target) ?? "";
     const className = this.#opts.bindings[binding];
@@ -238,7 +278,7 @@ export class CellRouter {
 
   async #linkFor(shard: number): Promise<Link> {
     const link = this.#links.get(shard);
-    if (link) return link;
+    if (link && !link.draining) return link;
     this.#opts.onMissingShard?.(shard);
     const timeout = this.#opts.attachTimeoutMs ?? 10_000;
     await new Promise<void>((resolve, reject) => {

@@ -1,6 +1,6 @@
 import { type CellRuntime, type CellRuntimeOptions, createCellRuntime } from "../core/runtime.js";
 import { shardOf } from "../core/shard.js";
-import { H, type Send } from "../transport/cells-link.js";
+import { H, keepUpgrade, type Send } from "../transport/cells-link.js";
 import { type CellPort, linkOverPort, serveRuntime } from "../transport/port.js";
 import { type ControlMessage, type ControlPort, PortRendezvous } from "../ws/control.js";
 import { CellsResponse, CfWebSocket } from "../ws/server.js";
@@ -19,19 +19,87 @@ export interface ShardWorker {
    * (a ServiceWorker is killed when idle and loses its ports).
    */
   link(down: CellPort, up: CellPort, ctl?: ControlPort): Promise<void>;
+  /**
+   * Drops the links of a router that is gone (a stopped ServiceWorker leaves no trace on its
+   * ports): calls into other shards wait for the next `link`, and `onUnlinked` is told so.
+   */
+  unlink(): void;
 }
 
 /** Runs one shard: hosts the cells of shard `shard`, forwards the others upstream. */
 export function createShardWorker(opts: ShardWorkerOptions): ShardWorker {
+  const shard = shardRouting(opts);
+  const runtime = createCellRuntime({
+    ...opts,
+    vars: { ...opts.vars, SHARD: opts.shard },
+    route: shard.route,
+  });
+  return shard.attach(runtime);
+}
+
+/**
+ * The router side of a shard, for a runtime built elsewhere (a project's, in a browser worker):
+ * `route` sends the cells of other shards up to the router (waiting until it is linked);
+ * `attach(runtime)` gives the runtime its links to the router.
+ */
+export function shardRouting(opts: {
+  shard: number;
+  shards: number;
+  /** A call into another shard waits after `unlink`: wake the router (once per `unlink`). */
+  onUnlinked?: () => void;
+  /**
+   * Called every `keepAliveMs` (default 20 s) while calls into other shards are in flight: they
+   * are no events for the router's ServiceWorker, which the browser stops when idle (~30 s).
+   */
+  keepAlive?: () => void;
+  keepAliveMs?: number;
+}): {
+  route: NonNullable<CellRuntimeOptions["route"]>;
+  attach(runtime: CellRuntime): ShardWorker;
+} {
   let upstream: Send | undefined;
   let control: ControlPort | undefined;
   const pending: (() => void)[] = [];
   const ports = new PortRendezvous();
   let wsSeq = 0;
+  let unlinked = false;
+  let wokeAt = 0;
+  let outstanding = 0; // calls into other shards in flight
+  let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
+  const started = () => {
+    if (outstanding++ === 0 && opts.keepAlive)
+      keepAliveTimer = setInterval(opts.keepAlive, opts.keepAliveMs ?? 20_000);
+  };
+  const finished = () => {
+    if (--outstanding === 0) clearInterval(keepAliveTimer);
+  };
+  /** Calls in flight over the current links: a dead link never answers them. */
+  let inflight = new Set<(err: Error) => void>();
+  const dropInflight = () => {
+    const lost = inflight;
+    inflight = new Set();
+    const err = new Error(
+      "The router was lost while this call was in flight; it may or may not have been applied",
+    );
+    for (const fail of lost) fail(err);
+  };
 
   const rawUp: Send = async (req) => {
+    // Woken once per unlink, again if the router is still not back after a while.
+    if (!upstream && unlinked && Date.now() - wokeAt > 2_000) {
+      wokeAt = Date.now();
+      opts.onUnlinked?.();
+    }
     while (!upstream) await new Promise<void>((r) => pending.push(r));
-    return upstream(req);
+    const send = upstream;
+    const calls = inflight;
+    started();
+    return new Promise<Response>((resolve, reject) => {
+      calls.add(reject);
+      send(req)
+        .then(resolve, reject)
+        .finally(() => calls.delete(reject));
+    }).finally(finished);
   };
   // DO → DO calls into other shards. A WebSocket upgrade gets an id; the owning
   // shard hands the socket's port over the control channel (via the router).
@@ -53,11 +121,18 @@ export function createShardWorker(opts: ShardWorkerOptions): ShardWorker {
     });
   };
 
-  const runtime = createCellRuntime({
-    ...opts,
-    vars: { ...opts.vars, SHARD: opts.shard },
-    route: (_key, id) => (shardOf(id.toString(), opts.shards) === opts.shard ? undefined : up),
-  });
+  // The owner travels with the request: the router need not derive it (it cannot for a
+  // project's internal namespaces, whose ids come from other keys).
+  const route = (_key: string, id: { toString(): string }): Send | undefined => {
+    const owner = shardOf(id.toString(), opts.shards);
+    if (owner === opts.shard) return undefined;
+    return (req) => {
+      const headers = new Headers(req.headers);
+      headers.set(H.shard, String(owner));
+      return up(keepUpgrade(req, new Request(req, { headers })));
+    };
+  };
+  let runtime!: CellRuntime;
 
   const post = (m: ControlMessage) =>
     control?.postMessage(m, m.t === "ws-accept" ? [m.port as unknown as Transferable] : []);
@@ -77,24 +152,42 @@ export function createShardWorker(opts: ShardWorkerOptions): ShardWorker {
 
   let stopDown: (() => Promise<void>) | undefined;
   let closeUp: (() => Promise<void>) | undefined;
-  return {
-    runtime,
-    async link(down, upPort, ctl) {
-      const [prevStop, prevClose] = [stopDown, closeUp];
-      if (ctl) {
-        control = ctl;
-        ctl.onmessage = (e) => void onControl(e);
-        ctl.start?.();
-      }
-      stopDown = await serveRuntime(down, runtime, {
-        // A Worker in another shard opened a socket to one of our objects.
-        onUpgrade: (id, port, protocol) => post({ t: "ws-accept", id, protocol, port }),
-      });
-      const l = await linkOverPort(upPort);
-      closeUp = l.close;
-      upstream = l.send;
-      for (const w of pending.splice(0)) w();
-      await Promise.allSettled([prevStop?.(), prevClose?.()]);
-    },
+  const attach = (rt: CellRuntime): ShardWorker => {
+    runtime = rt;
+    return {
+      runtime,
+      link,
+      unlink() {
+        if (!upstream) return;
+        upstream = undefined;
+        unlinked = true;
+        wokeAt = 0;
+        dropInflight();
+        const [prevStop, prevClose] = [stopDown, closeUp];
+        stopDown = closeUp = undefined;
+        void Promise.allSettled([prevStop?.(), prevClose?.()]);
+      },
+    };
   };
+  const link: ShardWorker["link"] = async (down, upPort, ctl) => {
+    const [prevStop, prevClose] = [stopDown, closeUp];
+    if (ctl) {
+      control = ctl;
+      ctl.onmessage = (e) => void onControl(e);
+      ctl.start?.();
+    }
+    stopDown = await serveRuntime(down, runtime, {
+      // A Worker in another shard opened a socket to one of our objects.
+      onUpgrade: (id, port, protocol) => post({ t: "ws-accept", id, protocol, port }),
+    });
+    const l = await linkOverPort(upPort);
+    closeUp = l.close;
+    // A new router: the previous one is gone, and so are the answers to calls sent to it.
+    if (upstream) dropInflight();
+    upstream = l.send;
+    unlinked = false;
+    for (const w of pending.splice(0)) w();
+    await Promise.allSettled([prevStop?.(), prevClose?.()]);
+  };
+  return { route, attach };
 }

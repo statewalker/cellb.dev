@@ -6,9 +6,22 @@ import {
   type WorkerCode,
 } from "../bindings/worker-loader.js";
 
-/** `cloudflare:workers` for loaded code: the runtime's classes from `globalThis.__cellsWorkersModule`. */
-export const WORKERS_MODULE_SHIM =
+const WORKERS_CLASSES =
   "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
+
+/**
+ * `cloudflare:workers` for loaded code: the runtime's classes from `globalThis.__cellsWorkersModule`.
+ * Its `env` and `exports` are empty: loaded code never sees the project's bindings this way.
+ */
+export const WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env = {}, exports = {};`;
+
+/**
+ * `cloudflare:workers` for a project's own bundle: the classes, and the project's `env` and
+ * `exports` from `globalThis.__cellsProjectScope` (set by `browserProjectRuntime`). The shim is
+ * bundled with the Worker, so it declares no names beyond its exports: esbuild would rename the
+ * Worker's own variables of the same name, and those names show in error messages.
+ */
+export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env = globalThis.__cellsProjectScope?.env ?? {}, exports = globalThis.__cellsProjectScope?.exports ?? {};`;
 
 /**
  * Worker Loader in a browser realm: each module of a WorkerCode becomes a Blob-URL ES

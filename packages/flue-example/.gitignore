@@ -2,3 +2,5 @@ dist/
 .flue-vite/
 .flue-vite.wrangler.jsonc
 .wrangler/
+test-results/
+playwright-report/

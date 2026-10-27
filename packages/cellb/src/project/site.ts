@@ -42,7 +42,11 @@ export function createProjectSite(opts: {
 }): SiteHandler {
   const host = "globalThis.__webrunHostRegistry.get";
   // nodejs_compat: node:* and the Buffer/process globals come from the realm's registry too.
-  const provided: Record<string, object> = { "cloudflare:workers": {} };
+  // A namespace import (`import * as cf`) exports the keys the server sees here.
+  const provided: Record<string, object> = {
+    "cloudflare:workers": Object.fromEntries(WORKERS_MODULE_NAMES.map((n) => [n, null])),
+    "cloudflare:email": { EmailMessage: null },
+  };
   if (opts.nodeCompat)
     for (const name of [
       ...Object.keys(NODE_POLYFILL_PACKAGES),
@@ -117,24 +121,53 @@ export function createProjectSite(opts: {
     .build();
 }
 
-/** The registry the `~deps` proxies read, for the realm that runs the Worker code. */
+/** What `cloudflare:workers` exports on a site (`env` and `exports` are a project's own). */
+const WORKERS_MODULE_NAMES = [
+  "DurableObject",
+  "WorkerEntrypoint",
+  "WorkflowEntrypoint",
+  "RpcTarget",
+  "env",
+  "exports",
+];
+
+/**
+ * The registry the `~deps` proxies read, for the realm that runs the Worker code. The project
+ * and the Workers it loads share this realm's registry, but not their proxies: each has its own
+ * module server, so a proxy of loaded code is a module under `<site>loaded/`. A proxy reads the
+ * registry while it is evaluated, so the caller on the stack tells whose it is: loaded code gets
+ * `workersModule` (`env` and `exports` empty), the project `projectWorkersModule` (its own).
+ */
 export function workersHostRegistry(entries: {
   /** nodejs_compat: "node:buffer" → module namespace, and the Buffer/process globals. */
   node?: Record<string, unknown>;
-  workersModule: unknown;
+  workersModule: object;
+  /** With `loadedPrefix` (`<site>loaded/`): the project's own `cloudflare:workers`. */
+  projectWorkersModule?: object;
+  loadedPrefix?: string;
+  emailModule?: unknown;
+  Request: unknown;
   Response: unknown;
   WebSocketPair: unknown;
   caches: unknown;
   HTMLRewriter: unknown;
   WebSocketRequestResponsePair?: unknown;
+  WebSocket?: unknown;
 }): void {
   const map = new Map<string, unknown>([
-    ["cloudflare:workers", entries.workersModule],
+    ["cloudflare:workers", { env: {}, exports: {}, ...entries.workersModule }],
+    ["cloudflare:email", entries.emailModule],
     ...WORKERS_GLOBAL_NAMES.map((n) => [n, entries[n]] as const),
     ...Object.entries(entries.node ?? {}),
   ]);
+  const { projectWorkersModule: project, loadedPrefix } = entries;
   (globalThis as Record<string, unknown>).__webrunHostRegistry = {
-    get: (k: string) => map.get(k),
+    get: (k: string) =>
+      k === "cloudflare:workers" && project && loadedPrefix
+        ? (new Error().stack ?? "").includes(loadedPrefix)
+          ? map.get(k)
+          : project
+        : map.get(k),
     has: (k: string) => map.has(k),
     set: (k: string, v: unknown) => void map.set(k, v),
   };

@@ -178,7 +178,8 @@ _Avoid_: migration (reserved for data or schema changes), failover
 ### Durability
 
 **Commit**:
-The end of a cell's implicit transaction: all writes of one turn of a handler, applied at once.
+The end of a cell's implicit transaction: all writes of one turn of the event loop, applied at
+once.
 
 **Input gate**:
 What keeps new events from starting inside a cell while a storage operation is in progress.

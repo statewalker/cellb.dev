@@ -6,12 +6,24 @@ import { describe, expect, it } from "vitest";
 import {
   celldBucket,
   createCellRuntime,
+  createWebSocketClass,
   DurableObject,
   type DurableObjectNamespace,
   memoryObjectStore,
   runInDurableObject,
 } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
+import { CellsRequest, withUpgrade } from "../src/ws/upgrade.js";
+import {
+  AGENTS_WEBSOCKET_CONFIG,
+  AGENTS_WEBSOCKET_WORKER,
+  EXPECTED_GLOBALS,
+} from "./agents-websocket-worker.js";
+import {
+  ASYNC_CONTEXT_CONFIG,
+  ASYNC_CONTEXT_WORKER,
+  expectedSeen,
+} from "./async-context-worker.js";
 
 // What the Cloudflare Agents SDK (and Flue, built on it) needs from a host beyond the
 // Durable Object API itself; packages/flue-example runs a whole Flue app.
@@ -72,9 +84,9 @@ describe("P13 modules the Agents SDK imports", () => {
     await Promise.all([one.runtime.close(), two.runtime.close()]);
   });
 
-  it("reports the Workers AI binding as unsupported", async () => {
+  it("reports the Workers AI binding as unsupported without an endpoint", async () => {
     const p = await project("ai", { ai: { binding: "AI" } });
-    expect(p.unsupported).toEqual(["ai[AI] (Workers AI)"]);
+    expect(p.unsupported).toEqual(["ai[AI] (Workers AI: give the host an OpenAI-compatible `ai`)"]);
     await p.runtime.close();
   });
 });
@@ -130,5 +142,85 @@ describe("P13 storage under the Agents SDK's write pattern", () => {
     await stub.burst(20);
     expect(await stub.count()).toBe(20);
     await runtime.close();
+  });
+});
+
+describe("P13 AsyncLocalStorage under concurrent objects (Node: the reference)", () => {
+  it("each object keeps its own store across every kind of continuation", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "p13-als-"));
+    writeFileSync(join(dir, "index.js"), ASYNC_CONTEXT_WORKER);
+    writeFileSync(join(dir, "wrangler.json"), JSON.stringify(ASYNC_CONTEXT_CONFIG));
+    const p = await loadNodeProject(dir, { openSql: nodeSqliteOpener(), files: new MemFilesApi() });
+    const r = await (await p.runtime.fetch(new Request("http://w/"))).json();
+    expect(r.outside).toBeNull();
+    for (const [name, seen] of Object.entries(r.results)) expect(seen).toEqual(expectedSeen(name));
+    await p.runtime.close();
+  });
+});
+
+describe("P13 the global WebSocket, as the Agents SDK uses it", () => {
+  const start = async () => {
+    const dir = mkdtempSync(join(tmpdir(), "p13-ws-"));
+    writeFileSync(join(dir, "index.js"), AGENTS_WEBSOCKET_WORKER);
+    writeFileSync(join(dir, "wrangler.json"), JSON.stringify(AGENTS_WEBSOCKET_CONFIG));
+    return loadNodeProject(dir, { openSql: nodeSqliteOpener(), files: new MemFilesApi() });
+  };
+
+  it("is workerd's: attachments through its prototype, READY_STATE_* statics, one class", async () => {
+    const p = await start();
+    const res = await p.runtime.fetch(new Request("http://w/globals"));
+    expect(await res.json()).toEqual(EXPECTED_GLOBALS);
+    await p.runtime.close();
+  });
+
+  it("carries a chat: each socket's attachment names its sender, broadcasts reach open sockets", async () => {
+    const p = await start();
+    const WS = createWebSocketClass((url, protocols) => p.runtime.connectWebSocket(url, protocols));
+    const join_ = async (user: string) => {
+      const ws = new WS(`ws://w/room?user=${user}`);
+      const inbox: string[] = [];
+      ws.onmessage = (e: MessageEvent) => inbox.push(String(e.data));
+      await new Promise((r) => ws.addEventListener("open", r, { once: true }));
+      return { ws, inbox };
+    };
+    const ann = await join_("ann");
+    const bob = await join_("bob");
+    ann.ws.send("hi");
+    bob.ws.send("hello");
+    for (let i = 0; i < 100 && (ann.inbox.length < 2 || bob.inbox.length < 2); i++)
+      await new Promise((r) => setTimeout(r, 10));
+    expect(ann.inbox.sort()).toEqual(["ann: hi", "bob: hello"]);
+    expect(bob.inbox.sort()).toEqual(["ann: hi", "bob: hello"]);
+    ann.ws.close();
+    bob.ws.close();
+    await p.runtime.close();
+  });
+});
+
+describe("P13 the global Request keeps an upgrade's headers when copied", () => {
+  // A browser drops `Upgrade` and `Sec-WebSocket-*` from every `new Request()`; the runtime carries
+  // them as an own `headers` property (withUpgrade). partyserver copies the request with
+  // `new Request(req)` before it forwards a socket: the copy must still be an upgrade.
+  const upgrade = () =>
+    withUpgrade(new Request("http://w/agents/chat/a"), "websocket", {
+      "Sec-WebSocket-Protocol": "v1",
+    });
+
+  it("carries them through new Request(req), and through init headers", () => {
+    const copy = new CellsRequest(upgrade());
+    expect(copy.headers.get("Upgrade")).toBe("websocket");
+    expect(copy.headers.get("Sec-WebSocket-Protocol")).toBe("v1");
+    copy.headers.set("x-partykit-namespace", "chat"); // set after the copy, read by the runtime
+    expect(copy.headers.get("x-partykit-namespace")).toBe("chat");
+    const fromInit = new CellsRequest("http://w/", { headers: upgrade().headers });
+    expect(fromInit.headers.get("Upgrade")).toBe("websocket");
+    expect(new CellsRequest(upgrade()).clone().headers.get("Upgrade")).toBe("websocket");
+    // `init.headers` replaces the input's, as in Request itself.
+    expect(new CellsRequest(upgrade(), { headers: {} }).headers.get("Upgrade")).toBeNull();
+  });
+
+  it("counts the host's requests as instances", () => {
+    expect(new Request("http://w/") instanceof CellsRequest).toBe(true);
+    expect(new CellsRequest("http://w/") instanceof Request).toBe(true);
   });
 });

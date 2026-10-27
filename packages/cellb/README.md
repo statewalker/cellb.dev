@@ -91,6 +91,27 @@ await runtime.close(); // releases the cells, so celld can take them at once
 `sqliteObjectStore` is the bucket `celld dev` keeps in that file. A fleet on S3 uses
 `s3ObjectStore({ endpoint, bucket, prefix, region, accessKeyId, secretAccessKey })` instead.
 
+A project with a Workers AI binding (`"ai": { "binding": "AI" }`) needs an OpenAI-compatible
+endpoint behind it (llama.cpp, Ollama, a hosted API); without one, `ai` is in `unsupported`:
+
+```ts
+const { runtime } = await loadNodeProject(dir, {
+  openSql: nodeSqliteOpener(),
+  files: new MemFilesApi(),
+  ai: {
+    baseUrl: "http://127.0.0.1:8080/v1",
+    apiKey: process.env.LLM_KEY, // optional
+    models: { "@cf/meta/llama-3.3-70b-instruct-fp8-fast": "llama3", "*": "llama3" },
+  },
+});
+```
+
+`env.AI.run(model, inputs, options)` then answers text generation (`{ prompt }` or
+`{ messages, tools?, stream? }`, in Workers AI's `{ response, tool_calls, usage }` shape or its
+`data: {"response": …}` stream), the endpoint's own response with `returnRawResponse` (Flue's
+`cloudflare` provider reads it), and embeddings (`{ text }`); other model kinds throw an `AiError`.
+`browserProjectRuntime`, `startProjectShards` and `joinProjectShards` take the same `ai`.
+
 ### A wrangler project in a browser worker
 
 ```ts

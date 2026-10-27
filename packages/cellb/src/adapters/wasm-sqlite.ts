@@ -6,6 +6,7 @@ import { type WasmSqlite3, wasmSessionCapture } from "./wasm-session.js";
 /** Minimal slice of the @sqlite.org/sqlite-wasm `oo1.DB` API we rely on. */
 export interface Oo1Db {
   prepare(sql: string): Oo1Stmt;
+  exec(sql: string): unknown;
   changes(): number;
   close(): void;
 }
@@ -212,30 +213,89 @@ export async function sahpoolOpener(
     installOpfsSAHPoolVfs(opts: { name?: string; initialCapacity?: number }): Promise<{
       OpfsSAHPoolDb: new (path: string) => Oo1Db;
       reserveMinimumCapacity(n: number): Promise<number>;
+      getCapacity(): number;
+      getFileCount(): number;
+      // Not in older SQLite WASM builds (sqlite-vec's): there `release()` does nothing.
+      pauseVfs?(): unknown;
+      isPaused?(): boolean;
+      unpauseVfs?(): Promise<unknown>;
     }>;
   },
   opts: { name?: string; initialCapacity?: number } = {},
-): Promise<OpenCellSql & { reserve(n: number): Promise<number> }> {
+): Promise<OpenCellSql & { reserve(n: number): Promise<number>; release(): void }> {
   const pool = await sqlite3.installOpfsSAHPoolVfs({
     name: opts.name ?? "cellb",
     initialCapacity: opts.initialCapacity ?? 16,
   });
+  // The same pool again in this worker (SQLite WASM keeps one per name), after a `release()`.
+  if (pool.isPaused?.()) await pool.unpauseVfs?.();
+  // A full pool fails the open (`SAH pool is full`), and opening is synchronous while growing
+  // the pool is not. A cell about to open reserves room first (`room`, awaited by the runtime
+  // before the cell's first event); the pool grows when the reservations would not fit, and in
+  // the background whenever less than half of it is free.
+  const SLOTS_PER_CELL = 3; // the database, its journal, and one spare
+  const reserved = new Set<string>();
+  let growing: Promise<void> | undefined;
+  const grow = (min: number): Promise<void> => {
+    growing ??= pool
+      .reserveMinimumCapacity(Math.max(min, pool.getCapacity() * 2))
+      .then(() => {})
+      .finally(() => {
+        growing = undefined;
+      });
+    return growing;
+  };
+  const needed = () => pool.getFileCount() + SLOTS_PER_CELL * reserved.size;
+  const room = (cellKey: string): Promise<void> | undefined => {
+    reserved.add(cellKey);
+    if (needed() <= pool.getCapacity()) return undefined;
+    // Grow until this reservation (and every other one) fits; the open fails visibly if not.
+    const fit = async (): Promise<void> => {
+      while (needed() > pool.getCapacity()) {
+        const before = pool.getCapacity();
+        await grow(needed());
+        if (pool.getCapacity() <= before) return; // it did not grow: the open will say why
+      }
+    };
+    return fit();
+  };
+  const keepRoom = () => {
+    const capacity = pool.getCapacity();
+    if (!growing && capacity - needed() < capacity / 2) grow(capacity * 2).catch(() => {});
+  };
+  // The rollback journal stays in the pool between transactions (PERSIST): DELETE gives its pool
+  // slot back and takes it again on every commit, which costs a header write each time. The
+  // database file is the same in both modes (only WAL marks it).
+  const openDb = (path: string) => {
+    const db = new pool.OpfsSAHPoolDb(path);
+    db.exec("PRAGMA journal_mode=PERSIST");
+    return db;
+  };
   const open: OpenCellSql = (cellKey) => {
     const path = `/${cellKey.replace(/[^\w.-]/g, "_")}.sqlite`;
+    reserved.delete(cellKey);
+    queueMicrotask(keepRoom); // after this open (and its first slot) is counted
     return new WasmSqliteDriver(
-      new pool.OpfsSAHPoolDb(path),
+      openDb(path),
       {
         image: (db) => (sqlite3 as any).capi.sqlite3_js_db_export(db),
         // Replace the file inside the pool, then reopen it.
         restore(db, image) {
           db.close();
           (pool as any).importDb(path, image);
-          return new pool.OpfsSAHPoolDb(path);
+          return openDb(path);
         },
       },
       sqlite3 as never,
     );
   };
-  // Each open DB holds ~2-3 pool slots (db + journal); grow before opening many cells.
-  return Object.assign(open, { reserve: (n: number) => pool.reserveMinimumCapacity(n) });
+  return Object.assign(open, {
+    room,
+    reserve: (n: number) => pool.reserveMinimumCapacity(n),
+    /**
+     * Gives the pool's OPFS files back once every database is closed, so that another worker
+     * (another tab's) can open the pool at once instead of when this worker is gone.
+     */
+    release: () => void pool.pauseVfs?.(),
+  });
 }

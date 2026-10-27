@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>cellb — one project over several workers</title>
+<body>
+  <script type="module">
+    import { startProjectShards } from "@statewalker/cellb/browser";
+
+    // Starts the project over `shards` workers, then runs `rounds` of requests for every name at
+    // once, each round entering through the next worker; returns the answers and closes.
+    window.__runShards = async ({ project, shards, names, rounds }) => {
+      const app = await startProjectShards({
+        shards,
+        spawn: () =>
+          new Worker(new URL("./shard-worker.ts", import.meta.url), { type: "module" }),
+        config: project.config,
+        code: { bundle: project.code },
+        name: `shards-${Date.now().toString(36)}`,
+      });
+      try {
+        const answers = Object.fromEntries(names.map((name) => [name, []]));
+        for (let round = 0; round < rounds; round++)
+          await Promise.all(
+            names.map(async (name) => {
+              const res = await app.fetch(new Request(`http://browser/?name=${name}`));
+              answers[name].push((await res.json()).n);
+            }),
+          );
+        return { ok: true, answers, unsupported: app.unsupported };
+      } catch (err) {
+        return { ok: false, error: String(err?.stack ?? err) };
+      } finally {
+        await app.close();
+      }
+    };
+    document.body.dataset.ready = "true";
+  </script>
+</body>

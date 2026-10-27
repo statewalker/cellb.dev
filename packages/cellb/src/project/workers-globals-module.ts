@@ -9,4 +9,6 @@ export {
   StandardWebSocketPair,
   WebSocketPair,
   WebSocketRequestResponsePair,
+  WorkersWebSocket as WebSocket,
 } from "../ws/server.js";
+export { CellsRequest } from "../ws/upgrade.js";

@@ -5,6 +5,7 @@ import { setProvider } from "@flue/runtime";
 import { createAgentRouter } from "@flue/runtime/routing";
 import { Hono } from "hono";
 import { Assistant } from "./agents/assistant.ts";
+import { Cloud } from "./agents/cloud.ts";
 
 // The model endpoint comes from the Worker's env, read while the module is evaluated.
 setProvider(
@@ -30,8 +31,12 @@ setProvider(
   }),
 );
 
+// Where the app is mounted: "" at the root; a prefix such as "/app/<name>" when a ServiceWorker
+// passes requests on with their path (cellb's installProjectRouter), as a Cloudflare route does.
+const base = String(env.BASE_PATH ?? "");
 const app = new Hono();
-app.route("/agents/assistant", createAgentRouter(Assistant));
-app.get("/ping", (c) => c.text("pong"));
+app.route(`${base}/agents/assistant`, createAgentRouter(Assistant));
+app.route(`${base}/agents/cloud`, createAgentRouter(Cloud));
+app.get(`${base}/ping`, (c) => c.text("pong"));
 
 export default app;

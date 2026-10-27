@@ -155,8 +155,8 @@ export class ObjectHost {
     state.props = opts.props;
     state.facets = createFacets(
       { ...opts, epoch: () => this.#epoch },
-      (name, cls, env, id, props) =>
-        new ObjectHost({
+      (name, cls, env, id, props) => {
+        const facet = new ObjectHost({
           ...opts,
           // celld's facet stream: <parent>/facets/<SHA-256(name)[0..16] hex> (engine_api.rs)
           cellKey: `${opts.cellKey}/facets/${facetSegment(name)}`,
@@ -169,7 +169,10 @@ export class ObjectHost {
           acquire: undefined,
           epoch: this.#epoch,
           facet: true,
-        }),
+        });
+        this.#facets.add(facet); // closed with its root
+        return facet;
+      },
     );
     const construct = () => (this.#instance = new opts.cls(state, opts.env));
     this.#construct = construct;
@@ -336,6 +339,8 @@ export class ObjectHost {
 
   /** Settles once the cell lease is released (a store closed earlier would keep it held). */
   close(): Promise<void> {
+    for (const facet of this.#facets) void facet.close();
+    this.#facets.clear();
     if (!this.#dbClosed) this.#db.close();
     // Hand the cell over at once instead of letting the lease expire.
     const released = this.#release?.().catch(() => {});
@@ -343,6 +348,8 @@ export class ObjectHost {
     return released ?? Promise.resolve();
   }
   #release: (() => Promise<void>) | undefined;
+  /** The hosts of this cell's facets: their databases close with the root's. */
+  readonly #facets = new Set<ObjectHost>();
 
   /**
    * Brings the local database to the storage's state: restores the image, then replays the log.

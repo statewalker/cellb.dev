@@ -246,10 +246,12 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     env[binding] = new DurableObjectNamespace(nsKey, (id) => {
       const remote = opts.route?.(`${className}/${id.toString()}`, id);
       if (remote) return () => httpEndpoint(postVia(remote), codec, binding, className, id);
-      const local = localEndpoint(() => hostFor(id));
+      const cellKey = `${className}/${id.toString()}`;
+      // A cell not open yet waits for room in its store before its first event (OPFS pool).
+      const ready = () => (hosts.has(cellKey) ? undefined : opts.openSql.room?.(cellKey));
+      const local = localEndpoint(() => hostFor(id), ready);
       const peers = opts.peers;
       if (!peers) return local;
-      const cellKey = `${className}/${id.toString()}`;
       // Local first; a cell owned by another node is reached through that node.
       const viaOwner = async () => {
         const owner = await peers.ownerOf(cellKey);
@@ -271,7 +273,9 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       return () => {
         const l = local();
         return {
-          ...l,
+          get local() {
+            return l.local; // not copied: reading it opens the cell
+          },
           fetch: async (req: Request) => {
             const spare = req.body ? req.clone() : req;
             try {
@@ -410,6 +414,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       // The releases reach the store before it closes.
       await Promise.all([...hosts.values()].map((h) => h.close()));
       hosts.clear();
+      alarms.close(); // every database of the runtime is closed now
       await storage.close?.();
     },
     async fetch(req) {

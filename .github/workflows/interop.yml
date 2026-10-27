@@ -41,6 +41,8 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - name: Chromium — browser hosts on the shared bucket
         run: pnpm run interop:browser
+      - name: Chromium — a Flue agent app on cellb in a browser
+        run: pnpm --dir ../flue-example test:browser
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
