@@ -9,6 +9,7 @@ import type {
   SyncSqlDriver,
   ValueCodec,
 } from "../ports.js";
+import type { AsyncRoot } from "./async-context.js";
 import { CELLD_SCHEMA, LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE, scopeOf } from "./celld-schema.js";
 import { InputGate, OutputGate } from "./gates.js";
 import {
@@ -93,6 +94,8 @@ export class ObjectHost {
     /** A facet: on open its rows move to this run's scope, as celld does. */
     facet?: boolean;
     acquire?: Lease["tryAcquire"];
+    /** The async context events start in (`asyncRoot()`): not the caller's, as on Cloudflare. */
+    asyncRoot?: AsyncRoot;
   }) {
     this.#backup = opts.backup;
     this.cellKey = opts.cellKey;
@@ -174,7 +177,9 @@ export class ObjectHost {
         return facet;
       },
     );
-    const construct = () => (this.#instance = new opts.cls(state, opts.env));
+    const root = opts.asyncRoot ?? ((fn) => fn());
+    this.#root = root;
+    const construct = () => root(() => (this.#instance = new opts.cls(state, opts.env)));
     this.#construct = construct;
     const load = opts.backup?.load;
     const replay = opts.backup?.replay;
@@ -265,7 +270,7 @@ export class ObjectHost {
         let started: Promise<T>;
         this.#active++;
         try {
-          started = Promise.resolve(fn(this.#instance, this.state));
+          started = Promise.resolve(this.#root(() => fn(this.#instance, this.state)));
         } catch (e) {
           started = Promise.reject(e);
         }
@@ -410,6 +415,7 @@ export class ObjectHost {
   }
 
   #construct?: () => unknown;
+  #root: AsyncRoot = (fn) => fn();
   readonly #open: () => void;
   #epoch: number | undefined;
 

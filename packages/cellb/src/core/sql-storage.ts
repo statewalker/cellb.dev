@@ -1,5 +1,6 @@
 import type { CommitChanges, SqlResult, SyncSqlDriver } from "../ports.js";
 import { LOG_SEQ_READ, LOG_SEQ_WRITE, LOG_TABLE } from "./celld-schema.js";
+import { hasStatement, onlyComments, takeCompleteStatements } from "./sql-split.js";
 
 const FORBIDDEN_TXN = /^\s*(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE)\b/i;
 const FORBIDDEN_INTERNAL = /\b_cf_\w*/i;
@@ -159,7 +160,46 @@ export class SqlStorage {
     }
     if (bindings.length && countParameters(query) !== bindings.length)
       throw new Error("SQL error: Wrong number of parameter bindings for SQL query.");
-    return new SqlStorageCursor<T>(this.internalExec(query, bindings));
+    // workerd prepares statement after statement: one made of comments alone is an error.
+    // workerd prepares statement after statement: none at all, or a last one made of comments
+    // alone, is an error.
+    if (!hasStatement(query) || onlyComments(takeCompleteStatements(query).remainder))
+      throw new Error("SQL code did not contain a statement.");
+    try {
+      return new SqlStorageCursor<T>(this.internalExec(query, bindings));
+    } catch (err) {
+      // workerd's wording: SQLite's message and the offset of the token it stopped at. The
+      // drivers prepare each statement without its `;`, where SQLite says "incomplete input"
+      // for what it calls a syntax error at that `;` when it sees it.
+      const message = String((err as Error)?.message ?? err);
+      const m = /near "([^"]*)": syntax error/.exec(message);
+      if (m) throw new Error(`${m[0]} at offset ${Math.max(0, query.indexOf(m[1]))}: SQLITE_ERROR`);
+      if (/incomplete input/.test(message) && query.trimEnd().endsWith(";"))
+        throw new Error(`near ";": syntax error at offset ${query.lastIndexOf(";")}: SQLITE_ERROR`);
+      throw err;
+    }
+  }
+
+  /**
+   * workerd's `sql.ingest(sql)` (experimental): runs the complete statements at the start of
+   * `sql` (an SQL dump read in chunks) and returns what follows them, to be prefixed to the next
+   * chunk. A complete statement that does not parse throws, as `exec` does.
+   */
+  ingest(sql: string): {
+    remainder: string;
+    rowsRead: number;
+    rowsWritten: number;
+    statementCount: number;
+  } {
+    const { statements, remainder } = takeCompleteStatements(sql);
+    let rowsRead = 0;
+    let rowsWritten = 0;
+    for (const statement of statements) {
+      const cursor = this.exec(statement);
+      rowsRead += cursor.rowsRead;
+      rowsWritten += cursor.rowsWritten;
+    }
+    return { remainder, rowsRead, rowsWritten, statementCount: statements.length };
   }
 
   /**

@@ -46,7 +46,9 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 Each item is proven by a conformance case changing state (a `knownGap` removed, or a new step
 recorded on celld or workerd), not by a test of the mechanism alone.
 
-- **Small known gaps**, one at a time: `sql.ingest()` only if wanted.
+- **Small known gaps**, one at a time. `sql.ingest()` is in (workerd's semantics and wording of
+  syntax errors); the rest of workerd's `sql-test.js` default test stops at its wording of other
+  SQLite errors (`: SQLITE_MISMATCH`, `: SQLITE_AUTH`), where cellb follows celld's.
 
 ## Firefox and WebKit
 
@@ -100,12 +102,12 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   stores: a `run()`'s store stays set until its promise settles, which is right for one run at a
   time and shared between concurrent ones (two cells answering at once can read each other's).
   Event listeners (`addEventListener`, MessagePort `onmessage`) do not carry stores, on Node either.
-- **A called object starts in its caller's async context.** Its `AsyncLocalStorage` stores are the
-  caller's (on Node and in a browser), where on Cloudflare a call to another object is a new event
-  with none. The Agents SDK and Flue set their own stores at each entry, so they are not affected;
-  code that reads a store it did not set in the callee sees the caller's. Changing it means
-  starting each event in the root context, which the celld conformance harness (test/p09) relies
-  on not doing: it attributes Durable Object logs to a scenario through such a store.
+- **An object's events start in the async context the runtime was made in.** A call to an object
+  is a new event, as on Cloudflare: the callee (and its constructor) does not see the caller's
+  `AsyncLocalStorage` stores. Where Cloudflare has none, cellb has the stores that were current
+  when `createCellRuntime` ran, so a host can scope a whole runtime (test/p09 attributes each
+  scenario's logs this way). On Node this needs `process.getBuiltinModule` (Node 22.3 and later);
+  in a browser it goes through cellb's `node:async_hooks` polyfill.
 - **A browser runtime is one thread, and OPFS writes are its cost.** Its cells interleave, and
   each commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool
   call, two model turns) makes 21 commits (155 when commits ended with each microtask); in this
@@ -141,6 +143,8 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   written; two tabs using it at once can both win.
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.
 - **`bufferedAmount` is always 0** on cellb's WebSockets: there is no backpressure on socket ports.
+  Making it real takes acknowledgement frames in both ends' protocol (proposed with the port
+  protocol's move to webrun-http-browser, statewalker/webrun-wire#35).
 - **The input gate does not hold non-storage I/O.** A timer or `fetch` completion can interleave
   with another event while the gate is closed. celld behaves the same; workerd does not
   (`wd-actor-block-concurrency-timer`).

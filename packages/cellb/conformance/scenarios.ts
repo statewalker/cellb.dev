@@ -485,8 +485,12 @@ scenarios["wd-sql-default"] = {
       path: "/?skip=testCursorUaf,testMultiStatement,testRollbackKvInit,testSessionsAPIBookmark",
     },
   ],
+  // celld stops at ingest's syntax-error message (its wording misses workerd's "at offset").
+  // cellb words syntax errors as workerd does and gets past ingest, to workerd's wording of
+  // other errors (": SQLITE_MISMATCH", ": SQLITE_AUTH"), where it follows celld's.
+  judge: "workerd",
   knownGap:
-    "sql.ingest() (experimental) is missing; celld itself stops at an ingest syntax-error message",
+    "workerd's wording of SQLite errors (': SQLITE_<CODE>', its authorizer messages); cellb words them as celld does",
 };
 
 // celld's deviations from workerd (conformance/record-workerd.ts); cellb follows celld.
