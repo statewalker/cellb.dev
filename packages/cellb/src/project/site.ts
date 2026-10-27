@@ -1,6 +1,6 @@
 import { type FilesApi, readText } from "@statewalker/webrun-files";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
-import { newModuleServer } from "@statewalker/webrun-modules";
+import { newDefaultTransform, newModuleServer, type Transform } from "@statewalker/webrun-modules";
 import { SiteBuilder, type SiteHandler } from "@statewalker/webrun-site-builder";
 import {
   type LogSink,
@@ -9,7 +9,9 @@ import {
   outboundFetch,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
+import { nativeAsyncContext } from "../core/async-context.js";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
+import { lowerAwait } from "./lower-await.js";
 import { SCHEDULER_EXPRESSION } from "./scheduler.js";
 import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
 
@@ -30,9 +32,31 @@ import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
  */
 export const LOADED_CONSOLES = "__cellsLoadedConsoles";
 
+/** webrun-modules' transform, then `lowerAwait` on its output. */
+function loweringTransform(): Transform {
+  const base = newDefaultTransform(true);
+  return {
+    async transform(file, rewrite) {
+      const r = await base.transform(file, rewrite);
+      return { ...r, code: lowerAwait(r.code) };
+    },
+  };
+}
+
 export function createProjectSite(opts: {
   projectFiles: FilesApi;
+  /**
+   * nodejs_compat: serves the `node:*` modules, and (see `lowerAwait`) lowers the modules' awaits
+   * to generators so that AsyncLocalStorage stores follow them. It must match the project's flag:
+   * without AsyncContext, the browser host makes continuations carry stores for a nodejs_compat
+   * project, which awaits that are not lowered would not see.
+   */
   nodeCompat?: boolean;
+  /**
+   * Lower `await` in the modules served. Default: with `nodeCompat`, unless this browser has
+   * AsyncContext (the engine then carries the stores through native awaits, as workerd does).
+   */
+  lowerAwait?: boolean;
   /**
    * The `node:*` registry entries of the realm that runs the code (`nodeRegistryEntries`): a
    * namespace import (`import * as assert from "node:assert"`) exports the keys the server
@@ -58,6 +82,10 @@ export function createProjectSite(opts: {
     scheduler: SCHEDULER_EXPRESSION,
     ...(opts.nodeCompat ? { Buffer: `${host}("Buffer")`, process: `${host}("process")` } : {}),
   };
+  // nodejs_compat without AsyncContext: awaits lowered to generators, so that AsyncLocalStorage
+  // stores follow them (the browser host installs the polyfill's continuations for such a project).
+  const lower = opts.lowerAwait ?? (!!opts.nodeCompat && !nativeAsyncContext());
+  const transform = lower ? loweringTransform() : undefined;
   const modules = newModuleServer({
     cache: new MemFilesApi(),
     project: opts.projectFiles,
@@ -65,6 +93,7 @@ export function createProjectSite(opts: {
     target: "browser",
     provided,
     globals,
+    transform,
   });
   // One module server per loaded Worker: its globals proxy (one per project root in
   // webrun-modules) can then bind `console` to that Worker's own console (Tail Workers).
@@ -84,6 +113,7 @@ export function createProjectSite(opts: {
         basePath: `/loaded/${encodeURIComponent(id)}/`,
         target: "browser",
         provided,
+        transform,
         globals: {
           ...globals,
           console: `(globalThis.${LOADED_CONSOLES}?.[${JSON.stringify(id)}] ?? globalThis.console)`,

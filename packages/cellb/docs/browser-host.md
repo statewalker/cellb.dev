@@ -22,9 +22,10 @@ and WebKit.
   rollback journal keeps its pool slot between commits instead of being created and deleted on each
   one. The database file is the same as with the default `DELETE` (only WAL marks it).
 - **`AsyncLocalStorage` needs help.** Browsers have no async context yet: for a nodejs_compat
-  bundle, `browserProjectRuntime` makes promise and timer continuations carry their stores, and
-  `bundleWorkerForBrowser` lowers `await` so that it goes through them. An in-browser site keeps
-  run-at-a-time stores ([gaps.md](gaps.md)).
+  project, `browserProjectRuntime` makes promise and timer continuations carry their stores, and
+  the code's `await` is lowered so that it goes through them: by `bundleWorkerForBrowser` in a
+  bundle, by `createProjectSite` in a site's modules ([gaps.md](gaps.md)). A browser with TC39
+  AsyncContext needs neither: `node:async_hooks` then runs on it, and a site lowers nothing.
 - **A ServiceWorker cannot spawn workers** and is stopped when idle, dropping every port it held.
   It can route requests, hold Web Locks and pass MessagePorts, so it routes and a page owns the
   workers.
@@ -61,8 +62,9 @@ code and builds the runtime from the wrangler configuration. The code is either:
   `@statewalker/webrun-site-host`, which compiles the project's sources on request
   (`@statewalker/webrun-modules`). Loaded Workers' code is uploaded to it and imported from URLs.
   The project's `cloudflare:workers` has its own `env` and `exports` (Workers loaded into its
-  realm get empty ones; in isolates, their own), and `cloudflare:email` loads; `await` is not
-  lowered, so `AsyncLocalStorage` keeps run-at-a-time stores there (see below).
+  realm get empty ones; in isolates, their own), and `cloudflare:email` loads. With `nodeCompat`
+  the site lowers `await` in the modules it serves, so `AsyncLocalStorage` answers as in a bundle;
+  the site's `nodeCompat` must match the project's flag (see below).
 
 A loaded Worker's `cloudflare:workers` has its own `env` and `exports` (its `WorkerCode.env`, and
 stubs of its own entrypoints), except on a site without `isolateScript`.
@@ -274,9 +276,10 @@ tabs or workers with no server. Its conditional writes are atomic only within on
   outran the pool's growth (`browserProjectRuntime` starts with 64 files). With `sahpoolOpener`,
   pass a larger `initialCapacity` for workloads that open many cells together.
 - **`AsyncLocalStorage.getStore()` returns another cell's store, or `undefined` after an
-  `await`**, in a browser. The code was not bundled by `bundleWorkerForBrowser` with nodejs_compat:
-  an in-browser site keeps run-at-a-time stores (shared between concurrent runs), and a bundle of
-  your own whose `await` is not lowered loses its store at the first `await`.
+  `await`**, in a browser. The code's `await` was not lowered: a bundle of your own, not made by
+  `bundleWorkerForBrowser` with nodejs_compat, or a site made by `createProjectSite` without
+  `nodeCompat` for a nodejs_compat project. Code in an async generator, or (on a site) in an async
+  method that uses `super`, sees no store after its `await`s.
 - **Every S3 request fails with a CORS error** in the console, or `PUT` succeeds but ownership never
   works. The bucket lacks a CORS rule, or does not expose `etag`: conditional writes need it.
 - **`SignatureDoesNotMatch` through a proxy.** `signAs` is missing or differs from the host the proxy
