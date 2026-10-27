@@ -121,6 +121,9 @@ async function importWorkerCode(
   if ("site" in code) {
     workersHostRegistry({
       workersModule,
+      projectWorkersModule: { ...workersModule, env: scope.env, exports: scope.exports },
+      loadedPrefix: `${code.site}loaded/`,
+      emailModule: await import("./cloudflare-email.js"),
       ...globals,
       // Loaded on demand, after installNodeGlobals(): the npm `util` polyfill reads `process`
       // when it is imported.
