@@ -59,6 +59,8 @@ export interface ProjectTabsOptions {
   config: BrowserProjectOptions["config"];
   code: BrowserProjectOptions["code"];
   assetFiles?: BrowserProjectOptions["assetFiles"];
+  /** The OpenAI-compatible endpoint behind the project's `ai` binding. */
+  ai?: BrowserProjectOptions["ai"];
   /** Each shard is its own fleet node, `<node>-s<shard>`. */
   bucket?: BrowserBucket;
   /** The active ServiceWorker that runs `installProjectRouter`. */
@@ -201,6 +203,7 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
             config: opts.config,
             code: opts.code,
             assetFiles: opts.assetFiles,
+            ai: opts.ai,
             bucket: opts.bucket && { ...opts.bucket, node: `${opts.bucket.node}-s${shard}` },
             pool: `${opts.name}-shard-${shard}`,
             filesDir: `${opts.name}-files-${shard}`,

@@ -7,6 +7,7 @@ import { startCronTriggers } from "../bindings/cron.js";
 import { r2Bucket, r2BucketOn } from "../bindings/r2.js";
 import { celldR2Backend } from "../bindings/r2-celld.js";
 import { type ModuleLoader, workerLoader } from "../bindings/worker-loader.js";
+import { type WorkersAiOptions, workersAi } from "../bindings/workers-ai.js";
 import { entrypointStub } from "../core/handles.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
@@ -48,7 +49,7 @@ export interface WranglerConfig {
   assets?: AssetsConfig;
   services?: { binding: string; service: string; entrypoint?: string; props?: unknown }[];
   worker_loaders?: { binding: string }[];
-  /** Workers AI: not supported (reported in `unsupported`). */
+  /** Workers AI: served by the host's OpenAI-compatible endpoint (`ProjectHost.ai`), if any. */
   ai?: { binding: string };
 }
 
@@ -74,12 +75,28 @@ export interface ProjectHost
   loadModules?: ModuleLoader;
   /** Blob store of the KV simulator (large values): OPFS in a browser, a directory or S3 on a server. */
   files: FilesApi;
+  /** The OpenAI-compatible endpoint behind the `ai` binding; without it the binding is unsupported. */
+  ai?: WorkersAiOptions;
 }
 
 export interface ProjectRuntime {
   runtime: CellRuntime;
   /** Configuration entries cellb does not support yet (reported, not silently ignored). */
   unsupported: string[];
+}
+
+/**
+ * What `env` of `cloudflare:workers` holds while the Worker's module is evaluated, before the
+ * runtime exists: the vars, and the bindings that need no runtime (`ai`; Flue's entry reads
+ * `env.AI` at load).
+ */
+export function loadTimeEnv(
+  config: WranglerConfig,
+  ai?: WorkersAiOptions,
+): Record<string, unknown> {
+  const env: Record<string, unknown> = { ...config.vars };
+  if (config.ai && ai) env[config.ai.binding] = workersAi(ai);
+  return env;
 }
 
 // Internal bindings carrying the runtime-supplied objects behind KV and D1.
@@ -151,7 +168,10 @@ export function createProjectRuntime(
     worker[workflows.className] = workflows.WorkflowCell as never;
     durableObjects[WORKFLOW_OBJECTS] = { className: workflows.className };
   }
-  if (config.ai) unsupported.push(`ai[${config.ai.binding}] (Workers AI)`);
+  if (config.ai && !host.ai)
+    unsupported.push(
+      `ai[${config.ai.binding}] (Workers AI: give the host an OpenAI-compatible \`ai\`)`,
+    );
   for (const s of config.services ?? [])
     if (s.service !== config.name)
       unsupported.push(
@@ -192,6 +212,7 @@ export function createProjectRuntime(
     route: host.route,
   });
   const env = runtime.env as Record<string, unknown>;
+  if (config.ai && host.ai) env[config.ai.binding] = workersAi(host.ai);
   // KV: celld's own client against celld's own namespace cell (cell name "<id>/<shard>").
   for (const ns of config.kv_namespaces ?? [])
     env[ns.binding] = new kv!.KvNamespace(() => env[KV_OBJECTS], `${ns.id}/0`);

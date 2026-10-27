@@ -84,9 +84,9 @@ describe("P13 modules the Agents SDK imports", () => {
     await Promise.all([one.runtime.close(), two.runtime.close()]);
   });
 
-  it("reports the Workers AI binding as unsupported", async () => {
+  it("reports the Workers AI binding as unsupported without an endpoint", async () => {
     const p = await project("ai", { ai: { binding: "AI" } });
-    expect(p.unsupported).toEqual(["ai[AI] (Workers AI)"]);
+    expect(p.unsupported).toEqual(["ai[AI] (Workers AI: give the host an OpenAI-compatible `ai`)"]);
     await p.runtime.close();
   });
 });

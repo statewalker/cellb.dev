@@ -1,6 +1,7 @@
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
 import { sahpoolOpener } from "../adapters/wasm-sqlite.js";
 import type { AssetFiles } from "../bindings/assets.js";
+import type { WorkersAiOptions } from "../bindings/workers-ai.js";
 import { celldBucket } from "../bucket/celld-cells.js";
 import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js";
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
@@ -13,7 +14,7 @@ import * as workersModule from "./cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "./site.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import * as workersGlobals from "./workers-globals-module.js";
-import { createProjectRuntime, type WranglerConfig } from "./wrangler.js";
+import { createProjectRuntime, loadTimeEnv, type WranglerConfig } from "./wrangler.js";
 
 /**
  * Where a browser-hosted project keeps its cells when they must outlive the page or move to
@@ -80,6 +81,8 @@ export interface BrowserProjectOptions {
    * one runtime per worker and `shardOf` as the placement, cells run in parallel threads.
    */
   route?: CellRuntimeOptions["route"];
+  /** The OpenAI-compatible endpoint behind the project's `ai` binding (Workers AI). */
+  ai?: WorkersAiOptions;
 }
 
 async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
@@ -145,7 +148,7 @@ async function importWorkerCode(
  * builds its Worker Loader; `close()` also releases the node's bucket lease.
  */
 export async function browserProjectRuntime(opts: BrowserProjectOptions) {
-  const scope = workerScope(opts.config.vars);
+  const scope = workerScope(loadTimeEnv(opts.config, opts.ai));
   const module = await importWorkerCode(opts.config, opts.code, scope);
   const site = "site" in opts.code ? opts.code.site : undefined;
   const openSql = await sahpoolOpener(opts.sqlite3 as never, {
@@ -175,6 +178,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       : undefined,
     storage: shared, // R2 objects in the fleet bucket too, as celld keeps them
     route: opts.route,
+    ai: opts.ai,
   });
   scope.bind(runtime);
   return {

@@ -36,6 +36,9 @@ What `test/flue-on-cellb.test.ts` proves:
 2. A reply is observed live over SSE while two conversations run at once.
 3. A node stops in the middle of a model call. A second node on the same fleet bucket, with no local
    state, takes the cell over, and Flue's recovery finishes the submission there.
+4. The `cloud` agent (model `cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast`) answers
+   through Flue's `cloudflare` provider: both model turns go through `env.AI.run()`, which cellb
+   sends to the `ai` endpoint, with the Workers AI id mapped to the endpoint's model.
 
 What `test/agents-websocket.test.ts` proves with a plain Agents SDK app (`test/agents/`, bundled as
 wrangler does): over WebSockets, `onConnect` and `onMessage` run, each connection keeps its own
@@ -46,7 +49,8 @@ What `test/browser/flue-in-browser.spec.ts` proves, with the same build run in C
 module, and a Dedicated Worker (`browser/flue-worker.ts`) hosts it with `browserProjectRuntime`
 (SQLite WASM on OPFS) and drives it with `@flue/sdk`, inside the browser:
 
-1. A prompt runs through the tool call to the reply, and the history reads back.
+1. A prompt runs through the tool call to the reply, and the history reads back; the `cloud`
+   agent answers through `env.AI` as well.
 2. A reply is observed live over SSE.
 3. Two conversations run at once (their model calls interleave), and each one's stored history
    holds its own question and answer only.
@@ -105,9 +109,10 @@ CORS preflights, since the worker's origin is the Vite server's) and a fresh OPF
 
 ### Decisions a reader would otherwise undo
 
-- **No built-in Flue providers** (`flue({ providers: [] })`). Flue's `cloudflare` provider adds a
-  Workers AI binding, which cellb reports in `unsupported`; the app registers its own
-  OpenAI-compatible provider instead (`src/app.ts`).
+- **Two providers.** The app registers its own OpenAI-compatible provider (`local`, `src/app.ts`);
+  `flue({ providers: ["cloudflare"] })` adds Flue's `cloudflare` provider, which calls the Workers
+  AI binding (`ai` in `wrangler.jsonc`, migration `v2` for the `cloud` agent). On cellb that
+  binding is served by the host's `ai` endpoint; the tests point both at the fake model.
 - **The model URL comes from `env`, read at module evaluation.** That is how Flue apps configure
   providers, and it is the path cellb's per-project `cloudflare:workers` `env` exists for.
 - **`vite.config.ts` is for the build only; `vitest.config.ts` is separate.** With the Cloudflare

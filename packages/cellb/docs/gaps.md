@@ -69,9 +69,12 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 
 - **Configuration cellb does not support** is reported in `createProjectRuntime(...).unsupported`,
   not silently ignored: `migrations.renamed_classes`, `durable_objects.bindings[].script_name`,
-  service bindings to other scripts, the Workers AI binding (`ai`), and compatibility flags it
-  does not know. A Flue app (packages/flue-example) leaves out Flue's `cloudflare` provider for
-  that reason; renaming a Flue agent renames its class, so it needs `renamed_classes`.
+  service bindings to other scripts, the Workers AI binding (`ai`) when the host names no
+  OpenAI-compatible endpoint for it, and compatibility flags it does not know. Renaming a Flue
+  agent renames its class, so it needs `renamed_classes`.
+- **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
+  embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
+  image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.
 - **`env` and `exports` of `cloudflare:workers` exist for a project's own Worker only, and in a
   browser only for a bundle.** A Node project and a browser bundle (`bundleWorkerForBrowser`) get
   the project's own; a project on an in-browser site (`code: { site }`) does not, because the site's
@@ -84,6 +87,8 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **`node:fs` and `node:os` in a browser have no host behind them.** With nodejs_compat a browser
   bundle gets `node:fs` whose calls fail with `ENOENT` (`existsSync` is false) and `node:os` with
   fixed answers (`EOL` is `"\n"`, no CPUs, no memory); they let libraries that probe for files load.
+  Other Node.js modules without a browser polyfill (`node:child_process`, `node:readline`, …) load
+  as stubs whose exports throw when called, as wrangler's nodejs_compat stubs do on Cloudflare.
 - **`AsyncLocalStorage` in a browser carries its stores only through code it can see.** The
   `node:async_hooks` polyfill keeps each `run()` to its synchronous part and makes continuations
   carry their stores (`Promise.prototype.then`, timers, `queueMicrotask`); a native `await` bypasses

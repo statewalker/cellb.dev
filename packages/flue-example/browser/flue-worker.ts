@@ -4,13 +4,15 @@
 
 import { createFlueClient } from "@flue/sdk";
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import type { WranglerConfig } from "@statewalker/cellb";
+import type { WorkersAiOptions, WranglerConfig } from "@statewalker/cellb";
 import { browserProjectRuntime } from "@statewalker/cellb/browser";
 
 interface Job {
   config: WranglerConfig;
   bundle: string;
   run: string;
+  /** The endpoint behind `env.AI` (the `cloud` agent's Workers AI model). */
+  ai?: WorkersAiOptions;
   /**
    * `whoami`: only the concurrency probe, with `conversations` at once (test/whoami.ts).
    * `one-conversation`: `messages` sent to one conversation at once.
@@ -50,7 +52,7 @@ for (const level of ["warn", "error"] as const) {
   };
 }
 
-async function runScenario({ config, bundle, run }: Job) {
+async function runScenario({ config, bundle, run, ai }: Job) {
   const sqlite3 = await (sqlite3InitModule as any)({ print() {}, printErr() {} });
   // The same OPFS pool and files directory for both hosts: the second one is a page reload.
   const start = () =>
@@ -60,6 +62,7 @@ async function runScenario({ config, bundle, run }: Job) {
       sqlite3,
       pool: `flue-${run}`,
       filesDir: `flue-files-${run}`,
+      ai,
     });
   const host = await start();
   const client = (runtime: typeof host.runtime, id: string) =>
@@ -112,6 +115,15 @@ async function runScenario({ config, bundle, run }: Job) {
     );
   const histories = { a: await texts(a), b: await texts(b) };
 
+  // 5. The `cloud` agent: Flue's cloudflare provider through env.AI (Workers AI).
+  const cloud = createFlueClient({
+    url: "http://app.test/agents/cloud/conv-cf",
+    fetch: (input, init) => host.runtime.fetch(new Request(input, init)),
+  });
+  const cloudReply = (
+    await cloud.read(await cloud.send({ message: { kind: "user", body: "What is the answer?" } }))
+  ).text;
+
   await host.close();
 
   // 4. A reload: a new runtime on the same OPFS pool reads the stored conversation back.
@@ -121,6 +133,7 @@ async function runScenario({ config, bundle, run }: Job) {
 
   return {
     unsupported: host.unsupported,
+    cloudReply,
     ping,
     reply: reply.text,
     roles,

@@ -15,6 +15,22 @@ import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
 const pkg = resolve(import.meta.dirname, "../..");
 const requireFromPkg = createRequire(resolve(pkg, "package.json"));
 
+/**
+ * A Node.js module with no browser polyfill, as CommonJS so that any named import binds: each
+ * export is a function (a class too) that throws when called, the module's default is the same.
+ */
+const nodeStub = (name: string) => `
+const fail = (what) => { throw new Error(${JSON.stringify(name)} + (what ? "." + what : "") + " is not available in browsers (nodejs_compat)"); };
+const exports_ = {};
+module.exports = new Proxy(exports_, {
+  get(target, key) {
+    if (typeof key === "symbol" || key === "__esModule" || key === "then") return undefined;
+    if (!(key in target)) target[key] = function () { fail(String(key)); };
+    return target[key];
+  },
+});
+`;
+
 const GLOBALS_SHIM = `${WORKERS_GLOBAL_NAMES.map((n) => `export const ${n} = globalThis.__cellsGlobals.${n};`).join(" ")} export const scheduler = ${SCHEDULER_EXPRESSION};`;
 
 /** A bare Node.js built-in name ("path", "fs/promises"): nodejs_compat takes it as `node:…`. */
@@ -59,10 +75,15 @@ export async function bundleWorkerForBrowser(
               const polyfill = NODE_POLYFILL_PACKAGES[name];
               // "buffer/" (trailing slash): the npm package, not the Node.js built-in of that name
               if (polyfill) return { path: requireFromPkg.resolve(`${polyfill}/`) };
-              return {
-                errors: [{ text: `${a.path} is not available in browsers (nodejs_compat)` }],
-              };
+              // No browser polyfill: a stub that loads and throws when used, as wrangler's
+              // nodejs_compat stubs do on Cloudflare (libraries import such modules in code
+              // paths a Worker never takes, e.g. a CLI's login).
+              return { path: name, namespace: "cells-node-stub" };
             });
+          b.onLoad({ filter: /.*/, namespace: "cells-node-stub" }, (a) => ({
+            contents: nodeStub(a.path),
+            loader: "js",
+          }));
           b.onResolve({ filter: /^cloudflare:email$/ }, () => ({
             path: resolve(pkg, "src/project/cloudflare-email.ts"),
           }));
