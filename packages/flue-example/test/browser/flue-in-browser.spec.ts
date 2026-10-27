@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
+import { shardOf } from "@statewalker/cellb";
 import { bundleWorkerForBrowser } from "@statewalker/cellb/node";
+// Not exported: where a Durable Object id lands decides which tab's shard runs it.
+import { idFromName, namespaceKey } from "../../../cellb/src/core/id.ts";
 import { startFakeLlm } from "../fake-llm.ts";
 import { whoamiScript, wrongIdentities } from "../whoami.ts";
 
@@ -228,4 +231,95 @@ test("tabs share the app: conversations from both, and one tab closing", async (
   } finally {
     await llm.close();
   }
+});
+
+// An Agents SDK app (test/agents/chat-agent.ts) shared by two tabs: browser WebSockets reach its
+// agent through the ServiceWorker's router, then run page ↔ shard worker directly. They keep
+// working when the ServiceWorker is stopped, and when the agent's shard moves to the other tab
+// the sockets into it close and reconnect there.
+test("Agents SDK WebSockets in tabs: chat, a ServiceWorker restart, a shard handed over", async ({
+  context,
+}) => {
+  test.setTimeout(180_000);
+  const name = `chat-${Date.now().toString(36)}`;
+  const config = {
+    name: "agents-chat",
+    main: "index.js",
+    compatibility_flags: ["nodejs_compat"],
+    vars: { AGENTS_PREFIX: `app/${name}/agents` }, // the router keeps the base path
+    durable_objects: { bindings: [{ name: "ChatAgent", class_name: "ChatAgent" }] },
+    migrations: [{ tag: "v1", new_sqlite_classes: ["ChatAgent"] }],
+  };
+  const bundle = await bundleWorkerForBrowser(
+    join(import.meta.dirname, "../agents/chat-agent.ts"),
+    { nodeCompat: true },
+  );
+  const job = { name, shards: 2, config, bundle };
+  // A room whose agent runs in shard 0: the first tab's shard once two tabs share the app.
+  const ns = namespaceKey(config.name, "ChatAgent");
+  const room = Array.from({ length: 50 }, (_, i) => `room-${i}`).find(
+    (r) => shardOf(idFromName(ns, r).toString(), 2) === 0,
+  );
+  const owned = (p: Page) =>
+    p.evaluate(() => (document.body.dataset.owned ?? "").split(",").filter(Boolean).map(Number));
+  const open = async () => {
+    const p = await context.newPage();
+    await p.goto("/tabs.html");
+    await p.waitForFunction(
+      () => document.body.dataset.ready === "true" || document.body.dataset.error,
+    );
+    expect(await p.evaluate(() => document.body.dataset.error ?? null)).toBeNull();
+    await p.evaluate((j) => (window as any).__join(j), job);
+    return p;
+  };
+  const chat = (p: Page, user: string) =>
+    p.evaluate(([u, r]) => (window as any).__chat(u, r), [user, room]);
+  const say = (p: Page, user: string, text: string) =>
+    p.evaluate(([u, t]) => (window as any).__say(u, t), [user, text]);
+  const inbox = (p: Page, user: string) =>
+    p.evaluate((u) => (window as any).__inbox(u), user) as Promise<{
+      inbox: string[];
+      closed: { code: number; at: number } | null;
+    }>;
+  const messages = async (p: Page, user: string) => (await inbox(p, user)).inbox;
+
+  const a = await open();
+  await expect.poll(() => owned(a)).toEqual([0, 1]);
+  const b = await open();
+  await expect.poll(() => owned(b)).toEqual([1]);
+  await expect.poll(() => owned(a)).toEqual([0]);
+
+  // ann in tab a, bob in tab b: both sockets reach the agent in tab a's shard 0.
+  await chat(a, "ann");
+  await chat(b, "bob");
+  await say(a, "ann", "hi");
+  await say(b, "bob", "hello");
+  await expect.poll(() => messages(a, "ann")).toEqual(["welcome ann", "ann: hi", "bob: hello"]);
+  await expect.poll(() => messages(b, "bob")).toEqual(["welcome bob", "ann: hi", "bob: hello"]);
+
+  // The ServiceWorker stops: open sockets do not go through it, and a new one wakes it.
+  const cdp = await context.newCDPSession(a);
+  await cdp.send("ServiceWorker.enable");
+  await cdp.send("ServiceWorker.stopAllWorkers");
+  await say(a, "ann", "still here");
+  await expect.poll(() => messages(b, "bob")).toContain("ann: still here");
+  await chat(b, "cara");
+  await say(b, "cara", "joined late");
+  await expect.poll(() => messages(a, "ann")).toContain("cara: joined late");
+  await expect.poll(() => messages(b, "cara")).toEqual(["welcome cara", "cara: joined late"]);
+
+  // Tab a leaves: shard 0 is handed to tab b, and the sockets into it close with 1001 (going
+  // away) right then, rather than when their heartbeat notices (about 30 s).
+  const left = Date.now();
+  await a.evaluate(() => (window as any).__leave());
+  await expect.poll(() => owned(b), { timeout: 30_000 }).toEqual([0, 1]);
+  await expect.poll(async () => (await inbox(b, "bob")).closed).not.toBeNull();
+  const closed = (await inbox(b, "bob")).closed!;
+  expect(closed.code).toBe(1001);
+  expect(closed.at - left).toBeLessThan(5_000);
+  expect((await inbox(b, "cara")).closed?.code).toBe(1001);
+  // bob reconnects: the agent now runs in tab b.
+  await chat(b, "bob");
+  await say(b, "bob", "back");
+  await expect.poll(() => messages(b, "bob")).toEqual(["welcome bob", "bob: back"]);
 });

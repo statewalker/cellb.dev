@@ -18,6 +18,7 @@
  */
 import { CellRouter } from "../router/cell-router.js";
 import { linkOverPort, serveHandlerOverPort } from "../transport/port.js";
+import { SW_SOCKET } from "../ws/sw-connector.js";
 import type { BrowserBucket, BrowserProjectOptions } from "./browser-host.js";
 import {
   SHARD_KEEPALIVE,
@@ -30,7 +31,8 @@ import {
 
 const ATTACH = "cellb:attach";
 const NEED_LINKS = "cellb:need-links";
-const SOCKET = "cellb:ws";
+/** A page opens a socket (`serviceWorkerConnector`). */
+const SOCKET = SW_SOCKET;
 const DRAIN = "cellb:drain";
 /** A shard's call waits for the ServiceWorker: this message starts it, and it asks for links. */
 const WAKE = "cellb:wake";

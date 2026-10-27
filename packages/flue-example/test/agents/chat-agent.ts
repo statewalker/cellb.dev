@@ -15,6 +15,10 @@ export class ChatAgent extends Agent<Record<string, unknown>> {
 
 export default {
   async fetch(request: Request, env: Record<string, unknown>) {
-    return (await routeAgentRequest(request, env)) ?? new Response("not found", { status: 404 });
+    // Under a router that keeps its base path (cellb's installProjectRouter), the agents live
+    // at <AGENTS_PREFIX>/<agent>/<name>, e.g. app/<project>/agents/chat-agent/room-1.
+    const prefix = (env.AGENTS_PREFIX as string | undefined) ?? "agents";
+    const res = await routeAgentRequest(request, env, { prefix });
+    return res ?? new Response("not found", { status: 404 });
   },
 };

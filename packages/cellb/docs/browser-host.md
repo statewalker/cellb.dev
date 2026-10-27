@@ -47,8 +47,9 @@ page ── fetch("/app/…") ──► ServiceWorker (webrun-http-browser)
                          bucket: a celld fleet bucket (S3, OPFS or any ObjectStore)
 ```
 
-`browserProjectRuntime` installs the Workers globals (`Response` that accepts status 101,
-`WebSocketPair`, `caches`, `HTMLRewriter`, and `Buffer`/`process` for `nodejs_compat`), imports the
+`browserProjectRuntime` installs the Workers globals (`Response` that accepts status 101, a
+`Request` whose copies keep an upgrade's headers, `WebSocket`, `WebSocketPair`, `caches`,
+`HTMLRewriter`, and `Buffer`/`process` for `nodejs_compat`), imports the
 code and builds the runtime from the wrangler configuration. The code is either:
 
 - `{ bundle }` — one ES module built for browsers, whose `cloudflare:workers` import and Workers
@@ -120,7 +121,12 @@ runs 4 / 0 in one tab, 2 / 2 in two, 2 / 1 / 1 in three — more tabs, more proc
   stops sending the shard new requests (they wait for the next owner), lets the ones in flight
   finish for up to `drainMs` (5 s), then the old worker closes its runtime and gives up its OPFS
   pool, and the next owner opens the same pool: the cells move with the shard. A long-poll or
-  SSE stream still open keeps the drain waiting until `drainMs`.
+  SSE stream still open keeps the drain waiting until `drainMs`. Before it closes, the old worker
+  closes its sockets with `1001` (going away), so their clients reconnect to the next owner at
+  once instead of noticing through the heartbeat.
+- **Pages open sockets** with `createWebSocketClass(serviceWorkerConnector(serviceWorker))`: the
+  ServiceWorker routes the upgrade to a shard worker and hands the page the socket's port, so the
+  socket then runs page ↔ shard worker, without the ServiceWorker (it survives a restart of it).
 - **A tab closes or crashes:** it runs no code. Its locks are released, the router sees each shard
   worker's own lock go and fails the requests in flight there (`ShardOwnerLostError`), and the
   other tabs take the shards over within `checkMs` (1 s).
@@ -279,8 +285,10 @@ tabs or workers with no server. Its conditional writes are atomic only within on
 - **`Set-Cookie` is missing from responses in the browser.** A `Response` built in a browser drops
   it, and a ServiceWorker cannot hand one to a page. Node keeps it.
 - **A `Request` arrives without `Upgrade` or `Sec-WebSocket-Protocol`.** Browsers drop forbidden
-  headers from every `new Request()`. cellb carries them as own properties and `x-cellb-*` headers;
-  code that rebuilds requests outside cellb loses them.
+  headers from every `new Request()`. cellb carries them as own properties and `x-cellb-*` headers,
+  and the `Request` global of Worker code carries them into its copies (`new Request(req)`, as
+  partyserver makes); a copy made with the host's own `Request` (code outside the Worker bundle)
+  loses them.
 - **The first request after the ServiceWorker was stopped is slower** (tens of milliseconds): the
   ServiceWorker asks a page to re-attach the shard links first. If no page is open, it fails.
 - **A browser fleet node owns cells but celld cannot reach them.** By design: celld refuses those

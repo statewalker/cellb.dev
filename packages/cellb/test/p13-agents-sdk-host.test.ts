@@ -13,6 +13,7 @@ import {
   runInDurableObject,
 } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
+import { CellsRequest, withUpgrade } from "../src/ws/upgrade.js";
 import {
   AGENTS_WEBSOCKET_CONFIG,
   AGENTS_WEBSOCKET_WORKER,
@@ -193,5 +194,33 @@ describe("P13 the global WebSocket, as the Agents SDK uses it", () => {
     ann.ws.close();
     bob.ws.close();
     await p.runtime.close();
+  });
+});
+
+describe("P13 the global Request keeps an upgrade's headers when copied", () => {
+  // A browser drops `Upgrade` and `Sec-WebSocket-*` from every `new Request()`; the runtime carries
+  // them as an own `headers` property (withUpgrade). partyserver copies the request with
+  // `new Request(req)` before it forwards a socket: the copy must still be an upgrade.
+  const upgrade = () =>
+    withUpgrade(new Request("http://w/agents/chat/a"), "websocket", {
+      "Sec-WebSocket-Protocol": "v1",
+    });
+
+  it("carries them through new Request(req), and through init headers", () => {
+    const copy = new CellsRequest(upgrade());
+    expect(copy.headers.get("Upgrade")).toBe("websocket");
+    expect(copy.headers.get("Sec-WebSocket-Protocol")).toBe("v1");
+    copy.headers.set("x-partykit-namespace", "chat"); // set after the copy, read by the runtime
+    expect(copy.headers.get("x-partykit-namespace")).toBe("chat");
+    const fromInit = new CellsRequest("http://w/", { headers: upgrade().headers });
+    expect(fromInit.headers.get("Upgrade")).toBe("websocket");
+    expect(new CellsRequest(upgrade()).clone().headers.get("Upgrade")).toBe("websocket");
+    // `init.headers` replaces the input's, as in Request itself.
+    expect(new CellsRequest(upgrade(), { headers: {} }).headers.get("Upgrade")).toBeNull();
+  });
+
+  it("counts the host's requests as instances", () => {
+    expect(new Request("http://w/") instanceof CellsRequest).toBe(true);
+    expect(new CellsRequest("http://w/") instanceof Request).toBe(true);
   });
 });

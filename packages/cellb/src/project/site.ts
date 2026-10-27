@@ -122,6 +122,7 @@ export function workersHostRegistry(entries: {
   /** nodejs_compat: "node:buffer" → module namespace, and the Buffer/process globals. */
   node?: Record<string, unknown>;
   workersModule: unknown;
+  Request: unknown;
   Response: unknown;
   WebSocketPair: unknown;
   caches: unknown;

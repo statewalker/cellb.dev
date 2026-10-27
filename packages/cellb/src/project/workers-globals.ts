@@ -9,6 +9,7 @@ import { standardBinaryType } from "cellb:compat";
 import { WebSocketPair as LegacyWebSocketPair, StandardWebSocketPair } from "cellb:ws";
 
 export {
+  CellsRequest as Request,
   CellsResponse as Response,
   caches,
   HTMLRewriter,

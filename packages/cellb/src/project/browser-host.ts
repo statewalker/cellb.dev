@@ -109,6 +109,7 @@ async function importWorkerCode(
   }
   const globals = {
     ...workersGlobals,
+    Request: workersGlobals.CellsRequest,
     Response: workersGlobals.CellsResponse,
     WebSocketPair: flags.includes("websocket_standard_binary_type")
       ? workersGlobals.StandardWebSocketPair
