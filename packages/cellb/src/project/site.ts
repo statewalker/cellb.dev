@@ -9,6 +9,7 @@ import {
   outboundFetch,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
+import { nativeAsyncContext } from "../core/async-context.js";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
 import { lowerAwait } from "./lower-await.js";
 import { SCHEDULER_EXPRESSION } from "./scheduler.js";
@@ -45,12 +46,17 @@ function loweringTransform(): Transform {
 export function createProjectSite(opts: {
   projectFiles: FilesApi;
   /**
-   * nodejs_compat: serves the `node:*` modules, and lowers the modules' awaits to generators so
-   * that AsyncLocalStorage stores follow them. It must match the project's flag: the browser host
-   * makes continuations carry stores for a nodejs_compat project, which awaits that are not
-   * lowered would not see.
+   * nodejs_compat: serves the `node:*` modules, and (see `lowerAwait`) lowers the modules' awaits
+   * to generators so that AsyncLocalStorage stores follow them. It must match the project's flag:
+   * without AsyncContext, the browser host makes continuations carry stores for a nodejs_compat
+   * project, which awaits that are not lowered would not see.
    */
   nodeCompat?: boolean;
+  /**
+   * Lower `await` in the modules served. Default: with `nodeCompat`, unless this browser has
+   * AsyncContext (the engine then carries the stores through native awaits, as workerd does).
+   */
+  lowerAwait?: boolean;
   /**
    * The `node:*` registry entries of the realm that runs the code (`nodeRegistryEntries`): a
    * namespace import (`import * as assert from "node:assert"`) exports the keys the server
@@ -76,9 +82,10 @@ export function createProjectSite(opts: {
     scheduler: SCHEDULER_EXPRESSION,
     ...(opts.nodeCompat ? { Buffer: `${host}("Buffer")`, process: `${host}("process")` } : {}),
   };
-  // nodejs_compat: awaits lowered to generators, so that AsyncLocalStorage stores follow them
-  // (the browser host installs the polyfill's continuations for such a project).
-  const transform = opts.nodeCompat ? loweringTransform() : undefined;
+  // nodejs_compat without AsyncContext: awaits lowered to generators, so that AsyncLocalStorage
+  // stores follow them (the browser host installs the polyfill's continuations for such a project).
+  const lower = opts.lowerAwait ?? (!!opts.nodeCompat && !nativeAsyncContext());
+  const transform = lower ? loweringTransform() : undefined;
   const modules = newModuleServer({
     cache: new MemFilesApi(),
     project: opts.projectFiles,

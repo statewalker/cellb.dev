@@ -94,7 +94,11 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   modules. Both then answer as on Node (test/async-context-worker.ts, 16 objects at once). Not
   lowered: async generators' own awaits, async functions that use `super` or `new.target` (on a
   site; esbuild lowers those too), and top-level await; code there resumes in no store after an
-  `await`, rather than in another event's. Event listeners (`addEventListener`, MessagePort
+  `await`, rather than in another event's. In a browser with TC39 AsyncContext (Stage 2, shipped
+  by none yet) the polyfill is a layer over `AsyncContext.Variable` and `Snapshot` instead, sites
+  lower nothing (`bundleWorkerForBrowser` takes `lowerAwait: false`), and the engine carries the
+  stores through native awaits as workerd and celld do; `enterWith()` throws there
+  (test/p18 runs it on an AsyncContext made of Node's own). Event listeners (`addEventListener`, MessagePort
   `onmessage`) do not carry stores, on Node either.
 - **An object's events start in the async context the runtime was made in.** A call to an object
   is a new event, as on Cloudflare: the callee (and its constructor) does not see the caller's
