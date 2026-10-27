@@ -53,7 +53,16 @@ const bareBuiltin = new Set(builtinModules.filter((m) => !m.startsWith("_") && !
 /** Bundles the Worker module at `entry` into one ES module for `browserProjectRuntime`. */
 export async function bundleWorkerForBrowser(
   entry: string,
-  opts: { nodeCompat?: boolean } = {},
+  opts: {
+    nodeCompat?: boolean;
+    /**
+     * Lower `await` to generators (default: with `nodeCompat`), so that the node:async_hooks
+     * polyfill carries AsyncLocalStorage stores through it. `false` only for browsers with TC39
+     * AsyncContext, whose engine carries them through native awaits; a lowered bundle runs there
+     * too.
+     */
+    lowerAwait?: boolean;
+  } = {},
 ): Promise<string> {
   const out = await build({
     entryPoints: [entry],
@@ -67,7 +76,7 @@ export async function bundleWorkerForBrowser(
     keepNames: true,
     // nodejs_compat: `await` lowered to generators, so that each one resumes through
     // Promise.prototype.then and carries its AsyncLocalStorage stores (node-compat/async_hooks.ts).
-    ...(opts.nodeCompat
+    ...((opts.lowerAwait ?? opts.nodeCompat)
       ? { supported: { "async-await": false, "async-generator": false, "for-await": false } }
       : {}),
     logLevel: "silent",

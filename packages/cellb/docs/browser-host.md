@@ -24,7 +24,8 @@ and WebKit.
 - **`AsyncLocalStorage` needs help.** Browsers have no async context yet: for a nodejs_compat
   project, `browserProjectRuntime` makes promise and timer continuations carry their stores, and
   the code's `await` is lowered so that it goes through them: by `bundleWorkerForBrowser` in a
-  bundle, by `createProjectSite` in a site's modules ([gaps.md](gaps.md)).
+  bundle, by `createProjectSite` in a site's modules ([gaps.md](gaps.md)). A browser with TC39
+  AsyncContext needs neither: `node:async_hooks` then runs on it, and a site lowers nothing.
 - **A ServiceWorker cannot spawn workers** and is stopped when idle, dropping every port it held.
   It can route requests, hold Web Locks and pass MessagePorts, so it routes and a page owns the
   workers.

@@ -105,9 +105,10 @@ async function importWorkerCode(
   const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
   if (nodeCompat) {
     installNodeGlobals();
-    // node:async_hooks: continuations carry their AsyncLocalStorage stores. The code's awaits
-    // are lowered so that they go through them: by bundleWorkerForBrowser for a bundle, by
-    // createProjectSite (nodeCompat) for a site's modules.
+    // node:async_hooks: continuations carry their AsyncLocalStorage stores (with AsyncContext
+    // the engine does, and this installs nothing). The code's awaits are lowered so that they go
+    // through them: by bundleWorkerForBrowser for a bundle, by createProjectSite (nodeCompat) for
+    // a site's modules.
     installAsyncContext();
   }
   const globals = {
