@@ -132,7 +132,14 @@ runs 4 / 0 in one tab, 2 / 2 in two, 2 / 1 / 1 in three — more tabs, more proc
   next call into another shard waits: the shard asks its tab to post a message to the
   ServiceWorker, which starts it again, and that call goes through once the links are back. A call
   already in flight when the ServiceWorker stopped has lost its answer: it fails ("The router was
-  lost while this call was in flight"), and may or may not have been applied.
+  lost while this call was in flight"), and may or may not have been applied. To make that rare,
+  a shard with calls into other shards in flight keeps the ServiceWorker up: every 20 s its tab
+  posts a message to it, since those calls travel over MessagePorts and are no events to it
+  (Chromium stops a ServiceWorker after about 30 s without events). The ServiceWorker can still
+  stop (an update, a crash, memory pressure), so the failure stays.
+- **Tests of the idle timeout need a Chromium without Playwright's DevTools sessions:** Playwright
+  attaches one to every ServiceWorker, which keeps it running. `e2e-browser/raw-chromium.ts` drives
+  a separate Chromium over CDP, attached to its pages only.
 - Placement inside the project is still by cell id (`shardOf`): a few dozen cells spread unevenly.
 - With `bucket`, each shard is a fleet node (`<node>-s<i>`); use S3, as an OPFS bucket has one
   writer at a time.

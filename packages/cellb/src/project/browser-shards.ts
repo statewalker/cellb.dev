@@ -29,6 +29,8 @@ export const TAB_LINK = "cellb:tab-shard-link";
 export const TAB_WATCH = "cellb:tab-shard-watch";
 /** From a shard worker to its tab: a call waits for a router that is gone; wake the ServiceWorker. */
 export const SHARD_WAKE = "cellb:tab-shard-wake";
+/** From a shard worker to its tab: calls into other shards are in flight; keep the ServiceWorker up. */
+export const SHARD_KEEPALIVE = "cellb:tab-shard-keepalive";
 
 /** What a shard worker shared by tabs is told: no peers, it reaches them through the router. */
 export interface TabShardInit {
@@ -119,6 +121,7 @@ export function serveProjectShard(opts: {
         const routing = shardRouting({
           ...init,
           onUnlinked: () => scope.postMessage({ type: SHARD_WAKE }),
+          keepAlive: () => scope.postMessage({ type: SHARD_KEEPALIVE }),
         });
         host = await browserProjectRuntime({
           config: init.config,

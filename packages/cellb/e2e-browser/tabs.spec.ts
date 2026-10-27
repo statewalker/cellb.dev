@@ -6,6 +6,7 @@ import { bundleProjectForBrowser } from "../conformance/browser-bundle.ts";
 import { idFromName, namespaceKey } from "../src/core/id.ts";
 import { shardOf } from "../src/core/shard.ts";
 import { bundleWorkerForBrowser } from "../src/node.ts";
+import { rawChromium } from "./raw-chromium.ts";
 
 // One project shared by the tabs of an origin (joinProjectShards / installProjectRouter): the
 // shards are split evenly over the open tabs and move when tabs come and go; their cells (OPFS
@@ -273,4 +274,37 @@ test("a call in flight when the ServiceWorker stops fails instead of hanging", a
   const r = await call(`/result?name=${from}`);
   expect(r.status).toBe(200);
   expect(r.body).toMatch(/^failed: The router was lost while this call was in flight/);
+});
+
+// Chromium stops a ServiceWorker that has had no event for about 30 s, and a call from one shard
+// into another is no event (it travels over MessagePorts). While such calls are in flight, the
+// shard keeps the ServiceWorker awake, so a long call outlives the idle timeout. Playwright keeps
+// every ServiceWorker running (it attaches DevTools to them): this test drives its own Chromium.
+test("a long call into another shard keeps the ServiceWorker awake", async ({
+  baseURL,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "Chromium's idle timeout");
+  test.setTimeout(180_000);
+  const { job, from, to } = await wakeProject();
+  const browser = await rawChromium();
+  try {
+    const a = await browser.open(`${baseURL}/tabs/`);
+    await a.waitFor(
+      `() => document.body?.dataset.ready === "true" || !!document.body?.dataset.error`,
+    );
+    expect(await a.evaluate(`() => document.body.dataset.error ?? null`)).toBeNull();
+    await a.evaluate(`(j) => window.__join(j)`, job);
+    await a.waitFor(`() => document.body.dataset.owned === "0,1"`);
+    const call = (p: string) => a.evaluate(`(p) => window.__fetch(p)`, p);
+    expect(await call(`/arm?name=${from}&to=${to}&ms=100&slow=45000`)).toEqual({
+      status: 200,
+      body: "armed",
+    });
+    // Nothing reaches the ServiceWorker from the page until the call is due to have finished.
+    await new Promise((r) => setTimeout(r, 50_000));
+    expect(await call(`/result?name=${from}`)).toEqual({ status: 200, body: "bumped 1" });
+  } finally {
+    await browser.close();
+  }
 });

@@ -19,7 +19,14 @@
 import { CellRouter } from "../router/cell-router.js";
 import { linkOverPort, serveHandlerOverPort } from "../transport/port.js";
 import type { BrowserBucket, BrowserProjectOptions } from "./browser-host.js";
-import { SHARD_WAKE, TAB_INIT, TAB_LINK, TAB_WATCH, type TabShardInit } from "./browser-shards.js";
+import {
+  SHARD_KEEPALIVE,
+  SHARD_WAKE,
+  TAB_INIT,
+  TAB_LINK,
+  TAB_WATCH,
+  type TabShardInit,
+} from "./browser-shards.js";
 
 const ATTACH = "cellb:attach";
 const NEED_LINKS = "cellb:need-links";
@@ -27,6 +34,8 @@ const SOCKET = "cellb:ws";
 const DRAIN = "cellb:drain";
 /** A shard's call waits for the ServiceWorker: this message starts it, and it asks for links. */
 const WAKE = "cellb:wake";
+/** Calls between shards are in flight: the message itself resets the ServiceWorker's idle timer. */
+const KEEPALIVE = "cellb:keepalive";
 
 /**
  * The tab that should run `shard`: the tabs sorted by id (ids start with the time the tab joined),
@@ -148,10 +157,10 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
     if (!watching.ok) throw new Error(watching.error);
   };
 
-  /** Starts the ServiceWorker again: it asks the tabs for their shards' links. */
-  const wake = async () => {
+  /** Starts the ServiceWorker again (WAKE: it asks the tabs for their shards' links), or keeps it up. */
+  const tell = async (type: typeof WAKE | typeof KEEPALIVE) => {
     const sw = await opts.serviceWorker();
-    sw.postMessage({ type: WAKE, name: opts.name });
+    sw.postMessage({ type, name: opts.name });
   };
   const owners = new Map<number, string>(); // shard → its worker's owner lock
 
@@ -178,7 +187,8 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
         const w = opts.spawn(shard);
         h.worker = w;
         w.addEventListener("message", (e) => {
-          if (e.data?.type === SHARD_WAKE) void wake().catch(() => {});
+          if (e.data?.type === SHARD_WAKE) void tell(WAKE).catch(() => {});
+          if (e.data?.type === SHARD_KEEPALIVE) void tell(KEEPALIVE).catch(() => {});
         });
         try {
           const started = await ask(w, {

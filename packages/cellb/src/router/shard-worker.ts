@@ -47,6 +47,12 @@ export function shardRouting(opts: {
   shards: number;
   /** A call into another shard waits after `unlink`: wake the router (once per `unlink`). */
   onUnlinked?: () => void;
+  /**
+   * Called every `keepAliveMs` (default 20 s) while calls into other shards are in flight: they
+   * are no events for the router's ServiceWorker, which the browser stops when idle (~30 s).
+   */
+  keepAlive?: () => void;
+  keepAliveMs?: number;
 }): {
   route: NonNullable<CellRuntimeOptions["route"]>;
   attach(runtime: CellRuntime): ShardWorker;
@@ -58,6 +64,15 @@ export function shardRouting(opts: {
   let wsSeq = 0;
   let unlinked = false;
   let wokeAt = 0;
+  let outstanding = 0; // calls into other shards in flight
+  let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
+  const started = () => {
+    if (outstanding++ === 0 && opts.keepAlive)
+      keepAliveTimer = setInterval(opts.keepAlive, opts.keepAliveMs ?? 20_000);
+  };
+  const finished = () => {
+    if (--outstanding === 0) clearInterval(keepAliveTimer);
+  };
   /** Calls in flight over the current links: a dead link never answers them. */
   let inflight = new Set<(err: Error) => void>();
   const dropInflight = () => {
@@ -78,12 +93,13 @@ export function shardRouting(opts: {
     while (!upstream) await new Promise<void>((r) => pending.push(r));
     const send = upstream;
     const calls = inflight;
+    started();
     return new Promise<Response>((resolve, reject) => {
       calls.add(reject);
       send(req)
         .then(resolve, reject)
         .finally(() => calls.delete(reject));
-    });
+    }).finally(finished);
   };
   // DO → DO calls into other shards. A WebSocket upgrade gets an id; the owning
   // shard hands the socket's port over the control channel (via the router).
