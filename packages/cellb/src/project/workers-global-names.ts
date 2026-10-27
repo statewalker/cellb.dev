@@ -4,6 +4,7 @@
  * same list as static re-exports, because esbuild `inject` needs a literal module.
  */
 export const WORKERS_GLOBAL_NAMES = [
+  "Request",
   "Response",
   "WebSocketPair",
   "caches",

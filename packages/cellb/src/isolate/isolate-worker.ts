@@ -11,7 +11,12 @@ import { serveIsolate } from "./isolate.js";
 import type { PortLike } from "./protocol.js";
 
 (globalThis as Record<string, unknown>).__cellsWorkersModule = workersModule;
-workersHostRegistry({ workersModule, ...workersGlobals, Response: workersGlobals.CellsResponse });
+workersHostRegistry({
+  workersModule,
+  ...workersGlobals,
+  Request: workersGlobals.CellsRequest,
+  Response: workersGlobals.CellsResponse,
+});
 
 // The global console is left alone (the dev server's client logs here too): loaded modules
 // get a console of their own that reports to the host.

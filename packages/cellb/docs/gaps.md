@@ -115,7 +115,8 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   Agents SDK reach attachments through it), it has the `READY_STATE_*` statics, and `instanceof`
   covers both ends of a `WebSocketPair` and client sockets. `new WebSocket(url)` returns the host's
   own client socket, so a class that extends the global gets a host socket, not an instance of
-  itself.
+  itself. Its `Request` global carries `Upgrade` and `Sec-WebSocket-*` into copies of a request,
+  which a browser's `new Request()` drops; the host's own requests count as instances of it.
 - **Isolated facets in a browser are not in the fleet bucket.** `browserProjectRuntime` does not give
   its isolates the host's storage, so a Durable Object class of a loaded Worker keeps its database in
   the isolate's OPFS pool only. On Node they are logged through the parent.

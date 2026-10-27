@@ -1,6 +1,8 @@
 import { CellsCloseEvent, checkClose, type Frame, toFrameData } from "./frames.js";
 
 const kPort = Symbol("cellb.ws.port");
+/** Server ends accepted in this realm and not yet closed (see `CfWebSocket.goAway`). */
+const acceptedEnds = new Set<CfWebSocket>();
 
 /**
  * Cloudflare Workers' server-side WebSocket (one end of a WebSocketPair):
@@ -60,6 +62,7 @@ export class CfWebSocket extends EventTarget {
     clearInterval(this.#watch);
     if (this.readyState === 3) return;
     this.readyState = 3;
+    acceptedEnds.delete(this);
     this[kPort]?.close();
     this.dispatchEvent(new CellsCloseEvent("close", { code: 1006, reason: "", wasClean: false }));
   }
@@ -77,6 +80,7 @@ export class CfWebSocket extends EventTarget {
     if (!this[kPort])
       throw new TypeError("This WebSocket end was handed to a client; it cannot be accepted.");
     this.#accepted = true;
+    acceptedEnds.add(this);
     this[kPort].start?.();
     for (const f of this.#queued.splice(0)) this.#frame(f);
   }
@@ -99,11 +103,26 @@ export class CfWebSocket extends EventTarget {
     if (wasOpen)
       this[kPort]!.postMessage({ t: "c", code: f.code, reason: f.reason } satisfies Frame);
     this.readyState = 3;
+    acceptedEnds.delete(this);
     clearInterval(this.#watch);
     this[kPort]!.close();
     this.dispatchEvent(
       new CellsCloseEvent("close", { code: f.code, reason: f.reason, wasClean: true }),
     );
+  }
+
+  /**
+   * Closes every server end accepted in this realm with 1001 (going away). A shard worker that
+   * hands its cells to another tab does it before it stops, so that clients reconnect at once
+   * instead of noticing through the heartbeat; Worker code cannot send 1001 itself (`close`).
+   */
+  static goAway(reason = "moving to another worker"): void {
+    for (const ws of acceptedEnds) {
+      acceptedEnds.delete(ws);
+      if (ws.readyState >= 2) continue;
+      ws.readyState = 2;
+      ws[kPort]?.postMessage({ t: "c", code: 1001, reason } satisfies Frame);
+    }
   }
 
   send(data: string | ArrayBuffer | ArrayBufferView): void {

@@ -1,5 +1,8 @@
 import type { WebSocketConnector } from "./client.js";
 
+/** The message a page posts to the ServiceWorker to open a socket (a reply port rides along). */
+export const SW_SOCKET = "cells-ws";
+
 /**
  * Page-side connector: asks the controlling ServiceWorker (a CellRouter) to open
  * a socket and receives the socket's MessagePort in return.
@@ -21,7 +24,7 @@ export function serviceWorkerConnector(
       protocol?: string;
       error?: string;
     }>((resolve) => (port1.onmessage = (e) => resolve(e.data)));
-    target.postMessage({ type: "cells-ws", url, protocols }, [port2]);
+    target.postMessage({ type: SW_SOCKET, url, protocols }, [port2]);
     const a = await answer;
     port1.close();
     if (!a.ok || !a.port) throw new Error(a.error ?? "WebSocket refused");

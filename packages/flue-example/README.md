@@ -67,6 +67,13 @@ module, and a Dedicated Worker (`browser/flue-worker.ts`) hosts it with `browser
    conversations stored in them. The app mounts its routes under `BASE_PATH` (`/app/<name>`),
    as the ServiceWorker passes requests on with their path.
 
+10. The Agents SDK chat app of `test/agents/` shared by two tabs (bundled with
+    `bundleWorkerForBrowser`, routed under `AGENTS_PREFIX`): browser WebSockets from both tabs
+    (`createWebSocketClass(serviceWorkerConnector(...))`) reach its agent, which welcomes them
+    and broadcasts. With the ServiceWorker stopped, open sockets keep working (they run
+    page ↔ shard worker) and a new one wakes it. When the agent's tab leaves, its sockets close
+    with `1001` at once and reconnect to the agent in the other tab.
+
 Concurrent conversations in one browser runtime take turns: it is one thread, and each Flue turn
 makes 21 SQLite commits on OPFS there. Spreading them over workers runs them in parallel (see
 `../cellb/docs/gaps.md` for the numbers).

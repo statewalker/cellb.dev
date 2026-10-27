@@ -14,6 +14,7 @@ import { shardOf } from "../core/shard.js";
 import { type ShardWorker, shardRouting } from "../router/shard-worker.js";
 import type { RemoteRuntime } from "../transport/cells-http.js";
 import { connectRuntime, linkOverPort, serveRuntime } from "../transport/port.js";
+import { CfWebSocket } from "../ws/server.js";
 import {
   type BrowserBucket,
   type BrowserProjectOptions,
@@ -91,6 +92,8 @@ export function serveProjectShard(opts: {
     try {
       if (type === CLOSE) {
         try {
+          // The cells move elsewhere: their sockets' clients reconnect there now.
+          CfWebSocket.goAway();
           await host?.close();
         } finally {
           host = undefined;
