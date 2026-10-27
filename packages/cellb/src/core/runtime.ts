@@ -26,8 +26,11 @@ export interface WorkerModule {
 export interface CellRuntimeOptions {
   /** The Worker's module namespace (what wrangler/celld bundle as main module). */
   worker: WorkerModule;
-  /** Durable Object bindings: env name → exported class name (wrangler `durable_objects.bindings`). */
-  durableObjects?: Record<string, { className: string }>;
+  /**
+   * Durable Object bindings: env name → exported class name (wrangler `durable_objects.bindings`),
+   * and the `ctx.props` of each object by its cell key (facets of a class started with props).
+   */
+  durableObjects?: Record<string, { className: string; props?: (cellKey: string) => unknown }>;
   /** Plain vars / other bindings merged into env. */
   vars?: Record<string, unknown>;
   openSql: OpenCellSql;
@@ -210,7 +213,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     }
   }
 
-  for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {
+  for (const [binding, { className, props }] of Object.entries(opts.durableObjects ?? {})) {
     const cls = opts.worker[className] as DurableObjectClass | undefined;
     if (typeof cls !== "function")
       throw new Error(`Durable Object class "${className}" is not exported by the worker`);
@@ -235,6 +238,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           acquire: ownership ? (key) => ownership.tryAcquire(key) : undefined,
           sqlExtensions: opts.sqlExtensions,
           deleteAllPreservesAlarm: opts.deleteAllPreservesAlarm,
+          props: props?.(cellKey),
         });
         hosts.set(cellKey, h);
       }

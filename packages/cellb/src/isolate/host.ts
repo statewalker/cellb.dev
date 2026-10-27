@@ -86,13 +86,15 @@ export function isolatedModuleLoader(opts: {
       Object.keys(exports).map((k) => [k, facade(k)]),
     );
     // Durable Object classes of the loaded code run in the isolate too (facets).
-    module[ISOLATED] = (className: string): IsolatedClass => ({
+    // `props`: the facets' `ctx.props`, sent once, when each is attached.
+    module[ISOLATED] = (className: string, props?: unknown): IsolatedClass => ({
       fetch: (cellKey, req) => fetch({ className, cellKey }, req),
       call: (cellKey, method, args) =>
         call({ type: "object", op: "call", className, cellKey, method, args }),
       restart: (cellKey) => call({ type: "object", op: "restart", className, cellKey }),
       delete: (cellKey) => call({ type: "object", op: "delete", className, cellKey }),
-      attach: (cellKey, epoch) => call({ type: "object", op: "attach", className, cellKey, epoch }),
+      attach: (cellKey, epoch) =>
+        call({ type: "object", op: "attach", className, cellKey, epoch, props }),
     });
     return module as Record<string, unknown>;
   };

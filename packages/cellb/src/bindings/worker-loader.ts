@@ -184,7 +184,7 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
         return r;
       };
       return {
-        getDurableObjectClass(name: string) {
+        getDurableObjectClass(name: string, options: { props?: unknown } = {}) {
           const classesLoaded = () => {
             let p = classCache.get(id);
             if (!p) {
@@ -199,15 +199,15 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
           return classHandle(async () => {
             if (!opts.classes) {
               const iso = (await loaded()).module[ISOLATED as unknown as string] as
-                | ((name: string) => IsolatedClass)
+                | ((name: string, props?: unknown) => IsolatedClass)
                 | undefined;
-              if (iso) return { isolated: iso(name) };
+              if (iso) return { isolated: iso(name, options.props) };
             }
             const { module, env } = opts.classes ? await classesLoaded() : await loaded();
             const cls = module[name];
             if (typeof cls !== "function")
               throw new Error(`Loaded worker "${id}" does not export class "${name}"`);
-            return { cls: cls as DurableObjectClass, env };
+            return { cls: cls as DurableObjectClass, env, props: options.props };
           });
         },
         /** Releases the loaded Worker: the id leaves the cache; a later get() loads again. */

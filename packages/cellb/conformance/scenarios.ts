@@ -350,6 +350,7 @@ export const scenarios: Record<string, Scenario> = {
   },
   "sql-ingest": { steps: [{ path: "/" }] },
   "sql-exec": { steps: [{ path: "/" }] },
+  "worker-loader-props": { steps: [{ path: "/" }], judge: "workerd" },
   "miniflare2-details": { steps: ["/storage", "/stub"].map((path) => ({ path })) },
   "queues-details": {
     steps: [{ path: "/validate" }, { path: "/send" }, { waitMs: 3500 }, { path: "/log" }],
@@ -484,7 +485,7 @@ scenarios["wd-worker-loader-gaps"] = {
   project: "wd-worker-loader",
   steps: [{ path: `/?skip=${WL_AGREE.join(",")}` }],
   knownGap:
-    "WorkerCode compatibilityFlags, getDurableObjectClass props, abortIsolateDynamic builds, gc(); celld refuses allowExperimental and stub cloning",
+    "WorkerCode compatibilityFlags, abortIsolateDynamic builds, a host class as a facet inside an isolate, gc(); celld refuses allowExperimental and stub cloning",
 };
 scenarios["miniflare2-details-relative-url"] = {
   project: "miniflare2-details",
@@ -522,6 +523,8 @@ const workerdDiffers: Record<string, string> = {
     "workerd passes all but facetUafRegression (no gc()); celld refuses allowExperimental and stub cloning",
   "wd-worker-loader-stubs":
     "workerd passes stubs into a loaded Worker; celld refuses to clone them",
+  "worker-loader-props":
+    "workerd passes a stub in a loaded class's props; celld refuses to clone it",
   "ws-details": "celld rejects with Error (workerd TypeError) and allows send() before accept()",
   "wd-sql":
     "celld lacks getCurrentBookmark() and keeps an alarm set inside a rolled-back transactionSync()",

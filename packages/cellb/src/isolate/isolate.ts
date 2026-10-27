@@ -29,6 +29,8 @@ export function serveIsolate(
   // Facet logging through the host: the isolate-local cell key → the facet's key in the
   // root's storage (celld: <root>/facets/<sha>) and the root's epoch.
   const facetKeys = new Map<string, { key: string; epoch?: number }>();
+  // `ctx.props` of each facet, by the same isolate-local cell key (given when it is attached).
+  const facetProps = new Map<string, unknown>();
   const images = new Map<number, () => unknown>();
   let nextImage = 0;
   const hostLogged = (internal: string) => facetKeys.get(internal);
@@ -94,7 +96,7 @@ export function serveIsolate(
         throw new Error(`Loaded worker does not export class "${className}"`);
       rt = createCellRuntime({
         worker: { ...(module as WorkerModule), default: {} },
-        durableObjects: { [className]: { className } },
+        durableObjects: { [className]: { className, props: (key) => facetProps.get(key) } },
         openSql,
         vars: env, // the loaded Worker's env: plain values and host stubs
         storage: { durability, backup, ownership },
@@ -158,6 +160,7 @@ export function serveIsolate(
       const { rt, stub, key } = await facet(m.className, m.cellKey);
       if (m.op === "attach") {
         facetKeys.set(key, { key: m.cellKey, epoch: m.epoch });
+        facetProps.set(key, m.props);
         return;
       }
       if (m.op === "call") return stub[m.method](...m.args);

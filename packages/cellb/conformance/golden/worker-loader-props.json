@@ -1,0 +1,11 @@
+{
+  "celld": "0.6.3",
+  "transcript": [
+    {
+      "request": "GET /",
+      "status": 500,
+      "contentType": "application/json",
+      "body": "Worker failed: rejected: DataCloneError: function () {} could not be cloned. [at __rpcDes (<anonymous>:5075:19) <- at <anonymous>:5276:21 <- at async invoke (<anonymous>:5179:16)]"
+    }
+  ]
+}
