@@ -25,6 +25,12 @@ const CLOSE = "cellb:shard-close";
 /** A shard of a project shared by the tabs of an origin (`joinProjectShards`): linked to a router. */
 export const TAB_INIT = "cellb:tab-shard";
 export const TAB_LINK = "cellb:tab-shard-link";
+/** The router the shard was just linked to: the Web Lock its ServiceWorker holds while alive. */
+export const TAB_WATCH = "cellb:tab-shard-watch";
+/** From a shard worker to its tab: a call waits for a router that is gone; wake the ServiceWorker. */
+export const SHARD_WAKE = "cellb:tab-shard-wake";
+/** From a shard worker to its tab: calls into other shards are in flight; keep the ServiceWorker up. */
+export const SHARD_KEEPALIVE = "cellb:tab-shard-keepalive";
 
 /** What a shard worker shared by tabs is told: no peers, it reaches them through the router. */
 export interface TabShardInit {
@@ -68,17 +74,19 @@ export function serveProjectShard(opts: {
 }): void {
   const scope = globalThis as unknown as {
     addEventListener(type: "message", fn: (e: MessageEvent) => void): void;
+    postMessage(message: unknown): void;
   };
   let host: Awaited<ReturnType<typeof browserProjectRuntime>> | undefined;
   let routed: ShardWorker | undefined;
   let releaseOwner: (() => void) | undefined;
+  let linkCount = 0; // TAB_LINKs so far: a router's watch drops only the links made for it
   const sqlite3 = () =>
     typeof opts.sqlite3 === "function"
       ? (opts.sqlite3 as () => Promise<unknown>)()
       : Promise.resolve(opts.sqlite3);
   scope.addEventListener("message", async (e: MessageEvent) => {
     const type = (e.data as { type?: string } | undefined)?.type;
-    if (type !== INIT && type !== CLOSE && type !== TAB_INIT && type !== TAB_LINK) return;
+    if (![INIT, CLOSE, TAB_INIT, TAB_LINK, TAB_WATCH].includes(type as string)) return;
     const reply = e.ports[0] as MessagePort;
     try {
       if (type === CLOSE) {
@@ -94,12 +102,27 @@ export function serveProjectShard(opts: {
       }
       if (type === TAB_LINK) {
         if (!routed) throw new Error("shard not started");
+        linkCount++;
         await routed.link(e.ports[1], e.ports[2], e.ports[3]);
+        return reply.postMessage({ ok: true });
+      }
+      if (type === TAB_WATCH) {
+        // The lock is ours once the router's ServiceWorker is gone (the browser stops an idle one):
+        // its ports are dead, though nothing says so. A call that waits wakes it through the tab.
+        const linked = linkCount;
+        const shard = routed;
+        void navigator.locks.request(e.data.routerLock, () => {
+          if (linkCount === linked && routed === shard) shard?.unlink();
+        });
         return reply.postMessage({ ok: true });
       }
       if (type === TAB_INIT) {
         const init = e.data as TabShardInit;
-        const routing = shardRouting(init);
+        const routing = shardRouting({
+          ...init,
+          onUnlinked: () => scope.postMessage({ type: SHARD_WAKE }),
+          keepAlive: () => scope.postMessage({ type: SHARD_KEEPALIVE }),
+        });
         host = await browserProjectRuntime({
           config: init.config,
           code: init.code,
