@@ -357,6 +357,11 @@ export const scenarios: Record<string, Scenario> = {
   "sql-ingest": { steps: [{ path: "/" }] },
   "sql-exec": { steps: [{ path: "/" }] },
   "worker-loader-props": { steps: [{ path: "/" }], judge: "workerd" },
+  "worker-loader-flags-unknown": {
+    project: "worker-loader-flags",
+    steps: [{ path: "/unknown" }],
+    judge: "workerd",
+  },
   "worker-loader-flags-binary-type": {
     project: "worker-loader-flags",
     steps: [{ path: "/binary-type" }],
@@ -533,6 +538,8 @@ const workerdDiffers: Record<string, string> = {
     "workerd passes all but facetUafRegression (no gc()); celld refuses allowExperimental and stub cloning",
   "wd-worker-loader-stubs":
     "workerd passes stubs into a loaded Worker; celld refuses to clone them",
+  "worker-loader-flags-unknown":
+    "workerd refuses a loaded Worker's unknown compatibility flag; celld ignores it",
   "worker-loader-props":
     "workerd passes a stub in a loaded class's props; celld refuses to clone it",
   "ws-details": "celld rejects with Error (workerd TypeError) and allows send() before accept()",

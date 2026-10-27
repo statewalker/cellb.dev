@@ -1,0 +1,13 @@
+{
+  "celld": "0.6.3",
+  "transcript": [
+    {
+      "request": "GET /unknown",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "unknown": "object"
+      }
+    }
+  ]
+}

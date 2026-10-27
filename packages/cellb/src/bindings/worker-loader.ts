@@ -15,6 +15,25 @@ import {
 const DYNAMIC_ENTRYPOINT =
   "Entrypoints to dynamically-loaded workers cannot be transferred to other Workers, because the system does not know how to reload this Worker from scratch. Instead, have the parent Worker expose an entrypoint which constructs the dynamic worker and forwards to it.";
 
+/**
+ * The compatibility flags a loaded Worker may name: the ones cellb honours for loaded code, and
+ * the ones whose behaviour it always has (`ctx.exports`; nothing is gated behind
+ * `experimental`). workerd refuses a flag it does not know; cellb refuses any other in the same
+ * words.
+ */
+const LOADED_WORKER_FLAGS = new Set([
+  "nodejs_compat",
+  "nodejs_compat_v2",
+  "websocket_standard_binary_type",
+  "enable_ctx_exports",
+  "experimental",
+]);
+
+function checkFlags(code: WorkerCode): void {
+  for (const f of code.compatibilityFlags ?? [])
+    if (!LOADED_WORKER_FLAGS.has(f)) throw new Error(`No such compatibility flag: ${f}`);
+}
+
 /** What `env.LOADER.get(id, () => code)` returns from its callback (workerd's WorkerCode). */
 export interface WorkerCode {
   compatibilityDate?: string;
@@ -128,6 +147,7 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
         if (!p) {
           p = (async () => {
             const code = await getCode();
+            checkFlags(code);
             // celld takes module source and wasm bytes only, not `data` modules.
             for (const [name, m] of Object.entries(code.modules))
               if (typeof m === "object" && "data" in m)
@@ -190,6 +210,7 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             if (!p) {
               p = (async () => {
                 const code = await getCode();
+                checkFlags(code);
                 return { module: await opts.classes!(id, code), env: code.env ?? {} };
               })();
               classCache.set(id, p);

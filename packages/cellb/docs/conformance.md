@@ -26,13 +26,14 @@ passes them by reference, and so does cellb. A scenario with `judge: "workerd"` 
 celld transcript is recorded too, so the difference stays on file, and it carries a
 `workerdDiffers` line. The judged-by-workerd scenarios:
 
-| Scenario | What workerd does and celld refuses |
+| Scenario | What workerd does and celld refuses or lacks |
 |---|---|
 | `wd-stub-storage` | stores `ctx.exports.X({ props })` stubs and class handles in Durable Object storage |
 | `wd-worker-loader-stubs` | passes `ctx.exports` stubs and Durable Object stubs into a loaded Worker's `env`, `props` and arguments |
 | `worker-details-rpc-target` | returns an `RpcTarget` from a Durable Object method as a stub |
 | `worker-details-pipeline` | calls and property reads on a Durable Object stub call's result before it settles (`stub.target().inc()`, `stub.nested().inner.n`) |
 | `isolation-api-pipeline` | the same on a loaded Worker's entrypoint, and from loaded code on a host binding's `RpcTarget` result |
+| `worker-loader-flags-unknown` | refuses an unknown flag in a loaded Worker's `compatibilityFlags` (celld ignores it) |
 | `worker-loader-props` | starts a facet of a loaded class with `getDurableObjectClass(name, { props })`, a stub among the props |
 
 Every other scenario is still judged by celld; a new `judge: "workerd"` needs a reason of this kind,

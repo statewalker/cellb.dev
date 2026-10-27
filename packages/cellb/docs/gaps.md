@@ -67,6 +67,10 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   service bindings to other scripts, the Workers AI binding (`ai`) when the host names no
   OpenAI-compatible endpoint for it, and compatibility flags it does not know. Renaming a Flue
   agent renames its class, so it needs `renamed_classes`.
+- **A loaded Worker names only the compatibility flags cellb has for it**: `nodejs_compat`
+  (`_v2`), `websocket_standard_binary_type`, and `enable_ctx_exports` and `experimental`, whose
+  behaviour cellb always has. Any other flag in `WorkerCode.compatibilityFlags` fails the load
+  with workerd's `No such compatibility flag: <flag>`, a flag workerd has but cellb lacks too.
 - **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
   embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
   image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.
