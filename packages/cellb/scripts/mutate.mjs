@@ -19,7 +19,7 @@ const mutants = [
   [
     "implicit txn commits per statement",
     "src/core/sql-storage.ts",
-    "queueMicrotask(() => this.commit());\n  }\n}",
+    "afterTurn(() => this.commit());\n  }\n}",
     "this.commit();\n  }\n}",
     "p01 p02 p03",
   ],
