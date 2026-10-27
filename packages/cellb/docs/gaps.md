@@ -110,10 +110,12 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   and go); placement of cells within the shards stays by hash. Opening a cell reserves
   room in the OPFS pool first and the pool grows on demand; a database or journal that SQLite
   creates mid-event (`SAH pool is full`) can still fail if a burst outruns the background growth.
-- **Agents SDK WebSocket connections are ignored.** `partyserver` reads attachments through the
-  global `WebSocket.prototype` (`deserializeAttachment`), which a Worker's bundle takes from the
-  host and which lacks them, so it does not recognise any accepted socket as its own: `onConnect`
-  and `onMessage` never run. Flue's own routes use HTTP and SSE and are not affected.
+- **The `WebSocket` global of Worker code is workerd's, built over the host's.** Its prototype is
+  the server-side socket's (`serializeAttachment`, `deserializeAttachment`: partyserver and the
+  Agents SDK reach attachments through it), it has the `READY_STATE_*` statics, and `instanceof`
+  covers both ends of a `WebSocketPair` and client sockets. `new WebSocket(url)` returns the host's
+  own client socket, so a class that extends the global gets a host socket, not an instance of
+  itself.
 - **Isolated facets in a browser are not in the fleet bucket.** `browserProjectRuntime` does not give
   its isolates the host's storage, so a Durable Object class of a loaded Worker keeps its database in
   the isolate's OPFS pool only. On Node they are logged through the parent.

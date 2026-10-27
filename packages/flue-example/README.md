@@ -37,6 +37,10 @@ What `test/flue-on-cellb.test.ts` proves:
 3. A node stops in the middle of a model call. A second node on the same fleet bucket, with no local
    state, takes the cell over, and Flue's recovery finishes the submission there.
 
+What `test/agents-websocket.test.ts` proves with a plain Agents SDK app (`test/agents/`, bundled as
+wrangler does): over WebSockets, `onConnect` and `onMessage` run, each connection keeps its own
+state (partyserver keeps it in the socket's attachment), and `broadcast` reaches every socket.
+
 What `test/browser/flue-in-browser.spec.ts` proves, with the same build run in Chromium:
 `bundleWorkerForBrowser` (from `@statewalker/cellb/node`) turns `dist/flue_example/` into one ES
 module, and a Dedicated Worker (`browser/flue-worker.ts`) hosts it with `browserProjectRuntime`
@@ -113,7 +117,7 @@ CORS preflights, since the worker's origin is the Vite server's) and a fresh OPF
 - **The browser test's Chromium** is `PW_CHROMIUM`, else Playwright's own, else the one
   `@sparticuz/chromium` unpacks (as in `packages/cellb`).
 - What cellb still lacks for Agents SDK apps (`AsyncLocalStorage` isolation in browsers,
-  partyserver's WebSocket attachments, `env` on an in-browser site) is in `../cellb/docs/gaps.md`.
+  `env` on an in-browser site) is in `../cellb/docs/gaps.md`.
 
 ### Dependencies
 

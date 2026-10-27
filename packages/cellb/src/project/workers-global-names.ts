@@ -9,4 +9,5 @@ export const WORKERS_GLOBAL_NAMES = [
   "caches",
   "HTMLRewriter",
   "WebSocketRequestResponsePair",
+  "WebSocket",
 ] as const;
