@@ -18,6 +18,7 @@ import {
   moduleText,
   outboundFetch,
 } from "../bindings/worker-loader.js";
+import { ctxExports } from "../core/handles.js";
 import type { WorkerModule } from "../core/runtime.js";
 import { isolatedModuleLoader } from "../isolate/host.js";
 import type { PortLike } from "../isolate/protocol.js";
@@ -206,10 +207,14 @@ export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
   const outbound = outboundFetch(code);
   const modules: Record<string, string> = {};
   for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
-  return (await bundleWorker({ modules, main: code.mainModule }, logs, outbound)) as Record<
-    string,
-    unknown
-  >;
+  // `env` and `exports` of the loaded code's `cloudflare:workers` are its own (WorkerCode.env).
+  const env = code.env ?? {};
+  const scope = workerScope(env);
+  const module = (await bundleWorker({ modules, main: code.mainModule }, logs, outbound, {
+    scope,
+  })) as Record<string, unknown>;
+  scope.bind({ env, exports: ctxExports(module, env) });
+  return module;
 };
 
 export async function loadNodeProject(
@@ -316,8 +321,19 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
           {
             name: "isolate-modules",
             setup(b) {
+              // The loaded Worker is its thread's own: `env` and `exports` are the scope
+              // serveIsolate keeps for it.
               b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({
-                path: resolve(import.meta.dirname, "cloudflare-workers.ts"),
+                path: "cloudflare:workers",
+                namespace: "isolate-workers",
+              }));
+              b.onLoad({ filter: /.*/, namespace: "isolate-workers" }, () => ({
+                contents: [
+                  'export * from "./cloudflare-workers.ts";',
+                  "export const env = globalThis.__cellsProjectScope.env, exports = globalThis.__cellsProjectScope.exports;",
+                ].join("\n"),
+                loader: "js",
+                resolveDir: import.meta.dirname,
               }));
               b.onResolve({ filter: /^cloudflare:email$/ }, () => ({
                 path: resolve(import.meta.dirname, "cloudflare-email.ts"),

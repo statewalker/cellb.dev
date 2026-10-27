@@ -6,6 +6,7 @@ import { ctxExports, entrypointStub } from "../core/handles.js";
 import { runInDurableObject } from "../core/namespace.js";
 import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
 import type { Lease, LeaseHandle, OpenCellSql } from "../ports.js";
+import { workerScope } from "../project/worker-scope.js";
 import { type FetchTarget, isolatePort, type PortLike } from "./protocol.js";
 
 export function serveIsolate(
@@ -105,6 +106,10 @@ export function serveIsolate(
   };
   let env: Record<string, unknown> = {};
   let exports: Record<string, unknown> = {};
+  // The loaded Worker is this realm's own Worker: its `cloudflare:workers` reads `env` and
+  // `exports` from this scope, as a browser project's bundle reads its own.
+  const scope = workerScope();
+  (globalThis as Record<string, unknown>).__cellsProjectScope = scope;
   // A facet of loaded code: the object lives here, named by the parent's facet cell key.
   const facet = async (className: string, cellKey: string) => {
     const rt = await objectRuntime(className);
@@ -144,8 +149,10 @@ export function serveIsolate(
             "This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world.",
           );
         }) as typeof fetch;
+      scope.bind({ env, exports }); // read while the module is evaluated
       module = await importCode(m, sink);
       exports = ctxExports(module, env);
+      scope.bind({ env, exports });
       return Object.fromEntries(Object.entries(module).map(([k, v]) => [k, typeof v]));
     }
     if (m.type === "image") return await images.get(m.token)?.();

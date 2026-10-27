@@ -24,6 +24,11 @@ import {
   ASYNC_CONTEXT_WORKER,
   expectedSeen,
 } from "./async-context-worker.js";
+import {
+  EXPECTED_LOADED_SCOPE,
+  LOADED_SCOPE_CONFIG,
+  LOADED_SCOPE_WORKER,
+} from "./loaded-scope-worker.js";
 
 // What the Cloudflare Agents SDK (and Flue, built on it) needs from a host beyond the
 // Durable Object API itself; packages/flue-example runs a whole Flue app.
@@ -82,6 +87,27 @@ describe("P13 modules the Agents SDK imports", () => {
     });
     expect(await read(two)).toMatchObject({ atLoad: "two", viaExports: "box two" });
     await Promise.all([one.runtime.close(), two.runtime.close()]);
+  });
+
+  // loadNodeProject runs loaded Workers in threads; without `isolatedModules`, in its realm.
+  it.each([
+    ["in its own thread", {}],
+    ["in the project's realm", { isolatedModules: undefined }],
+  ])("gives a loaded Worker its own env and exports, %s", async (_, where) => {
+    const dir = mkdtempSync(join(tmpdir(), "p13-loaded-"));
+    writeFileSync(join(dir, "index.js"), LOADED_SCOPE_WORKER);
+    writeFileSync(join(dir, "wrangler.json"), JSON.stringify(LOADED_SCOPE_CONFIG));
+    const p = await loadNodeProject(dir, {
+      openSql: nodeSqliteOpener(),
+      files: new MemFilesApi(),
+      ...where,
+    });
+    try {
+      const res = await p.runtime.fetch(new Request("http://w/"));
+      expect(await res.json()).toEqual(EXPECTED_LOADED_SCOPE);
+    } finally {
+      await p.runtime.close();
+    }
   });
 
   it("reports the Workers AI binding as unsupported without an endpoint", async () => {
