@@ -40,7 +40,7 @@ for (const name of Object.keys(scenarios)) {
       await page.goto("/site-projects/");
       await page.waitForFunction(() => document.body.dataset.ready === "true");
       const r = await page.evaluate((job) => (window as any).__runOnSite(job), {
-        ...projectForSite(name),
+        ...(await projectForSite(name)),
         scenario: name,
         wsServer: ref ? `ws://127.0.0.1:${ref.port}` : undefined,
       });
