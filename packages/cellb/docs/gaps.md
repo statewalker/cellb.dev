@@ -23,7 +23,12 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   `src/core/handles.ts`) and into or out of a loaded Worker's isolate, in its `env`, `props`,
   arguments and results (`src/isolate/protocol.ts`). celld refuses them; these cases are judged
   against workerd ([conformance.md](conformance.md#where-cellb-follows-workerd-instead)).
-- **There is no promise pipelining**: `stub.a().b()` waits for `a()` before calling `b()`.
+- **A call on a stub returns an RpcPromise**, as on workerd: `stub.a().b()` and
+  `await stub.a().x.y` work before `a()` settles. Across an isolate's port `b` is sent at once,
+  naming `a`'s pending answer; in one realm, and to an object on another node, `b` runs once `a()`
+  settles. It is `instanceof Promise` but not a native promise, and it cannot be called itself
+  (`stub.getFn()()` fails: await the function first). Only the first call on a loaded Worker's
+  entrypoint result is pipelined across the isolate; a call on that call's result waits for it.
 - **A stub into an isolate holds its value until released.** `stub[Symbol.dispose]()` or garbage
   collection of the stub releases it; then the value's own `Symbol.dispose` runs. A stub used after
   `Symbol.dispose` rejects with `A stub was used after it was disposed.`
@@ -32,9 +37,6 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   or stub in either is refused with `DataCloneError: Functions, RpcTargets and stubs cannot be sent
   to another node: they pass by reference only within one runtime.` (`toAnotherNode` in
   `src/core/handles.ts`).
-- **A loaded Worker's `globalOutbound` Fetcher does not route its `fetch()` in an isolate.** The
-  isolate sees it only as `env.__outbound`; its global `fetch` is the realm's own (`null` still
-  blocks it). Loaded in the host's realm, the Fetcher does route `fetch()`.
 - **Only `ctx.exports.X({ props })` stubs and class handles can be stored** in Durable Object
   storage (as V8 host objects, `[name, props]`, restored against the Worker's `ctx.exports`). celld
   cannot read such a value; other stubs and `RpcTarget`s are refused with `DataCloneError`.
@@ -80,12 +82,13 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   global `WebSocket.prototype` (`deserializeAttachment`), which a Worker's bundle takes from the
   host and which lacks them, so it does not recognise any accepted socket as its own: `onConnect`
   and `onMessage` never run. Flue's own routes use HTTP and SSE and are not affected.
-- **The upstream Worker Loader exports `overrideGlobalOutbound` and `inheritGlobalOutbound` are left
-  out** of the vendored run. `WorkerCode.globalOutbound` itself is implemented (`null` blocks
-  `fetch`; a Fetcher redirects it) and matches celld in the `runtime-api` project; the comment in
-  `scripts/vendor-workerd-tests.mjs` that calls it ignored is out of date. `inheritGlobalOutbound`
-  stays out for good: it needs the test Worker's own `globalOutbound`, a `.wd-test` setting with no
-  wrangler equivalent, so on celld and cellb it would fetch `https://example.com` for real.
+- **The upstream Worker Loader export `inheritGlobalOutbound` is left out** of the vendored run.
+  `WorkerCode.globalOutbound` itself is implemented (`null` blocks `fetch`; a Fetcher redirects
+  it, in the host's realm and in an isolate, where the request crosses back to the host), matches
+  celld in the `runtime-api` project, and passes `overrideGlobalOutbound` in `wd-worker-loader`.
+  `inheritGlobalOutbound` stays out for good: it needs the test Worker's own `globalOutbound`, a
+  `.wd-test` setting with no wrangler equivalent, so on celld and cellb it would fetch
+  `https://example.com` for real.
 - **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked, then
   written; two tabs using it at once can both win.
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.

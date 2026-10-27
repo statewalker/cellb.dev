@@ -2,7 +2,7 @@
   "celld": "0.6.3",
   "transcript": [
     {
-      "request": "GET /?skip=asyncCodeLoader,codeLoaderException,ctxExports,justLoad,moduleTypes,passEnv,passEnvCaps,regressionDeadIoContextGetCode,startupException,suggestWorkerBundlerForTypeScriptModules,wasmModules,abortIsolateDynamic,abortIsolateDynamicAnonymous,compatDateFlags,facetUafRegression,facets,nullGlobalOutbound",
+      "request": "GET /?skip=asyncCodeLoader,codeLoaderException,ctxExports,justLoad,moduleTypes,overrideGlobalOutbound,passEnv,passEnvCaps,regressionDeadIoContextGetCode,startupException,suggestWorkerBundlerForTypeScriptModules,wasmModules,abortIsolateDynamic,abortIsolateDynamicAnonymous,compatDateFlags,facetUafRegression,facets,nullGlobalOutbound",
       "status": 200,
       "contentType": "application/json",
       "body": {

@@ -11,6 +11,7 @@
         "ctxExports": "ok",
         "justLoad": "ok",
         "moduleTypes": "Error: worker loader: module \"binary.dat\" must be a string or wasm bytes",
+        "overrideGlobalOutbound": "ok",
         "passEnv": "ok",
         "passEnvCaps": "ok",
         "regressionDeadIoContextGetCode": "ok",

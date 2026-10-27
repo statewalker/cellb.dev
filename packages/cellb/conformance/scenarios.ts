@@ -364,6 +364,17 @@ export const scenarios: Record<string, Scenario> = {
     // stack frames point into each engine's own bundle
     textMask: [[" \\[at [^\\]]*\\]", ""]],
   },
+  // Calls and property reads on a stub call's pending result (promise pipelining).
+  "worker-details-pipeline": {
+    project: "worker-details",
+    steps: [{ path: "/pipeline" }],
+    judge: "workerd",
+  },
+  "isolation-api-pipeline": {
+    project: "isolation-api",
+    steps: [{ path: "/pipeline" }],
+    judge: "workerd",
+  },
   // An RpcTarget returned by a Durable Object method: celld refuses it, workerd passes it.
   "worker-details-rpc-target": {
     project: "worker-details",
@@ -418,6 +429,7 @@ const WL_AGREE = [
   "ctxExports",
   "justLoad",
   "moduleTypes",
+  "overrideGlobalOutbound",
   "passEnv",
   "passEnvCaps",
   "regressionDeadIoContextGetCode",
@@ -499,6 +511,10 @@ const workerdDiffers: Record<string, string> = {
   "worker-details":
     "celld wraps handler failures in a JSON 'Worker failed' body and accepts non-Response returns",
   "worker-details-rpc-target": "celld refuses an RpcTarget across a stub; workerd passes it",
+  "worker-details-pipeline":
+    "celld returns a plain Promise from a stub call: no calls or reads on it",
+  "isolation-api-pipeline":
+    "celld pipelines property reads from a loaded Worker but refuses its RpcTarget results",
   "wd-worker-loader":
     "celld refuses `data` modules and does not point TypeScript sources at worker-bundler",
   "wd-worker-loader-gaps":

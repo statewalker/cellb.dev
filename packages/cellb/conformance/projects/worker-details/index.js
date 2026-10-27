@@ -21,6 +21,9 @@ export class Obj extends DurableObject {
   fn() {
     return () => 1;
   }
+  nested() {
+    return { inner: { n: 2 } };
+  }
   target() {
     return new Counter();
   }
@@ -58,6 +61,12 @@ export default {
           fn: await tryIt(async () => typeof (await stub.fn())),
           missing: await tryIt(() => stub.nope()),
           objectThrow: await tryIt(() => stub.fetch("http://o/throw")),
+        });
+      case "/pipeline":
+        // Calls and property reads on a result that has not answered yet (workerd's RpcPromise).
+        return Response.json({
+          method: await tryIt(() => stub.target().inc()),
+          property: await tryIt(() => stub.nested().inner.n),
         });
       case "/rpc-target":
         return Response.json({

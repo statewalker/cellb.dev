@@ -1,0 +1,15 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /pipeline",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "method": 1,
+        "property": 2,
+        "fromLoadedCode": "hello from the host"
+      }
+    }
+  ]
+}

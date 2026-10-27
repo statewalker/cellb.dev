@@ -31,5 +31,15 @@ export interface ExecutionContext {
   passThroughOnException(): void;
 }
 
+/** Brands RpcTarget instances across copies of this module (a loaded Worker bundles its own). */
+const RPC_TARGET = Symbol.for("cellb.RpcTarget");
+
+export const isRpcTarget = (v: unknown): boolean =>
+  !!v && typeof v === "object" && (v as Record<symbol, unknown>)[RPC_TARGET] === true;
+
 /** Marker base class for JS-RPC targets returned by reference (`cloudflare:workers`). */
-export class RpcTarget {}
+export class RpcTarget {
+  get [RPC_TARGET]() {
+    return true;
+  }
+}
