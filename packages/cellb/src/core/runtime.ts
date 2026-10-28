@@ -11,13 +11,14 @@ import { v8Codec, v8CodecWith } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
-import { asyncRoot } from "./async-context.js";
+import { type AsyncRoot, asyncRoot } from "./async-context.js";
 import type { ExecutionContext } from "./durable-object.js";
 import { ctxExports, type DurableObjectClass, storedExports } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
 import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./namespace.js";
 import { CellOwnedElsewhereError, ObjectHost } from "./object-host.js";
 import { installRequestBody } from "./request-body.js";
+import { type RejectionHandler, rejectionScope, reportToStderr } from "./worker-rejections.js";
 
 export interface WorkerModule {
   default: { fetch?(req: Request, env: any, ctx: ExecutionContext): Response | Promise<Response> };
@@ -25,6 +26,12 @@ export interface WorkerModule {
 }
 
 export interface CellRuntimeOptions {
+  /**
+   * A promise the Worker's code leaves rejected (Node: the Worker shares the host's process).
+   * It is the Worker's, as on workerd and celld: it reaches this handler, not the process's
+   * `unhandledRejection` listeners. Default: one line on stderr, outside the Worker's console.
+   */
+  onUnhandledRejection?: RejectionHandler;
   /** The Worker's module namespace (what wrangler/celld bundle as main module). */
   worker: WorkerModule;
   /** Durable Object bindings: env name → exported class name (wrangler `durable_objects.bindings`). */
@@ -89,6 +96,11 @@ export interface CellRuntime {
   readonly env: Record<string, unknown>;
   /** The Worker's `ctx.exports` (also `exports` of `cloudflare:workers`). */
   readonly exports: Record<string, unknown>;
+  /**
+   * Runs Worker code the host dispatches itself (a cron trigger's `scheduled()`) as the Worker's
+   * event: a promise it leaves rejected goes to `onUnhandledRejection`, not to the process.
+   */
+  runEvent<R>(fn: () => R): R;
   /** Drops live instances (simulates eviction / hibernation); storage survives if openSql persists it. */
   evictAll(): void;
   /** Settles all waitUntil() promises. */
@@ -129,7 +141,12 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   const hosts = new Map<string, ObjectHost>();
   const background = new Set<Promise<unknown>>();
   // Events start in the context the runtime was made in, not their caller's (Cloudflare).
-  const eventsRoot = asyncRoot();
+  // …and in a scope that keeps the Worker's unhandled rejections its own (Node).
+  const rejections = rejectionScope(
+    opts.onUnhandledRejection ?? reportToStderr(opts.scriptName ?? "worker"),
+  );
+  const root = asyncRoot();
+  const eventsRoot: AsyncRoot = (fn) => root(() => rejections(fn));
   const waitUntil = (p: Promise<unknown>) => {
     const t = p.catch(() => {}).finally(() => background.delete(t));
     background.add(t);
@@ -433,7 +450,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       if ((req as { cf?: unknown }).cf === undefined)
         Object.defineProperty(req, "cf", { value: {}, enumerable: true });
       try {
-        const r = await handler.call(opts.worker.default, req, env, ctx);
+        const r = await rejections(() => handler.call(opts.worker.default, req, env, ctx));
         // A non-Response is sent as text (celld), not a failure.
         return r instanceof Response ? r : new Response(String(r));
       } catch (e) {
@@ -447,6 +464,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
         );
       }
     },
+    runEvent: (fn) => rejections(fn),
     evictAll() {
       for (const h of hosts.values()) h.close();
       hosts.clear();

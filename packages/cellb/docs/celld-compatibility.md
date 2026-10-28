@@ -38,6 +38,10 @@ those transcripts, and that cellb matches:
   `Worker failed: rejected: <name>: <message>`. A handler returning something other than a
   `Response` is sent as its text with status 200.
 - An inbound request has `request.cf` set to `{}`.
+- A promise the Worker leaves rejected is the Worker's affair, never the host's: celld ignores it,
+  workerd logs it. On Node, where the Worker shares the host's process, cellb sends it to
+  `onUnhandledRejection` (default: one line on stderr, outside the Worker's console) instead of the
+  process's `unhandledRejection` listeners.
 - A Durable Object `stub.fetch()` whose handler throws rejects with `rejected: <name>: <message>`; RPC
   errors keep their name, message and own properties such as `code`.
 - SQL refusals use celld's authorizer wording (`not authorized`, `access to _cf_KV.scope is

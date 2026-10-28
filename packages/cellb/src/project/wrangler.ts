@@ -258,7 +258,7 @@ export function createProjectRuntime(
       const db = host.openSql("__cellb/cron");
       const stop = startCronTriggers(
         crons,
-        (c, x) => scheduled.call(module.default, c, env, x),
+        (c, x) => runtime.runEvent(() => scheduled.call(module.default, c, env, x)),
         host.clock ?? systemClock,
         cronState(db),
       );
