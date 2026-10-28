@@ -4,7 +4,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { shardOf } from "@statewalker/cellb";
 import { bundleWorkerForBrowser } from "@statewalker/cellb/node";
 // Not exported: where a Durable Object id lands decides which tab's shard runs it.
-import { idFromName, namespaceKey } from "../../../cellb/src/core/id.ts";
+import { idFromName, namespaceKey } from "../../../../packages/cellb/src/core/id.ts";
 import { startFakeLlm } from "../fake-llm.ts";
 import { whoamiScript, wrongIdentities } from "../whoami.ts";
 

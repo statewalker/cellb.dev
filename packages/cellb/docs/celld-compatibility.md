@@ -25,7 +25,7 @@ identical, how it is checked, and where the two still differ. The pinned celld v
 | Workers AI (`ai` binding) | no binding (the `pi` example builds its own adapter) | yes, on an OpenAI-compatible endpoint the host names | yes | `p14-workers-ai`, Flue's `cloud` agent |
 | Python Workers (Pyodide) | supported | no, out of scope ([gaps.md](gaps.md)) | no | not run |
 | Containers | experimental (Docker or Podman) | no; reported in `unsupported` | no | not run |
-| Agent frameworks: Flue, pi, opencode | examples (`pi`, `opencode` need the network) | yes, offline against a fake model | Flue | `packages/flue-example`, `packages/agent-examples` |
+| Agent frameworks: Flue, pi, opencode | examples (`pi`, `opencode` need the network) | yes, offline against a fake model | Flue | `examples/flue`, `examples/agents` |
 
 ## The same request gets the same answer
 
