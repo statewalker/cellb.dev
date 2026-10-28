@@ -121,11 +121,7 @@ export class AsyncLocalStorage<T> {
   }
   exit<R>(fn: (...args: unknown[]) => R, ...args: unknown[]): R {
     if (native)
-      return variableOf(this as AsyncLocalStorage<unknown>, native).run(
-        undefined,
-        fn,
-        ...args,
-      );
+      return variableOf(this as AsyncLocalStorage<unknown>, native).run(undefined, fn, ...args);
     const frame = new Map(state.current);
     frame.delete(this as AsyncLocalStorage<unknown>);
     return runIn(frame, fn, undefined, args);

@@ -25,7 +25,7 @@ identical, how it is checked, and where the two still differ. The pinned celld v
 | Workers AI (`ai` binding) | no binding (the `pi` example builds its own adapter) | yes, on an OpenAI-compatible endpoint the host names | yes | `p14-workers-ai`, Flue's `cloud` agent |
 | Python Workers (Pyodide) | supported | no, out of scope ([gaps.md](gaps.md)) | no | not run |
 | Containers | experimental (Docker or Podman) | no; reported in `unsupported` | no | not run |
-| Agent frameworks: Flue, pi, opencode | examples (`pi`, `opencode` need the network) | yes, offline against a fake model | Flue | `packages/flue-example`, `packages/agent-examples` |
+| Agent frameworks: Flue, pi, opencode | examples (`pi`, `opencode` need the network) | yes, offline against a fake model | Flue | `examples/flue`, `examples/agents` |
 
 ## The same request gets the same answer
 
@@ -38,6 +38,10 @@ those transcripts, and that cellb matches:
   `Worker failed: rejected: <name>: <message>`. A handler returning something other than a
   `Response` is sent as its text with status 200.
 - An inbound request has `request.cf` set to `{}`.
+- A promise the Worker leaves rejected is the Worker's affair, never the host's: celld ignores it,
+  workerd logs it. On Node, where the Worker shares the host's process, cellb sends it to
+  `onUnhandledRejection` (default: one line on stderr, outside the Worker's console) instead of the
+  process's `unhandledRejection` listeners.
 - A Durable Object `stub.fetch()` whose handler throws rejects with `rejected: <name>: <message>`; RPC
   errors keep their name, message and own properties such as `code`.
 - SQL refusals use celld's authorizer wording (`not authorized`, `access to _cf_KV.scope is

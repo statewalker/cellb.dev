@@ -30,9 +30,9 @@ The copy is drawn from this repository: the root README, `packages/cellb/README.
 | Hero | One cell model for browser, server and cloud; for people and AI agents | root README |
 | The architecture | Cells are the unit of the app; placement is a deployment choice. Isomorphic, durable, movable | package README "Why it exists" |
 | Where it runs | Browser / Node / celld fleet, one entry point each | architecture.md, browser-host.md |
-| Use cases | IDE-class apps (VS Code/Theia-style plugin hosts), AI agents as DOs, sandboxed agent-written code, local-first apps, apps for people and agents, Workers without native binaries | packages/flue-example, packages/agent-examples, Worker Loader docs |
+| Use cases | IDE-class apps (VS Code/Theia-style plugin hosts), AI agents as DOs, sandboxed agent-written code, local-first apps, apps for people and agents, Workers without native binaries | examples/flue, examples/agents, Worker Loader docs |
 | Code | Node, browser and fleet examples (tabs) | package README |
-| Comparison | The full celld 0.6.3 / cellb Node / cellb browsers table, with 70/5/6 scenario counts | the celld comparison table (root README of `ccr-ab3c0d30-6du8do-examples-dir`, not on `main` yet) |
+| Comparison | The full celld 0.6.3 / cellb Node / cellb browsers table, with 70/5/6 scenario counts | root README |
 | Life of a cell | Take → run → log → move | ownership-and-durability.md |
 | Demo | Web Lock ownership across tabs (the primitive behind browser shards) | browser-host.md |
 

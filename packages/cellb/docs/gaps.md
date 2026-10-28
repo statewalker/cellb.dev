@@ -143,7 +143,7 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **celld examples not run:** `python` (Pyodide Python Workers: cellb runs no Python), `wasm`
   (needs the Rust toolchain to build), `container` and `sandbox` (Docker or Podman; a `containers`
   config is reported in `unsupported`). `pi` and `opencode` need a model on the network as celld
-  ships them; `packages/agent-examples` runs both, adapted to take their model from an endpoint in
+  ships them; `examples/agents` runs both, adapted to take their model from an endpoint in
   their vars, against a fake OpenAI-compatible model.
 - **No build step.** The entry points are TypeScript sources. A bundler, Vite or vitest resolves
   them; plain `node` fails with `ERR_MODULE_NOT_FOUND` for `src/…/*.js`.
