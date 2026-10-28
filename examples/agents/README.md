@@ -30,7 +30,7 @@ To run one against a real endpoint, set its vars (`PI_BASE_URL`, `PI_MODEL`, `PI
 start it with `celld dev pi` or load it with `loadNodeProject`. Against the fake model:
 
 ```sh
-node ../../packages/fake-openai/src/cli.ts 8787     # the vars' defaults point here
+node ../fake-openai/src/cli.ts 8787     # the vars' defaults point here
 ```
 
 ## Examples

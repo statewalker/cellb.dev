@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Runs the fake model on its own, for `celld dev` or a manual try:
-//   node packages/fake-openai/src/cli.ts [port]
+//   node examples/fake-openai/src/cli.ts [port]
 // It answers with the default script (see `defaultReply`) and logs each request.
 import { defaultReply, lastUserText, startFakeOpenAi } from "./index.ts";
 

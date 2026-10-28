@@ -1,0 +1,174 @@
+{
+  "../../node_modules/.pnpm/@anthropic-ai+sdk@0.129.0_zod@4.6.7/node_modules/@anthropic-ai/sdk/tools/agent-toolset/node.mjs": {
+    "file": "assets/node-Caq5z5QK.js",
+    "name": "node",
+    "src": "../../node_modules/.pnpm/@anthropic-ai+sdk@0.129.0_zod@4.6.7/node_modules/@anthropic-ai/sdk/tools/agent-toolset/node.mjs",
+    "isDynamicEntry": true,
+    "imports": [
+      "_node-B4j-fgsJ.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js"
+    ]
+  },
+  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js": {
+    "file": "assets/anthropic-messages-0Nm_xjPl.js",
+    "name": "anthropic-messages",
+    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-DQp2zzRu.js",
+      "_models-CzbUlNE1.js",
+      "_json-parse-BCl4j9Gq.js",
+      "_simple-options-rCVmfX1V.js",
+      "_provider-retry-CFUHzQ9h.js",
+      "_transform-messages-niVPG_iW.js"
+    ],
+    "dynamicImports": [
+      "_node-B4j-fgsJ.js",
+      "../../node_modules/.pnpm/@anthropic-ai+sdk@0.129.0_zod@4.6.7/node_modules/@anthropic-ai/sdk/tools/agent-toolset/node.mjs"
+    ]
+  },
+  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.js": {
+    "file": "assets/cloudflare-workers-ai-system-one-Bnuq8_eV.js",
+    "name": "cloudflare-workers-ai-system-one",
+    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_models-CzbUlNE1.js",
+      "_provider-retry-CFUHzQ9h.js",
+      "_error-body-wbW0Aj7-.js"
+    ]
+  },
+  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js": {
+    "file": "assets/openai-completions-jrmxaQjF.js",
+    "name": "openai-completions",
+    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_models-CzbUlNE1.js",
+      "_json-parse-BCl4j9Gq.js",
+      "_simple-options-rCVmfX1V.js",
+      "_provider-retry-CFUHzQ9h.js",
+      "_transform-messages-niVPG_iW.js",
+      "_openai-B6Lk23Y0.js",
+      "_error-body-wbW0Aj7-.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js",
+      "_hash-D4zDouWq.js"
+    ]
+  },
+  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js": {
+    "file": "assets/openai-prompt-cache-De5CgTDI.js",
+    "name": "openai-prompt-cache",
+    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js",
+    "isDynamicEntry": true
+  },
+  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js": {
+    "file": "assets/openai-responses-shared-BgVmcCAA.js",
+    "name": "openai-responses-shared",
+    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_models-CzbUlNE1.js",
+      "_json-parse-BCl4j9Gq.js",
+      "_transform-messages-niVPG_iW.js",
+      "_hash-D4zDouWq.js"
+    ]
+  },
+  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js": {
+    "file": "assets/openai-responses-DHrlglv3.js",
+    "name": "openai-responses",
+    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_models-CzbUlNE1.js",
+      "_simple-options-rCVmfX1V.js",
+      "_provider-retry-CFUHzQ9h.js",
+      "_transform-messages-niVPG_iW.js",
+      "_openai-B6Lk23Y0.js",
+      "_error-body-wbW0Aj7-.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js"
+    ]
+  },
+  "../../node_modules/.pnpm/mimetext@3.0.28/node_modules/mimetext/dist/mimetext.node.es.js": {
+    "file": "assets/mimetext.node.es-DLC8KomI.js",
+    "name": "mimetext.node.es",
+    "src": "../../node_modules/.pnpm/mimetext@3.0.28/node_modules/mimetext/dist/mimetext.node.es.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-DQp2zzRu.js"
+    ]
+  },
+  "_error-body-wbW0Aj7-.js": {
+    "file": "assets/error-body-wbW0Aj7-.js",
+    "name": "error-body"
+  },
+  "_hash-D4zDouWq.js": {
+    "file": "assets/hash-D4zDouWq.js",
+    "name": "hash"
+  },
+  "_json-parse-BCl4j9Gq.js": {
+    "file": "assets/json-parse-BCl4j9Gq.js",
+    "name": "json-parse",
+    "imports": [
+      "_rolldown-runtime-DQp2zzRu.js"
+    ]
+  },
+  "_models-CzbUlNE1.js": {
+    "file": "assets/models-CzbUlNE1.js",
+    "name": "models"
+  },
+  "_node-B4j-fgsJ.js": {
+    "file": "assets/node-B4j-fgsJ.js",
+    "name": "node",
+    "imports": [
+      "_rolldown-runtime-DQp2zzRu.js"
+    ]
+  },
+  "_openai-B6Lk23Y0.js": {
+    "file": "assets/openai-B6Lk23Y0.js",
+    "name": "openai",
+    "imports": [
+      "_rolldown-runtime-DQp2zzRu.js"
+    ]
+  },
+  "_provider-retry-CFUHzQ9h.js": {
+    "file": "assets/provider-retry-CFUHzQ9h.js",
+    "name": "provider-retry"
+  },
+  "_rolldown-runtime-DQp2zzRu.js": {
+    "file": "assets/rolldown-runtime-DQp2zzRu.js",
+    "name": "rolldown-runtime"
+  },
+  "_simple-options-rCVmfX1V.js": {
+    "file": "assets/simple-options-rCVmfX1V.js",
+    "name": "simple-options",
+    "imports": [
+      "_rolldown-runtime-DQp2zzRu.js",
+      "_models-CzbUlNE1.js"
+    ]
+  },
+  "_transform-messages-niVPG_iW.js": {
+    "file": "assets/transform-messages-niVPG_iW.js",
+    "name": "transform-messages"
+  },
+  "virtual:cloudflare/worker-entry": {
+    "file": "index.js",
+    "name": "index",
+    "src": "virtual:cloudflare/worker-entry",
+    "isEntry": true,
+    "imports": [
+      "_rolldown-runtime-DQp2zzRu.js",
+      "_models-CzbUlNE1.js",
+      "_json-parse-BCl4j9Gq.js"
+    ],
+    "dynamicImports": [
+      "../../node_modules/.pnpm/mimetext@3.0.28/node_modules/mimetext/dist/mimetext.node.es.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js",
+      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js"
+    ]
+  }
+}

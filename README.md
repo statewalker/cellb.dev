@@ -42,15 +42,16 @@ Where cellb follows Cloudflare or workerd instead of celld, and what still diffe
 
 ```
 packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
-packages/fake-openai/  a scripted OpenAI-compatible model endpoint, for testing agents offline
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
+examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
 .github/workflows/     interop CI against the real celld and RustFS
 ```
 
-`packages/*` are libraries; `examples/*` are private apps that use them. Both are workspaces
+`packages/*` are libraries; `examples/*` are private apps that use them, with the test tools only
+they use. Both are workspaces
 (`pnpm-workspace.yaml`), so an example depends on `@statewalker/cellb` and
 `@statewalker/fake-openai` through `workspace:*`.
 
@@ -84,9 +85,9 @@ docs/superpowers/      plans for work on the repository
 ## What will surprise you
 
 - A green `pnpm test` without `CELLD_BIN` says nothing about celld compatibility: those tests skip.
-- **cellb's `pnpm test` passes every test and still exits 1**: workerd's vendored Durable Object
-  tests leave `assert.rejects(…)` unawaited, and the rejections reach the Node process the Worker
-  shares (`test/p09-celld-conformance.test.ts`). The root `pnpm test` stops there; run an example's
-  tests from its own directory.
+- **`[cellb] …: unhandled rejection in Worker code` lines on stderr** during the conformance run are
+  expected: workerd's vendored Durable Object tests leave `assert.rejects(…)` unawaited. A Worker's
+  unhandled rejection is its own, as on workerd and celld; cellb reports it there and keeps it from
+  the test runner and the process.
 - The opencode example's first load takes about half a minute: its SDK bundles to about 430,000
   lines.
