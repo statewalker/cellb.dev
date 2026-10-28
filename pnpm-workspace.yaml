@@ -5,7 +5,7 @@ packages:
 
 catalog:
   "@biomejs/biome": 2.5.15
-  "@statewalker/webrun-http-browser": "^0.6.0"
+  "@statewalker/webrun-http-browser": "^0.7.0"
   "@statewalker/webrun-modules": ^0.3.5
   "@statewalker/webrun-site-builder": "^0.2.0"
   "@statewalker/webrun-site-host": "^0.2.5"
