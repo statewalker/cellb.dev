@@ -80,7 +80,7 @@ importers:
         version: link:../../packages/cellb
       '@statewalker/fake-openai':
         specifier: workspace:*
-        version: link:../../packages/fake-openai
+        version: link:../fake-openai
       '@statewalker/webrun-files-mem':
         specifier: ^0.10.0
         version: 0.10.3
@@ -96,6 +96,18 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(@opentelemetry/api@1.9.0)(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(yaml@2.9.1))
+
+  examples/fake-openai:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(yaml@2.9.1))
 
   examples/flue:
     dependencies:
@@ -132,7 +144,7 @@ importers:
         version: link:../../packages/cellb
       '@statewalker/fake-openai':
         specifier: workspace:*
-        version: link:../../packages/fake-openai
+        version: link:../fake-openai
       '@statewalker/webrun-files-mem':
         specifier: ^0.10.0
         version: 0.10.3
@@ -260,18 +272,6 @@ importers:
       zod:
         specifier: ^3.25.0
         version: 3.25.76
-
-  packages/fake-openai:
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(yaml@2.9.1))
 
 packages:
 

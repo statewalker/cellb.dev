@@ -42,14 +42,15 @@ Where cellb follows Cloudflare or workerd instead of celld, and what still diffe
 
 ```
 packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
-packages/fake-openai/  a scripted OpenAI-compatible model endpoint, for testing agents offline
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
+examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
 docs/superpowers/      plans for work on the repository
 .github/workflows/     interop CI against the real celld and RustFS
 ```
 
-`packages/*` are libraries; `examples/*` are private apps that use them. Both are workspaces
+`packages/*` are libraries; `examples/*` are private apps that use them, with the test tools only
+they use. Both are workspaces
 (`pnpm-workspace.yaml`), so an example depends on `@statewalker/cellb` and
 `@statewalker/fake-openai` through `workspace:*`.
 

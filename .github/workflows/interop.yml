@@ -37,7 +37,7 @@ jobs:
       - name: Node — a Flue agent app on cellb
         run: pnpm --dir ../../examples/flue test
       - name: Node — the fake OpenAI-compatible model
-        run: pnpm --dir ../fake-openai test
+        run: pnpm --dir ../../examples/fake-openai test
       - name: Node — pi and opencode agents on cellb, against the fake model
         run: pnpm --dir ../../examples/agents test
       - name: Node — celld conformance and interop
