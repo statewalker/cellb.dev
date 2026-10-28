@@ -7,7 +7,7 @@ model (`@statewalker/fake-openai`), so the whole thing runs offline once the pac
 |---|---|---|
 | `pi/` | [pi](https://pi.dev)'s agent loop (`@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`) | a prompt runs a tool call and its follow-up; the transcript persists in the object's storage |
 | `opencode/` | opencode's workerd SDK (`@opencode-ai/sdk/workerd`) | celld's opencode example: the SDK boots on the object's SQLite, creates a session, and the model answers a prompt |
-| `../flue-example` | Flue (`@flue/runtime`) | a whole Flue app, built for Cloudflare, on Node and in browsers |
+| `../flue` | Flue (`@flue/runtime`) | a whole Flue app, built for Cloudflare, on Node and in browsers |
 
 The package is private: it is a test of cellb, not a library.
 

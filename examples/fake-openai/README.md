@@ -2,7 +2,8 @@
 
 A scripted OpenAI-compatible model endpoint for running agents offline: `POST /v1/chat/completions`
 (streamed or not, text or tool calls), `POST /v1/embeddings` and `GET /v1/models`. The package is
-private: the agent examples and the Flue example test against it.
+private: the agent examples and the Flue example test against it, so it lives with them in
+`examples/`.
 
 ## Why it exists
 
@@ -28,7 +29,7 @@ await fake.close();
 From a shell, for `celld dev` or a manual try (Node 22.18 or later runs the TypeScript directly):
 
 ```sh
-node packages/fake-openai/src/cli.ts 8787   # http://127.0.0.1:8787/v1
+node examples/fake-openai/src/cli.ts 8787   # http://127.0.0.1:8787/v1
 ```
 
 ## Examples

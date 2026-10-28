@@ -21,7 +21,7 @@ import {
 
 // What the Agents SDK (and Flue, built on it) needs from a browser host, in one project:
 // `env` and `exports` of cloudflare:workers, cloudflare:email, and the nodejs_compat modules it
-// imports (packages/flue-example runs a whole Flue app the same way).
+// imports (examples/flue runs a whole Flue app the same way).
 const worker = `
 import { DurableObject, env, exports } from "cloudflare:workers";
 import { EmailMessage } from "cloudflare:email";

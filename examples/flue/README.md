@@ -80,7 +80,7 @@ module, and a Dedicated Worker (`browser/flue-worker.ts`) hosts it with `browser
 
 Concurrent conversations in one browser runtime take turns: it is one thread, and each Flue turn
 makes 21 SQLite commits on OPFS there. Spreading them over workers runs them in parallel (see
-`../cellb/docs/gaps.md` for the numbers).
+`../../packages/cellb/docs/gaps.md` for the numbers).
 
 The core of it, against the build:
 
@@ -128,7 +128,7 @@ CORS preflights, since the worker's origin is the Vite server's) and a fresh OPF
 - **`run vite build first (pnpm test does)`** is what `vitest run` alone says without `dist/`.
 - **The browser test's Chromium** is `PW_CHROMIUM`, else Playwright's own, else the one
   `@sparticuz/chromium` unpacks (as in `packages/cellb`).
-- What cellb still lacks for Agents SDK apps is in `../cellb/docs/gaps.md`.
+- What cellb still lacks for Agents SDK apps is in `../../packages/cellb/docs/gaps.md`.
 
 ### Dependencies
 

@@ -31,7 +31,7 @@ import {
 } from "./loaded-scope-worker.js";
 
 // What the Cloudflare Agents SDK (and Flue, built on it) needs from a host beyond the
-// Durable Object API itself; packages/flue-example runs a whole Flue app.
+// Durable Object API itself; examples/flue runs a whole Flue app.
 
 const worker = `
 import { DurableObject, env, exports } from "cloudflare:workers";
