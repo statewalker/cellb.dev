@@ -1,0 +1,74 @@
+---
+import { repoDoc, repoFile } from "@/lib/site";
+import Base from "./Base.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const path = Astro.url.pathname.replace(/\/$/, "");
+
+const sections = [
+  {
+    heading: "Start",
+    items: [
+      { href: "/docs", label: "Getting started" },
+      { href: "/docs/how-it-works", label: "How it works" },
+    ],
+  },
+  {
+    heading: "Reference",
+    items: [
+      { href: repoDoc("architecture.md"), label: "Architecture" },
+      { href: repoDoc("ownership-and-durability.md"), label: "Ownership & durability" },
+      { href: repoDoc("browser-host.md"), label: "Running in a browser" },
+      { href: repoDoc("celld-compatibility.md"), label: "celld compatibility" },
+      { href: repoDoc("gaps.md"), label: "Gaps" },
+      { href: repoFile("packages/cellb/CONTEXT.md"), label: "Glossary" },
+    ],
+  },
+  {
+    heading: "Examples",
+    items: [
+      { href: repoFile("examples/flue/README.md"), label: "Flue agent app" },
+      { href: repoFile("examples/agents/README.md"), label: "pi and opencode" },
+    ],
+  },
+];
+---
+
+<Base title={`${title} · cellb`} description={description}>
+  <div class="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:px-6 md:grid-cols-[200px_1fr]">
+    <aside class="hidden md:block">
+      <nav class="sticky top-24 space-y-6 text-sm">
+        {sections.map((s) => (
+          <div>
+            <p class="mb-2 font-medium">{s.heading}</p>
+            <ul class="space-y-1 border-l">
+              {s.items.map((item) => (
+                <li>
+                  <a
+                    href={item.href}
+                    class:list={[
+                      "-ml-px block border-l py-1 pl-3 transition-colors",
+                      path === item.href
+                        ? "border-primary text-foreground font-medium"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:border-foreground/30",
+                    ]}
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+    </aside>
+    <article class="prose-cell min-w-0 max-w-3xl">
+      <slot />
+    </article>
+  </div>
+</Base>

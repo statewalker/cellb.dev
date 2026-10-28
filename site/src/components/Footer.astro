@@ -1,0 +1,37 @@
+---
+import { CELLD, REPO, repoDoc } from "@/lib/site";
+import Logo from "./Logo.astro";
+---
+
+<footer class="border-t">
+  <div class="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto_auto_auto]">
+    <div class="space-y-3">
+      <Logo />
+      <p class="max-w-xs text-sm text-muted-foreground">
+        Isomorphic Durable Objects for the browser, the server and the cloud. A sibling of
+        <a href={CELLD} class="text-foreground underline-offset-4 hover:underline">celld</a>.
+      </p>
+    </div>
+    <div class="space-y-2 text-sm">
+      <p class="font-medium">Learn</p>
+      <ul class="space-y-1.5 text-muted-foreground">
+        <li><a href="/docs" class="hover:text-foreground">Getting started</a></li>
+        <li><a href="/docs/how-it-works" class="hover:text-foreground">How it works</a></li>
+        <li><a href="/#use-cases" class="hover:text-foreground">Use cases</a></li>
+        <li><a href="/#compare" class="hover:text-foreground">Comparison with celld</a></li>
+      </ul>
+    </div>
+    <div class="space-y-2 text-sm">
+      <p class="font-medium">Project</p>
+      <ul class="space-y-1.5 text-muted-foreground">
+        <li><a href={REPO} class="hover:text-foreground">GitHub</a></li>
+        <li><a href={repoDoc("gaps.md")} class="hover:text-foreground">Known gaps</a></li>
+        <li><a href={CELLD} class="hover:text-foreground">celld.dev</a></li>
+      </ul>
+    </div>
+    <div class="space-y-2 text-sm">
+      <p class="font-medium">Licence</p>
+      <p class="text-muted-foreground">MIT; vendored code keeps its own</p>
+    </div>
+  </div>
+</footer>

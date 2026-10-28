@@ -45,6 +45,7 @@ packages/cellb/        the runtime, its browser host, conformance corpus and doc
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
+site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
 .github/workflows/     interop CI against the real celld and RustFS
 ```
@@ -64,7 +65,9 @@ they use. Both are workspaces
    runs it on cellb against a fake model endpoint; `pnpm test:browser` runs the same app in Chromium.
 5. `cd examples/agents && pnpm test`: pi and opencode, each in a Durable Object on cellb, against
    the fake model.
-6. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
+6. `pnpm --filter @statewalker/cellb-site dev`: the website at `http://localhost:4321`; `build`
+   writes it to `site/dist/`.
+7. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
    and RustFS releases and starts RustFS on `127.0.0.1:9200`.
 
 `pnpm test` at the root runs every workspace's tests, and stops at the first one that fails.

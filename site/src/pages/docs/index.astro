@@ -1,0 +1,119 @@
+---
+import CodeBlock from "@/components/CodeBlock.astro";
+import Badge from "@/components/ui/Badge.astro";
+import Docs from "@/layouts/Docs.astro";
+import { REPO, repoDoc } from "@/lib/site";
+---
+
+<Docs title="Getting started" description="Run a Worker and its Durable Objects with cellb in Node and in a browser.">
+  <Badge variant="brand" class="mb-4">v0.0.1 · not yet published to npm</Badge>
+  <h1>Getting started</h1>
+  <p>
+    cellb (<code>@statewalker/cellb</code>) is a Durable Objects runtime written in TypeScript. It
+    runs the same Workers code in a browser and in Node. A Worker module and its Durable Object
+    classes get synchronous SQLite storage, input and output gates, stubs with
+    <code>fetch</code> and RPC, alarms, WebSockets, Worker Loaders and facets, all without
+    modification.
+  </p>
+
+  <h2>Install</h2>
+  <p>
+    The package lives in the <a href={REPO}>cellb.dev monorepo</a> and has no build step yet. Its
+    entry points are TypeScript sources, so import them through a bundler, Vite or vitest. Node
+    22.13 or later is needed for <code>node:sqlite</code>.
+  </p>
+  <CodeBlock code={`git clone ${REPO}\ncd cellb.dev\npnpm install`} />
+
+  <h2>Three entry points</h2>
+  <p>Callers differ by platform, so the package is split by platform:</p>
+  <table>
+    <thead><tr><th>Import</th><th>What it gives</th></tr></thead>
+    <tbody>
+      <tr><td><code>@statewalker/cellb</code></td><td>The isomorphic runtime: <code>createCellRuntime</code>, <code>createProjectRuntime</code>, <code>DurableObject</code>, <code>WorkerEntrypoint</code>, <code>celldBucket</code>, the object stores, links over ports, <code>CellRouter</code></td></tr>
+      <tr><td><code>@statewalker/cellb/node</code></td><td><code>nodeSqliteOpener</code>, <code>sqliteObjectStore</code>, <code>loadNodeProject</code>, D1 migrations, and celld's peer protocol</td></tr>
+      <tr><td><code>@statewalker/cellb/browser</code></td><td><code>browserProjectRuntime</code>, <code>sahpoolOpener</code>, <code>createProjectSite</code>, <code>serviceWorkerConnector</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>A Durable Object in Node</h2>
+  <CodeBlock
+    lang="ts"
+    title="counter.ts"
+    code={`import { createCellRuntime, DurableObject } from "@statewalker/cellb";
+import { nodeSqliteOpener } from "@statewalker/cellb/node";
+
+class Counter extends DurableObject {
+  increment(): number {
+    const sql = this.ctx.storage.sql;
+    sql.exec("CREATE TABLE IF NOT EXISTS c (id INTEGER PRIMARY KEY, n INTEGER)");
+    sql.exec("INSERT INTO c (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1");
+    return sql.exec<{ n: number }>("SELECT n FROM c WHERE id = 1").one().n;
+  }
+}
+
+const runtime = createCellRuntime({
+  worker: {
+    Counter,
+    default: {
+      fetch: async (req: Request, env: any) =>
+        Response.json({ n: await env.COUNTER.getByName(new URL(req.url).pathname).increment() }),
+    },
+  },
+  durableObjects: { COUNTER: { className: "Counter" } },
+  openSql: nodeSqliteOpener("./data"), // a file per cell; () keeps them in memory
+});
+
+const res = await runtime.fetch(new Request("http://local/counter/a")); // {"n":1}
+await runtime.close();`}
+  />
+  <p>
+    A runtime is a plain <code>(Request) ⇒ Response</code> handler. Mount
+    <code>runtime.fetch</code> on <code>node:http</code>, a ServiceWorker or a test, and call
+    <code>runtime.close()</code> when you are done. Closing takes final backups and closes every
+    database.
+  </p>
+
+  <h2>The same project in a browser</h2>
+  <p>
+    In a browser, cells live in SQLite WASM on OPFS inside a Dedicated Worker, and requests arrive
+    through a ServiceWorker.
+  </p>
+  <CodeBlock
+    lang="ts"
+    title="worker.ts"
+    code={`import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
+import { browserProjectRuntime } from "@statewalker/cellb/browser";
+
+const host = await browserProjectRuntime({
+  config,            // the parsed wrangler.jsonc
+  code: { bundle },  // main, bundled for browsers (or { site } for the in-browser HTTP server)
+  sqlite3: await sqlite3InitModule(),
+  pool: "my-app",    // the OPFS SQLite pool; one per worker
+  filesDir: "my-app-files",
+});
+const res = await host.runtime.fetch(new Request("http://browser/"));`}
+  />
+
+  <h2>Join a celld fleet</h2>
+  <p>
+    Give the runtime a <code>celldBucket</code> and it becomes a node of a celld fleet. It uses the
+    same bucket layout, ownership records and LTX log, so a cell can move between celld and cellb
+    with no conversion.
+  </p>
+  <CodeBlock
+    lang="ts"
+    code={`const { runtime, unsupported } = await loadNodeProject("./counter", {
+  openSql: nodeSqliteOpener(),
+  files: new MemFilesApi(),
+  storage: celldBucket(sqliteObjectStore("./counter/.celld/dev/objects.sqlite3"), { node: "cellb-1" }),
+});
+console.log(unsupported); // configuration cellb does not support, e.g. []`}
+  />
+
+  <h2>Next steps</h2>
+  <ul>
+    <li><a href="/docs/how-it-works">How it works</a>: the core, the ports, ownership and durability.</li>
+    <li><a href={repoDoc("browser-host.md")}>Running in a browser</a>: the four topologies, from one worker to shards shared by tabs.</li>
+    <li><a href={repoDoc("gaps.md")}>Gaps</a>: what cellb does not do yet.</li>
+  </ul>
+</Docs>
