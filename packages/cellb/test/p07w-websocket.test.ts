@@ -126,6 +126,22 @@ describe("P07w WebSockets over MessagePorts (CF WebSocketPair on the DO side, WH
     expect(ws.binaryType).toBe("arraybuffer");
   });
 
+  it("CellsResponse takes another Response as its init, as Fetch does (status, statusText, headers)", async () => {
+    const first = new CellsResponse("{}", {
+      status: 201,
+      statusText: "Made",
+      headers: { "content-type": "application/json", "x-a": "1" },
+    });
+    const copy = new CellsResponse("[]", first);
+    expect([
+      copy.status,
+      copy.statusText,
+      copy.headers.get("content-type"),
+      copy.headers.get("x-a"),
+    ]).toEqual([201, "Made", "application/json", "1"]);
+    expect(await copy.text()).toBe("[]");
+  });
+
   it("a WebSocketPair destructures as [client, server], as in workerd", () => {
     const pair = new WebSocketPair();
     const [client, server] = pair as unknown as Iterable<unknown>;

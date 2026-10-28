@@ -51,6 +51,8 @@ export interface WranglerConfig {
   worker_loaders?: { binding: string }[];
   /** Workers AI: served by the host's OpenAI-compatible endpoint (`ProjectHost.ai`), if any. */
   ai?: { binding: string };
+  /** Containers (celld runs them with Docker or Podman): not supported, reported. */
+  containers?: { class_name: string; image?: string }[];
 }
 
 /** wrangler `workflows` entries. */
@@ -123,6 +125,8 @@ export function createProjectRuntime(
     for (const r of m.renamed_classes ?? [])
       unsupported.push(`migrations.renamed_classes (${r.from} → ${r.to})`);
   }
+  for (const c of config.containers ?? [])
+    unsupported.push(`containers[${c.class_name}] (cellb runs no containers)`);
   for (const b of config.durable_objects?.bindings ?? []) {
     if (b.script_name) unsupported.push(`durable_objects.bindings[${b.name}].script_name`);
     durableObjects[b.name] = { className: b.class_name };

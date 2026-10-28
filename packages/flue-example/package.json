@@ -24,6 +24,7 @@
     "@sparticuz/chromium": "^153.0.0",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
     "@statewalker/cellb": "workspace:*",
+    "@statewalker/fake-openai": "workspace:*",
     "@statewalker/webrun-files-mem": "^0.10.0",
     "@types/node": "catalog:",
     "agents": "0.20.1",

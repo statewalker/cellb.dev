@@ -115,6 +115,14 @@ describe("P13 modules the Agents SDK imports", () => {
     expect(p.unsupported).toEqual(["ai[AI] (Workers AI: give the host an OpenAI-compatible `ai`)"]);
     await p.runtime.close();
   });
+
+  it("reports containers as unsupported", async () => {
+    const p = await project("containers", {
+      containers: [{ class_name: "Box", image: "./Dockerfile" }],
+    });
+    expect(p.unsupported).toEqual(["containers[Box] (cellb runs no containers)"]);
+    await p.runtime.close();
+  });
 });
 
 class Runs extends DurableObject {

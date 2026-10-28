@@ -1,0 +1,16 @@
+{
+  // opencode's workerd SDK in a Durable Object, with a model from any OpenAI-compatible endpoint
+  // (OPENCODE_BASE_URL; the tests point it at the fake model).
+  "name": "opencode-agent",
+  "main": "index.js",
+  "compatibility_date": "2026-08-30",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "OPENCODE_BASE_URL": "http://127.0.0.1:8787/v1",
+    "OPENCODE_MODEL": "fake-model"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "OPENCODE", "class_name": "OpenCodeDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OpenCodeDO"] }]
+}

@@ -238,7 +238,14 @@ export class CellsResponse extends Response {
     init: ResponseInit & { webSocket?: CfWebSocket | null } = {},
   ) {
     const upgrade = init.status === 101;
-    super(upgrade ? null : body, { ...init, status: upgrade ? 200 : init.status });
+    // The init's members read one by one, as Fetch reads a dictionary: an init that is itself a
+    // Response (`new Response(body, response)`, as opencode's SDK does) keeps its headers and
+    // statusText, which a spread would drop (they are getters on its prototype).
+    super(upgrade ? null : body, {
+      status: upgrade ? 200 : init.status,
+      statusText: init.statusText,
+      headers: init.headers,
+    });
     this.#status = init.status ?? 200;
     this.webSocket = init.webSocket ?? null;
   }
