@@ -82,9 +82,9 @@ they use. Both are workspaces
 ## What will surprise you
 
 - A green `pnpm test` without `CELLD_BIN` says nothing about celld compatibility: those tests skip.
-- **cellb's `pnpm test` passes every test and still exits 1**: workerd's vendored Durable Object
-  tests leave `assert.rejects(…)` unawaited, and the rejections reach the Node process the Worker
-  shares (`test/p09-celld-conformance.test.ts`). The root `pnpm test` stops there; run an example's
-  tests from its own directory.
+- **`[cellb] …: unhandled rejection in Worker code` lines on stderr** during the conformance run are
+  expected: workerd's vendored Durable Object tests leave `assert.rejects(…)` unawaited. A Worker's
+  unhandled rejection is its own, as on workerd and celld; cellb reports it there and keeps it from
+  the test runner and the process.
 - The opencode example's first load takes about half a minute: its SDK bundles to about 430,000
   lines.
