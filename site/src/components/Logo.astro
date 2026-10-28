@@ -1,0 +1,19 @@
+---
+interface Props {
+  class?: string;
+}
+const { class: className } = Astro.props;
+---
+
+<a href="/" class:list={["inline-flex items-center gap-2 font-semibold tracking-tight", className]}>
+  <svg viewBox="0 0 24 24" class="size-6" aria-hidden="true">
+    <rect width="24" height="24" rx="6" class="fill-primary" />
+    <g class="fill-primary-foreground">
+      <rect x="5" y="5" width="6" height="6" rx="1.5" />
+      <rect x="13" y="5" width="6" height="6" rx="1.5" opacity=".5" />
+      <rect x="5" y="13" width="6" height="6" rx="1.5" opacity=".5" />
+      <rect x="13" y="13" width="6" height="6" rx="1.5" />
+    </g>
+  </svg>
+  <span>cell<span class="text-primary">b</span></span>
+</a>

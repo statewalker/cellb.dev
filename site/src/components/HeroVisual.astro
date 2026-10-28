@@ -1,0 +1,57 @@
+---
+// One fleet, three kinds of node, one bucket. The highlighted cell is the
+// same Durable Object as it moves: celld → cellb in Node → cellb in a tab.
+const hosts = [
+  {
+    name: "browser tab",
+    engine: "cellb · SQLite WASM on OPFS",
+    cells: ["doc:spec", "agent:review"],
+    active: 1,
+  },
+  { name: "node-a", engine: "cellb · node:sqlite", cells: ["room:lobby", "user:ada"], active: -1 },
+  { name: "edge-1", engine: "celld · V8", cells: ["queue:jobs", "kv:sessions"], active: -1 },
+];
+---
+
+<div class="relative">
+  <div class="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-primary/25 via-accent-2/10 to-transparent blur-2xl"></div>
+  <div class="overflow-hidden rounded-xl border bg-card shadow-lg">
+    <div class="flex items-center justify-between border-b bg-muted/60 px-4 py-2 font-mono text-[11px] text-muted-foreground">
+      <span>fleet · s3://cells</span>
+      <span class="inline-flex items-center gap-1.5">
+        <span class="size-1.5 animate-pulse rounded-full bg-emerald-500"></span>
+        3 nodes live
+      </span>
+    </div>
+
+    <div class="bg-grid space-y-3 p-4">
+      <div class="grid gap-3 sm:grid-cols-3">
+        {hosts.map((h) => (
+          <div class="rounded-lg border bg-background/80 p-3">
+            <p class="font-mono text-xs font-medium">{h.name}</p>
+            <p class="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{h.engine}</p>
+            <div class="mt-3 space-y-1.5">
+              {h.cells.map((c, i) => (
+                <div
+                  class:list={[
+                    "flex items-center gap-2 rounded-md border px-2 py-1.5 font-mono text-[11px]",
+                    i === h.active ? "border-primary/50 bg-primary/10 text-foreground" : "border-dashed text-muted-foreground",
+                  ]}
+                >
+                  <span class:list={["size-1.5 shrink-0 rounded-sm", i === h.active ? "bg-primary" : "bg-muted-foreground/40"]}></span>
+                  <span class="truncate">{c}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div class="rounded-lg border bg-background/80 p-3 font-mono text-[11px] leading-5">
+        <p class="text-muted-foreground">cells/Agent:review/</p>
+        <p><span class="text-muted-foreground">own.json</span> <span class="text-primary">{"{ node: \"tab-7f\", epoch: 3 }"}</span></p>
+        <p class="truncate text-muted-foreground">ltx/e1/… <span class="text-foreground/70">celld</span> · ltx/e2/… <span class="text-foreground/70">node-a</span> · ltx/e3/… <span class="text-primary">browser</span></p>
+      </div>
+    </div>
+  </div>
+</div>

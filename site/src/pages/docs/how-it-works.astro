@@ -1,0 +1,86 @@
+---
+import CodeBlock from "@/components/CodeBlock.astro";
+import Docs from "@/layouts/Docs.astro";
+import { repoDoc } from "@/lib/site";
+---
+
+<Docs title="How it works" description="cellb's core, its ports, ownership and durability.">
+  <h1>How it works</h1>
+  <p>
+    cellb has one runtime core that does not know where it runs, plus an adapter for each
+    platform. The same core runs a cell in a tab, in a Node process, or as one node of a celld
+    fleet.
+  </p>
+
+  <h2>One core, ports for what differs</h2>
+  <p>
+    The core reaches the platform only through a small set of ports. Each platform supplies its own
+    implementation:
+  </p>
+  <table>
+    <thead><tr><th>Port</th><th>What it is</th><th>Implementations</th></tr></thead>
+    <tbody>
+      <tr><td><code>OpenCellSql</code></td><td>A synchronous SQLite database per cell</td><td>node:sqlite, SQLite WASM on OPFS, SQLite WASM in memory</td></tr>
+      <tr><td><code>CellStorage</code></td><td>Durability, backup, ownership and R2 objects</td><td><code>celldBucket</code>, <code>filesApiLtxLog</code>, <code>filesApiChangeLog</code></td></tr>
+      <tr><td><code>Lease</code></td><td>Per-cell ownership with an epoch and a "lost" signal</td><td><code>celldBucket(…).ownership</code></td></tr>
+      <tr><td><code>ObjectStore</code></td><td>A bucket with conditional writes</td><td>S3, celld dev's SQLite store, memory, OPFS</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The SQL port is synchronous on purpose. <code>ctx.storage.sql.exec()</code> returns rows at
+    once, as on Cloudflare, and both drivers are synchronous underneath.
+  </p>
+
+  <h2>The path of a request</h2>
+  <CodeBlock
+    lang="txt"
+    code={`Request ─► runtime.fetch ─► Worker's fetch(req, env, ctx)
+                                 │ env.COUNTER.getByName("a")
+                                 ▼
+                          stub ─┬─ local: the object's host ─► instance
+                                ├─ another shard (HTTP over a MessagePort)
+                                └─ the owner node (cells-http or celld's tunnel)`}
+  />
+
+  <h2>Inside a cell</h2>
+  <ul>
+    <li><strong>Implicit transaction.</strong> The first SQL statement opens a transaction, and it commits when the current turn of the event loop ends.</li>
+    <li><strong>Input gate.</strong> Events are queued, so a read-modify-write across storage awaits is safe.</li>
+    <li><strong>Output gate.</strong> A reply leaves only after the commit it depends on is durable.</li>
+    <li><strong>Reset.</strong> If a commit fails or the lease is lost, the object breaks, and the next call builds a fresh instance.</li>
+  </ul>
+
+  <h2>Ownership depends on the deployment</h2>
+  <table>
+    <thead><tr><th>Deployment</th><th>Unit owned</th><th>Mechanism</th></tr></thead>
+    <tbody>
+      <tr><td>One process</td><td>nothing to share</td><td>none needed</td></tr>
+      <tr><td>A browser origin, sharded</td><td>a shard</td><td>one Web Lock per shard, held by one shard worker</td></tr>
+      <tr><td>A fleet bucket (celld, cellb, browsers)</td><td>a cell</td><td>celld's <code>own.json</code> per cell, a node lease per node, epochs and self-fencing</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Durability</h2>
+  <p>
+    With an LTX log (<code>celldBucket</code> or <code>filesApiLtxLog</code>) every acknowledged
+    write is restorable: the RPO is 0. The first commit of a generation is a snapshot, and later
+    commits carry only the changed pages. In a browser, SQLite WASM reports those pages through a
+    hook on its database file. A periodic backup alone is cheaper, but it can lose up to one
+    interval of writes.
+  </p>
+
+  <h2>Loaded Workers get a realm of their own</h2>
+  <p>
+    A Worker Loader binding runs each loaded Worker in its own isolate: a worker thread in Node, a
+    Dedicated Worker in a browser. Plain values in its <code>env</code> are copied, and bindings
+    become stubs back to the parent. This is how a host runs plugin or agent-written code apart
+    from its own globals.
+  </p>
+
+  <h2>Read more</h2>
+  <ul>
+    <li><a href={repoDoc("architecture.md")}>Architecture</a></li>
+    <li><a href={repoDoc("ownership-and-durability.md")}>Ownership and durability</a></li>
+    <li><a href={repoDoc("celld-compatibility.md")}>celld compatibility</a></li>
+  </ul>
+</Docs>

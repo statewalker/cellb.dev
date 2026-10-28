@@ -1,0 +1,118 @@
+---
+import Icon from "./Icon.astro";
+import Badge from "./ui/Badge.astro";
+import Button from "./ui/Button.astro";
+import Card from "./ui/Card.astro";
+---
+
+<!--
+  A miniature of the cellb ownership model using only browser primitives:
+  the Web Locks API elects one owner tab for the cell, BroadcastChannel carries
+  requests from other tabs to the owner, and localStorage stands in for OPFS.
+-->
+<Card class="overflow-hidden">
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+    <div class="flex items-center gap-2 font-mono text-sm">
+      <span class="size-2 rounded-sm bg-primary"></span>
+      counter:<span class="text-primary">demo</span>
+    </div>
+    <Badge variant="outline" class="font-mono" data-demo-role>connecting…</Badge>
+  </div>
+  <div class="grid gap-6 p-5 sm:grid-cols-[auto_1fr] sm:items-center">
+    <div class="text-center sm:text-left">
+      <p class="text-xs uppercase tracking-wider text-muted-foreground">value</p>
+      <p class="font-mono text-6xl font-semibold tabular-nums tracking-tight" data-demo-value>0</p>
+    </div>
+    <div class="space-y-3">
+      <div class="flex flex-wrap gap-2">
+        <Button data-demo-inc><Icon name="plus" /> Increment</Button>
+        <Button variant="outline" href="/#demo" target="_blank" rel="noopener">
+          Open another tab <Icon name="externalLink" />
+        </Button>
+      </div>
+      <p class="text-sm text-muted-foreground">
+        Every tab can increment. Only the <span class="text-foreground">owner</span> tab writes; the
+        others forward a request to it. Close the owner tab and another tab takes the lock and
+        continues from the stored value.
+      </p>
+    </div>
+  </div>
+  <div class="border-t bg-muted/40 px-5 py-3">
+    <ol class="max-h-28 space-y-1 overflow-y-auto font-mono text-[11px] text-muted-foreground" data-demo-log></ol>
+  </div>
+</Card>
+
+<script>
+  const KEY = "cellb-demo:counter";
+  const roleEl = document.querySelector<HTMLElement>("[data-demo-role]")!;
+  const valueEl = document.querySelector<HTMLElement>("[data-demo-value]")!;
+  const logEl = document.querySelector<HTMLElement>("[data-demo-log]")!;
+  const incBtn = document.querySelector<HTMLButtonElement>("[data-demo-inc]")!;
+  const tabId = Math.random().toString(36).slice(2, 6);
+
+  const read = () => {
+    try {
+      return Number(localStorage.getItem(KEY) ?? 0);
+    } catch {
+      return 0;
+    }
+  };
+  const write = (n: number) => {
+    try {
+      localStorage.setItem(KEY, String(n));
+    } catch {}
+  };
+  const log = (msg: string) => {
+    const li = document.createElement("li");
+    li.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
+    logEl.prepend(li);
+  };
+
+  let owner = false;
+  valueEl.textContent = String(read());
+
+  if (!("locks" in navigator) || !("BroadcastChannel" in window)) {
+    roleEl.textContent = "unsupported browser";
+    incBtn.disabled = true;
+  } else {
+    const channel = new BroadcastChannel("cellb-demo");
+
+    const apply = () => {
+      const next = read() + 1;
+      write(next);
+      valueEl.textContent = String(next);
+      channel.postMessage({ type: "value", value: next });
+      return next;
+    };
+
+    channel.onmessage = ({ data }) => {
+      if (data.type === "inc" && owner) {
+        const v = apply();
+        log(`owner applied increment from tab ${data.from} → ${v}`);
+      } else if (data.type === "value") {
+        valueEl.textContent = String(data.value);
+      }
+    };
+
+    incBtn.addEventListener("click", () => {
+      if (owner) {
+        log(`local write → ${apply()}`);
+      } else {
+        channel.postMessage({ type: "inc", from: tabId });
+        log("forwarded increment to owner");
+      }
+    });
+
+    roleEl.textContent = `tab ${tabId} · follower`;
+    log(`tab ${tabId} waiting for cell lock`);
+    navigator.locks.request("cellb-demo:counter", () => {
+      owner = true;
+      valueEl.textContent = String(read());
+      roleEl.textContent = `tab ${tabId} · owner`;
+      roleEl.classList.add("border-primary/40", "text-primary");
+      log(`tab ${tabId} acquired lock, restored value ${read()}`);
+      // Hold the lock for the lifetime of the tab.
+      return new Promise(() => {});
+    });
+  }
+</script>
