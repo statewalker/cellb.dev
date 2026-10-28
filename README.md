@@ -9,6 +9,7 @@ in Node, and alongside celld on one shared bucket.
 ```
 packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
 packages/flue-example/ a Flue agent app (Cloudflare target, Agents SDK) run on cellb
+site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
 .github/workflows/     interop CI against the real celld and RustFS
 ```
@@ -21,7 +22,9 @@ docs/superpowers/      plans for work on the repository
 3. `pnpm exec playwright test`: the Chromium end-to-end suite.
 4. `cd packages/flue-example && pnpm test`: builds a Flue app with Flue's own Cloudflare build and
    runs it on cellb against a fake model endpoint; `pnpm test:browser` runs the same app in Chromium.
-5. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
+5. `pnpm --filter @statewalker/cellb-site dev`: the website at `http://localhost:4321`; `build`
+   writes it to `site/dist/`.
+6. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
    and RustFS releases and starts RustFS on `127.0.0.1:9200`.
 
 ## Why it is the way it is

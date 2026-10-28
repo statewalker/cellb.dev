@@ -1,0 +1,163 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * CellB design tokens (shadcn/ui variable contract).
+ * The structure matches a stock shadcn theme so CellD and CellB can share
+ * components; only the values below differ. CellB's signature hue is violet
+ * (≈ 292°) with a magenta secondary. To re-skin, change --brand-h / the
+ * --primary and --accent-2 values; everything else derives from them.
+ */
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(0.99 0.004 292);
+  --foreground: oklch(0.18 0.03 292);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.52 0.23 292);
+  --primary-foreground: oklch(0.99 0.01 292);
+  --secondary: oklch(0.955 0.015 292);
+  --secondary-foreground: oklch(0.25 0.05 292);
+  --muted: oklch(0.96 0.01 292);
+  --muted-foreground: oklch(0.5 0.03 292);
+  --accent: oklch(0.95 0.03 292);
+  --accent-foreground: oklch(0.3 0.12 292);
+  --accent-2: oklch(0.62 0.24 340);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.91 0.015 292);
+  --input: oklch(0.91 0.015 292);
+  --ring: oklch(0.6 0.2 292);
+
+  --code: oklch(0.17 0.03 292);
+  --code-foreground: oklch(0.93 0.01 292);
+  --grid-line: oklch(0.52 0.23 292 / 0.07);
+}
+
+.dark {
+  --background: oklch(0.15 0.025 292);
+  --foreground: oklch(0.96 0.01 292);
+  --card: oklch(0.19 0.03 292);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.19 0.03 292);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.72 0.17 292);
+  --primary-foreground: oklch(0.16 0.04 292);
+  --secondary: oklch(0.24 0.035 292);
+  --secondary-foreground: oklch(0.95 0.01 292);
+  --muted: oklch(0.23 0.03 292);
+  --muted-foreground: oklch(0.72 0.03 292);
+  --accent: oklch(0.27 0.06 292);
+  --accent-foreground: oklch(0.9 0.06 292);
+  --accent-2: oklch(0.74 0.19 340);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(1 0 0 / 0.1);
+  --input: oklch(1 0 0 / 0.14);
+  --ring: oklch(0.72 0.17 292);
+
+  --code: oklch(0.12 0.025 292);
+  --code-foreground: oklch(0.93 0.01 292);
+  --grid-line: oklch(0.72 0.17 292 / 0.07);
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-2: var(--accent-2);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-code: var(--code);
+  --color-code-foreground: var(--code-foreground);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 30%, transparent);
+  }
+}
+
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@utility text-brand-gradient {
+  background-image: linear-gradient(100deg, var(--primary), var(--accent-2));
+  background-clip: text;
+  color: transparent;
+}
+
+/* Long-form docs content */
+@layer components {
+  .prose-cell {
+    @apply text-[15px] leading-7 text-foreground/90;
+  }
+  .prose-cell h1 {
+    @apply text-3xl font-semibold tracking-tight text-foreground mb-4;
+  }
+  .prose-cell h2 {
+    @apply text-xl font-semibold tracking-tight text-foreground mt-10 mb-3 pb-2 border-b;
+  }
+  .prose-cell h3 {
+    @apply text-base font-semibold text-foreground mt-8 mb-2;
+  }
+  .prose-cell p {
+    @apply my-4;
+  }
+  .prose-cell a {
+    @apply text-primary underline underline-offset-4 decoration-primary/40 hover:decoration-primary;
+  }
+  .prose-cell ul {
+    @apply my-4 list-disc pl-6 space-y-1;
+  }
+  .prose-cell :not(pre) > code {
+    @apply font-mono text-[0.85em] rounded-md bg-muted px-1.5 py-0.5 text-foreground;
+  }
+  .prose-cell table {
+    @apply w-full text-sm my-6;
+  }
+  .prose-cell th {
+    @apply text-left font-medium text-muted-foreground border-b py-2 pr-4;
+  }
+  .prose-cell td {
+    @apply border-b py-2 pr-4 align-top;
+  }
+}
