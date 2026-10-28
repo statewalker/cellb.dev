@@ -122,6 +122,10 @@ export async function bundleWorker(
     bundle: true,
     format: "esm",
     platform: "neutral",
+    // As `celld deploy` resolves packages: workerd's conditions, then `module` and `main` (the
+    // neutral platform has no main fields, so a package with only `main` would not resolve).
+    conditions: ["workerd", "worker", "browser"],
+    mainFields: ["module", "main"],
     target: "es2022",
     logLevel: "silent",
     inject: [

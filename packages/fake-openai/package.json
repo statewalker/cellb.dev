@@ -1,0 +1,24 @@
+{
+  "name": "@statewalker/fake-openai",
+  "version": "0.0.1",
+  "description": "A scripted OpenAI-compatible model endpoint (chat completions, streamed or not, with tool calls; embeddings; model list) for testing agents offline",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "fake-openai": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "start": "node src/cli.ts"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -140,9 +140,11 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   judge, so this stays (following workerd would need a `judge: "workerd"` reason of the stub kind).
   workerd's input gate also defers outbound `fetch` completions while storage is in flight; cellb
   does not, and what celld does there is not recorded.
-- **celld examples not run:** `python` (Pyodide Python Workers), `wasm` (needs the Rust toolchain to
-  build), `container` and `sandbox` (Docker or Podman), `pi` and `opencode` (outbound access to model
-  endpoints).
+- **celld examples not run:** `python` (Pyodide Python Workers: cellb runs no Python), `wasm`
+  (needs the Rust toolchain to build), `container` and `sandbox` (Docker or Podman; a `containers`
+  config is reported in `unsupported`). `pi` and `opencode` need a model on the network as celld
+  ships them; `packages/agent-examples` runs both, adapted to take their model from an endpoint in
+  their vars, against a fake OpenAI-compatible model.
 - **No build step.** The entry points are TypeScript sources. A bundler, Vite or vitest resolves
   them; plain `node` fails with `ERR_MODULE_NOT_FOUND` for `src/…/*.js`.
 

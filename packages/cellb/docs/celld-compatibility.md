@@ -5,6 +5,28 @@ cellb answers the same requests the same way, and stores cells the same way, so 
 served by celld, then by cellb in Node or a browser, then by celld again. This page lists what is
 identical, how it is checked, and where the two still differ. The pinned celld version is 0.6.3.
 
+## Features at a glance
+
+| Feature | celld 0.6.3 | cellb, Node | cellb, browsers | How cellb is checked |
+|---|---|---|---|---|
+| Workers (stateless handlers) | supported | yes | yes | `hello`, `webapi`, `router`, `body` |
+| Durable Objects / cells | supported | yes, same storage format | yes, same storage format | `counter`, `rpc`, `alarm`, workerd's tests; cells cross celld ↔ cellb |
+| Durable Object facets | supported | yes | yes | `facets`, `facets-api` |
+| KV | supported | yes (celld's code) | yes | `kv`, `kv-values` |
+| Queues | supported | yes (celld's code) | yes | `queues`, `queues-api` |
+| D1 | supported | yes (Miniflare's simulator) | yes | `d1`, D1 migrations |
+| R2 | supported | yes, celld's bucket layout | yes | `r2`, `r2-api`, `r2-advanced` |
+| Workflows | supported | yes (celld's engine) | yes | `workflow`, `workflow-api` |
+| Cron triggers | supported | yes | yes | `cron` |
+| Static assets | supported | yes (with Cloudflare's behaviour where celld has bugs) | yes | `static-assets`, `assets-api` |
+| Dynamic Workers (Worker Loader) | supported | yes, a worker thread each | yes, a Dedicated Worker each | `dynamic-worker-tails`, the Worker Loader scenarios |
+| WebSockets, hibernation | supported | yes | yes, over MessagePorts | `wsecho`, `wsclient`, `wd-websocket-*` (celld fails `wd-websocket-hibernation`, cellb passes it) |
+| Vectorize-style search | example | yes | yes | `vectordb` |
+| Workers AI (`ai` binding) | no binding (the `pi` example builds its own adapter) | yes, on an OpenAI-compatible endpoint the host names | yes | `p14-workers-ai`, Flue's `cloud` agent |
+| Python Workers (Pyodide) | supported | no, out of scope ([gaps.md](gaps.md)) | no | not run |
+| Containers | experimental (Docker or Podman) | no; reported in `unsupported` | no | not run |
+| Agent frameworks: Flue, pi, opencode | examples (`pi`, `opencode` need the network) | yes, offline against a fake model | Flue | `packages/flue-example`, `packages/agent-examples` |
+
 ## The same request gets the same answer
 
 A project that runs on celld (`wrangler.jsonc` plus its `main`) loads unchanged with

@@ -1,0 +1,17 @@
+{
+  // pi (pi.dev): its agent loop (@earendil-works/pi-agent-core) in a Durable Object, on any
+  // OpenAI-compatible endpoint. PI_BASE_URL points at the endpoint (the tests set it to the fake
+  // model; for a real one, put the key in PI_API_KEY through .dev.vars).
+  "name": "pi-agent",
+  "main": "index.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "PI_BASE_URL": "http://127.0.0.1:8787/v1",
+    "PI_MODEL": "fake-model"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "PI_AGENT", "class_name": "PiAgent" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PiAgent"] }]
+}

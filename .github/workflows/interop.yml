@@ -36,6 +36,10 @@ jobs:
       - run: pnpm run typecheck
       - name: Node — a Flue agent app on cellb
         run: pnpm --dir ../flue-example test
+      - name: Node — the fake OpenAI-compatible model
+        run: pnpm --dir ../fake-openai test
+      - name: Node — pi and opencode agents on cellb, against the fake model
+        run: pnpm --dir ../agent-examples test
       - name: Node — celld conformance and interop
         run: pnpm run interop
       - run: pnpm exec playwright install --with-deps chromium

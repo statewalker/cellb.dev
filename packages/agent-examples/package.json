@@ -1,0 +1,26 @@
+{
+  "name": "@statewalker/agent-examples",
+  "version": "0.0.1",
+  "description": "Agent frameworks (pi, opencode) in Durable Objects, run on cellb against a fake OpenAI-compatible model",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "^1.4.0",
+    "@earendil-works/pi-ai": "^1.4.0",
+    "@opencode-ai/sdk": "0.0.0-dev-18697"
+  },
+  "devDependencies": {
+    "@statewalker/cellb": "workspace:*",
+    "@statewalker/fake-openai": "workspace:*",
+    "@statewalker/webrun-files-mem": "^0.10.0",
+    "@types/node": "catalog:",
+    "esbuild": "0.28.2",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
