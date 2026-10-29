@@ -97,6 +97,55 @@ importers:
         specifier: 'catalog:'
         version: 5.0.5(@opentelemetry/api@1.9.0)(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
+  examples/astro-in-browser:
+    dependencies:
+      '@astrojs/compiler':
+        specifier: 4.0.0
+        version: 4.0.0
+      '@napi-rs/wasm-runtime':
+        specifier: 1.2.6
+        version: 1.2.6(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
+      '@statewalker/webrun-bundler':
+        specifier: 0.1.0
+        version: 0.1.0(esbuild-wasm@0.28.2)
+      '@statewalker/webrun-files-mem':
+        specifier: ^0.10.0
+        version: 0.10.3
+      '@statewalker/webrun-modules':
+        specifier: 0.3.6
+        version: 0.3.6
+      esbuild-wasm:
+        specifier: 0.28.2
+        version: 0.28.2
+    devDependencies:
+      '@astrojs/compiler-rs':
+        specifier: 0.5.2
+        version: 0.5.2
+      '@playwright/test':
+        specifier: ^1.63.0
+        version: 1.64.1
+      '@sparticuz/chromium':
+        specifier: ^153.0.0
+        version: 153.0.0
+      '@sqlite.org/sqlite-wasm':
+        specifier: ^3.53.4-build1
+        version: 3.53.4-build2
+      '@statewalker/cellb':
+        specifier: workspace:*
+        version: link:../../packages/cellb
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
   examples/emdash:
     dependencies:
       '@astrojs/cloudflare':
@@ -690,6 +739,9 @@ packages:
 
   '@astrojs/compiler@2.13.1':
     resolution: {integrity: sha512-f3FN83d2G/v32ipNClRKgYv30onQlMZX1vCeZMjPsMMPl1mDpmbl0+N5BYo4S/ofzqJyS5hvwacEo0CCVDn/Qg==}
+
+  '@astrojs/compiler@4.0.0':
+    resolution: {integrity: sha512-eouss7G8ygdZqHuke033VMcVw5HTZUu+PXd/h06DGDUg/jt5btPYPqh66ENWw/mU78rBrf/oeC4oqoBwMtDMNA==}
 
   '@astrojs/internal-helpers@0.13.0':
     resolution: {integrity: sha512-20jxQqnSmpskcGyad7N5l6Xf1gz0UCa6lNde44bEBdaXGpncEYfAZJ142r2ZgzBaG4dUyzGmhqZWv1INU2eiHQ==}
@@ -3715,6 +3767,11 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@statewalker/webrun-bundler@0.1.0':
+    resolution: {integrity: sha512-X2FXb4TUjY801MxqkcXj9KTFTG4EJoTOwf8TyZ6GccBtzAeqr0QRjHZ/wloCEC0EnkTiupD7GpQ3AG8UYIMdAA==}
+    peerDependencies:
+      esbuild-wasm: ^0.28.0
+
   '@statewalker/webrun-files-browser@0.10.2':
     resolution: {integrity: sha512-2Fq90Q2YYPcWpvmJed6vc81OmxcqpDXITO0V1ntFEN2UMimeiebwFnMBUbgwac1m/rQoPTMNdN0ME1wcJcEKrA==}
 
@@ -3732,6 +3789,9 @@ packages:
 
   '@statewalker/webrun-modules@0.3.5':
     resolution: {integrity: sha512-nFtaCII75pbSh6Ocdc6OHjpf/3OvndPQ/eGjJY2IHD5/POSAQv/zEExjLj55dqzeeZuaCOG4Zk3nJYduTgbBkQ==}
+
+  '@statewalker/webrun-modules@0.3.6':
+    resolution: {integrity: sha512-WRkePPCfKIGM63cEnmC32HRQSsbP2y0hPJayB6ugTtKN0VXr5lnQ33wjCc1W8sLh0GuBad0vevfD2kKlbWK4pQ==}
 
   '@statewalker/webrun-rpc@0.4.3':
     resolution: {integrity: sha512-UpHIg2lhkymyXSyPL6xJhk2NVfyTOSUE01RLJtIob8PhFKhDkTlVtQKo6udd/hvAXALteUVK7d/Xfv+CvGrvzA==}
@@ -5352,6 +5412,11 @@ packages:
   es-object-atoms@1.1.2:
     resolution: {integrity: sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw==}
     engines: {node: '>= 0.4'}
+
+  esbuild-wasm@0.28.2:
+    resolution: {integrity: sha512-GccVwhv3mmOUVQHCQm2Ox/rby8n/EqUwvZxE6Pjfikrq/lWw9g9WX/u9EykWnpot3Ko6j426DgQdea2xWKIAQA==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   esbuild@0.25.12:
     resolution: {integrity: sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg==}
@@ -8478,6 +8543,8 @@ snapshots:
 
   '@astrojs/compiler@2.13.1': {}
 
+  '@astrojs/compiler@4.0.0': {}
+
   '@astrojs/internal-helpers@0.13.0':
     dependencies:
       '@types/hast': 3.0.5
@@ -9727,7 +9794,6 @@ snapshots:
     dependencies:
       '@emnapi/wasi-threads': 1.2.3
       tslib: 2.8.1
-    optional: true
 
   '@emnapi/runtime@1.11.1':
     dependencies:
@@ -9737,7 +9803,6 @@ snapshots:
   '@emnapi/runtime@1.11.3':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   '@emnapi/wasi-threads@1.2.2':
     dependencies:
@@ -9747,7 +9812,6 @@ snapshots:
   '@emnapi/wasi-threads@1.2.3':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   '@esbuild/aix-ppc64@0.25.12':
     optional: true
@@ -10815,7 +10879,6 @@ snapshots:
       '@emnapi/core': 1.11.3
       '@emnapi/runtime': 1.11.3
       '@tybys/wasm-util': 0.10.4
-    optional: true
 
   '@neon-rs/load@0.0.4':
     optional: true
@@ -12210,6 +12273,13 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
+  '@statewalker/webrun-bundler@0.1.0(esbuild-wasm@0.28.2)':
+    dependencies:
+      '@statewalker/webrun-files': 0.10.3
+      '@statewalker/webrun-modules': 0.3.6
+      esbuild-wasm: 0.28.2
+      resolve.exports: 2.0.4
+
   '@statewalker/webrun-files-browser@0.10.2':
     dependencies:
       '@statewalker/webrun-files': 0.10.3
@@ -12232,6 +12302,21 @@ snapshots:
       '@statewalker/webrun-streams': 0.2.2
 
   '@statewalker/webrun-modules@0.3.5':
+    dependencies:
+      '@jspm/core': 2.1.0
+      '@statewalker/webrun-files': 0.10.3
+      '@statewalker/webrun-files-mem': 0.10.3
+      acorn: 8.19.0
+      acorn-globals: 7.0.1
+      cjs-module-lexer: 2.3.0
+      fflate: 0.8.3
+      lightningcss-wasm: 1.33.0
+      npm-package-arg: 14.0.0
+      resolve.exports: 2.0.4
+      semver: 7.8.5
+      sucrase: 3.35.1
+
+  '@statewalker/webrun-modules@0.3.6':
     dependencies:
       '@jspm/core': 2.1.0
       '@statewalker/webrun-files': 0.10.3
@@ -12677,7 +12762,6 @@ snapshots:
   '@tybys/wasm-util@0.10.4':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   '@types/chai@5.2.3':
     dependencies:
@@ -13793,6 +13877,8 @@ snapshots:
   es-object-atoms@1.1.2:
     dependencies:
       es-errors: 1.3.0
+
+  esbuild-wasm@0.28.2: {}
 
   esbuild@0.25.12:
     optionalDependencies:

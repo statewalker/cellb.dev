@@ -1,0 +1,32 @@
+{
+  "name": "@statewalker/astro-in-browser-example",
+  "version": "0.0.1",
+  "description": "An Astro SSR app built in the browser (webrun-bundler + esbuild-wasm + @astrojs/compiler) and run on cellb",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "dev:browser": "vite browser --config browser/vite.config.ts"
+  },
+  "dependencies": {
+    "@astrojs/compiler": "4.0.0",
+    "@statewalker/webrun-bundler": "0.1.0",
+    "@statewalker/webrun-files-mem": "^0.10.0",
+    "esbuild-wasm": "0.28.2",
+    "@napi-rs/wasm-runtime": "1.2.6",
+    "@statewalker/webrun-modules": "0.3.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@sparticuz/chromium": "^153.0.0",
+    "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
+    "@statewalker/cellb": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "@astrojs/compiler-rs": "0.5.2"
+  }
+}

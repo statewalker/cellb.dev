@@ -1,0 +1,18 @@
+---
+import Base from "../../layouts/Base.astro";
+import { posts } from "../../posts";
+
+const post = posts.find((p) => p.slug === Astro.params.slug);
+if (!post) return Astro.redirect("/404");
+---
+<Base title={post.title}>
+	<article>
+		<h1>{post.title}</h1>
+		<p class="lead">{post.summary}</p>
+		<Fragment set:html={post.body} />
+	</article>
+</Base>
+<style>
+	.lead { font-size: 1.2rem; color: #555; }
+	article :global(blockquote) { border-left: 4px solid #a5f3fc; margin: 0; padding-left: 1rem; }
+</style>
