@@ -105,6 +105,11 @@ export interface CellRuntime {
   evictAll(): void;
   /** Settles all waitUntil() promises. */
   drain(): Promise<void>;
+  /**
+   * Keeps `p` running in the background until `drain()` (what `waitUntil` of
+   * `cloudflare:workers` does: on Cloudflare it extends the current event).
+   */
+  waitUntil(p: Promise<unknown>): void;
   /** Durable Object binding → class name (the namespace key used by idFromName). */
   readonly durableObjectBindings: Readonly<Record<string, string>>;
   /**
@@ -472,6 +477,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     async drain() {
       while (background.size) await Promise.all([...background]);
     },
+    waitUntil,
   };
   return runtime;
 }

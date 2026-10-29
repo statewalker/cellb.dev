@@ -105,6 +105,12 @@ async function importWorkerCode(
   const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
   if (nodeCompat) {
     installNodeGlobals();
+    if (populatesProcessEnv(config)) {
+      const env = processEnvOf(config);
+      // The bundle's own `process` reads it when evaluated; a site's modules use this realm's.
+      (globalThis as Record<string, unknown>).__cellsProcessEnv = env;
+      Object.assign((globalThis as { process: { env: Record<string, string> } }).process.env, env);
+    }
     // node:async_hooks: continuations carry their AsyncLocalStorage stores (with AsyncContext
     // the engine does, and this installs nothing). The code's awaits are lowered so that they go
     // through them: by bundleWorkerForBrowser for a bundle, by createProjectSite (nodeCompat) for
@@ -122,7 +128,12 @@ async function importWorkerCode(
   if ("site" in code) {
     workersHostRegistry({
       workersModule,
-      projectWorkersModule: { ...workersModule, env: scope.env, exports: scope.exports },
+      projectWorkersModule: {
+        ...workersModule,
+        env: scope.env,
+        exports: scope.exports,
+        waitUntil: scope.waitUntil,
+      },
       loadedPrefix: `${code.site}loaded/`,
       emailModule: await import("./cloudflare-email.js"),
       ...globals,
@@ -195,4 +206,25 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       openSql.release(); // the pool's files, for the next worker that opens it
     },
   };
+}
+
+/**
+ * workerd fills `process.env` with the project's text `vars` under nodejs_compat from
+ * compatibility date 2025-04-01 (`nodejs_compat_populate_process_env`), unless
+ * `nodejs_compat_do_not_populate_process_env` is set. Frameworks read their settings there
+ * (EmDash's `EMDASH_SITE_URL`, for one).
+ */
+export function populatesProcessEnv(config: WranglerConfig): boolean {
+  const flags = config.compatibility_flags ?? [];
+  if (!flags.some((f) => f.startsWith("nodejs_compat"))) return false;
+  if (flags.includes("nodejs_compat_do_not_populate_process_env")) return false;
+  if (flags.includes("nodejs_compat_populate_process_env")) return true;
+  return (config.compatibility_date ?? "") >= "2025-04-01";
+}
+
+/** The text `vars` of a project, as `process.env` holds them. */
+export function processEnvOf(config: WranglerConfig): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(config.vars ?? {})) if (typeof v === "string") env[k] = v;
+  return env;
 }

@@ -230,6 +230,14 @@ export function takeClientPort(ws: CfWebSocket): MessagePort {
  * `Response` that also accepts Cloudflare's `{ status: 101, webSocket }` init —
  * the platform `Response` rejects status 101. Provided to user code via ~deps.
  */
+/** The platform `Response`, as this module sees it (it is external to user bundles). */
+const HostResponse = Response;
+
+/** Browsers drop `Set-Cookie` from every Response they build (Node keeps it). */
+const dropsSetCookie = !new HostResponse(null, { headers: { "set-cookie": "a=b" } }).headers.has(
+  "set-cookie",
+);
+
 export class CellsResponse extends Response {
   readonly #status: number;
   readonly webSocket: CfWebSocket | null;
@@ -248,11 +256,52 @@ export class CellsResponse extends Response {
     });
     this.#status = init.status ?? 200;
     this.webSocket = init.webSocket ?? null;
+    if (dropsSetCookie) {
+      // In a browser the platform's headers drop `Set-Cookie`, which Workers set (Astro appends
+      // its cookies to the response): the response keeps its headers in a standalone `Headers`,
+      // the ones the platform derived (content-type) plus the Set-Cookie values of the init.
+      const headers = new Headers(super.headers);
+      const given = init.headers instanceof Headers ? init.headers : new Headers(init.headers);
+      for (const c of given.getSetCookie()) headers.append("set-cookie", c);
+      Object.defineProperty(this, "headers", {
+        value: headers,
+        configurable: true,
+        enumerable: true,
+      });
+    }
   }
   get status(): number {
     // Static helpers (CellsResponse.json(), .redirect(), .error()) may build instances
     // without running this constructor: fall back to the platform's status.
     return #status in this ? this.#status : super.status;
+  }
+
+  /**
+   * Every platform `Response` is a Workers `Response`, as on workerd: `Response.json()`,
+   * `Response.redirect()` and `Response.error()` (the platform's static helpers, which build
+   * platform instances, not instances of this subclass) and `fetch()` results pass
+   * `instanceof Response` in Worker code. Astro checks every endpoint's result that way.
+   */
+  static [Symbol.hasInstance](v: unknown): boolean {
+    return v instanceof HostResponse;
+  }
+
+  // In a browser the platform's static helpers build platform responses, whose headers drop
+  // `Set-Cookie`: these build instances of this class there (`Response.json()` is how most
+  // APIs answer, and their cookies are appended to it afterwards).
+  static override json(data: unknown, init: ResponseInit = {}): Response {
+    if (!dropsSetCookie) return super.json(data, init);
+    const headers = new Headers(init.headers);
+    if (!headers.has("content-type")) headers.set("content-type", "application/json");
+    return new CellsResponse(JSON.stringify(data), { ...init, headers });
+  }
+
+  static override redirect(url: string | URL, status = 302): Response {
+    if (!dropsSetCookie) return super.redirect(url, status);
+    if (![301, 302, 303, 307, 308].includes(status))
+      throw new RangeError(`Invalid status ${status}`);
+    const base = (globalThis as { location?: { href: string } }).location?.href;
+    return new CellsResponse(null, { status, headers: { location: new URL(url, base).href } });
   }
 }
 

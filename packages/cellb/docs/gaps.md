@@ -67,6 +67,14 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   service bindings to other scripts, the Workers AI binding (`ai`) when the host names no
   OpenAI-compatible endpoint for it, and compatibility flags it does not know. Renaming a Flue
   agent renames its class, so it needs `renamed_classes`.
+- **`process.env` holds the project's text `vars` in a browser only.** workerd fills it under
+  nodejs_compat from compatibility date 2025-04-01; a browser host does, but a Node host shares
+  its real `process` with the Worker, so there the embedder sets what the code reads.
+- **`waitUntil` of `cloudflare:workers` runs in the runtime's background** until `drain()`, not
+  tied to the event that called it (nothing cancels an event's work after its response here).
+- **`node:crypto` in a browser has no signature checks.** `createPublicKey` returns a `KeyObject`
+  (type and DER/PEM export) and `verify`/`createVerify` throw: a synchronous check needs a
+  pure-JS implementation. `node:module`'s `require` serves only the built-ins cellb polyfills.
 - **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
   embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
   image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.

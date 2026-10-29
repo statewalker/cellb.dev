@@ -111,6 +111,7 @@ export async function bundleWorker(
       `const scope = globalThis.__cellsWorkerScopes?.[${JSON.stringify(scopeKey)}];`,
       "export const env = scope ? scope.env : {};",
       "export const exports = scope ? scope.exports : {};",
+      "export const waitUntil = (p) => scope?.waitUntil(p);",
     ].join("\n"),
   );
   const memory = "modules" in entry ? entry.modules : undefined;
@@ -334,7 +335,7 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
               b.onLoad({ filter: /.*/, namespace: "isolate-workers" }, () => ({
                 contents: [
                   'export * from "./cloudflare-workers.ts";',
-                  "export const env = globalThis.__cellsProjectScope.env, exports = globalThis.__cellsProjectScope.exports;",
+                  "export const env = globalThis.__cellsProjectScope.env, exports = globalThis.__cellsProjectScope.exports, waitUntil = (p) => globalThis.__cellsProjectScope.waitUntil(p);",
                 ].join("\n"),
                 loader: "js",
                 resolveDir: import.meta.dirname,

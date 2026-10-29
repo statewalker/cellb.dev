@@ -157,6 +157,16 @@ runs 4 / 0 in one tab, 2 / 2 in two, 2 / 1 / 1 in three — more tabs, more proc
 - With `bucket`, each shard is a fleet node (`<node>-s<i>`); use S3, as an OPFS bucket has one
   writer at a time.
 
+#### A project at the origin's root: `root`
+
+An app that builds absolute paths (EmDash's admin calls `/_emdash/…`) cannot live under
+`<basePath><n>/`. `installProjectRouter(self, { basePath, root: { name, passthrough, hostPage } })`
+gives it the whole origin: every same-origin request outside `basePath` and the `passthrough`
+prefixes (the host page's own files) goes to project `name` with its URL unchanged, navigations
+included. A navigation that finds no tab running the project's shards is sent to `hostPage` with
+`?next=<the URL it asked for>`, since nothing else of the origin could start them.
+[examples/emdash](../../../examples/emdash) is served this way, from static files.
+
 ### A sharded origin: `CellRouter` in the ServiceWorker
 
 ```
@@ -290,8 +300,15 @@ tabs or workers with no server. Its conditional writes are atomic only within on
   (20–40 s with the default 10 s period): the tab or worker at the other end was closed, frozen or
   killed. On a page's main thread, background throttling can delay pings; pass worker-timers as the
   client's `timers`.
-- **`Set-Cookie` is missing from responses in the browser.** A `Response` built in a browser drops
-  it, and a ServiceWorker cannot hand one to a page. Node keeps it.
+- **Cookies through `installProjectRouter` are readable by the page and all `Path=/`.** A browser
+  drops `Cookie` from every `Request` and `Set-Cookie` from every `Response` it builds, and a
+  ServiceWorker's responses set no cookies. Worker code's `Request` and `Response` keep both
+  headers (a standalone `Headers`), the router sends the page's cookies to the shard as
+  `x-cellb-cookie` and stores the Worker's `Set-Cookie` values, which come back as
+  `x-cellb-set-cookie`, with the Cookie Store API (`browser-cookies.ts`). Written by script, they
+  cannot be `HttpOnly`; and since Chromium lets a ServiceWorker read cookies only for its default
+  URL, every one is stored with `Path=/`. A `Response` built outside Worker code (`fetch()`'s, or
+  the platform's) still drops `Set-Cookie`.
 - **A `Request` arrives without `Upgrade` or `Sec-WebSocket-Protocol`.** Browsers drop forbidden
   headers from every `new Request()`. cellb carries them as own properties and `x-cellb-*` headers,
   and the `Request` global of Worker code carries them into its copies (`new Request(req)`, as

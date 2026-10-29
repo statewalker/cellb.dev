@@ -6,9 +6,10 @@
  */
 import { builtinModules, createRequire } from "node:module";
 import { resolve } from "node:path";
-import { build } from "esbuild";
+import { type BuildOptions, build } from "esbuild";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
 import { PROJECT_WORKERS_MODULE_SHIM } from "./browser-modules.js";
+import { lowerAwait } from "./lower-await.js";
 import { SCHEDULER_EXPRESSION } from "./scheduler.js";
 import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
 
@@ -64,7 +65,8 @@ export async function bundleWorkerForBrowser(
     lowerAwait?: boolean;
   } = {},
 ): Promise<string> {
-  const out = await build({
+  const lower = opts.lowerAwait ?? opts.nodeCompat;
+  const options = (esbuildLowers: boolean): BuildOptions & { write: false } => ({
     entryPoints: [entry],
     write: false,
     bundle: true,
@@ -76,7 +78,7 @@ export async function bundleWorkerForBrowser(
     keepNames: true,
     // nodejs_compat: `await` lowered to generators, so that each one resumes through
     // Promise.prototype.then and carries its AsyncLocalStorage stores (node-compat/async_hooks.ts).
-    ...((opts.lowerAwait ?? opts.nodeCompat)
+    ...(esbuildLowers
       ? { supported: { "async-await": false, "async-generator": false, "for-await": false } }
       : {}),
     logLevel: "silent",
@@ -122,5 +124,14 @@ export async function bundleWorkerForBrowser(
       },
     ],
   });
-  return out.outputFiles[0].text;
+  try {
+    return (await build(options(!!lower))).outputFiles[0].text;
+  } catch (err) {
+    // esbuild cannot lower a top-level await, and refuses to keep one while it lowers the rest
+    // (Astro's builds have one: `await import(…)` of the live content config). Such code is
+    // bundled as it is, then lowered by lowerAwait, which leaves top-level awaits native: module
+    // evaluation runs in no request's context, so they carry no store anyway.
+    if (!lower || !/Top-level await is not available/.test(String(err))) throw err;
+    return lowerAwait((await build(options(false))).outputFiles[0].text);
+  }
 }

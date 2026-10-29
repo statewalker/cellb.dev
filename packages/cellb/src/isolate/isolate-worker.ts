@@ -16,7 +16,12 @@ import type { PortLike } from "./protocol.js";
 // The loaded Worker's own `env` and `exports` (serveIsolate binds the realm's scope to them).
 const scope = realmWorkerScope();
 workersHostRegistry({
-  workersModule: { ...workersModule, env: scope.env, exports: scope.exports },
+  workersModule: {
+    ...workersModule,
+    env: scope.env,
+    exports: scope.exports,
+    waitUntil: scope.waitUntil,
+  },
   emailModule,
   ...workersGlobals,
   Request: workersGlobals.CellsRequest,

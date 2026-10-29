@@ -17,6 +17,11 @@ export const H = {
   upgrade: "x-cellb-upgrade", // `Upgrade` is hop-by-hop: dropped by the HTTP/1.1 wire, carried here
   wsProtocol: "x-cellb-ws-protocol", // `Sec-WebSocket-Protocol` is forbidden in browser Requests
   shard: "x-cellb-shard", // the shard that owns the target, as the sending shard computed it
+  // Ingress from a browser (a ServiceWorker): `Cookie` is forbidden in browser Requests and
+  // `Set-Cookie` in browser Responses, so the page's cookies travel here, and the Worker's
+  // Set-Cookie values come back URI-encoded and comma-separated (browser-cookies.ts).
+  cookie: "x-cellb-cookie",
+  setCookie: "x-cellb-set-cookie",
 } as const;
 
 export type Send = (req: Request) => Promise<Response>;

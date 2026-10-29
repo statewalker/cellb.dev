@@ -237,7 +237,8 @@ export class CellRouter {
   ingress = async (req: Request): Promise<Response> => {
     const shard = this.#pick();
     try {
-      return await this.#forward(shard, stripControl(req));
+      // The page's cookies (x-cellb-cookie, set by the ServiceWorker) go on to the shard.
+      return await this.#forward(shard, stripControl(req, [H.cookie]));
     } catch (e) {
       return new Response(`Cell shard ${shard} unavailable: ${(e as Error).message}`, {
         status: 503,
