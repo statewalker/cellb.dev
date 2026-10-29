@@ -19,8 +19,8 @@ catalogs:
       specifier: ^0.2.0
       version: 0.2.2
     '@statewalker/webrun-site-host':
-      specifier: ^0.2.5
-      version: 0.2.5
+      specifier: ^0.3.0
+      version: 0.3.0
     '@types/node':
       specifier: ^26.6.4
       version: 26.6.5
@@ -195,7 +195,7 @@ importers:
         version: 0.2.2(@statewalker/webrun-files@0.10.3)
       '@statewalker/webrun-site-host':
         specifier: 'catalog:'
-        version: 0.2.5(@statewalker/webrun-files@0.10.3)
+        version: 0.3.0(@statewalker/webrun-files@0.10.3)
       '@statewalker/webrun-streams':
         specifier: ^0.2.0
         version: 0.2.2
@@ -3024,23 +3024,14 @@ packages:
   '@statewalker/webrun-files@0.10.3':
     resolution: {integrity: sha512-YALXiT2lyPhV2dq7kNVjcy3fUw8AAMyKub+9PdJ0T+5jnTD9RcRudy266Aqb18Nw/T2Up5B/eG4hEFnFQR3p8A==}
 
-  '@statewalker/webrun-http-browser@0.6.5':
-    resolution: {integrity: sha512-ar8u2XMBuUbMM+iet+sh3dw7Qru4W8VXv/HjLGbFlGWzMWAU5X8boPD6lKkAG6Qedx5yY1XCOYnspHe6HmF8gg==}
-
   '@statewalker/webrun-http-browser@0.7.0':
     resolution: {integrity: sha512-8EsL7Rop2VyaTGUdeFKG/k9QkDKMJ8ZVaiIK2KoIc3CeapSJDGXjf5ddZJSPcB65p6lFZSzHmHwu5phiBXklcQ==}
-
-  '@statewalker/webrun-http-streams@0.2.5':
-    resolution: {integrity: sha512-1O9pDWRQA9JOK1yhsXPnXtlhQKKV/DtVsHD1iuy4AjKBk6+pdglHeXCkLxyhAEQdlk9HZNF29V28ZVDbblROaA==}
 
   '@statewalker/webrun-http-streams@0.3.0':
     resolution: {integrity: sha512-QuTbwbRhwhFtVaDP3q00RG9ReC3OLu/TSyhU2nlTAaF4HerUKrpLn6paUwL7DEYe42OWih0BPH4rVwEn6Yjbgw==}
 
   '@statewalker/webrun-modules@0.3.5':
     resolution: {integrity: sha512-nFtaCII75pbSh6Ocdc6OHjpf/3OvndPQ/eGjJY2IHD5/POSAQv/zEExjLj55dqzeeZuaCOG4Zk3nJYduTgbBkQ==}
-
-  '@statewalker/webrun-rpc@0.4.3':
-    resolution: {integrity: sha512-UpHIg2lhkymyXSyPL6xJhk2NVfyTOSUE01RLJtIob8PhFKhDkTlVtQKo6udd/hvAXALteUVK7d/Xfv+CvGrvzA==}
 
   '@statewalker/webrun-rpc@0.5.0':
     resolution: {integrity: sha512-giq6gU9eKDleyfi0f6XaVA0eIHFDdYIJYj2Pb9vPrOSEXtxF19qUTYRmFUR2lW1L6vWjknIHn7LxqQhAVdO9SQ==}
@@ -3050,8 +3041,8 @@ packages:
     peerDependencies:
       '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
 
-  '@statewalker/webrun-site-host@0.2.5':
-    resolution: {integrity: sha512-PYrygNN+BR540WcXamXTZW3BRdKPRrqFprqprsem42EFbzf+wAy9M5Q2GEbBhHKh3vK+p2f4Ue/VVM/caPEfcQ==}
+  '@statewalker/webrun-site-host@0.3.0':
+    resolution: {integrity: sha512-8FmuWAC76Xqx9FKAZsU7KcJoUX9scpGxg/TppSD39XITj33TCB6jC7hbYZh6NENVvyy9PVXvPNABeMX3pBHCbg==}
     peerDependencies:
       '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
 
@@ -9753,23 +9744,12 @@ snapshots:
 
   '@statewalker/webrun-files@0.10.3': {}
 
-  '@statewalker/webrun-http-browser@0.6.5':
-    dependencies:
-      '@statewalker/webrun-http-streams': 0.2.5
-      '@statewalker/webrun-rpc': 0.4.3
-      '@statewalker/webrun-streams': 0.2.2
-      idb-keyval: 6.3.0
-
   '@statewalker/webrun-http-browser@0.7.0':
     dependencies:
       '@statewalker/webrun-http-streams': 0.3.0
       '@statewalker/webrun-rpc': 0.5.0
       '@statewalker/webrun-streams': 0.2.2
       idb-keyval: 6.3.0
-
-  '@statewalker/webrun-http-streams@0.2.5':
-    dependencies:
-      '@statewalker/webrun-streams': 0.2.2
 
   '@statewalker/webrun-http-streams@0.3.0':
     dependencies:
@@ -9790,10 +9770,6 @@ snapshots:
       semver: 7.8.5
       sucrase: 3.35.1
 
-  '@statewalker/webrun-rpc@0.4.3':
-    dependencies:
-      '@statewalker/webrun-streams': 0.2.2
-
   '@statewalker/webrun-rpc@0.5.0':
     dependencies:
       '@statewalker/webrun-streams': 0.2.2
@@ -9802,11 +9778,11 @@ snapshots:
     dependencies:
       '@statewalker/webrun-files': 0.10.3
 
-  '@statewalker/webrun-site-host@0.2.5(@statewalker/webrun-files@0.10.3)':
+  '@statewalker/webrun-site-host@0.3.0(@statewalker/webrun-files@0.10.3)':
     dependencies:
       '@statewalker/webrun-files': 0.10.3
       '@statewalker/webrun-files-mem': 0.10.3
-      '@statewalker/webrun-http-browser': 0.6.5
+      '@statewalker/webrun-http-browser': 0.7.0
       '@statewalker/webrun-site-builder': 0.2.2(@statewalker/webrun-files@0.10.3)
 
   '@statewalker/webrun-streams@0.2.2': {}
