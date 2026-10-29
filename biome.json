@@ -58,6 +58,25 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "examples/emdash/src/**",
+        "examples/emdash/seed/**",
+        "examples/emdash/astro.config.mjs",
+        "examples/emdash/emdash-env.d.ts",
+        "examples/emdash/wrangler.jsonc",
+        "examples/emdash/tsconfig.json"
+      ],
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      },
+      "assist": {
+        "enabled": false
+      }
     }
   ]
 }

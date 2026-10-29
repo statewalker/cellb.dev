@@ -44,6 +44,7 @@ Where cellb follows Cloudflare or workerd instead of celld, and what still diffe
 packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
+examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
