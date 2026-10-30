@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8" /><title>Cells lab</title></head>
+<body><pre id="out"></pre>
+<script type="module">
+  // A counter project on cellb, N shards (workers), its cells in memory + an IndexedDB bucket.
+  import { joinProjectShards } from "@statewalker/cellb/browser";
+  import source from "../src/counter/worker.js?raw";
+
+  const params = new URLSearchParams(location.search);
+  const shards = Number(params.get("shards") ?? 8);
+  const storage = params.get("storage") ?? "idb";
+  await navigator.serviceWorker.register("/__cellb/sw.ts", { type: "module", scope: "/" });
+  const reg = await navigator.serviceWorker.ready;
+  if (!navigator.serviceWorker.controller)
+    await new Promise((r) => navigator.serviceWorker.addEventListener("controllerchange", r, { once: true }));
+  const t0 = performance.now();
+  await joinProjectShards({
+    name: "counter",
+    shards,
+    spawn: () => new Worker(new URL("./shard-worker.ts", import.meta.url), { type: "module" }),
+    config: {
+      name: "counter", main: "worker.js", compatibility_date: "2026-02-24",
+      durable_objects: { bindings: [{ name: "COUNTER", class_name: "Counter" }] },
+      migrations: [{ tag: "v1", new_sqlite_classes: ["Counter"] }],
+    },
+    code: { bundle: source },
+    assetFiles: new Map(),
+    serviceWorker: async () => reg.active,
+    ...(storage === "idb" ? { bucket: { idb: "cells-lab", node: "tab" } } : {}),
+  });
+  // Shards attach to the router as their workers start: wait until a cell answers.
+  for (let i = 0; ; i++) {
+    const r = await fetch("/__cellb/projects/counter/ping").catch(() => undefined);
+    if (r?.ok && (r.headers.get("content-type") ?? "").includes("json")) break;
+    if (i % 25 === 24) console.warn(`waiting for the shards: ${r?.status} ${(await r?.text())?.slice(0, 200)}`);
+    await new Promise((x) => setTimeout(x, 200));
+  }
+  window.__startMs = Math.round(performance.now() - t0);
+  document.body.dataset.ready = "true";
+</script></body></html>

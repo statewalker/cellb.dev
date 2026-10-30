@@ -5,7 +5,9 @@ import { test } from "@playwright/test";
 // in the worker, Atomics.notify from the main thread. This is how a SQLite VFS could put its
 // persistence in any FilesApi (OPFS, File System Access, IndexedDB). Needs cross-origin
 // isolation, which the ServiceWorker of /__cellb/ provides.
-test("sync worker reads over an async main-thread store (SharedArrayBuffer + Atomics)", async ({ page }) => {
+test("sync worker reads over an async main-thread store (SharedArrayBuffer + Atomics)", async ({
+  page,
+}) => {
   test.setTimeout(240_000);
   await page.goto("/__cellb/emdash.html");
   await page.waitForFunction(() => crossOriginIsolated, null, { timeout: 60_000 });

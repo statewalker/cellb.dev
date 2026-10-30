@@ -8,7 +8,7 @@
 // The polyfills, as the browser host registers them (`__cellsNodeModules`, set before the
 // Worker's code runs); not imported, as the registry includes this module.
 const registry = (): Record<string, unknown> =>
-  ((globalThis as { __cellsNodeModules?: Record<string, unknown> }).__cellsNodeModules ?? {});
+  (globalThis as { __cellsNodeModules?: Record<string, unknown> }).__cellsNodeModules ?? {};
 
 const builtins = () => Object.keys(registry()).filter((k) => k.startsWith("node:"));
 

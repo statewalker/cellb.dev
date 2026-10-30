@@ -6,7 +6,9 @@ import { npmRegistrySource } from "@statewalker/webrun-modules";
 import { packOf } from "../src/builder/package-cache.ts";
 
 const registry = npmRegistrySource();
-self.onmessage = async (e: MessageEvent<{ id: number; pkg: string; version?: string; store: string }>) => {
+self.onmessage = async (
+  e: MessageEvent<{ id: number; pkg: string; version?: string; store: string }>,
+) => {
   const { id, pkg, version, store } = e.data;
   try {
     const p = await registry.load({ pkg, version });

@@ -1,8 +1,9 @@
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
-import { sahpoolOpener } from "../adapters/wasm-sqlite.js";
+import { sahpoolOpener, wasmMemoryOpener } from "../adapters/wasm-sqlite.js";
 import type { AssetFiles } from "../bindings/assets.js";
 import type { WorkersAiOptions } from "../bindings/workers-ai.js";
 import { celldBucket } from "../bucket/celld-cells.js";
+import { idbObjectStore } from "../bucket/idb-object-store.js";
 import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js";
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
 import type { CellRuntimeOptions, WorkerModule } from "../core/runtime.js";
@@ -46,6 +47,12 @@ export type BrowserBucket =
       leaseTtlMs?: number;
     }
   | { opfs: string; node: string; leaseTtlMs?: number }
+  /**
+   * `idb`: a bucket in this origin's IndexedDB (atomic conditional writes across tabs and
+   * workers). Cells then run SQLite in memory and persist through the bucket's page-level logs:
+   * no OPFS pool, so any number of workers can serve cells at once.
+   */
+  | { idb: string; node: string; leaseTtlMs?: number }
   | { store: ObjectStore; node: string; leaseTtlMs?: number };
 
 export interface BrowserProjectOptions {
@@ -88,6 +95,7 @@ export interface BrowserProjectOptions {
 async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
   if ("store" in b) return b.store;
   if ("s3" in b) return s3ObjectStore({ region: "us-east-1", ...b.s3 });
+  if ("idb" in b) return idbObjectStore(b.idb);
   const root = await navigator.storage.getDirectory();
   return filesApiObjectStore(
     new BrowserFilesApi({ rootHandle: await root.getDirectoryHandle(b.opfs, { create: true }) }),
@@ -171,10 +179,17 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
   const scope = workerScope(loadTimeEnv(opts.config, opts.ai));
   const module = await importWorkerCode(opts.config, opts.code, scope);
   const site = "site" in opts.code ? opts.code.site : undefined;
-  const openSql = await sahpoolOpener(opts.sqlite3 as never, {
-    name: opts.pool,
-    initialCapacity: 64, // grows on demand (sahpoolOpener)
-  });
+  // With an IndexedDB bucket, cells live in memory and in the bucket's logs (no OPFS pool).
+  const openSql =
+    opts.bucket && "idb" in opts.bucket
+      ? Object.assign(wasmMemoryOpener(opts.sqlite3 as never), {
+          release() {},
+          reserve: async (n: number) => n,
+        })
+      : await sahpoolOpener(opts.sqlite3 as never, {
+          name: opts.pool,
+          initialCapacity: 64, // grows on demand (sahpoolOpener)
+        });
   const root = await navigator.storage.getDirectory();
   const files = new BrowserFilesApi({
     rootHandle: await root.getDirectoryHandle(opts.filesDir, { create: true }),

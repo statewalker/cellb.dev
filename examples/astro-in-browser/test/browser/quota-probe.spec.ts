@@ -26,7 +26,10 @@ test("OPFS writes past the quota", async ({ page }) => {
     };`;
     const w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
     const est = await navigator.storage.estimate();
-    const r = await new Promise((res) => { w.onmessage = (e) => res(e.data); w.postMessage(0); });
+    const r = await new Promise((res) => {
+      w.onmessage = (e) => res(e.data);
+      w.postMessage(0);
+    });
     return { quotaMB: Math.round((est.quota ?? 0) / 1e6), ...(r as object) };
   });
   console.log(JSON.stringify(out));

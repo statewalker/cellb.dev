@@ -157,6 +157,15 @@ runs 4 / 0 in one tab, 2 / 2 in two, 2 / 1 / 1 in three — more tabs, more proc
 - With `bucket`, each shard is a fleet node (`<node>-s<i>`); use S3, as an OPFS bucket has one
   writer at a time.
 
+#### Cells in memory, persisted in IndexedDB: `bucket: { idb, node }`
+
+With `bucket: { idb: "<database>", node }`, a shard runs each cell's SQLite in memory and
+persists it through the bucket's page-level logs (LTX) in IndexedDB, whose conditional writes
+are atomic across tabs and workers. No OPFS SyncAccessHandle is opened, so nothing is exclusive
+to one worker. Measured (examples/astro-in-browser, `cells-lab.spec.ts`, 48 cells × 10 writes,
+then a reload): 8 shards 5.1 s (OPFS pools: 9.1 s), 16 shards 5.3 s (8.9 s); every cell read
+back after the reload. Reads after a restart replay the log (1.4–2.2 s vs 0.6–0.9 s).
+
 #### A project at the origin's root: `root`
 
 An app that builds absolute paths (EmDash's admin calls `/_emdash/…`) cannot live under

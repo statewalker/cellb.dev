@@ -21,7 +21,13 @@ self.onmessage = async (e: MessageEvent<Msg>) => {
     const sqlite3: any = await (sqlite3InitModule as any)({ print() {}, printErr() {} });
     const tInit = performance.now() - t0;
     const r = await MODES[mode](sqlite3, id, k, run);
-    postMessage({ id, ok: true, initMs: Math.round(tInit), ms: Math.round(performance.now() - t0), ...r });
+    postMessage({
+      id,
+      ok: true,
+      initMs: Math.round(tInit),
+      ms: Math.round(performance.now() - t0),
+      ...r,
+    });
   } catch (err) {
     postMessage({ id, ok: false, error: String((err as Error)?.message ?? err).slice(0, 300) });
   }
@@ -30,13 +36,17 @@ self.onmessage = async (e: MessageEvent<Msg>) => {
 function workload(db: any, k: number) {
   db.exec("CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY, v TEXT)");
   const t = performance.now();
-  for (let i = 0; i < k; i++) db.exec({ sql: "INSERT INTO t (v) VALUES (?)", bind: [`row ${i} ${"x".repeat(100)}`] });
+  for (let i = 0; i < k; i++)
+    db.exec({ sql: "INSERT INTO t (v) VALUES (?)", bind: [`row ${i} ${"x".repeat(100)}`] });
   const writeMs = performance.now() - t;
   const rows = db.selectValue("SELECT count(*) FROM t");
   return { writeMs: Math.round(writeMs), rows };
 }
 
-const MODES: Record<string, (s: any, id: number, k: number, run: string) => Promise<Record<string, unknown>>> = {
+const MODES: Record<
+  string,
+  (s: any, id: number, k: number, run: string) => Promise<Record<string, unknown>>
+> = {
   async "sahpool-own"(s, id, k, run) {
     const pool = await s.installOpfsSAHPoolVfs({ name: `lab-${run}-${id}`, initialCapacity: 4 });
     const db = new pool.OpfsSAHPoolDb(`/cell-${id}.db`);
@@ -89,12 +99,20 @@ async function memdbPages(s: any, id: number, k: number, log: PageLog) {
       pageSize = v.getUint32(0);
       pageCount = v.getUint32(4);
       const n = v.getUint32(8);
-      for (let i = 0, at = 12; i < n; i++, at += 4 + pageSize) pages.set(v.getUint32(at), f.subarray(at + 4, at + 4 + pageSize));
+      for (let i = 0, at = 12; i < n; i++, at += 4 + pageSize)
+        pages.set(v.getUint32(at), f.subarray(at + 4, at + 4 + pageSize));
     }
     const image = new Uint8Array(pageSize * pageCount);
     for (const [pg, b] of pages) if (pg <= pageCount) image.set(b, (pg - 1) * pageSize);
     const p = s.wasm.allocFromTypedArray(image);
-    s.capi.sqlite3_deserialize(db.pointer, "main", p, image.length, image.length, s.capi.SQLITE_DESERIALIZE_FREEONCLOSE | s.capi.SQLITE_DESERIALIZE_RESIZEABLE);
+    s.capi.sqlite3_deserialize(
+      db.pointer,
+      "main",
+      p,
+      image.length,
+      image.length,
+      s.capi.SQLITE_DESERIALIZE_FREEONCLOSE | s.capi.SQLITE_DESERIALIZE_RESIZEABLE,
+    );
   }
   const hook = installPageHook(s, db.pointer);
   if (!hook) throw new Error("no page hook for this database");
@@ -126,7 +144,8 @@ async function memdbPages(s: any, id: number, k: number, log: PageLog) {
 }
 
 function opfsLog(name: string): PageLog {
-  const file = async () => (await navigator.storage.getDirectory()).getFileHandle(name, { create: true });
+  const file = async () =>
+    (await navigator.storage.getDirectory()).getFileHandle(name, { create: true });
   let size = -1;
   return {
     async read() {
@@ -150,12 +169,14 @@ function idbLog(dbName: string, key: string): PageLog {
   const open = () =>
     new Promise<IDBDatabase>((res, rej) => {
       const r = indexedDB.open(dbName, 1);
-      r.onupgradeneeded = () => r.result.createObjectStore("frames", { autoIncrement: true }).createIndex("cell", "cell");
+      r.onupgradeneeded = () =>
+        r.result.createObjectStore("frames", { autoIncrement: true }).createIndex("cell", "cell");
       r.onsuccess = () => res(r.result);
       r.onerror = () => rej(r.error);
     });
   let db: Promise<IDBDatabase> | undefined;
-  const tx = async (mode: IDBTransactionMode) => (await (db ??= open())).transaction("frames", mode).objectStore("frames");
+  const tx = async (mode: IDBTransactionMode) =>
+    (await (db ??= open())).transaction("frames", mode).objectStore("frames");
   return {
     async read() {
       const store = await tx("readonly");
