@@ -105,6 +105,11 @@ async function importWorkerCode(
   const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
   if (nodeCompat) {
     installNodeGlobals();
+    // node:* for bundles built with cellbHostModule (another bundler than bundleWorkerForBrowser);
+    // loaded after installNodeGlobals(), as the npm `util` polyfill reads `process`.
+    (globalThis as Record<string, unknown>).__cellsNodeModules = (
+      await import("../node-compat/browser-registry.js")
+    ).nodeRegistryEntries;
     if (populatesProcessEnv(config)) {
       const env = processEnvOf(config);
       // The bundle's own `process` reads it when evaluated; a site's modules use this realm's.

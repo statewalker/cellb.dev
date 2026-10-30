@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./node": "./src/node.ts",
     "./browser": "./src/browser.ts",
+    "./host-modules": "./src/project/host-modules.ts",
     "./isolate-worker": "./src/isolate/isolate-worker.ts"
   },
   "license": "MIT",

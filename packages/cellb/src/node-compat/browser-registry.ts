@@ -12,6 +12,7 @@ import * as async_hooks from "./async_hooks.js";
 import * as crypto from "./crypto.js";
 import * as diagnostics_channel from "./diagnostics_channel.js";
 import * as fs from "./fs.js";
+import nodeModule from "./module.js";
 import * as os from "./os.js";
 import { process } from "./process.js";
 
@@ -27,6 +28,7 @@ const modules: Record<string, unknown> = {
   "node:diagnostics_channel": { ...diagnostics_channel },
   "node:os": { ...os },
   "node:fs": { ...fs },
+  "node:module": nodeModule,
 };
 
 /** Registry entries: each module under its `node:*` name (a provided name wins over

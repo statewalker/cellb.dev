@@ -231,7 +231,13 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
           changed();
         }
       })
-      .catch(() => {}) // aborted while waiting
+      .catch((err) => {
+        // Aborted while waiting is expected; a shard that failed to start is reported.
+        if (!h.stop.signal.aborted)
+          console.error(
+            `cellb: ${opts.name} shard ${shard} failed: ${(err as Error)?.message ?? err}`,
+          );
+      })
       .finally(() => {
         if (held.get(shard) === h) held.delete(shard);
       });
@@ -490,19 +496,26 @@ export function installProjectRouter(
   /** A request to project `name`, with the page's cookies in and the Worker's out. */
   const serve = (name: string, req: Request, target: URL): Promise<Response> =>
     routerNamed(name).then(
-      async (router) =>
-        applyWorkerCookies(
-          sw,
-          await router.ingress(
-            new Request(target, {
-              method: req.method,
-              headers: await withPageCookies(sw, req),
-              body: req.body,
-              signal: req.signal,
-              duplex: "half",
-            } as RequestInit),
-          ),
-        ),
+      async (router) => {
+        try {
+          return await applyWorkerCookies(
+            sw,
+            await router.ingress(
+              new Request(target, {
+                method: req.method,
+                headers: await withPageCookies(sw, req),
+                body: req.body,
+                signal: req.signal,
+                duplex: "half",
+              } as RequestInit),
+            ),
+          );
+        } catch (err) {
+          // A response the page can read, instead of a network error with no cause.
+          console.error(`cellb: ${req.method} ${target.pathname} failed:`, err);
+          return new Response(`cellb: ${(err as Error)?.stack ?? err}`, { status: 502 });
+        }
+      },
       (err) => new Response(String((err as Error)?.message ?? err), { status: 503 }),
     );
 

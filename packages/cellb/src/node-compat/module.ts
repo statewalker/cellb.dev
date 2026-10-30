@@ -5,20 +5,23 @@
  * at module scope for CommonJS dependencies that `require()` built-ins, so the call itself must
  * not throw.
  */
-import { nodeRegistryEntries } from "./browser-registry.js";
+// The polyfills, as the browser host registers them (`__cellsNodeModules`, set before the
+// Worker's code runs); not imported, as the registry includes this module.
+const registry = (): Record<string, unknown> =>
+  ((globalThis as { __cellsNodeModules?: Record<string, unknown> }).__cellsNodeModules ?? {});
 
-const builtins = Object.keys(nodeRegistryEntries).filter((k) => k.startsWith("node:"));
+const builtins = () => Object.keys(registry()).filter((k) => k.startsWith("node:"));
 
-export const builtinModules = builtins.map((k) => k.slice("node:".length));
+export const builtinModules: string[] = [];
 
 export function isBuiltin(id: string): boolean {
-  return builtins.includes(id.startsWith("node:") ? id : `node:${id}`);
+  return builtins().includes(id.startsWith("node:") ? id : `node:${id}`);
 }
 
 export function createRequire(_from: string | URL) {
   const require = (id: string): unknown => {
     const name = id.startsWith("node:") ? id : `node:${id}`;
-    if (Object.hasOwn(nodeRegistryEntries, name)) return nodeRegistryEntries[name];
+    if (Object.hasOwn(registry(), name)) return registry()[name];
     const err = new Error(`Cannot find module '${id}' (nodejs_compat in a browser)`);
     (err as Error & { code?: string }).code = "MODULE_NOT_FOUND";
     throw err;
