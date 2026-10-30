@@ -8,7 +8,9 @@ test("sync SQLite over async LTX files: write, read back cold, compact", async (
     "console",
     (m) => m.type() === "error" && console.log(`[page] ${m.text().slice(0, 300)}`),
   );
-  await page.goto(`/__cellb/ltx-lab.html?store=${process.env.LTX_STORE ?? "page"}`);
+  await page.goto(
+    `/__cellb/ltx-lab.html?store=${process.env.LTX_STORE ?? "page"}${process.env.LTX_SYNC ? "&sync" : ""}`,
+  );
   await page.waitForFunction(() => document.body.dataset.ready === "true", null, {
     timeout: 60_000,
   });
@@ -33,6 +35,11 @@ test("sync SQLite over async LTX files: write, read back cold, compact", async (
   log("write 20 transactions × 100 rows (2 KB each)", w);
   expect(w.out).toBe(2000);
   expect(w.files).toBe(21); // the snapshot (schema) + one LTX file per transaction
+  const st = await page.evaluate(() => (window as any).__stats());
+  if (st)
+    console.log(
+      `store: ${st.commits} commits, write ${(st.writeMs / st.commits).toFixed(1)} ms each, append ${(st.appendMs / st.commits).toFixed(1)} ms each; opfs ${JSON.stringify(st.opfs)}`,
+    );
 
   const one = await run(`return db.selectValue("SELECT title FROM docs WHERE id = 1234")`);
   log("cold worker, one row by key", one);

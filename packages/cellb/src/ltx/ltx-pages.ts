@@ -44,7 +44,13 @@ export interface LtxPages {
 }
 
 /** Opens an LTX file for page reads: reads its header and its page index only. */
-export async function openLtxPages(files: FilesApi, path: string): Promise<LtxPages> {
+export async function openLtxPages(
+  files: FilesApi,
+  path: string,
+  /** The header and index of a file this process just wrote: nothing is read back. */
+  known?: { header: LtxHeader; index: Map<number, [number, number]> },
+): Promise<LtxPages> {
+  if (known) return pagesOf(files, path, known.header, known.index);
   const size =
     (await files.stats(path))?.kind === "file"
       ? ((await files.stats(path)) as { size: number }).size
@@ -67,12 +73,6 @@ export async function openLtxPages(files: FilesApi, path: string): Promise<LtxPa
   const tail = await readRange(files, path, size - 24, 24);
   const idxLen = Number(new DataView(tail.buffer, tail.byteOffset, 24).getBigUint64(0));
   const idx = await readRange(files, path, size - 24 - idxLen, idxLen);
-  const decodePage = (b: Uint8Array) => {
-    const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
-    if (v.getUint16(4) & PAGE_HEADER_FLAG_SIZE)
-      return lz4Decompress(b.subarray(10, 10 + v.getUint32(6)), header.pageSize);
-    return lz4FrameDecompress(b.subarray(6), header.pageSize);
-  };
   const index = new Map<number, [number, number]>();
   let o = 0;
   const varint = () => {
@@ -92,6 +92,21 @@ export async function openLtxPages(files: FilesApi, path: string): Promise<LtxPa
     const offset = varint();
     index.set(pgno, [offset, varint()]);
   }
+  return pagesOf(files, path, header, index);
+}
+
+function pagesOf(
+  files: FilesApi,
+  path: string,
+  header: LtxHeader,
+  index: Map<number, [number, number]>,
+): LtxPages {
+  const decodePage = (b: Uint8Array) => {
+    const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    if (v.getUint16(4) & PAGE_HEADER_FLAG_SIZE)
+      return lz4Decompress(b.subarray(10, 10 + v.getUint32(6)), header.pageSize);
+    return lz4FrameDecompress(b.subarray(6), header.pageSize);
+  };
   return {
     path,
     header,
@@ -134,7 +149,10 @@ export interface PagedCell {
    * Adds the cell's next file (the one just written after `maxTXID`): reads its header and index
    * only, so a commit costs one file whatever the number of files before it.
    */
-  append(path: string): Promise<void>;
+  append(
+    path: string,
+    known?: { header: LtxHeader; index: Map<number, [number, number]> },
+  ): Promise<void>;
 }
 
 /**
@@ -179,8 +197,8 @@ export async function openPagedCell(files: FilesApi, paths: string[]): Promise<P
       for (const [f, pgnos] of byFile) for (const [p, d] of await f.readPages(pgnos)) out.set(p, d);
       return out;
     },
-    async append(path) {
-      const f = await openLtxPages(files, path);
+    async append(path, known) {
+      const f = await openLtxPages(files, path, known);
       if (f.header.minTXID !== cell.maxTXID + 1n)
         throw new Error(`ltx: ${path} does not follow TXID ${cell.maxTXID}`);
       chain.push(f);
@@ -204,6 +222,39 @@ export async function* encodeLtxStream(
   header: LtxHeader,
   pages: AsyncIterable<[number, Uint8Array]>,
   postApplyChecksum = 0n,
+  /** Filled while encoding: the file's page index (what `openLtxPages` would read back). */
+  written?: { index: Map<number, [number, number]> },
+): AsyncGenerator<Uint8Array> {
+  // Coalesced into 256 KiB chunks: a writer pays per call (an OPFS SyncAccessHandle write, a
+  // stream write), and a page makes three small pieces.
+  yield* coalesce(encodePieces(header, pages, postApplyChecksum, written), 256 * 1024);
+}
+
+async function* coalesce(src: AsyncIterable<Uint8Array>, size: number): AsyncGenerator<Uint8Array> {
+  let buf = new Uint8Array(size);
+  let n = 0;
+  for await (const piece of src) {
+    if (piece.length >= size) {
+      if (n) yield buf.slice(0, n), (n = 0);
+      yield piece;
+      continue;
+    }
+    if (n + piece.length > size) {
+      yield buf.slice(0, n);
+      buf = new Uint8Array(size);
+      n = 0;
+    }
+    buf.set(piece, n);
+    n += piece.length;
+  }
+  if (n) yield buf.slice(0, n);
+}
+
+async function* encodePieces(
+  header: LtxHeader,
+  pages: AsyncIterable<[number, Uint8Array]>,
+  postApplyChecksum: bigint,
+  written?: { index: Map<number, [number, number]> },
 ): AsyncGenerator<Uint8Array> {
   const crc = new Crc64();
   const head = new Uint8Array(HEADER_SIZE);
@@ -241,6 +292,7 @@ export async function* encodeLtxStream(
     pv.setUint32(6, compressed.length);
     crc.update(ph).update(data); // the checksum covers uncompressed pages (encodeLtx's `feed`)
     uvarint(pgno), uvarint(offset), uvarint(10 + compressed.length);
+    written?.index.set(pgno, [offset, 10 + compressed.length]);
     offset += 10 + compressed.length;
     yield ph;
     yield compressed;

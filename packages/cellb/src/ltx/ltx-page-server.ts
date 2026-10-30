@@ -11,7 +11,7 @@ import { ltxFileName } from "./ltx.js";
 import { compactPagedCellTo, encodeLtxStream, openPagedCell, type PagedCell } from "./ltx-pages.js";
 
 export interface LtxStoreMessage {
-  op: "meta" | "read" | "readRun" | "commit";
+  op: "meta" | "read" | "readRun" | "commit" | "stats";
   cell: string;
   pgno?: number;
   count?: number;
@@ -33,6 +33,16 @@ export function ltxCellStore(
   const dirOf = (cell: string) =>
     `${root}/cells/${scopeOf(cell).replace(/[\\/]/g, "_")}/ltx/e1/0000`;
   const cells = new Map<string, PagedCell | undefined>();
+  /** Where the store's time goes (ms), for traces. */
+  const stats = {
+    commits: 0,
+    writeMs: 0,
+    appendMs: 0,
+    compactions: 0,
+    compactMs: 0,
+    reads: 0,
+    readMs: 0,
+  };
   const list = async (dir: string) => {
     const out: string[] = [];
     if (!(await files.exists(dir))) return out;
@@ -83,40 +93,61 @@ export function ltxCellStore(
             );
           if (msg.op === "read") return answer(await (c as PagedCell).readPage(msg.pgno as number));
           if (msg.op === "readRun") {
-            const run = await (c as PagedCell).readRun(msg.pgno as number, msg.count as number);
-            const size = (c as PagedCell).pageSize;
-            const out = new Uint8Array(run.size * size);
-            [...run.keys()]
-              .sort((a, b) => a - b)
-              .forEach((p, i) => out.set(run.get(p) as Uint8Array, i * size));
-            return answer(out);
+            stats.reads++;
+            const tr = performance.now();
+            try {
+              const run = await (c as PagedCell).readRun(msg.pgno as number, msg.count as number);
+              const size = (c as PagedCell).pageSize;
+              const out = new Uint8Array(run.size * size);
+              [...run.keys()]
+                .sort((a, b) => a - b)
+                .forEach((p, i) => out.set(run.get(p) as Uint8Array, i * size));
+              return answer(out);
+            } finally {
+              stats.readMs += performance.now() - tr;
+            }
           }
+          if (msg.op === "stats") return answer(enc.encode(JSON.stringify(stats)));
           if (msg.op === "commit") {
+            const t0 = performance.now();
             const txid = (c?.maxTXID ?? 0n) + 1n;
             const path = `${dirOf(msg.cell)}/${ltxFileName(txid, txid)}`;
             const pages = msg.pages as [number, Uint8Array][];
+            const written = { index: new Map<number, [number, number]>() };
+            const header = {
+              pageSize: msg.pageSize as number,
+              commit: msg.pageCount as number,
+              minTXID: txid,
+              maxTXID: txid,
+              timestamp: Date.now(),
+              preApplyChecksum: 0n,
+            };
             await files.write(
               path,
               encodeLtxStream(
-                {
-                  pageSize: msg.pageSize as number,
-                  commit: msg.pageCount as number,
-                  minTXID: txid,
-                  maxTXID: txid,
-                  timestamp: Date.now(),
-                  preApplyChecksum: 0n,
-                },
+                header,
                 (async function* () {
                   yield* pages;
                 })(),
+                0n,
+                written,
               ),
             );
+            const t1 = performance.now();
             // The first commit is the snapshot; later ones extend the overlay by one file.
-            if (c) await c.append(path);
+            if (c) await c.append(path, { header: { flags: 2, ...header }, index: written.index });
             else cells.delete(msg.cell);
             answer(new Uint8Array());
+            stats.commits++;
+            stats.writeMs += t1 - t0;
+            stats.appendMs += performance.now() - t1;
             // Past the threshold, fold the cell into one snapshot (after answering the commit).
-            if (c && c.files.length >= compactAfter) await compact(msg.cell);
+            if (c && c.files.length >= compactAfter) {
+              const t2 = performance.now();
+              await compact(msg.cell);
+              stats.compactions++;
+              stats.compactMs += performance.now() - t2;
+            }
             return;
           }
           throw new Error(`unknown op ${msg.op}`);
@@ -130,6 +161,7 @@ export function ltxCellStore(
       (queue = queue.then(() => compact(cell).then(() => {}))).then(
         async () => (await cellOf(cell))?.files.length ?? 0,
       ),
+    stats,
     /** The paths of a cell's current files. */
     files: async (cell: string) => (await cellOf(cell))?.files.map((f) => f.path) ?? [],
   };
@@ -159,6 +191,7 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
     get files() {
       return Array.from({ length: count });
     },
+    stats: store.stats,
     /** The cell's file count, after the requests sent so far. */
     fileCount: async () => (await store.files(name)).length,
   };

@@ -36,10 +36,15 @@
     ...(storage === "ltx" ? { bucket: { ltx: "cells-lab-ltx", node: "tab", compactAfter: 8 } } : {}),
   });
   // Shards attach to the router as their workers start: wait until a cell answers.
+  // Every shard must answer: ping cells until 64 names (spread over the shards) all do.
+  const answers = async (name) => {
+    const r = await fetch(`/__cellb/projects/counter/${name}`).catch(() => undefined);
+    return !!r?.ok && (r.headers.get("content-type") ?? "").includes("json");
+  };
   for (let i = 0; ; i++) {
-    const r = await fetch("/__cellb/projects/counter/ping").catch(() => undefined);
-    if (r?.ok && (r.headers.get("content-type") ?? "").includes("json")) break;
-    if (i % 25 === 24) console.warn(`waiting for the shards: ${r?.status} ${(await r?.text())?.slice(0, 200)}`);
+    const ok = await Promise.all(Array.from({ length: 64 }, (_, k) => answers(`ping${k}`)));
+    if (ok.every(Boolean)) break;
+    if (i % 25 === 24) console.warn(`waiting for the shards: ${ok.filter(Boolean).length}/64 answer`);
     await new Promise((x) => setTimeout(x, 200));
   }
   window.__startMs = Math.round(performance.now() - t0);

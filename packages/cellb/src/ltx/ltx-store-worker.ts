@@ -7,6 +7,7 @@
  */
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
 import { ltxCellStore } from "./ltx-page-server.js";
+import { opfsSyncFiles } from "./opfs-sync-files.js";
 
 let store: ReturnType<typeof ltxCellStore> | undefined;
 let ready: Promise<void> | undefined;
@@ -15,9 +16,10 @@ self.onmessage = (e: MessageEvent) => {
   if (m?.op === "init") {
     ready = (async () => {
       const root = await navigator.storage.getDirectory();
-      const files = new BrowserFilesApi({
-        rootHandle: await root.getDirectoryHandle(m.dir, { create: true }),
-      });
+      const dir = await root.getDirectoryHandle(m.dir, { create: true });
+      // This worker alone owns the directory: synchronous handles for writes (`m.async` keeps
+      // the asynchronous OPFS API, for comparison).
+      const files = m.async ? new BrowserFilesApi({ rootHandle: dir }) : opfsSyncFiles(dir);
       store = ltxCellStore(files, m.sab, { compactAfter: m.compactAfter });
       postMessage({ op: "ready" });
     })();
