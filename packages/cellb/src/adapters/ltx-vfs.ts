@@ -31,11 +31,13 @@ export interface LtxVfsStats {
 export function installLtxVfs(
   sqlite3: any,
   channel: LtxVfsChannel,
-  opts: { name?: string; cachePages?: number } = {},
+  opts: { name?: string; cachePages?: number; readAhead?: number } = {},
 ): { name: string; stats: LtxVfsStats } {
   const { capi, wasm } = sqlite3;
   const name = opts.name ?? "ltx";
   const cacheMax = opts.cachePages ?? 2048;
+  // A miss fetches this many consecutive pages at once (SQLite scans walk pages in order).
+  const readAhead = Math.max(1, opts.readAhead ?? 16);
   const ctl = new Int32Array(channel.sab, 0, 2);
   const payload = new Uint8Array(channel.sab, 8);
   const stats: LtxVfsStats = { reads: 0, cacheHits: 0, storeReads: 0, commits: 0, blockedMs: 0 };
@@ -70,10 +72,20 @@ export function installLtxVfs(
       return c;
     }
     stats.storeReads++;
-    const p = pgno <= pageCount ? call({ op: "read", pgno }) : new Uint8Array(pageSize);
-    cache.set(pgno, p);
-    if (cache.size > cacheMax) cache.delete(cache.keys().next().value as number);
-    return p;
+    if (pgno > pageCount) return new Uint8Array(pageSize);
+    const count = Math.min(
+      readAhead,
+      pageCount - pgno + 1,
+      Math.floor((channel.sab.byteLength - 8) / pageSize),
+    );
+    const run = call({ op: "readRun", pgno, count });
+    for (let i = 0; i * pageSize < run.length; i++) {
+      const q = pgno + i;
+      if (dirty.has(q)) continue;
+      cache.set(q, run.subarray(i * pageSize, (i + 1) * pageSize));
+      if (cache.size > cacheMax) cache.delete(cache.keys().next().value as number);
+    }
+    return cache.get(pgno) ?? new Uint8Array(pageSize);
   };
 
   // Journal and other non-main files: plain memory.

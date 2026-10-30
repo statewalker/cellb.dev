@@ -12,18 +12,34 @@
   const root = await navigator.storage.getDirectory();
   const files = new BrowserFilesApi({ rootHandle: await root.getDirectoryHandle("ltx-lab", { create: true }) });
   const dir = "/cells/Lab:0001/ltx/e1/0000";
-  const sab = new SharedArrayBuffer(8 + 65536);
-  const server = ltxPageServer(files, dir, sab);
-  await server.ready;
+  const sab = new SharedArrayBuffer(8 + 16 * 65536); // room for a read-ahead run
+  // ?store=worker: the store runs in a worker of its own; otherwise on this page's thread.
+  const inWorker = new URLSearchParams(location.search).get("store") === "worker";
+  let connect, compact, fileCount;
+  if (inWorker) {
+    const store = new Worker(new URL("./ltx-store-worker.ts", import.meta.url), { type: "module" });
+    const reply = (op) => new Promise((r) => store.addEventListener("message", function h(e) { if (e.data.op === op) { store.removeEventListener("message", h); r(e.data); } }));
+    store.postMessage({ op: "init", sab, dir, root: "ltx-lab" });
+    await reply("ready");
+    connect = (port) => store.postMessage({ op: "connect", port }, [port]);
+    compact = async () => { store.postMessage({ op: "compact" }); return (await reply("compacted")).files; };
+    fileCount = async () => { store.postMessage({ op: "files" }); return (await reply("files")).files; };
+  } else {
+    const server = ltxPageServer(files, dir, sab);
+    await server.ready;
+    connect = (port) => { port.onmessage = (e) => server.handle(e.data); };
+    compact = () => server.compact();
+    fileCount = async () => server.files.length;
+  }
   // Runs `script` (a function body over `db`, sync oo1 API) in a fresh worker on the cell.
   window.__run = (script, cachePages) => new Promise((resolve) => {
     const { port1, port2 } = new MessageChannel();
-    port1.onmessage = (e) => server.handle(e.data);
+    connect(port1);
     const w = new Worker(new URL("./ltx-lab-worker.ts", import.meta.url), { type: "module" });
-    w.onmessage = (e) => { resolve({ ...e.data, files: server.files.length }); w.terminate(); port1.close(); };
+    w.onmessage = async (e) => { resolve({ ...e.data, files: await fileCount() }); w.terminate(); };
     w.postMessage({ sab, port: port2, script, cachePages }, [port2]);
   });
-  window.__compact = async () => ({ files: await server.compact() });
+  window.__compact = async () => ({ files: await compact() });
   window.__usage = async () => (await navigator.storage.estimate()).usage;
   document.body.dataset.ready = String(crossOriginIsolated);
 </script></body></html>

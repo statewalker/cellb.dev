@@ -37,6 +37,7 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
     handle(msg: {
       op: string;
       pgno?: number;
+      count?: number;
       pageSize?: number;
       pageCount?: number;
       pages?: [number, Uint8Array][];
@@ -52,13 +53,24 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
             );
           if (msg.op === "read")
             return answer(await (cell as PagedCell).readPage(msg.pgno as number));
+          if (msg.op === "readRun") {
+            // Pages pgno..pgno+count-1, concatenated (read ahead: one range read per file).
+            const run = await (cell as PagedCell).readRun(msg.pgno as number, msg.count as number);
+            const size = (cell as PagedCell).pageSize;
+            const out = new Uint8Array(run.size * size);
+            [...run.keys()]
+              .sort((a, b) => a - b)
+              .forEach((p, i) => out.set(run.get(p) as Uint8Array, i * size));
+            return answer(out);
+          }
           if (msg.op === "commit") {
             const txid = (cell?.maxTXID ?? 0n) + 1n;
             async function* pages() {
               yield* msg.pages as [number, Uint8Array][];
             }
+            const path = `${dir}/${ltxFileName(txid, txid)}`;
             await files.write(
-              `${dir}/${ltxFileName(txid, txid)}`,
+              path,
               encodeLtxStream(
                 {
                   pageSize: msg.pageSize as number,
@@ -71,7 +83,9 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
                 pages(),
               ),
             );
-            await reopen();
+            // The first commit is the snapshot; later ones extend the overlay by one file.
+            if (cell) await cell.append(path);
+            else await reopen();
             return answer(new Uint8Array());
           }
           throw new Error(`unknown op ${msg.op}`);

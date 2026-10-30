@@ -39,6 +39,8 @@ export interface LtxPages {
   index: Map<number, [number, number]>;
   /** One range read and an LZ4 decode. */
   readPage(pgno: number): Promise<Uint8Array | undefined>;
+  /** Several pages of this file with ONE range read (they are stored in pgno order). */
+  readPages(pgnos: number[]): Promise<Map<number, Uint8Array>>;
 }
 
 /** Opens an LTX file for page reads: reads its header and its page index only. */
@@ -65,6 +67,12 @@ export async function openLtxPages(files: FilesApi, path: string): Promise<LtxPa
   const tail = await readRange(files, path, size - 24, 24);
   const idxLen = Number(new DataView(tail.buffer, tail.byteOffset, 24).getBigUint64(0));
   const idx = await readRange(files, path, size - 24 - idxLen, idxLen);
+  const decodePage = (b: Uint8Array) => {
+    const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    if (v.getUint16(4) & PAGE_HEADER_FLAG_SIZE)
+      return lz4Decompress(b.subarray(10, 10 + v.getUint32(6)), header.pageSize);
+    return lz4FrameDecompress(b.subarray(6), header.pageSize);
+  };
   const index = new Map<number, [number, number]>();
   let o = 0;
   const varint = () => {
@@ -91,11 +99,20 @@ export async function openLtxPages(files: FilesApi, path: string): Promise<LtxPa
     async readPage(pgno) {
       const at = index.get(pgno);
       if (!at) return undefined;
-      const b = await readRange(files, path, at[0], at[1]);
-      const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
-      if (v.getUint16(4) & PAGE_HEADER_FLAG_SIZE)
-        return lz4Decompress(b.subarray(10, 10 + v.getUint32(6)), header.pageSize);
-      return lz4FrameDecompress(b.subarray(6), header.pageSize);
+      return decodePage(await readRange(files, path, at[0], at[1]));
+    },
+    async readPages(pgnos) {
+      const out = new Map<number, Uint8Array>();
+      const wanted = pgnos.filter((p) => index.has(p));
+      if (!wanted.length) return out;
+      const spans = wanted.map((p) => index.get(p) as [number, number]);
+      const start = Math.min(...spans.map((s) => s[0]));
+      const end = Math.max(...spans.map((s) => s[0] + s[1]));
+      const b = await readRange(files, path, start, end - start);
+      wanted.forEach((p, i) =>
+        out.set(p, decodePage(b.subarray(spans[i][0] - start, spans[i][0] - start + spans[i][1]))),
+      );
+      return out;
     },
   };
 }
@@ -109,8 +126,15 @@ export interface PagedCell {
   files: LtxPages[];
   /** The page as of the newest file holding it (zeros past the database end). */
   readPage(pgno: number): Promise<Uint8Array>;
+  /** Pages `from`..`from+count-1` (within the database), one range read per file they live in. */
+  readRun(from: number, count: number): Promise<Map<number, Uint8Array>>;
   /** Which file serves each page (for tests and traces). */
   source(pgno: number): string | undefined;
+  /**
+   * Adds the cell's next file (the one just written after `maxTXID`): reads its header and index
+   * only, so a commit costs one file whatever the number of files before it.
+   */
+  append(path: string): Promise<void>;
 }
 
 /**
@@ -131,20 +155,43 @@ export async function openPagedCell(files: FilesApi, paths: string[]): Promise<P
   for (let i = 1; i < chain.length; i++)
     if (chain[i].header.minTXID !== chain[i - 1].header.maxTXID + 1n)
       throw new Error(`ltx: gap before ${chain[i].path}`);
-  const newest = chain[chain.length - 1].header;
+  let newest = chain[chain.length - 1].header;
   const owner = new Map<number, LtxPages>();
   for (const f of chain) for (const pgno of f.index.keys()) owner.set(pgno, f);
-  return {
+  const cell: PagedCell = {
     pageSize: newest.pageSize,
     pageCount: newest.commit,
     maxTXID: newest.maxTXID,
     files: chain,
     source: (pgno) => owner.get(pgno)?.path,
     async readPage(pgno) {
-      const page = pgno <= newest.commit ? await owner.get(pgno)?.readPage(pgno) : undefined;
-      return page ?? new Uint8Array(newest.pageSize);
+      const page = pgno <= cell.pageCount ? await owner.get(pgno)?.readPage(pgno) : undefined;
+      return page ?? new Uint8Array(cell.pageSize);
+    },
+    async readRun(from, count) {
+      const byFile = new Map<LtxPages, number[]>();
+      const out = new Map<number, Uint8Array>();
+      for (let p = from; p < from + count && p <= cell.pageCount; p++) {
+        const f = owner.get(p);
+        if (!f) out.set(p, new Uint8Array(cell.pageSize));
+        else byFile.set(f, [...(byFile.get(f) ?? []), p]);
+      }
+      for (const [f, pgnos] of byFile) for (const [p, d] of await f.readPages(pgnos)) out.set(p, d);
+      return out;
+    },
+    async append(path) {
+      const f = await openLtxPages(files, path);
+      if (f.header.minTXID !== cell.maxTXID + 1n)
+        throw new Error(`ltx: ${path} does not follow TXID ${cell.maxTXID}`);
+      chain.push(f);
+      for (const pgno of f.index.keys()) owner.set(pgno, f);
+      newest = f.header;
+      cell.pageCount = newest.commit;
+      cell.maxTXID = newest.maxTXID;
+      for (const [pgno] of owner) if (pgno > cell.pageCount) owner.delete(pgno);
     },
   };
+  return cell;
 }
 
 /**
