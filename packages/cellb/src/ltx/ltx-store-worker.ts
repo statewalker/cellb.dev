@@ -19,6 +19,7 @@ self.onmessage = (e: MessageEvent) => {
         rootHandle: await root.getDirectoryHandle(m.dir, { create: true }),
       });
       store = ltxCellStore(files, m.sab, { compactAfter: m.compactAfter });
+      postMessage({ op: "ready" });
     })();
     return;
   }

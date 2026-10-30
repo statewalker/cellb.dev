@@ -6,6 +6,7 @@
  * shared buffer. A cell whose files pass `compactAfter` is folded into one snapshot (streamed).
  */
 import type { FilesApi } from "@statewalker/webrun-files";
+import { scopeOf } from "../core/celld-schema.js";
 import { ltxFileName } from "./ltx.js";
 import { compactPagedCellTo, encodeLtxStream, openPagedCell, type PagedCell } from "./ltx-pages.js";
 
@@ -28,7 +29,9 @@ export function ltxCellStore(
   const payload = new Uint8Array(sab, 8);
   const root = (opts.root ?? "").replace(/\/$/, "");
   const compactAfter = opts.compactAfter ?? 64;
-  const dirOf = (cell: string) => `${root}/cells/${cell.replace(/[\\/]/g, "_")}/ltx/e1/0000`;
+  // celld's cell directory: `<Class>:<idHex>` (scopeOf), as the LTX log and celld name it.
+  const dirOf = (cell: string) =>
+    `${root}/cells/${scopeOf(cell).replace(/[\\/]/g, "_")}/ltx/e1/0000`;
   const cells = new Map<string, PagedCell | undefined>();
   const list = async (dir: string) => {
     const out: string[] = [];

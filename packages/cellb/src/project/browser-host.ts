@@ -116,13 +116,20 @@ async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
  * Cells on the LTX VFS: a store worker owns the OPFS directory; each cell is a SQLite database
  * whose main file is its LTX files, read page by page (src/adapters/ltx-vfs.ts).
  */
-function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number) {
+async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number) {
   const store = new Worker(
     new URL("../ltx/ltx-store-worker.ts", import.meta.url) /* cellb ships its TypeScript sources */,
     { type: "module" },
   );
   const sab = new SharedArrayBuffer(8 + 16 * 65536); // room for a read-ahead run of 64 KiB pages
+  // Wait until the store worker runs before any synchronous call: a nested worker is started
+  // (its script fetched) through this worker's event loop, which Atomics.wait would block.
+  const ready = new Promise<void>((resolve, reject) => {
+    store.addEventListener("message", (e) => e.data?.op === "ready" && resolve(), { once: false });
+    store.addEventListener("error", (e) => reject(new Error(`ltx store worker: ${e.message}`)));
+  });
   store.postMessage({ op: "init", sab, dir, compactAfter });
+  await ready;
   const { name } = installLtxVfs(sqlite3, { sab, post: (m) => store.postMessage(m) });
   const s3 = sqlite3 as { oo1: { DB: new (o: Record<string, unknown>) => any } };
   const open = (cellKey: string) => {
@@ -217,7 +224,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
   // With an IndexedDB bucket, cells live in memory and in the bucket's logs (no OPFS pool).
   const openSql =
     opts.bucket && "ltx" in opts.bucket
-      ? ltxOpener(opts.sqlite3, opts.bucket.ltx, opts.bucket.compactAfter)
+      ? await ltxOpener(opts.sqlite3, opts.bucket.ltx, opts.bucket.compactAfter)
       : opts.bucket && "idb" in opts.bucket
         ? Object.assign(wasmMemoryOpener(opts.sqlite3 as never), {
             release() {},
