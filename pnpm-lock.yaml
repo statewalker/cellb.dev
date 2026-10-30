@@ -106,8 +106,8 @@ importers:
         specifier: 1.2.6
         version: 1.2.6(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
       '@statewalker/webrun-bundler':
-        specifier: 0.1.0
-        version: 0.1.0(esbuild-wasm@0.28.2)
+        specifier: link:../../../webrun-sites/packages/webrun-bundler
+        version: link:../../../webrun-sites/packages/webrun-bundler
       '@statewalker/webrun-files-mem':
         specifier: ^0.10.0
         version: 0.10.3
@@ -136,6 +136,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3766,11 +3769,6 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
-
-  '@statewalker/webrun-bundler@0.1.0':
-    resolution: {integrity: sha512-X2FXb4TUjY801MxqkcXj9KTFTG4EJoTOwf8TyZ6GccBtzAeqr0QRjHZ/wloCEC0EnkTiupD7GpQ3AG8UYIMdAA==}
-    peerDependencies:
-      esbuild-wasm: ^0.28.0
 
   '@statewalker/webrun-files-browser@0.10.2':
     resolution: {integrity: sha512-2Fq90Q2YYPcWpvmJed6vc81OmxcqpDXITO0V1ntFEN2UMimeiebwFnMBUbgwac1m/rQoPTMNdN0ME1wcJcEKrA==}
@@ -12272,13 +12270,6 @@ snapshots:
   '@stablelib/base64@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
-
-  '@statewalker/webrun-bundler@0.1.0(esbuild-wasm@0.28.2)':
-    dependencies:
-      '@statewalker/webrun-files': 0.10.3
-      '@statewalker/webrun-modules': 0.3.6
-      esbuild-wasm: 0.28.2
-      resolve.exports: 2.0.4
 
   '@statewalker/webrun-files-browser@0.10.2':
     dependencies:

@@ -103,8 +103,48 @@ export async function projectRoutes(files: FilesApi, root: string): Promise<Rout
       _meta: { trailingSlash: "ignore" },
     });
   }
-  // Static routes first, then fewer dynamic segments, then rest parameters last.
+  return sortRoutes(routes);
+}
+
+/** The route an integration injects (`injectRoute({ pattern, entrypoint })`). */
+export function routeFromPattern(pattern: string, component: string): RouteData {
+  const parts = pattern.split("/").filter(Boolean);
+  const segments = parts.map(parseSegment);
+  const params = segments
+    .flat()
+    .filter((p) => p.dynamic)
+    .map((p) => p.content);
+  const type = component.endsWith(".astro") ? "page" : "endpoint";
+  const hasExt = type === "endpoint" && /\.[a-z0-9]+$/i.test(parts.at(-1) ?? "");
+  const route = `/${parts.join("/")}`;
+  return {
+    route,
+    component,
+    type,
+    params,
+    segments,
+    pattern: patternOf(segments, hasExt),
+    ...(params.length ? {} : { pathname: route }),
+    isIndex: false,
+    prerender: false,
+    fallbackRoutes: [],
+    distURL: [],
+    origin: "external",
+    _meta: { trailingSlash: "ignore" },
+  };
+}
+
+/** Astro's route priority: static before dynamic, rest parameters last, longer first. */
+export function sortRoutes(routes: RouteData[]): RouteData[] {
   const weight = (r: RouteData) =>
     r.segments.flat().reduce((w, p) => w + (p.spread ? 100 : p.dynamic ? 10 : 0), 0);
-  return routes.sort((a, b) => weight(a) - weight(b) || b.segments.length - a.segments.length);
+  return routes.sort((a, b) => {
+    const n = Math.min(a.segments.length, b.segments.length);
+    for (let i = 0; i < n; i++) {
+      const wa = a.segments[i].reduce((w, p) => w + (p.spread ? 100 : p.dynamic ? 10 : 0), 0);
+      const wb = b.segments[i].reduce((w, p) => w + (p.spread ? 100 : p.dynamic ? 10 : 0), 0);
+      if (wa !== wb) return wa - wb;
+    }
+    return b.segments.length - a.segments.length || weight(a) - weight(b);
+  });
 }

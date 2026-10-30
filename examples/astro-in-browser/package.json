@@ -8,11 +8,12 @@
   "scripts": {
     "test": "vitest run",
     "test:browser": "playwright test",
-    "dev:browser": "vite browser --config browser/vite.config.ts"
+    "dev:browser": "vite browser --config browser/vite.config.ts",
+    "trace": "tsx scripts/trace-build.mts"
   },
   "dependencies": {
     "@astrojs/compiler": "4.0.0",
-    "@statewalker/webrun-bundler": "0.1.0",
+    "@statewalker/webrun-bundler": "link:../../../webrun-sites/packages/webrun-bundler",
     "@statewalker/webrun-files-mem": "^0.10.0",
     "esbuild-wasm": "0.28.2",
     "@napi-rs/wasm-runtime": "1.2.6",
@@ -27,6 +28,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "@astrojs/compiler-rs": "0.5.2"
+    "@astrojs/compiler-rs": "0.5.2",
+    "tsx": "^4.21.0"
   }
 }

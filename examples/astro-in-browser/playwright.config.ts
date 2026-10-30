@@ -21,7 +21,7 @@ export default defineConfig({
   webServer: {
     command: `node node_modules/vite/bin/vite.js browser --config browser/vite.config.ts --port ${port} --strictPort`,
     url: `http://localhost:${port}/__cellb/`,
-    reuseExistingServer: false,
+    reuseExistingServer: true,
     timeout: 120_000,
   },
   testDir: "test/browser",

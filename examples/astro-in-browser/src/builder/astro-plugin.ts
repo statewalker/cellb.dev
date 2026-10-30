@@ -35,6 +35,10 @@ async function readText(files: FilesApi, path: string): Promise<string> {
 
 export interface CompiledComponent {
   css: string[];
+  /** The component's `<script>`s (TypeScript, imports relative to the component). */
+  scripts?: string[];
+  /** Islands: the specifiers (absolute file ids or package specifiers) of hydrated components. */
+  islands?: string[];
   containsHead: boolean;
   propagation: boolean;
 }
@@ -48,6 +52,7 @@ export function astroPlugin(opts: {
   mounts: Map<string, MountLike>;
   /** Filled with each compiled component, by id. */
   components: Map<string, CompiledComponent>;
+  trace?: import("./trace.js").Trace;
 }): Plugin {
   const locate = (id: string) => {
     let best: MountLike | undefined;
@@ -60,9 +65,22 @@ export function astroPlugin(opts: {
   return {
     name: "astro-components",
     setup(b) {
+      // A component's script, for the client build: `<id>?astro&type=script&index=<n>&lang.ts`.
+      b.onResolve({ filter: /\?astro&type=script&index=\d+/ }, (args) => ({
+        path: args.path,
+        namespace: "webrun",
+      }));
+      b.onLoad({ filter: /\?astro&type=script&index=\d+/, namespace: "webrun" }, (args) => {
+        const [id, query] = args.path.split("?");
+        const index = Number(/index=(\d+)/.exec(query)?.[1] ?? 0);
+        const code = opts.components.get(id)?.scripts?.[index];
+        if (code === undefined) return { errors: [{ text: `no script ${index} in ${id}` }] };
+        return { contents: code, loader: "ts" };
+      });
       b.onLoad({ filter: /\.astro$/, namespace: "webrun" }, async (args) => {
         const { mount, path } = locate(args.path);
         const source = await readText(mount.files, path);
+        const t0 = performance.now();
         const r = opts.transform(source, {
           filename: args.path,
           normalizedFilename: args.path,
@@ -72,13 +90,32 @@ export function astroPlugin(opts: {
           compact: "jsx",
           scopedStyleStrategy: "attribute",
           transitionsAnimationURL: "astro/components/viewtransitions.css",
-          // With a resolver, the compiler emits what Astro 7 renders (no legacy $$metadata).
-          resolvePath: (specifier: string) => specifier,
+          // With a resolver, the compiler emits what Astro 7 renders (no legacy $$metadata);
+          // islands' relative specifiers become file ids, the client build's entries.
+          resolvePath: (specifier: string) =>
+            specifier.startsWith(".")
+              ? new URL(specifier, `file:///${args.path}`).pathname.slice(1)
+              : specifier,
         });
+        opts.trace?.add(
+          "transform",
+          `astro ${args.path}`,
+          {
+            in: source.length,
+            out: r.code.length,
+            css: r.css.length,
+            diagnostics: r.diagnostics.length,
+          },
+          performance.now() - t0,
+        );
         const error = r.diagnostics.find((d) => d.severity === 1 || d.severity === "error");
         if (error) return { errors: [{ text: `${args.path}: ${error.text}` }] };
         opts.components.set(args.path, {
           css: r.css,
+          scripts: (r.scripts ?? []).filter((x) => x.type === "inline").map((x) => x.code ?? ""),
+          islands: [...(r.hydratedComponents ?? []), ...(r.clientOnlyComponents ?? [])].map(
+            (c) => c.resolvedPath || c.specifier,
+          ),
           containsHead: !!r.containsHead,
           propagation: !!r.propagation,
         });

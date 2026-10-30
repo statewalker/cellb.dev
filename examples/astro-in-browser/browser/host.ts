@@ -1,11 +1,13 @@
 // The host tab: makes this origin cross-origin isolated (through the ServiceWorker), builds the
 // app in a worker, and runs the built Worker on cellb (joinProjectShards).
 import { joinProjectShards } from "@statewalker/cellb/browser";
+import { crawlSite, zip } from "./export-site.ts";
 
 const status = document.getElementById("status")!;
 const logEl = document.getElementById("log")!;
 const say = (text: string) => (status.textContent = text);
 const log = (line: string) => {
+  console.info(`[build] ${line}`);
   logEl.textContent += `${line}\n`;
   logEl.scrollTop = logEl.scrollHeight;
 };
@@ -21,8 +23,10 @@ async function serviceWorker(): Promise<ServiceWorker> {
   return reg.active!;
 }
 
+const APP = (document.body.dataset.app ?? "app") as "app" | "emdash";
+
 async function sources(): Promise<Record<string, Uint8Array>> {
-  const base = `${import.meta.env.BASE_URL}app-src/`;
+  const base = `${import.meta.env.BASE_URL}${APP}-src/`;
   const list: string[] = await (await fetch(`${base}list.json`)).json();
   const out: Record<string, Uint8Array> = {};
   await Promise.all(
@@ -34,20 +38,22 @@ async function sources(): Promise<Record<string, Uint8Array>> {
   return out;
 }
 
-function build(src: Record<string, Uint8Array>): Promise<string> {
+function build(
+  src: Record<string, Uint8Array>,
+): Promise<{ code: string; clientAssets: Map<string, Uint8Array> }> {
   const worker = new Worker(new URL("./builder-worker.ts", import.meta.url), { type: "module" });
   return new Promise((resolve, reject) => {
     worker.onmessage = (e) => {
       if (e.data.log) log(e.data.log);
       else if (e.data.error) reject(new Error(e.data.error));
       else if (e.data.code) {
-        log(`routes: ${e.data.routes.join(" ")}`);
-        resolve(e.data.code);
+        log(`${e.data.routes} routes`);
+        resolve({ code: e.data.code, clientAssets: e.data.clientAssets });
         worker.terminate();
       }
     };
     worker.onerror = (e) => reject(new Error(e.message));
-    worker.postMessage({ sources: src });
+    worker.postMessage({ sources: src, integrations: APP === "emdash" });
   });
 }
 
@@ -70,31 +76,106 @@ async function start() {
   log(`${Object.keys(src).length} source files: ${Object.keys(src).join(" ")}`);
   say("Building the app in a worker…");
   const t0 = performance.now();
-  const bundle = await build(src);
+  // `?cached`: reuse the last build (kept in OPFS), to iterate on what runs after it.
+  const opfs = await navigator.storage.getDirectory();
+  const cacheName = `${APP}-build.json`;
+  let built: { code: string; clientAssets: Map<string, Uint8Array> } | undefined;
+  if (new URLSearchParams(location.search).has("cached")) {
+    try {
+      const f = await (await opfs.getFileHandle(cacheName)).getFile();
+      const j = JSON.parse(await f.text());
+      built = {
+        code: j.code,
+        clientAssets: new Map(j.assets.map(([k, v]: [string, number[]]) => [k, new Uint8Array(v)])),
+      };
+      log(`reusing the cached build (${(j.code.length / 1e6).toFixed(2)} MB)`);
+    } catch {}
+  }
+  if (!built) {
+    built = await build(src);
+    const w = await (await opfs.getFileHandle(cacheName, { create: true })).createWritable();
+    await w.write(
+      JSON.stringify({
+        code: built.code,
+        assets: [...built.clientAssets].map(([k, v]) => [k, [...v]]),
+      }),
+    );
+    await w.close();
+  }
+  const { code: bundle, clientAssets } = built;
   document.body.dataset.buildMs = String(Math.round(performance.now() - t0));
   say("Starting the built Worker on cellb…");
+  log("starting the built Worker on cellb");
   await joinProjectShards({
     name: "app",
     shards: 1,
-    spawn: () => new Worker(new URL("./shard-worker.ts", import.meta.url), { type: "module" }),
-    config: {
-      name: "app",
-      main: "worker.js",
-      compatibility_date: "2026-02-24",
-      compatibility_flags: ["nodejs_compat"],
+    spawn: () => {
+      const w = new Worker(new URL("./shard-worker.ts", import.meta.url), { type: "module" });
+      w.addEventListener(
+        "message",
+        (e) => e.data?.shardLog && console.warn(`[shard] ${e.data.shardLog}`),
+      );
+      w.addEventListener("error", (e) =>
+        console.warn(`[shard] worker error: ${e.message} ${e.filename}:${e.lineno}`),
+      );
+      return w;
     },
+    config:
+      APP === "emdash"
+        ? emdashConfig()
+        : {
+            name: "app",
+            main: "worker.js",
+            compatibility_date: "2026-02-24",
+            compatibility_flags: ["nodejs_compat"],
+          },
     code: { bundle },
-    assetFiles: new Map(),
+    assetFiles: clientAssets,
     serviceWorker,
   });
-  for (;;) {
+  log("shards joined; waiting for the site to answer");
+  for (let i = 0; ; i++) {
     const r = await fetch("/").catch(() => undefined);
     if (r?.ok) break;
+    if (i % 25 === 0)
+      log(`GET / → ${r?.status}: ${(await r?.text().catch(() => ""))?.slice(0, 500)}`);
+    if (i > 300) throw new Error("the built site does not answer");
     await new Promise((r) => setTimeout(r, 200));
   }
   say(`Running: built in ${document.body.dataset.buildMs} ms, served from this tab.`);
   document.body.dataset.ready = "true";
 }
+
+/** The EmDash template's bindings (wrangler.jsonc), and its canonical URL: this origin. */
+function emdashConfig() {
+  return {
+    name: "emdash",
+    main: "worker.js",
+    compatibility_date: "2026-02-24",
+    compatibility_flags: ["nodejs_compat"],
+    d1_databases: [{ binding: "DB", database_name: "emdash" }],
+    r2_buckets: [{ binding: "MEDIA", bucket_name: "emdash-media" }],
+    kv_namespaces: [{ binding: "SESSION" }],
+    vars: { EMDASH_SITE_URL: location.origin },
+    assets: { directory: "client", binding: "ASSETS", run_worker_first: false },
+  };
+}
+
+/** Crawls the running site and downloads it as a ZIP of static files. */
+async function exportSite() {
+  say("Exporting the site…");
+  const files = await crawlSite(log);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(zip(files));
+  a.download = `${APP}-site.zip`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  say(`Exported ${files.size} files.`);
+  return [...files.keys()];
+}
+Object.assign(window, { __exportSite: exportSite });
+document.getElementById("export")?.addEventListener("click", () => void exportSite());
 
 start().catch((e) => {
   document.body.dataset.error = String(e?.stack ?? e);
