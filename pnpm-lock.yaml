@@ -105,12 +105,18 @@ importers:
       '@napi-rs/wasm-runtime':
         specifier: 1.2.6
         version: 1.2.6(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
+      '@statewalker/db-sqlite-browser':
+        specifier: 0.2.1
+        version: 0.2.1
       '@statewalker/webrun-bundler':
         specifier: link:../../../webrun-sites/packages/webrun-bundler
         version: link:../../../webrun-sites/packages/webrun-bundler
       '@statewalker/webrun-files-mem':
         specifier: ^0.10.0
         version: 0.10.3
+      '@statewalker/webrun-files-sqlite':
+        specifier: 0.11.0
+        version: 0.11.0
       '@statewalker/webrun-modules':
         specifier: 0.3.6
         version: 0.3.6
@@ -133,6 +139,9 @@ importers:
       '@statewalker/cellb':
         specifier: workspace:*
         version: link:../../packages/cellb
+      '@statewalker/db-sqlite-node':
+        specifier: 0.3.0
+        version: 0.3.0
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
@@ -3760,6 +3769,10 @@ packages:
   '@speed-highlight/core@1.2.24':
     resolution: {integrity: sha512-qeW2e1l78afw8VhRPfPQ1Gjj+KU5XFQ/OFV5ti6eTa9bruO7mJyZtA4vw0ofqmA3tKCkROE9xLk3VZoeRc98nw==}
 
+  '@sqlite.org/sqlite-wasm@3.53.0-build1':
+    resolution: {integrity: sha512-PfWPWN2n+/37doa8oh2/oUXk4OOsRYZsxc1W1sDXIGb/Pu5Yrb+f2eyYpgQMGITVX7HVgxhs9P18Rc6I97ym/g==}
+    engines: {node: '>=22'}
+
   '@sqlite.org/sqlite-wasm@3.53.4-build2':
     resolution: {integrity: sha512-kQVArGJA4z7s56Dm8t+eTBXad4LiohuVj9pfgDNOcxa+Ic5xMrWlLPTq6cT0hw5S4MIvtpsraW+B0wD+IPvC7A==}
     engines: {node: '>=22'}
@@ -3770,11 +3783,27 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@statewalker/db-api@0.1.4':
+    resolution: {integrity: sha512-XqyQRE1CvJ8Ijv99u0eW8l/syARfuzhL3BGIFYC1375/KlvDJx+o4D4LNnMqCh97ScU/hERQaaJ0MeXYAngmvA==}
+
+  '@statewalker/db-sqlite-browser@0.2.1':
+    resolution: {integrity: sha512-v0rnck/LnDFfz7M4YVS1qwmff7NYvQ+WU7SlxyHzFyzD0qKuv0/sQGxcL7sLBKwyh8iXLeA4D2Ib08hGv8u/jw==}
+
+  '@statewalker/db-sqlite-node@0.3.0':
+    resolution: {integrity: sha512-hlRr2KD9nEUbuHWGUNMigmMQav87feSwUe/7VwPvSNdoRZ150UpJiAcL6ufEDX1kw/fF0J7Ivb5eeoVg1mHQhg==}
+    engines: {node: '>=22.13'}
+
+  '@statewalker/db-sqlite@0.1.0':
+    resolution: {integrity: sha512-LoVQS/KsuKwbJjXkbrYty2cuqmACFvdhmlQYtfQ8yuBiXSAX8yfKxdDWNcJYqcBJQk6Za7Mg+HU42Oh8jCL9eg==}
+
   '@statewalker/webrun-files-browser@0.10.2':
     resolution: {integrity: sha512-2Fq90Q2YYPcWpvmJed6vc81OmxcqpDXITO0V1ntFEN2UMimeiebwFnMBUbgwac1m/rQoPTMNdN0ME1wcJcEKrA==}
 
   '@statewalker/webrun-files-mem@0.10.3':
     resolution: {integrity: sha512-a6SnfQerlKqJybvK4oxd0VsvREHv91yo20JsU4s4EhiewdT3o6q3qzDKS9hZoMGBaOPOyqoQY9ViGnHjdXeiEA==}
+
+  '@statewalker/webrun-files-sqlite@0.11.0':
+    resolution: {integrity: sha512-j3lbImRrxfF88CJene1JJiZcMIJJqoagM5B4qLhRVa7eoYSybRY0h2w5bcr5avOVnv5oHqU1HZi9aXD4ri77Wg==}
 
   '@statewalker/webrun-files@0.10.3':
     resolution: {integrity: sha512-YALXiT2lyPhV2dq7kNVjcy3fUw8AAMyKub+9PdJ0T+5jnTD9RcRudy266Aqb18Nw/T2Up5B/eG4hEFnFQR3p8A==}
@@ -12265,11 +12294,30 @@ snapshots:
 
   '@speed-highlight/core@1.2.24': {}
 
+  '@sqlite.org/sqlite-wasm@3.53.0-build1': {}
+
   '@sqlite.org/sqlite-wasm@3.53.4-build2': {}
 
   '@stablelib/base64@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@statewalker/db-api@0.1.4': {}
+
+  '@statewalker/db-sqlite-browser@0.2.1':
+    dependencies:
+      '@sqlite.org/sqlite-wasm': 3.53.0-build1
+      '@statewalker/db-api': 0.1.4
+      '@statewalker/db-sqlite': 0.1.0
+
+  '@statewalker/db-sqlite-node@0.3.0':
+    dependencies:
+      '@statewalker/db-api': 0.1.4
+      '@statewalker/db-sqlite': 0.1.0
+
+  '@statewalker/db-sqlite@0.1.0':
+    dependencies:
+      '@statewalker/db-api': 0.1.4
 
   '@statewalker/webrun-files-browser@0.10.2':
     dependencies:
@@ -12277,6 +12325,12 @@ snapshots:
 
   '@statewalker/webrun-files-mem@0.10.3':
     dependencies:
+      '@statewalker/webrun-files': 0.10.3
+
+  '@statewalker/webrun-files-sqlite@0.11.0':
+    dependencies:
+      '@statewalker/db-api': 0.1.4
+      '@statewalker/db-sqlite': 0.1.0
       '@statewalker/webrun-files': 0.10.3
 
   '@statewalker/webrun-files@0.10.3': {}

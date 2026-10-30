@@ -13,7 +13,7 @@
 import { bundle, type Esbuild, type Mount, type PackageStore } from "@statewalker/webrun-bundler";
 import type { FilesApi } from "@statewalker/webrun-files";
 import { astroModule } from "./astro-modules.js";
-import { type AstroTransform, astroPlugin, type CompiledComponent } from "./astro-plugin.js";
+import { type AstroTransform, astroPlugin, type CompiledComponent, clientPartsOf, compileAstro } from "./astro-plugin.js";
 import type { IntegrationResult } from "./integrations.js";
 import { type ClientAssets, pathsPlugin } from "./paths-plugin.js";
 import { projectRoutes, type RouteData, routeFromPattern, sortRoutes } from "./routes.js";
@@ -252,16 +252,18 @@ export const inlinedScripts = g.inlinedScripts;`;
   await opts.files.write(`${root}/.astro-in-browser-entry.js`, [
     new TextEncoder().encode(`export { default } from "virtual:astro-in-browser/entry";\n`),
   ]);
-  log("bundling the server");
-  const first = await (opts.trace
-    ? opts.trace.time("bundle", "server bundle", run, (r) => ({
-        bytes: r.code.length,
-        inputs: Object.keys(r.metafile.inputs).length,
-      }))
-    : run());
+  // The client build reads the islands and scripts of every component, compiled up front
+  // (scanComponents: well under a second): it does not wait on the server bundle's graph, so it
+  // can run in a worker of its own. In ONE worker, running both bundles at once does not help:
+  // esbuild-wasm is single-threaded (measured: 73 s + 108 s together vs 40 s + 42 s in turn).
+  const scanned = await scanComponents(opts, root, mounts);
+  log(`scanned ${scanned.size} components; bundling the server`);
+  const timed = <T,>(what: string, fn: () => Promise<T>) => (opts.trace ? opts.trace.time("bundle", what, fn) : fn());
+  const first = await timed("server bundle", run);
+  log("bundling the client (islands, renderers' client entrypoints, component scripts)");
+  const clientBuilt = await timed("client bundle", () => buildClient({ ...opts, root, components: scanned, renderers, clientAssets, mounts }));
+  client = clientBuilt;
   pageStyles = stylesByPage(first.metafile, routes, components);
-  log("client build (islands, renderers' client entrypoints, component scripts)");
-  client = await buildClient({ ...opts, root, components, renderers, clientAssets, mounts });
   opts.trace?.add("bundle", "client build", {
     entryModules: client.entryModules,
     scripts: client.inlinedScripts.map(([k, v]) => [k, v.length]),
@@ -290,6 +292,48 @@ export const inlinedScripts = g.inlinedScripts;`;
     inputs: Object.keys(result.metafile?.inputs ?? {}),
     ms: Date.now() - started,
   };
+}
+
+/**
+ * Islands and scripts of every `.astro` file in the project's `src/` and in the packages the
+ * integrations load (`nodeMounts`), compiled ahead of the bundles. A component no route uses
+ * only adds to the client bundle.
+ */
+async function scanComponents(
+  o: AstroBuildOptions,
+  root: string,
+  mounts: Map<string, Mount>,
+): Promise<Map<string, CompiledComponent>> {
+  const out = new Map<string, CompiledComponent>();
+  const trees: [Mount, string][] = [[{ prefix: "~", files: o.files, root }, `${root}/src`]];
+  for (const m of o.nodeMounts?.values() ?? []) {
+    mounts.set(m.prefix, m);
+    trees.push([m, m.root]);
+  }
+  const t = performance.now();
+  for (const [m, dir] of trees) {
+    const base = m.root.replace(/\/$/, "");
+    for await (const path of walkFiles(m.files, dir)) {
+      if (!path.endsWith(".astro") || path.includes("/node_modules/")) continue;
+      const id = `${m.prefix}${path.slice(base.length)}`;
+      const chunks: Uint8Array[] = [];
+      for await (const c of m.files.read(path)) chunks.push(c);
+      const source = new TextDecoder().decode(new Uint8Array(chunks.flatMap((c) => [...c])));
+      const r = compileAstro(o.transform, id, source);
+      out.set(id, { css: [], containsHead: false, propagation: false, ...clientPartsOf(r) });
+    }
+  }
+  o.trace?.add("transform", `scanned ${out.size} components for the client build`, {
+    islands: [...out.values()].flatMap((c) => c.islands ?? []),
+  }, performance.now() - t);
+  return out;
+}
+
+async function* walkFiles(files: FilesApi, dir: string): AsyncGenerator<string> {
+  for await (const e of files.list(dir)) {
+    if (e.kind === "directory") yield* walkFiles(files, e.path);
+    else yield e.path;
+  }
 }
 
 interface ClientBuild {
@@ -396,10 +440,15 @@ async function buildClient(
   for (const [id, c] of o.components)
     for (const [index] of (c.scripts ?? []).entries()) {
       const key = `${id}?astro&type=script&index=${index}&lang.ts`;
-      const r = await bundleTimed(o, `script ${key}`, () =>
-        clientBundle(`import ${JSON.stringify(key)};\n`, `script-${n++}`),
-      );
-      out.inlinedScripts.push([key, r.code]);
+      // Best effort: scanned components no route uses may have scripts that do not bundle here.
+      try {
+        const r = await bundleTimed(o, `script ${key}`, () =>
+          clientBundle(`import ${JSON.stringify(key)};\n`, `script-${n++}`),
+        );
+        out.inlinedScripts.push([key, r.code]);
+      } catch (err) {
+        o.log?.(`skipped the script of ${id}: ${String((err as Error)?.message ?? err).split("\n")[0]}`);
+      }
     }
   return out;
 }

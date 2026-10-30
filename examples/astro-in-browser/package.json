@@ -17,7 +17,9 @@
     "@statewalker/webrun-files-mem": "^0.10.0",
     "esbuild-wasm": "0.28.2",
     "@napi-rs/wasm-runtime": "1.2.6",
-    "@statewalker/webrun-modules": "0.3.6"
+    "@statewalker/webrun-modules": "0.3.6",
+    "@statewalker/webrun-files-sqlite": "0.11.0",
+    "@statewalker/db-sqlite-browser": "0.2.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -29,6 +31,7 @@
     "vite": "catalog:",
     "vitest": "catalog:",
     "@astrojs/compiler-rs": "0.5.2",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "@statewalker/db-sqlite-node": "0.3.0"
   }
 }

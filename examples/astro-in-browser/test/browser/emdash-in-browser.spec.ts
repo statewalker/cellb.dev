@@ -126,4 +126,17 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
   } finally {
     server.kill();
   }
+
+  // A rebuild in the same browser: the package cache (SQLite on OPFS) and its lock are kept.
+  const buildMs = async () => Number(await host.evaluate(() => document.body.dataset.buildMs));
+  const cold = await buildMs();
+  await host.reload();
+  await host.waitForFunction(() => document.body.dataset.ready === "true" || document.body.dataset.error, null, { timeout: 600_000, polling: 2000 });
+  const log = (await host.locator("#log").textContent()) ?? "";
+  console.log(log.split("\n").filter((l) => /package cache|built in/.test(l)).join("\n"));
+  const warm = await buildMs();
+  console.log(`build: cold ${cold} ms, warm ${warm} ms`);
+  expect(log).toContain("from the last build's lock");
+  expect(warm).toBeLessThan(cold);
+  await shot(host, "08-host-rebuild-log");
 });

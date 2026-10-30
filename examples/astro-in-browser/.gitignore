@@ -4,3 +4,5 @@ playwright-report
 traces/*/worker.js
 traces/*/client
 traces/*/*.json
+traces/*.db*
+traces/*.lock.json

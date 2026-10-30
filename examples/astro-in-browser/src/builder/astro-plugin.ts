@@ -19,6 +19,32 @@ export type AstroTransform = (
   propagation?: boolean;
 };
 
+/** Compiles one `.astro` file as Astro's Vite plugin does (`id`: its file id). */
+export function compileAstro(transform: AstroTransform, id: string, source: string) {
+  return transform(source, {
+    filename: id,
+    normalizedFilename: id,
+    internalURL: "astro/compiler-runtime",
+    sourcemap: "inline",
+    resultScopedSlot: true,
+    compact: "jsx",
+    scopedStyleStrategy: "attribute",
+    transitionsAnimationURL: "astro/components/viewtransitions.css",
+    // With a resolver, the compiler emits what Astro 7 renders (no legacy $$metadata);
+    // islands' relative specifiers become file ids, the client build's entries.
+    resolvePath: (specifier: string) =>
+      specifier.startsWith(".") ? new URL(specifier, `file:///${id}`).pathname.slice(1) : specifier,
+  });
+}
+
+/** What the client build needs from a compiled component. */
+export function clientPartsOf(r: ReturnType<AstroTransform>): Pick<CompiledComponent, "scripts" | "islands"> {
+  return {
+    scripts: (r.scripts ?? []).filter((x) => x.type === "inline").map((x) => x.code ?? ""),
+    islands: [...(r.hydratedComponents ?? []), ...(r.clientOnlyComponents ?? [])].map((c) => c.resolvedPath || c.specifier),
+  };
+}
+
 export interface MountLike {
   prefix: string;
   files: FilesApi;
@@ -81,33 +107,8 @@ export function astroPlugin(opts: {
         const { mount, path } = locate(args.path);
         const source = await readText(mount.files, path);
         const t0 = performance.now();
-        const r = opts.transform(source, {
-          filename: args.path,
-          normalizedFilename: args.path,
-          internalURL: "astro/compiler-runtime",
-          sourcemap: "inline",
-          resultScopedSlot: true,
-          compact: "jsx",
-          scopedStyleStrategy: "attribute",
-          transitionsAnimationURL: "astro/components/viewtransitions.css",
-          // With a resolver, the compiler emits what Astro 7 renders (no legacy $$metadata);
-          // islands' relative specifiers become file ids, the client build's entries.
-          resolvePath: (specifier: string) =>
-            specifier.startsWith(".")
-              ? new URL(specifier, `file:///${args.path}`).pathname.slice(1)
-              : specifier,
-        });
-        opts.trace?.add(
-          "transform",
-          `astro ${args.path}`,
-          {
-            in: source.length,
-            out: r.code.length,
-            css: r.css.length,
-            diagnostics: r.diagnostics.length,
-          },
-          performance.now() - t0,
-        );
+        const r = compileAstro(opts.transform, args.path, source);
+        opts.trace?.add("transform", `astro ${args.path}`, { in: source.length, out: r.code.length, css: r.css.length, diagnostics: r.diagnostics.length }, performance.now() - t0);
         const error = r.diagnostics.find((d) => d.severity === 1 || d.severity === "error");
         if (error) return { errors: [{ text: `${args.path}: ${error.text}` }] };
         opts.components.set(args.path, {

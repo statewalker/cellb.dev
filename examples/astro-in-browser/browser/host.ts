@@ -1,7 +1,30 @@
 // The host tab: makes this origin cross-origin isolated (through the ServiceWorker), builds the
 // app in a worker, and runs the built Worker on cellb (joinProjectShards).
 import { joinProjectShards } from "@statewalker/cellb/browser";
+import { pkgstoreConfig } from "../src/pkgstore/config.ts";
+import pkgstoreSource from "../src/pkgstore/worker.js?raw";
 import { crawlSite, zip } from "./export-site.ts";
+
+const STORE = `${location.origin}/__cellb/projects/pkgstore`;
+
+/** The package store: a Durable Object project run by cellb in this tab (the builder's cache). */
+async function startPackageStore(serviceWorker: () => Promise<ServiceWorker>) {
+  await joinProjectShards({
+    name: "pkgstore",
+    shards: 1,
+    spawn: () => new Worker(new URL("./shard-worker.ts", import.meta.url), { type: "module" }),
+    config: pkgstoreConfig,
+    code: { bundle: pkgstoreSource },
+    assetFiles: new Map(),
+    serviceWorker,
+  });
+  for (let i = 0; ; i++) {
+    const r = await fetch(`${STORE}/files/ping`, { method: "HEAD" }).catch(() => undefined);
+    if (r && (r.status === 404 || r.ok)) return;
+    if (i > 300) throw new Error(`the package store does not answer (${r?.status})`);
+    await new Promise((x) => setTimeout(x, 200));
+  }
+}
 
 const status = document.getElementById("status")!;
 const logEl = document.getElementById("log")!;
@@ -53,7 +76,7 @@ function build(
       }
     };
     worker.onerror = (e) => reject(new Error(e.message));
-    worker.postMessage({ sources: src, integrations: APP === "emdash" });
+    worker.postMessage({ sources: src, integrations: APP === "emdash", store: STORE });
   });
 }
 
@@ -74,6 +97,9 @@ async function start() {
   say("Reading the app's sources…");
   const src = await sources();
   log(`${Object.keys(src).length} source files: ${Object.keys(src).join(" ")}`);
+  say("Starting the package store…");
+  await startPackageStore(serviceWorker);
+  log("package store (a Durable Object on cellb) ready");
   say("Building the app in a worker…");
   const t0 = performance.now();
   // `?cached`: reuse the last build (kept in OPFS), to iterate on what runs after it.
