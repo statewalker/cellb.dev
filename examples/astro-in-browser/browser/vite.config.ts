@@ -63,6 +63,8 @@ export default defineConfig({
     entries: [
       "index.html",
       "emdash.html",
+      "sqlite-lab.html",
+      "sqlite-lab-worker.ts",
       "host.ts",
       "shard-worker.ts",
       "sw.ts",
