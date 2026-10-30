@@ -65,6 +65,8 @@ export default defineConfig({
       "emdash.html",
       "sqlite-lab.html",
       "cells-lab.html",
+      "ltx-lab.html",
+      "ltx-lab-worker.ts",
       "sqlite-lab-worker.ts",
       "host.ts",
       "shard-worker.ts",

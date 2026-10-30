@@ -142,6 +142,9 @@ importers:
       '@statewalker/db-sqlite-node':
         specifier: 0.3.0
         version: 0.3.0
+      '@statewalker/webrun-files-browser':
+        specifier: ^0.10.0
+        version: 0.10.2
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5

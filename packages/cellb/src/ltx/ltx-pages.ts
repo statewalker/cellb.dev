@@ -162,7 +162,8 @@ export async function* encodeLtxStream(
   const head = new Uint8Array(HEADER_SIZE);
   const v = new DataView(head.buffer);
   head.set(new TextEncoder().encode("LTX1"), 0);
-  const flags = header.flags ?? (header.preApplyChecksum === 0n && postApplyChecksum === 0n ? 2 : 0);
+  const flags =
+    header.flags ?? (header.preApplyChecksum === 0n && postApplyChecksum === 0n ? 2 : 0);
   v.setUint32(4, flags);
   v.setUint32(8, header.pageSize);
   v.setUint32(12, header.commit);
@@ -231,20 +232,37 @@ export async function compactPagedCellTo(
   await files.write(
     path,
     encodeLtxStream(
-      { pageSize: cell.pageSize, commit: cell.pageCount, minTXID: 1n, maxTXID: cell.maxTXID, timestamp, preApplyChecksum: 0n },
+      {
+        pageSize: cell.pageSize,
+        commit: cell.pageCount,
+        minTXID: 1n,
+        maxTXID: cell.maxTXID,
+        timestamp,
+        preApplyChecksum: 0n,
+      },
       pages(),
     ),
   );
 }
 
 /** The compacted snapshot as bytes (small cells, tests); compactPagedCellTo streams it. */
-export async function compactPagedCell(cell: PagedCell, timestamp = Date.now()): Promise<Uint8Array> {
+export async function compactPagedCell(
+  cell: PagedCell,
+  timestamp = Date.now(),
+): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
   async function* pages(): AsyncGenerator<[number, Uint8Array]> {
     for (let pgno = 1; pgno <= cell.pageCount; pgno++) yield [pgno, await cell.readPage(pgno)];
   }
   for await (const c of encodeLtxStream(
-    { pageSize: cell.pageSize, commit: cell.pageCount, minTXID: 1n, maxTXID: cell.maxTXID, timestamp, preApplyChecksum: 0n },
+    {
+      pageSize: cell.pageSize,
+      commit: cell.pageCount,
+      minTXID: 1n,
+      maxTXID: cell.maxTXID,
+      timestamp,
+      preApplyChecksum: 0n,
+    },
     pages(),
   ))
     chunks.push(c);
