@@ -20,7 +20,7 @@ test("the package store Durable Object stores and serves ranges", async ({ conte
   );
   const out = await host.evaluate(async () => {
     const base = `${location.origin}/__cellb/projects/pkgstore/files/test/blob.bin`;
-    const data = new Uint8Array(600_000).map((_, i) => i % 251);
+    const data = new Uint8Array(8_000_000).map((_, i) => i % 251);
     const put = await fetch(base, { method: "PUT", body: data });
     const head = await fetch(base, { method: "HEAD" });
     const ranged = await fetch(base, { headers: { range: "bytes=262140-262150" } });

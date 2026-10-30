@@ -12,6 +12,8 @@ async function startPackageStore(serviceWorker: () => Promise<ServiceWorker>) {
   await joinProjectShards({
     name: "pkgstore",
     shards: 1,
+    // Its Durable Object on the LTX VFS: packs are read page by page from OPFS, never whole.
+    bucket: { ltx: "pkgstore-ltx", node: "tab" },
     spawn: () => new Worker(new URL("./shard-worker.ts", import.meta.url), { type: "module" }),
     config: pkgstoreConfig,
     code: { bundle: pkgstoreSource },

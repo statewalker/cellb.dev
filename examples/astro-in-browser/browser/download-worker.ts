@@ -15,7 +15,7 @@ self.onmessage = async (
     const { chunks, files, bytes } = await packOf(p.files as never);
     const url = `${store}/files/pkgs/${encodeURIComponent(`${p.name}@${p.version}.pack`).replaceAll("%2F", "/").replaceAll("%40", "@")}`;
     const r = await fetch(url, { method: "PUT", body: new Blob(chunks as BlobPart[]) });
-    if (!r.ok) throw new Error(`PUT ${url} → ${r.status}`);
+    if (!r.ok) throw new Error(`PUT ${url} → ${r.status}: ${(await r.text()).slice(0, 400)}`);
     postMessage({ id, name: p.name, version: p.version, files, bytes });
   } catch (err) {
     postMessage({ id, error: String((err as Error)?.message ?? err) });

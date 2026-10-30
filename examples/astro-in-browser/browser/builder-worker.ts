@@ -18,7 +18,7 @@ import { cachedSource, prefetch } from "../src/builder/package-cache.ts";
 import { loadAstroCompiler } from "./compiler.ts";
 
 const log = (line: string) => postMessage({ log: line });
-const DOWNLOADERS = 6;
+const DOWNLOADERS = 2; // each holds one unpacked package while it packs it
 
 /** `n` download workers; a request goes to the least busy one. */
 function downloadPool(n: number, store: string) {
