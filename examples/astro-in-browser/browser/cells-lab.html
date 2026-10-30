@@ -33,7 +33,9 @@
     assetFiles: new Map(),
     serviceWorker: async () => reg.active,
     ...(storage === "idb" ? { bucket: { idb: "cells-lab", node: "tab" } } : {}),
-    ...(storage === "ltx" ? { bucket: { ltx: "cells-lab-ltx", node: "tab", compactAfter: 8 } } : {}),
+    ...(storage.startsWith("ltx")
+      ? { bucket: { ltx: "cells-lab-ltx", node: "tab", compactAfter: 8, files: storage.split(":")[1] || "opfs-sync" } }
+      : {}),
   });
   // Shards attach to the router as their workers start: wait until a cell answers.
   // Every shard must answer: ping cells until 64 names (spread over the shards) all do.

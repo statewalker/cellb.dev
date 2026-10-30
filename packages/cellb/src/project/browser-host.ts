@@ -60,7 +60,14 @@ export type BrowserBucket =
    * cell's memory is its page cache, not its database. Files past `compactAfter` (default
    * 64) are folded into one snapshot, streamed.
    */
-  | { ltx: string; node: string; leaseTtlMs?: number; compactAfter?: number }
+  | {
+      ltx: string;
+      node: string;
+      leaseTtlMs?: number;
+      compactAfter?: number;
+      /** The cells' FilesApi: OPFS with synchronous handles (default), OPFS async, or memory. */
+      files?: "opfs-sync" | "opfs" | "memory";
+    }
   | { store: ObjectStore; node: string; leaseTtlMs?: number };
 
 export interface BrowserProjectOptions {
@@ -116,7 +123,7 @@ async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
  * Cells on the LTX VFS: a store worker owns the OPFS directory; each cell is a SQLite database
  * whose main file is its LTX files, read page by page (src/adapters/ltx-vfs.ts).
  */
-async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number) {
+async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number, files?: string) {
   const store = new Worker(
     new URL("../ltx/ltx-store-worker.ts", import.meta.url) /* cellb ships its TypeScript sources */,
     { type: "module" },
@@ -128,7 +135,7 @@ async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number) {
     store.addEventListener("message", (e) => e.data?.op === "ready" && resolve(), { once: false });
     store.addEventListener("error", (e) => reject(new Error(`ltx store worker: ${e.message}`)));
   });
-  store.postMessage({ op: "init", sab, dir, compactAfter });
+  store.postMessage({ op: "init", sab, dir, compactAfter, files });
   await ready;
   const { name } = installLtxVfs(sqlite3, { sab, post: (m) => store.postMessage(m) });
   const s3 = sqlite3 as { oo1: { DB: new (o: Record<string, unknown>) => any } };
@@ -224,7 +231,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
   // With an IndexedDB bucket, cells live in memory and in the bucket's logs (no OPFS pool).
   const openSql =
     opts.bucket && "ltx" in opts.bucket
-      ? await ltxOpener(opts.sqlite3, opts.bucket.ltx, opts.bucket.compactAfter)
+      ? await ltxOpener(opts.sqlite3, opts.bucket.ltx, opts.bucket.compactAfter, opts.bucket.files)
       : opts.bucket && "idb" in opts.bucket
         ? Object.assign(wasmMemoryOpener(opts.sqlite3 as never), {
             release() {},

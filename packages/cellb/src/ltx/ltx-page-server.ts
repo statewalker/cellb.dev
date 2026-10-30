@@ -50,8 +50,27 @@ export function ltxCellStore(
       if (e.kind === "file" && e.name.endsWith(".ltx")) out.push(e.path);
     return out;
   };
+  /**
+   * One writer per cell in the origin: the store holds a Web Lock per cell directory while the
+   * cell is open, so another tab's store (or worker) cannot write the same cell meanwhile; it
+   * fails instead. (Across machines, celld's epochs and ownership records do this.)
+   */
+  const owned = new Set<string>();
+  const own = async (dir: string) => {
+    const locks = (globalThis.navigator as { locks?: LockManager } | undefined)?.locks;
+    if (!locks || owned.has(dir)) return;
+    const got = await new Promise<boolean>((resolve) => {
+      void locks.request(`cellb-ltx:${dir}`, { ifAvailable: true }, (lock) => {
+        resolve(!!lock);
+        return lock ? new Promise<void>(() => {}) : undefined; // held while this store lives
+      });
+    });
+    if (!got) throw new Error(`ltx: cell ${dir} is open in another tab or worker`);
+    owned.add(dir);
+  };
   const cellOf = async (cell: string) => {
     if (!cells.has(cell)) {
+      await own(dirOf(cell));
       const paths = await list(dirOf(cell));
       cells.set(cell, paths.length ? await openPagedCell(files, paths) : undefined);
     }
@@ -178,7 +197,8 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
     count = (await store.files(name)).length;
   };
   return {
-    ready: refresh(),
+    // A cell another store owns fails its requests (the VFS gets the error), not the start.
+    ready: refresh().catch(() => {}),
     handle: (msg: Omit<LtxStoreMessage, "cell"> & { cell?: string }) => {
       store.handle({ ...msg, cell: name } as LtxStoreMessage);
       void refresh();

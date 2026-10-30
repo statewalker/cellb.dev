@@ -6,6 +6,7 @@
  * the shared buffer.
  */
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
+import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { ltxCellStore } from "./ltx-page-server.js";
 import { opfsSyncFiles } from "./opfs-sync-files.js";
 
@@ -15,11 +16,19 @@ self.onmessage = (e: MessageEvent) => {
   const m = e.data;
   if (m?.op === "init") {
     ready = (async () => {
-      const root = await navigator.storage.getDirectory();
-      const dir = await root.getDirectoryHandle(m.dir, { create: true });
-      // This worker alone owns the directory: synchronous handles for writes (`m.async` keeps
-      // the asynchronous OPFS API, for comparison).
-      const files = m.async ? new BrowserFilesApi({ rootHandle: dir }) : opfsSyncFiles(dir);
+      // The cells' FilesApi, by name (an instance cannot cross to this worker):
+      // "opfs-sync" (default; this worker alone owns the directory, so synchronous handles),
+      // "opfs" (OPFS through its asynchronous API), "memory" (nothing kept past the worker).
+      const files =
+        m.files === "memory"
+          ? new MemFilesApi()
+          : await (async () => {
+              const root = await navigator.storage.getDirectory();
+              const dir = await root.getDirectoryHandle(m.dir, { create: true });
+              return m.files === "opfs"
+                ? new BrowserFilesApi({ rootHandle: dir })
+                : opfsSyncFiles(dir);
+            })();
       store = ltxCellStore(files, m.sab, { compactAfter: m.compactAfter });
       postMessage({ op: "ready" });
     })();

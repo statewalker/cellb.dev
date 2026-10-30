@@ -59,5 +59,7 @@ test("cells in memory + IndexedDB bucket: parallel shards, persistence across a 
     CELLS,
   );
   console.log(`read back ${CELLS} cells in ${Date.now() - t2} ms: ${[...new Set(read)].join(",")}`);
-  expect(read.every((n) => n === HITS)).toBe(true);
+  // A memory FilesApi keeps nothing past the workers: the reloaded cells start empty.
+  const kept = process.env.CELLS_STORAGE === "ltx:memory" ? 0 : HITS;
+  expect(read.every((n) => n === kept)).toBe(true);
 });

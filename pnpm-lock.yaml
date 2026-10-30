@@ -306,6 +306,9 @@ importers:
       '@statewalker/webrun-files':
         specifier: ^0.10.0
         version: 0.10.3
+      '@statewalker/webrun-files-mem':
+        specifier: ^0.10.0
+        version: 0.10.3
       '@statewalker/webrun-http-browser':
         specifier: 'catalog:'
         version: 0.6.5
@@ -358,9 +361,6 @@ importers:
       '@statewalker/webrun-files-browser':
         specifier: ^0.10.0
         version: 0.10.2
-      '@statewalker/webrun-files-mem':
-        specifier: ^0.10.0
-        version: 0.10.3
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
         version: 0.3.5
