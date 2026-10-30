@@ -137,3 +137,81 @@ describe("LTX page access over a FilesApi (celld's files)", () => {
     expect(openReads).toBe(3); // header, trailer, index
   });
 });
+
+describe("streaming compaction", () => {
+  it("writes a celld snapshot page by page, with a valid file checksum", async () => {
+    const { encodeLtxStream, compactPagedCellTo } = await import("../src/ltx/ltx-pages.js");
+    const files = new MemFilesApi();
+    const pageSize = 4096;
+    const page = (p: number) => new Uint8Array(pageSize).map((_, i) => (p * 13 + i * 7) % 256);
+    async function* pages() {
+      for (let p = 1; p <= 300; p++) yield [p, page(p)] as [number, Uint8Array];
+    }
+    // flags 0: the checksum is written and decodeLtx verifies it.
+    await files.write("/c/0/0000000000000001-0000000000000005.ltx", encodeLtxStream({ flags: 0, pageSize, commit: 300, minTXID: 1n, maxTXID: 5n, timestamp: 1, preApplyChecksum: 0n }, pages(), 1n));
+    const chunks: Uint8Array[] = [];
+    for await (const c of files.read("/c/0/0000000000000001-0000000000000005.ltx")) chunks.push(c);
+    const decoded = decodeLtx(Uint8Array.from(chunks.flatMap((c) => [...c])));
+    expect(decoded.pages.size).toBe(300);
+    expect(decoded.pages.get(123)).toEqual(page(123));
+    // And a compaction through it equals the source pages.
+    const cell = await openPagedCell(files, ["/c/0/0000000000000001-0000000000000005.ltx"]);
+    await compactPagedCellTo(cell, files, "/c/0/compacted.ltx");
+    const back = await openLtxPages(files, "/c/0/compacted.ltx");
+    for (const p of [1, 150, 300]) expect(await back.readPage(p)).toEqual(page(p));
+  });
+
+  it("compacts a 64 MiB cell without holding it in memory", async () => {
+    const { encodeLtxStream, compactPagedCellTo } = await import("../src/ltx/ltx-pages.js");
+    const pageSize = 4096;
+    const N = 16384; // 64 MiB
+    // Pseudo-random pages (barely compressible), generated on the fly.
+    const page = (p: number) => {
+      const b = new Uint8Array(pageSize);
+      let x = p * 2654435761;
+      for (let i = 0; i < pageSize; i++) (x = (x * 1103515245 + 12345) >>> 0), (b[i] = x >>> 24);
+      return b;
+    };
+    const source = new MemFilesApi();
+    async function* srcPages() {
+      for (let p = 1; p <= N; p++) yield [p, page(p)] as [number, Uint8Array];
+    }
+    await source.write("/cell/snap.ltx", encodeLtxStream({ pageSize, commit: N, minTXID: 1n, maxTXID: 1n, timestamp: 0, preApplyChecksum: 0n }, srcPages()));
+    // A delta changing 1000 pages, written the same way.
+    async function* deltaPages() {
+      for (let p = 1; p <= N; p += 16) yield [p, page(p + 1)] as [number, Uint8Array];
+    }
+    await source.write("/cell/delta.ltx", encodeLtxStream({ pageSize, commit: N, minTXID: 2n, maxTXID: 2n, timestamp: 0, preApplyChecksum: 0n }, deltaPages()));
+    // The output goes to a sink that only counts bytes: what stays in memory is the compactor's.
+    let written = 0;
+    const sink = { write: async (_p: string, content: AsyncIterable<Uint8Array>) => { for await (const c of content) written += c.length; } } as unknown as MemFilesApi;
+    (globalThis as { gc?: () => void }).gc?.();
+    const base = process.memoryUsage();
+    let peak = 0;
+    const sample = setInterval(() => {
+      const m = process.memoryUsage();
+      peak = Math.max(peak, m.heapUsed + m.arrayBuffers - base.heapUsed - base.arrayBuffers);
+    }, 5);
+    const t0 = performance.now();
+    const cell = await openPagedCell(source, ["/cell/snap.ltx", "/cell/delta.ltx"]);
+    // Sampled from inside the loop (timers do not fire while it runs on microtasks).
+    const read = cell.readPage.bind(cell);
+    let n = 0;
+    cell.readPage = async (p) => {
+      if (++n % 1024 === 0) {
+        // Retained memory (garbage collected first when the runner exposes gc: --expose-gc).
+        (globalThis as { gc?: () => void }).gc?.();
+        const m = process.memoryUsage();
+        peak = Math.max(peak, m.heapUsed + m.arrayBuffers - base.heapUsed - base.arrayBuffers);
+      }
+      return read(p);
+    };
+    await compactPagedCellTo(cell, sink, "/cell/compacted.ltx");
+    clearInterval(sample);
+    const ms = performance.now() - t0;
+    console.log(`64 MiB cell (${N} pages + a delta of ${Math.ceil(N / 16)}): compacted to ${(written / 1e6).toFixed(1)} MB in ${ms.toFixed(0)} ms; peak extra memory ${(peak / 1e6).toFixed(1)} MB`);
+    expect(written).toBeGreaterThan(N * pageSize * 0.9);
+    // Retained memory stays a fraction of the 64 MiB database (garbage between collections aside).
+    if ((globalThis as { gc?: () => void }).gc) expect(peak).toBeLessThan(8e6);
+  }, 120_000);
+});

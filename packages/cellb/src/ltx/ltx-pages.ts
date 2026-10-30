@@ -10,8 +10,9 @@
  * the write side is the existing LTX log (one incremental file per commit).
  */
 import type { FilesApi } from "@statewalker/webrun-files";
-import { encodeLtx, type LtxHeader, lockPgno } from "./ltx.js";
-import { lz4Decompress, lz4FrameDecompress } from "./lz4.js";
+import { Crc64 } from "./crc64.js";
+import { CHECKSUM_FLAG, type LtxHeader, lockPgno } from "./ltx.js";
+import { lz4Compress, lz4Decompress, lz4FrameDecompress } from "./lz4.js";
 
 const HEADER_SIZE = 100;
 const PAGE_HEADER_FLAG_SIZE = 1;
@@ -147,29 +148,108 @@ export async function openPagedCell(files: FilesApi, paths: string[]): Promise<P
 }
 
 /**
- * Folds a cell's files into one snapshot (TXID 1..maxTXID), page by page through `readPage`,
- * in celld's format; the caller writes it as `<level>/<1>-<max>.ltx` and removes what it
- * replaces. (encodeLtx takes the pages at once: a streaming encoder would bound memory to one
- * page.)
+ * An LTX file produced page by page, as celld writes it (block format: size-prefixed LZ4 page
+ * blocks, page index, trailer, CRC-64/ISO over the uncompressed pages): the bytes come out as an
+ * async stream while `pages` is consumed, so a writer holds one page at a time plus the index
+ * (a few bytes per page), never the database.
  */
-export async function compactPagedCell(
+export async function* encodeLtxStream(
+  header: LtxHeader,
+  pages: AsyncIterable<[number, Uint8Array]>,
+  postApplyChecksum = 0n,
+): AsyncGenerator<Uint8Array> {
+  const crc = new Crc64();
+  const head = new Uint8Array(HEADER_SIZE);
+  const v = new DataView(head.buffer);
+  head.set(new TextEncoder().encode("LTX1"), 0);
+  const flags = header.flags ?? (header.preApplyChecksum === 0n && postApplyChecksum === 0n ? 2 : 0);
+  v.setUint32(4, flags);
+  v.setUint32(8, header.pageSize);
+  v.setUint32(12, header.commit);
+  v.setBigUint64(16, header.minTXID);
+  v.setBigUint64(24, header.maxTXID);
+  v.setBigInt64(32, BigInt(header.timestamp));
+  v.setBigUint64(40, header.preApplyChecksum);
+  v.setBigUint64(72, header.nodeID ?? 0n);
+  crc.update(head);
+  yield head;
+  const index: number[] = [];
+  const uvarint = (n: number) => {
+    while (n >= 0x80) index.push((n & 0x7f) | 0x80), (n = Math.floor(n / 128));
+    index.push(n);
+  };
+  let offset = HEADER_SIZE;
+  const lock = lockPgno(header.pageSize);
+  let last = 0;
+  for await (const [pgno, data] of pages) {
+    if (pgno === lock) continue;
+    if (pgno <= last) throw new Error("ltx: pages must come in ascending order");
+    last = pgno;
+    const compressed = lz4Compress(data);
+    const ph = new Uint8Array(10);
+    const pv = new DataView(ph.buffer);
+    pv.setUint32(0, pgno);
+    pv.setUint16(4, PAGE_HEADER_FLAG_SIZE);
+    pv.setUint32(6, compressed.length);
+    crc.update(ph).update(data); // the checksum covers uncompressed pages (encodeLtx's `feed`)
+    uvarint(pgno), uvarint(offset), uvarint(10 + compressed.length);
+    offset += 10 + compressed.length;
+    yield ph;
+    yield compressed;
+  }
+  const end = new Uint8Array(6);
+  uvarint(0);
+  const idx = Uint8Array.from(index);
+  const tail = new Uint8Array(16);
+  const tv = new DataView(tail.buffer);
+  tv.setBigUint64(0, BigInt(idx.length));
+  tv.setBigUint64(8, postApplyChecksum);
+  crc.update(end).update(idx).update(tail);
+  const sum = new Uint8Array(8);
+  new DataView(sum.buffer).setBigUint64(0, CHECKSUM_FLAG | crc.digest());
+  yield end;
+  yield idx;
+  yield tail;
+  yield sum;
+}
+
+/**
+ * Folds a cell's files into one snapshot (TXID 1..maxTXID) written to `files` at `path`, page by
+ * page: each page is read by range from the file that holds it and streamed into the new file,
+ * so memory stays at one page (plus the index), whatever the database size. The caller removes
+ * the files it replaces once this resolves.
+ */
+export async function compactPagedCellTo(
   cell: PagedCell,
+  files: FilesApi,
+  path: string,
   timestamp = Date.now(),
-): Promise<Uint8Array> {
-  const pages = new Map<number, Uint8Array>();
-  const lock = lockPgno(cell.pageSize);
-  for (let pgno = 1; pgno <= cell.pageCount; pgno++)
-    if (pgno !== lock) pages.set(pgno, await cell.readPage(pgno));
-  return encodeLtx({
-    header: {
-      pageSize: cell.pageSize,
-      commit: cell.pageCount,
-      minTXID: 1n,
-      maxTXID: cell.maxTXID,
-      timestamp,
-      preApplyChecksum: 0n,
-    },
-    pages,
-    postApplyChecksum: 0n,
-  });
+): Promise<void> {
+  async function* pages(): AsyncGenerator<[number, Uint8Array]> {
+    for (let pgno = 1; pgno <= cell.pageCount; pgno++) yield [pgno, await cell.readPage(pgno)];
+  }
+  await files.write(
+    path,
+    encodeLtxStream(
+      { pageSize: cell.pageSize, commit: cell.pageCount, minTXID: 1n, maxTXID: cell.maxTXID, timestamp, preApplyChecksum: 0n },
+      pages(),
+    ),
+  );
+}
+
+/** The compacted snapshot as bytes (small cells, tests); compactPagedCellTo streams it. */
+export async function compactPagedCell(cell: PagedCell, timestamp = Date.now()): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  async function* pages(): AsyncGenerator<[number, Uint8Array]> {
+    for (let pgno = 1; pgno <= cell.pageCount; pgno++) yield [pgno, await cell.readPage(pgno)];
+  }
+  for await (const c of encodeLtxStream(
+    { pageSize: cell.pageSize, commit: cell.pageCount, minTXID: 1n, maxTXID: cell.maxTXID, timestamp, preApplyChecksum: 0n },
+    pages(),
+  ))
+    chunks.push(c);
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let o = 0;
+  for (const c of chunks) out.set(c, o), (o += c.length);
+  return out;
 }
