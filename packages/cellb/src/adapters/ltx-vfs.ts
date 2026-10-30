@@ -47,50 +47,71 @@ export function installLtxVfs(
     Atomics.store(ctl, 0, 0);
     const t = performance.now();
     channel.post(msg);
-    Atomics.wait(ctl, 0, 0);
+    // A store that never answers (a worker that failed to load) must not freeze this worker.
+    if (Atomics.wait(ctl, 0, 0, 30_000) === "timed-out")
+      throw new Error(`ltx store: no answer to ${String(msg.op)} in 30 s`);
     stats.blockedMs += performance.now() - t;
     if (ctl[0] === 2) throw new Error(new TextDecoder().decode(payload.slice(0, ctl[1])));
     return payload.slice(0, ctl[1]);
   };
-  const meta = JSON.parse(new TextDecoder().decode(call({ op: "meta" }))) as {
+  /** One open database (a cell): its size, its page cache, the current transaction's pages. */
+  interface Db {
+    cell: string;
     pageSize: number;
     pageCount: number;
+    cache: Map<number, Uint8Array>; // LRU: insertion order
+    dirty: Map<number, Uint8Array>;
+  }
+  const dbs = new Map<string, Db>();
+  const dbOf = (cell: string): Db => {
+    let d = dbs.get(cell);
+    if (!d) {
+      const meta = JSON.parse(new TextDecoder().decode(call({ op: "meta", cell }))) as {
+        pageSize: number;
+        pageCount: number;
+      };
+      d = {
+        cell,
+        pageSize: meta.pageSize || 4096,
+        pageCount: meta.pageCount,
+        cache: new Map(),
+        dirty: new Map(),
+      };
+      dbs.set(cell, d);
+    }
+    return d;
   };
-  let pageSize = meta.pageSize || 4096;
-  let pageCount = meta.pageCount;
-  const cache = new Map<number, Uint8Array>(); // LRU: insertion order
-  const dirty = new Map<number, Uint8Array>();
-  const page = (pgno: number): Uint8Array => {
-    const d = dirty.get(pgno);
-    if (d) return d;
+  const page = (d: Db, pgno: number): Uint8Array => {
+    const w = d.dirty.get(pgno);
+    if (w) return w;
     stats.reads++;
-    const c = cache.get(pgno);
+    const c = d.cache.get(pgno);
     if (c) {
       stats.cacheHits++;
-      cache.delete(pgno);
-      cache.set(pgno, c);
+      d.cache.delete(pgno);
+      d.cache.set(pgno, c);
       return c;
     }
     stats.storeReads++;
-    if (pgno > pageCount) return new Uint8Array(pageSize);
+    if (pgno > d.pageCount) return new Uint8Array(d.pageSize);
     const count = Math.min(
       readAhead,
-      pageCount - pgno + 1,
-      Math.floor((channel.sab.byteLength - 8) / pageSize),
+      d.pageCount - pgno + 1,
+      Math.floor((channel.sab.byteLength - 8) / d.pageSize),
     );
-    const run = call({ op: "readRun", pgno, count });
-    for (let i = 0; i * pageSize < run.length; i++) {
+    const run = call({ op: "readRun", cell: d.cell, pgno, count });
+    for (let i = 0; i * d.pageSize < run.length; i++) {
       const q = pgno + i;
-      if (dirty.has(q)) continue;
-      cache.set(q, run.subarray(i * pageSize, (i + 1) * pageSize));
-      if (cache.size > cacheMax) cache.delete(cache.keys().next().value as number);
+      if (d.dirty.has(q)) continue;
+      d.cache.set(q, run.subarray(i * d.pageSize, (i + 1) * d.pageSize));
+      if (d.cache.size > cacheMax) d.cache.delete(d.cache.keys().next().value as number);
     }
-    return cache.get(pgno) ?? new Uint8Array(pageSize);
+    return d.cache.get(pgno) ?? new Uint8Array(d.pageSize);
   };
 
   // Journal and other non-main files: plain memory.
   const memFiles = new Map<string, Uint8Array>();
-  const open = new Map<number, { main: boolean; path: string }>();
+  const open = new Map<number, { main: boolean; path: string; db?: Db }>();
 
   const io = new capi.sqlite3_io_methods();
   io.$iVersion = 1;
@@ -104,6 +125,8 @@ export function installLtxVfs(
       struct: io,
       methods: {
         xClose(pFile: number) {
+          const d = open.get(pFile)?.db;
+          if (d) dbs.delete(d.cell); // its cache goes with it
           open.delete(pFile);
           return SQLITE_OK;
         },
@@ -122,14 +145,16 @@ export function installLtxVfs(
             return SQLITE_OK;
           }
           try {
-            const size = pageCount * pageSize;
+            const d = f.db as Db;
+            const { pageSize } = d;
+            const size = d.pageCount * pageSize;
             let o = 0;
             while (o < n && at + o < size) {
               const pos = at + o;
               const pgno = Math.floor(pos / pageSize) + 1;
               const inPage = pos % pageSize;
               const take = Math.min(pageSize - inPage, n - o);
-              heap.set(page(pgno).subarray(inPage, inPage + take), pDest + o);
+              heap.set(page(d, pgno).subarray(inPage, inPage + take), pDest + o);
               o += take;
             }
             if (o < n) {
@@ -153,21 +178,25 @@ export function installLtxVfs(
             memFiles.set(f?.path ?? "", next);
             return SQLITE_OK;
           }
-          if (pageCount === 0 && at === 0 && n >= 18)
-            pageSize = ((src[16] << 8) | src[17]) === 1 ? 65536 : (src[16] << 8) | src[17];
+          const d = f.db as Db;
+          if (d.pageCount === 0 && at === 0 && n >= 18) {
+            const ps = (src[16] << 8) | src[17];
+            d.pageSize = ps === 1 ? 65536 : ps;
+          }
+          const { pageSize } = d;
           for (let o = 0; o < n; ) {
             const pos = at + o;
             const pgno = Math.floor(pos / pageSize) + 1;
             const inPage = pos % pageSize;
             const take = Math.min(pageSize - inPage, n - o);
-            let p = dirty.get(pgno);
+            let p = d.dirty.get(pgno);
             if (!p) {
-              p = take === pageSize ? new Uint8Array(pageSize) : page(pgno).slice();
-              dirty.set(pgno, p);
+              p = take === pageSize ? new Uint8Array(pageSize) : page(d, pgno).slice();
+              d.dirty.set(pgno, p);
             }
             p.set(src.subarray(o, o + take), inPage);
             o += take;
-            if (pgno > pageCount) pageCount = pgno;
+            if (pgno > d.pageCount) d.pageCount = pgno;
           }
           return SQLITE_OK;
         },
@@ -180,19 +209,27 @@ export function installLtxVfs(
             );
             return SQLITE_OK;
           }
-          pageCount = Math.ceil(Number(size) / pageSize);
-          for (const k of [...dirty.keys()]) if (k > pageCount) dirty.delete(k);
+          const d = f.db as Db;
+          d.pageCount = Math.ceil(Number(size) / d.pageSize);
+          for (const k of [...d.dirty.keys()]) if (k > d.pageCount) d.dirty.delete(k);
           return SQLITE_OK;
         },
         xSync(pFile: number) {
-          if (!open.get(pFile)?.main || !dirty.size) return SQLITE_OK;
+          const d = open.get(pFile)?.db;
+          if (!d || !d.dirty.size) return SQLITE_OK;
           // The commit: this transaction's pages become one LTX file in the store.
           try {
-            const pages = [...dirty].sort((a, b) => a[0] - b[0]);
-            call({ op: "commit", pageSize, pageCount, pages });
+            const pages = [...d.dirty].sort((a, b) => a[0] - b[0]);
+            call({
+              op: "commit",
+              cell: d.cell,
+              pageSize: d.pageSize,
+              pageCount: d.pageCount,
+              pages,
+            });
             stats.commits++;
-            for (const [pgno, p] of pages) cache.set(pgno, p);
-            dirty.clear();
+            for (const [pgno, p] of pages) d.cache.set(pgno, p);
+            d.dirty.clear();
             return SQLITE_OK;
           } catch {
             return SQLITE_IOERR;
@@ -200,7 +237,9 @@ export function installLtxVfs(
         },
         xFileSize(pFile: number, pOut: number) {
           const f = open.get(pFile);
-          const size = f?.main ? pageCount * pageSize : (memFiles.get(f?.path ?? "")?.length ?? 0);
+          const size = f?.db
+            ? f.db.pageCount * f.db.pageSize
+            : (memFiles.get(f?.path ?? "")?.length ?? 0);
           wasm.poke64(pOut, BigInt(size));
           return SQLITE_OK;
         },
@@ -221,7 +260,12 @@ export function installLtxVfs(
       methods: {
         xOpen(_pVfs: number, zName: number, pFile: number, flags: number, pOutFlags: number) {
           const path = zName ? wasm.cstrToJs(zName) : `tmp-${pFile}`;
-          open.set(pFile, { main: !!(flags & SQLITE_OPEN_MAIN_DB), path });
+          const main = !!(flags & SQLITE_OPEN_MAIN_DB);
+          try {
+            open.set(pFile, { main, path, db: main ? dbOf(path) : undefined });
+          } catch {
+            return SQLITE_IOERR;
+          }
           const f = new capi.sqlite3_file(pFile);
           f.$pMethods = io.pointer;
           f.dispose();

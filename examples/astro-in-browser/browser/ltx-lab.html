@@ -29,7 +29,7 @@
     await server.ready;
     connect = (port) => { port.onmessage = (e) => server.handle(e.data); };
     compact = () => server.compact();
-    fileCount = async () => server.files.length;
+    fileCount = () => server.fileCount();
   }
   // Runs `script` (a function body over `db`, sync oo1 API) in a fresh worker on the cell.
   window.__run = (script, cachePages) => new Promise((resolve) => {

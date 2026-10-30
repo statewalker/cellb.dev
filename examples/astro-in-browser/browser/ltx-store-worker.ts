@@ -20,6 +20,6 @@ self.onmessage = async (e: MessageEvent) => {
   } else if (m.op === "compact") {
     postMessage({ op: "compacted", files: await server?.compact() });
   } else if (m.op === "files") {
-    postMessage({ op: "files", files: server?.files.length ?? 0 });
+    postMessage({ op: "files", files: (await server?.fileCount()) ?? 0 });
   }
 };

@@ -8,7 +8,10 @@ test("cells in memory + IndexedDB bucket: parallel shards, persistence across a 
   test.setTimeout(300_000);
   page.on(
     "console",
-    (m) => m.type() === "error" && console.log(`[page] ${m.text().slice(0, 300)}`),
+    (m) =>
+      /waiting|failed|rror/.test(m.text()) &&
+      !/Failed to load resource/.test(m.text()) &&
+      console.log(`[page] ${m.text().slice(0, 400)}`),
   );
   const SHARDS = Number(process.env.CELLS_SHARDS ?? 8);
   const CELLS = 48;

@@ -13,6 +13,12 @@
   const reg = await navigator.serviceWorker.ready;
   if (!navigator.serviceWorker.controller)
     await new Promise((r) => navigator.serviceWorker.addEventListener("controllerchange", r, { once: true }));
+  // The LTX VFS blocks on a SharedArrayBuffer: reload once through the ServiceWorker (COOP/COEP).
+  if (!crossOriginIsolated && !sessionStorage.getItem("cells-reload")) {
+    sessionStorage.setItem("cells-reload", "1");
+    location.reload();
+    await new Promise(() => {});
+  }
   const t0 = performance.now();
   await joinProjectShards({
     name: "counter",
@@ -27,6 +33,7 @@
     assetFiles: new Map(),
     serviceWorker: async () => reg.active,
     ...(storage === "idb" ? { bucket: { idb: "cells-lab", node: "tab" } } : {}),
+    ...(storage === "ltx" ? { bucket: { ltx: "cells-lab-ltx", node: "tab", compactAfter: 8 } } : {}),
   });
   // Shards attach to the router as their workers start: wait until a cell answers.
   for (let i = 0; ; i++) {

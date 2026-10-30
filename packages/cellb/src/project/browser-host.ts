@@ -1,5 +1,6 @@
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
-import { sahpoolOpener, wasmMemoryOpener } from "../adapters/wasm-sqlite.js";
+import { installLtxVfs } from "../adapters/ltx-vfs.js";
+import { sahpoolOpener, WasmSqliteDriver, wasmMemoryOpener } from "../adapters/wasm-sqlite.js";
 import type { AssetFiles } from "../bindings/assets.js";
 import type { WorkersAiOptions } from "../bindings/workers-ai.js";
 import { celldBucket } from "../bucket/celld-cells.js";
@@ -53,6 +54,13 @@ export type BrowserBucket =
    * no OPFS pool, so any number of workers can serve cells at once.
    */
   | { idb: string; node: string; leaseTtlMs?: number }
+  /**
+   * `ltx`: cells as celld keeps them, LTX files (a snapshot and one file per commit) in an OPFS
+   * directory, read page by page (a SQLite VFS over a store worker): no OPFS pool, and a
+   * cell's memory is its page cache, not its database. Files past `compactAfter` (default
+   * 64) are folded into one snapshot, streamed.
+   */
+  | { ltx: string; node: string; leaseTtlMs?: number; compactAfter?: number }
   | { store: ObjectStore; node: string; leaseTtlMs?: number };
 
 export interface BrowserProjectOptions {
@@ -96,11 +104,38 @@ async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
   if ("store" in b) return b.store;
   if ("s3" in b) return s3ObjectStore({ region: "us-east-1", ...b.s3 });
   if ("idb" in b) return idbObjectStore(b.idb);
+  if ("ltx" in b) throw new Error("an ltx directory is cell storage, not a bucket");
   const root = await navigator.storage.getDirectory();
   return filesApiObjectStore(
     new BrowserFilesApi({ rootHandle: await root.getDirectoryHandle(b.opfs, { create: true }) }),
     "",
   );
+}
+
+/**
+ * Cells on the LTX VFS: a store worker owns the OPFS directory; each cell is a SQLite database
+ * whose main file is its LTX files, read page by page (src/adapters/ltx-vfs.ts).
+ */
+function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number) {
+  const store = new Worker(
+    new URL("../ltx/ltx-store-worker.ts", import.meta.url) /* cellb ships its TypeScript sources */,
+    { type: "module" },
+  );
+  const sab = new SharedArrayBuffer(8 + 16 * 65536); // room for a read-ahead run of 64 KiB pages
+  store.postMessage({ op: "init", sab, dir, compactAfter });
+  const { name } = installLtxVfs(sqlite3, { sab, post: (m) => store.postMessage(m) });
+  const s3 = sqlite3 as { oo1: { DB: new (o: Record<string, unknown>) => any } };
+  const open = (cellKey: string) => {
+    const db = new s3.oo1.DB({ filename: cellKey, vfs: name, flags: "c" });
+    db.exec("PRAGMA journal_mode=MEMORY; PRAGMA synchronous=FULL;");
+    return new WasmSqliteDriver(db);
+  };
+  return Object.assign(open, {
+    release() {
+      store.terminate();
+    },
+    reserve: async (n: number) => n,
+  });
 }
 
 /** Installs the Workers globals the code reads, then imports its `main`. */
@@ -181,20 +216,23 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
   const site = "site" in opts.code ? opts.code.site : undefined;
   // With an IndexedDB bucket, cells live in memory and in the bucket's logs (no OPFS pool).
   const openSql =
-    opts.bucket && "idb" in opts.bucket
-      ? Object.assign(wasmMemoryOpener(opts.sqlite3 as never), {
-          release() {},
-          reserve: async (n: number) => n,
-        })
-      : await sahpoolOpener(opts.sqlite3 as never, {
-          name: opts.pool,
-          initialCapacity: 64, // grows on demand (sahpoolOpener)
-        });
+    opts.bucket && "ltx" in opts.bucket
+      ? ltxOpener(opts.sqlite3, opts.bucket.ltx, opts.bucket.compactAfter)
+      : opts.bucket && "idb" in opts.bucket
+        ? Object.assign(wasmMemoryOpener(opts.sqlite3 as never), {
+            release() {},
+            reserve: async (n: number) => n,
+          })
+        : await sahpoolOpener(opts.sqlite3 as never, {
+            name: opts.pool,
+            initialCapacity: 64, // grows on demand (sahpoolOpener)
+          });
   const root = await navigator.storage.getDirectory();
   const files = new BrowserFilesApi({
     rootHandle: await root.getDirectoryHandle(opts.filesDir, { create: true }),
   });
-  const store = opts.bucket ? await bucketStore(opts.bucket) : undefined;
+  // An `ltx` directory is the cells' own storage (the VFS), not a fleet bucket.
+  const store = opts.bucket && !("ltx" in opts.bucket) ? await bucketStore(opts.bucket) : undefined;
   const shared =
     opts.bucket && store
       ? celldBucket(store, { node: opts.bucket.node, leaseTtlMs: opts.bucket.leaseTtlMs })

@@ -1,26 +1,48 @@
 /**
- * The asynchronous side of the LTX VFS (src/adapters/ltx-vfs.ts): serves one cell's pages from
- * its LTX files on a FilesApi, and turns each commit into one LTX file there, in celld's layout
- * (`<dir>/<min>-<max>.ltx`, a snapshot 1..N first). Runs in any thread that is not the one
- * blocked on reads (the page, or a worker): `handle(msg)` answers into the shared buffer.
+ * The asynchronous side of the LTX VFS (src/adapters/ltx-vfs.ts): serves cells' pages from their
+ * LTX files on a FilesApi and turns each commit into one LTX file there, in celld's layout
+ * (`cells/<cell>/ltx/e1/0000/<min>-<max>.ltx`, a snapshot 1..N first). Runs in any thread that
+ * is not one blocked on reads (a worker of its own, or a page): `handle(msg)` answers into the
+ * shared buffer. A cell whose files pass `compactAfter` is folded into one snapshot (streamed).
  */
 import type { FilesApi } from "@statewalker/webrun-files";
 import { ltxFileName } from "./ltx.js";
 import { compactPagedCellTo, encodeLtxStream, openPagedCell, type PagedCell } from "./ltx-pages.js";
 
-export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuffer) {
+export interface LtxStoreMessage {
+  op: "meta" | "read" | "readRun" | "commit";
+  cell: string;
+  pgno?: number;
+  count?: number;
+  pageSize?: number;
+  pageCount?: number;
+  pages?: [number, Uint8Array][];
+}
+
+export function ltxCellStore(
+  files: FilesApi,
+  sab: SharedArrayBuffer,
+  opts: { root?: string; compactAfter?: number } = {},
+) {
   const ctl = new Int32Array(sab, 0, 2);
   const payload = new Uint8Array(sab, 8);
-  let cell: PagedCell | undefined;
-  const list = async () => {
+  const root = (opts.root ?? "").replace(/\/$/, "");
+  const compactAfter = opts.compactAfter ?? 64;
+  const dirOf = (cell: string) => `${root}/cells/${cell.replace(/[\\/]/g, "_")}/ltx/e1/0000`;
+  const cells = new Map<string, PagedCell | undefined>();
+  const list = async (dir: string) => {
     const out: string[] = [];
+    if (!(await files.exists(dir))) return out;
     for await (const e of files.list(dir))
       if (e.kind === "file" && e.name.endsWith(".ltx")) out.push(e.path);
     return out;
   };
-  const reopen = async () => {
-    const paths = await list();
-    cell = paths.length ? await openPagedCell(files, paths) : undefined;
+  const cellOf = async (cell: string) => {
+    if (!cells.has(cell)) {
+      const paths = await list(dirOf(cell));
+      cells.set(cell, paths.length ? await openPagedCell(files, paths) : undefined);
+    }
+    return cells.get(cell);
   };
   const answer = (bytes: Uint8Array, state = 1) => {
     payload.set(bytes);
@@ -30,33 +52,36 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
   };
   const enc = new TextEncoder();
   let queue = Promise.resolve();
-  const ready = reopen();
+
+  const compact = async (cell: string) => {
+    const c = await cellOf(cell);
+    if (!c || c.files.length < 2) return c?.files.length ?? 0;
+    const dir = dirOf(cell);
+    const final = `${dir}/${ltxFileName(1n, c.maxTXID)}`;
+    const tmp = `${final}.tmp`;
+    await compactPagedCellTo(c, files, tmp); // page by page: memory stays at one page + index
+    for (const f of c.files) await files.remove(f.path);
+    await files.move(tmp, final);
+    cells.delete(cell);
+    return (await cellOf(cell))?.files.length ?? 0;
+  };
+
   return {
-    ready,
-    /** Answers one request of the VFS (in order). */
-    handle(msg: {
-      op: string;
-      pgno?: number;
-      count?: number;
-      pageSize?: number;
-      pageCount?: number;
-      pages?: [number, Uint8Array][];
-    }) {
+    /** Answers one request of a VFS (requests are served in order). */
+    handle(msg: LtxStoreMessage) {
       queue = queue.then(async () => {
-        await ready;
         try {
+          const c = await cellOf(msg.cell);
           if (msg.op === "meta")
             return answer(
               enc.encode(
-                JSON.stringify({ pageSize: cell?.pageSize ?? 0, pageCount: cell?.pageCount ?? 0 }),
+                JSON.stringify({ pageSize: c?.pageSize ?? 0, pageCount: c?.pageCount ?? 0 }),
               ),
             );
-          if (msg.op === "read")
-            return answer(await (cell as PagedCell).readPage(msg.pgno as number));
+          if (msg.op === "read") return answer(await (c as PagedCell).readPage(msg.pgno as number));
           if (msg.op === "readRun") {
-            // Pages pgno..pgno+count-1, concatenated (read ahead: one range read per file).
-            const run = await (cell as PagedCell).readRun(msg.pgno as number, msg.count as number);
-            const size = (cell as PagedCell).pageSize;
+            const run = await (c as PagedCell).readRun(msg.pgno as number, msg.count as number);
+            const size = (c as PagedCell).pageSize;
             const out = new Uint8Array(run.size * size);
             [...run.keys()]
               .sort((a, b) => a - b)
@@ -64,11 +89,9 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
             return answer(out);
           }
           if (msg.op === "commit") {
-            const txid = (cell?.maxTXID ?? 0n) + 1n;
-            async function* pages() {
-              yield* msg.pages as [number, Uint8Array][];
-            }
-            const path = `${dir}/${ltxFileName(txid, txid)}`;
+            const txid = (c?.maxTXID ?? 0n) + 1n;
+            const path = `${dirOf(msg.cell)}/${ltxFileName(txid, txid)}`;
+            const pages = msg.pages as [number, Uint8Array][];
             await files.write(
               path,
               encodeLtxStream(
@@ -80,13 +103,18 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
                   timestamp: Date.now(),
                   preApplyChecksum: 0n,
                 },
-                pages(),
+                (async function* () {
+                  yield* pages;
+                })(),
               ),
             );
             // The first commit is the snapshot; later ones extend the overlay by one file.
-            if (cell) await cell.append(path);
-            else await reopen();
-            return answer(new Uint8Array());
+            if (c) await c.append(path);
+            else cells.delete(msg.cell);
+            answer(new Uint8Array());
+            // Past the threshold, fold the cell into one snapshot (after answering the commit).
+            if (c && c.files.length >= compactAfter) await compact(msg.cell);
+            return;
           }
           throw new Error(`unknown op ${msg.op}`);
         } catch (err) {
@@ -94,22 +122,41 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
         }
       });
     },
-    /** Folds the cell's files into one snapshot, streamed, then removes the files it replaces. */
-    async compact() {
-      await (queue = queue.then(async () => {
-        await ready;
-        if (!cell || cell.files.length < 2) return;
-        const old = cell.files.map((f) => f.path);
-        const tmp = `${dir}/${ltxFileName(1n, cell.maxTXID)}.tmp`;
-        await compactPagedCellTo(cell, files, tmp);
-        for (const p of old) await files.remove(p);
-        await files.move?.(tmp, `${dir}/${ltxFileName(1n, cell.maxTXID)}`);
-        await reopen();
-      }));
-      return cell?.files.length ?? 0;
+    /** Folds a cell's files into one snapshot; answers its file count after. */
+    compact: (cell: string) =>
+      (queue = queue.then(() => compact(cell).then(() => {}))).then(
+        async () => (await cellOf(cell))?.files.length ?? 0,
+      ),
+    /** The paths of a cell's current files. */
+    files: async (cell: string) => (await cellOf(cell))?.files.map((f) => f.path) ?? [],
+  };
+}
+
+/** One cell at `dir` (the earlier single-cell form): messages may omit `cell`. */
+export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuffer) {
+  const m = /^(.*)\/cells\/([^/]+)\/ltx\/e1\/0000$/.exec(dir);
+  const root = m ? m[1] : dir;
+  const name = m ? m[2] : "cell";
+  const store = ltxCellStore(files, sab, { root, compactAfter: Number.POSITIVE_INFINITY });
+  let count = 0;
+  const refresh = async () => {
+    count = (await store.files(name)).length;
+  };
+  return {
+    ready: refresh(),
+    handle: (msg: Omit<LtxStoreMessage, "cell"> & { cell?: string }) => {
+      store.handle({ ...msg, cell: name } as LtxStoreMessage);
+      void refresh();
+    },
+    compact: async () => {
+      const n = await store.compact(name);
+      count = n;
+      return n;
     },
     get files() {
-      return cell?.files.map((f) => f.path) ?? [];
+      return Array.from({ length: count });
     },
+    /** The cell's file count, after the requests sent so far. */
+    fileCount: async () => (await store.files(name)).length,
   };
 }
