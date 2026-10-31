@@ -30,7 +30,7 @@ self.onmessage = (e: MessageEvent) => {
                 ? new BrowserFilesApi({ rootHandle: dir })
                 : opfsSyncFiles(dir);
             })();
-      store = ltxCellStore(files, m.sab, { compactAfter: m.compactAfter });
+      store = ltxCellStore(files, m.sab, { compactAfter: m.compactAfter, lockScope: m.dir });
       postMessage({ op: "ready" });
     })();
     return;

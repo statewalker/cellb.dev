@@ -25,11 +25,25 @@ async function readRange(
 ): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
   for await (const c of files.read(path, { start, length })) chunks.push(c);
+  const got = chunks.reduce((n, c) => n + c.length, 0);
+  // A short read is a file that changed or went away under its reader: say which, rather than
+  // decode past its end ("Offset is outside the bounds of the DataView").
+  if (got !== length) {
+    const st = await files.stats(path).catch(() => undefined);
+    throw new LtxShortReadError(
+      `ltx: short read of ${path}: ${got} of ${length} bytes at ${start} (file ${st?.kind === "file" ? `${(st as { size: number }).size} bytes` : "missing"})`,
+    );
+  }
   if (chunks.length === 1) return chunks[0];
-  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  const out = new Uint8Array(got);
   let o = 0;
   for (const c of chunks) out.set(c, o), (o += c.length);
   return out;
+}
+
+/** A range read that got fewer bytes than asked: the file changed or was removed meanwhile. */
+export class LtxShortReadError extends Error {
+  name = "LtxShortReadError";
 }
 
 export interface LtxPages {
