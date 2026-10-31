@@ -107,6 +107,11 @@ export async function runAstroConfig(opts: {
   evaluate: (code: string) => Promise<Record<string, unknown>>;
   log?: (m: string) => void;
   trace?: import("./trace.js").Trace;
+  /**
+   * The session driver the build supplies (`{ driver, options }`), set in the config before the
+   * integrations run, as an adapter's would be: EmDash checks for one in `config:setup`.
+   */
+  session?: { driver: string; options?: Record<string, unknown> };
 }): Promise<IntegrationResult> {
   const g = globalThis as Record<string, unknown>;
   g[VFS_GLOBAL] = opts.vfs;
@@ -165,7 +170,7 @@ export async function runAstroConfig(opts: {
     experimental: {},
     devToolbar: { enabled: false },
     prefetch: false,
-    session: {},
+    session: opts.session ? { ...opts.session } : {},
     vite: {},
     ...userConfig,
     integrations:

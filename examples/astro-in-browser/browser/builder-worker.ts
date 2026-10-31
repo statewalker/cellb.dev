@@ -58,6 +58,22 @@ function downloadPool(n: number, store: string) {
     close: () => workers.forEach((x) => x.w.terminate()),
   };
 }
+/** wrangler.jsonc's `main`, relative to the app (comments and trailing commas allowed). */
+function wranglerMain(bytes: Uint8Array | undefined): string | undefined {
+  if (!bytes) return undefined;
+  // Comments out, strings kept (a URL's "//" is inside one).
+  const text = new TextDecoder()
+    .decode(bytes)
+    .replace(/("(?:[^"\\]|\\.)*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (m, str) => str ?? "")
+    .replace(/,(\s*[}\]])/g, "$1");
+  try {
+    const main = (JSON.parse(text) as { main?: string }).main;
+    return main?.replace(/^\.\//, "");
+  } catch {
+    return undefined;
+  }
+}
+
 async function readText(files: { read(p: string): AsyncIterable<Uint8Array> }, path: string) {
   const chunks: Uint8Array[] = [];
   for await (const c of files.read(path)) chunks.push(c);
@@ -119,6 +135,10 @@ self.onmessage = async (
     }
     let extra = {};
     if (e.data.integrations) {
+      const session = {
+        driver: "unstorage/drivers/cloudflare-kv-binding",
+        options: { binding: "SESSION" },
+      };
       log("preloading the packages integrations read at build time…");
       const { vfs, mounts } = await preloadVfs(files, "/app", packages, [
         ["emdash"],
@@ -133,6 +153,7 @@ self.onmessage = async (
         packages,
         vfs,
         log,
+        session,
         evaluate: async (code) => {
           const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
           try {
@@ -150,10 +171,11 @@ self.onmessage = async (
         nodeMounts: mounts,
         hostModules: cellbHostModule,
         inject: [CELLS_GLOBALS_MODULE],
-        session: {
-          driver: "unstorage/drivers/cloudflare-kv-binding",
-          options: { binding: "SESSION" },
-        },
+        session,
+        // The project's own Worker entry (EmDash's: scheduled() for its cron, PluginBridge).
+        main: wranglerMain(
+          e.data.sources["/app/wrangler.jsonc"] ?? e.data.sources["/app/wrangler.json"],
+        ),
       };
     }
     const built = await buildAstroApp({

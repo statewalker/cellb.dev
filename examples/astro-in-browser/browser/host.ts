@@ -173,6 +173,8 @@ function emdashConfig() {
     d1_databases: [{ binding: "DB", database_name: "emdash" }],
     r2_buckets: [{ binding: "MEDIA", bucket_name: "emdash-media" }],
     kv_namespaces: [{ binding: "SESSION" }],
+    // The template's maintenance cron: its src/worker.ts, the built entry, has scheduled().
+    triggers: { crons: ["* * * * *"] },
     vars: { EMDASH_SITE_URL: location.origin },
     assets: { directory: "client", binding: "ASSETS", run_worker_first: false },
   };

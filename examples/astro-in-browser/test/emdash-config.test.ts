@@ -14,16 +14,20 @@ it("runs EmDash's astro.config.mjs and its integrations at build time", async ()
     ["astro"],
   ]);
   console.log("vfs files", vfs.size);
+  const logged: string[] = [];
   const r = await runAstroConfig({
     esbuild,
     files,
     root: "/app",
     packages,
     vfs,
+    // The driver the build supplies, set before the integrations run: no warning from EmDash.
+    session: { driver: "unstorage/drivers/cloudflare-kv-binding", options: { binding: "SESSION" } },
     evaluate: (code) =>
       import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`),
-    log: (m) => console.log(m),
+    log: (m) => (logged.push(m), console.log(m)),
   });
+  expect(logged.filter((m) => /session driver/i.test(m))).toEqual([]);
   console.log(
     "routes",
     r.routes.length,

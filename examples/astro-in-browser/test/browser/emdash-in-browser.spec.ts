@@ -26,6 +26,17 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
       console.log(`[${m.type()}] ${m.text().slice(0, 900)}`),
   );
   host.on("pageerror", (e) => console.log(`[pageerror] ${e.message}`));
+  // Build and runtime problems that do not fail the build: each is a gap in what was built.
+  const gaps: string[] = [];
+  host.on("console", (m) => {
+    const t = m.text();
+    if (
+      /skipped the script|session driver is configured|: unsupported: |cellb ltx-store: .* failed/.test(
+        t,
+      )
+    )
+      gaps.push(t.slice(0, 300));
+  });
   host.on("worker", (w) => {
     console.log(`[worker] ${w.url()}`);
     (w as any).on?.("console", (m: any) =>
@@ -43,6 +54,7 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
     null,
     { timeout: 840_000, polling: 2000 },
   );
+  expect(gaps).toEqual([]);
   console.log((await host.locator("#log").textContent())?.slice(-2500));
   expect(await host.evaluate(() => document.body.dataset.error ?? null)).toBeNull();
   await shot(host, "01-host-build-log");

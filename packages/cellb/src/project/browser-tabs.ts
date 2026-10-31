@@ -120,7 +120,12 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
   };
 
   const ask = (w: Worker, data: unknown, ports: MessagePort[] = []) =>
-    new Promise<{ ok: boolean; error?: string; ownerLock?: string }>((resolve) => {
+    new Promise<{
+      ok: boolean;
+      error?: string;
+      ownerLock?: string;
+      unsupported?: string[];
+    }>((resolve) => {
       const { port1, port2 } = new MessageChannel();
       port1.onmessage = (e) => {
         port1.close();
@@ -210,6 +215,12 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
             filesDir: `${opts.name}-files-${shard}`,
           } satisfies TabShardInit);
           if (!started.ok || !started.ownerLock) throw new Error(started.error);
+          // What the configuration asks for and this runtime does not provide (a cron trigger
+          // without a scheduled() handler, say): said once, not silently ignored.
+          if (started.unsupported?.length)
+            console.warn(
+              `cellb: project ${opts.name} shard ${shard}: unsupported: ${started.unsupported.join("; ")}`,
+            );
           owners.set(shard, started.ownerLock);
           if (!h.stop.signal.aborted) {
             await attach(shard, w, started.ownerLock);

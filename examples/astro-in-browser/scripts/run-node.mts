@@ -27,14 +27,38 @@ writeFileSync(
     d1_databases: [{ binding: "DB", database_name: "emdash" }],
     r2_buckets: [{ binding: "MEDIA", bucket_name: "emdash-media" }],
     kv_namespaces: [{ binding: "SESSION" }],
+    // The template's maintenance cron (its src/worker.ts exports scheduled()).
+    triggers: { crons: ["* * * * *"] },
     vars: { EMDASH_SITE_URL: origin },
     assets: { directory: "client", binding: "ASSETS" },
   }),
 );
 const t0 = performance.now();
+// A clock a second before the next minute: the cron fires once the setup below is done.
+const skew = 60_000 - (Date.now() % 60_000) - 1_000 - 25_000;
+const clock = {
+  now: () => Date.now() + skew,
+  setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
+  clearTimeout: (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>),
+};
+const opener = nodeSqliteOpener();
+let cronDb: ReturnType<typeof opener> | undefined;
+const scheduledLogs: string[] = [];
+for (const level of ["log", "warn", "error"] as const) {
+  const real = console[level].bind(console);
+  console[level] = (...args: unknown[]) => {
+    if (String(args[0]).includes("[scheduled]")) scheduledLogs.push(args.map(String).join(" "));
+    real(...args);
+  };
+}
 const { runtime, unsupported } = await loadNodeProject(dir, {
-  openSql: nodeSqliteOpener(),
+  openSql: Object.assign((key: string) => {
+    const db = opener(key);
+    if (key === "__cellb/cron") cronDb = db;
+    return db;
+  }, opener),
   files: new MemFilesApi(),
+  clock,
 });
 console.log(
   `loaded in ${Math.round(performance.now() - t0)} ms; unsupported: ${JSON.stringify(unsupported)}`,
@@ -76,6 +100,15 @@ try {
     ...admin.body.matchAll(/(?:src|href|component-url|renderer-url)="(\/_astro\/[^"]+)"/g),
   ].map((m) => m[1]);
   for (const a of [...new Set(assets)].slice(0, 6)) await show(a);
+  // The cron trigger: EmDash's scheduled() (publishing, maintenance) has run once.
+  const due = 60_000 - (clock.now() % 60_000);
+  await new Promise((r) => setTimeout(r, Math.min(due, 60_000) + 3_000));
+  const runs = cronDb?.exec("SELECT expression, scheduled_time FROM cron_state", []).rows ?? [];
+  console.log(
+    `cron: ${runs.length ? runs.map(([e, t]) => `"${e}" ran for ${new Date(Number(t)).toISOString()}`).join(", ") : "never ran"}; scheduled() logged: ${JSON.stringify(scheduledLogs)}`,
+  );
+  if (!runs.length || scheduledLogs.some((l) => /failed/.test(l)))
+    throw new Error("the cron trigger did not run EmDash's scheduled() cleanly");
 } finally {
   await runtime.close();
 }

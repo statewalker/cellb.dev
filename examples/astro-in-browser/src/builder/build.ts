@@ -53,6 +53,13 @@ export interface AstroBuildOptions {
    * restarted instance starts small).
    */
   release?: () => Promise<void>;
+  /**
+   * The project's own Worker entry (wrangler's `main`, `src/worker.ts`), when it wraps the
+   * adapter's handler (EmDash's adds `scheduled()` for its cron trigger and exports
+   * `PluginBridge`): bundled as the entry, its `@astrojs/cloudflare/entrypoints/server` and
+   * `astro/app/entrypoint` backed by this build's app.
+   */
+  main?: string;
   /** Astro session driver config (`{ driver, options }`), for the manifest. */
   session?: { driver: string; options?: Record<string, unknown> };
 }
@@ -180,6 +187,7 @@ const manifest = Object.assign(deserializeManifest(serialized), {
 });
 const app = new App(manifest);
 app.setFetchHandler(new DefaultFetchHandler());
+export { app };
 
 export default {
   async fetch(request, env, ctx) {
@@ -227,6 +235,15 @@ export const inlinedScripts = g.inlinedScripts;`;
             return middlewareModule;
           case "virtual:astro-in-browser/renderers":
             return renderersModule;
+          // The adapter, as a project's own entry reaches it (`main`): this build's handler and app.
+          case "@astrojs/cloudflare/entrypoints/server":
+            return opts.main
+              ? `export { default } from "virtual:astro-in-browser/entry";`
+              : undefined;
+          case "astro/app/entrypoint":
+            return opts.main
+              ? `import { app } from "virtual:astro-in-browser/entry";\nexport const createApp = () => app;`
+              : undefined;
         }
         return astroModule(spec, { root, hasLiveConfig, image }) ?? opts.hostModules?.(spec);
       },
@@ -267,8 +284,13 @@ export const inlinedScripts = g.inlinedScripts;`;
     });
 
   // The entry is a host module, not a file: give the bundler a file that imports it.
+  const main = opts.main && JSON.stringify(`./${opts.main.replace(/^\.?\//, "")}`);
   await opts.files.write(`${root}/.astro-in-browser-entry.js`, [
-    new TextEncoder().encode(`export { default } from "virtual:astro-in-browser/entry";\n`),
+    new TextEncoder().encode(
+      main
+        ? `export * from ${main};\nexport { default } from ${main};\n`
+        : `export { default } from "virtual:astro-in-browser/entry";\n`,
+    ),
   ]);
   // The client build reads the islands and scripts of every component, compiled up front
   // (scanComponents: well under a second): it does not wait on the server bundle's graph, so it
@@ -375,6 +397,32 @@ interface ClientBuild {
  * Astro's `entryModules` points at); and each component `<script>`, bundled on its own and
  * inlined (Astro's `inlinedScripts`).
  */
+const CLIENT_MODULES: Record<string, string> = {
+  "astro:transitions/client": `export { navigate, supportsViewTransitions, transitionEnabledOnThisPage } from "astro/virtual-modules/transitions-router.js";
+export * from "astro/virtual-modules/transitions-types.js";
+export { TransitionBeforePreparationEvent, TransitionBeforeSwapEvent } from "astro/virtual-modules/transitions-events.js";
+export { swapFunctions } from "astro/virtual-modules/transitions-swap-functions.js";`,
+  // No adapter client config here (cellb is the adapter): no extra headers.
+  "virtual:astro:adapter-config/client": "export const internalFetchHeaders = {};",
+};
+
+/** The globals Astro's prefetch and transitions plugins substitute, from the config. */
+function prefetchDefines(config: Record<string, unknown> | undefined): Record<string, string> {
+  const prefetch = config?.prefetch as
+    | boolean
+    | { prefetchAll?: boolean; defaultStrategy?: string }
+    | undefined;
+  const opts = typeof prefetch === "object" ? prefetch : {};
+  const experimental = (config?.experimental ?? {}) as { clientPrerender?: boolean };
+  return {
+    __PREFETCH_DISABLED__: JSON.stringify(prefetch === false || prefetch === undefined),
+    // `undefined` when not configured (prefetch's init() falls back), as Astro's plugin writes it.
+    __PREFETCH_PREFETCH_ALL__: JSON.stringify(opts.prefetchAll) ?? "undefined",
+    __PREFETCH_DEFAULT_STRATEGY__: JSON.stringify(opts.defaultStrategy) ?? "undefined",
+    __EXPERIMENTAL_CLIENT_PRERENDER__: JSON.stringify(!!experimental.clientPrerender),
+  };
+}
+
 async function buildClient(
   o: AstroBuildOptions & {
     root: string;
@@ -406,7 +454,11 @@ async function buildClient(
       entry,
       packages: o.trace ? tracedPackages(o.packages, o.trace) : o.packages,
       conditions: ["browser", "module", "import"],
+      // Astro's client-side virtual modules (its Vite plugins define them): the view-transitions
+      // router ClientRouter's script imports, and the adapter's fetch headers prefetch reads.
+      modules: (spec) => CLIENT_MODULES[spec],
       define: {
+        ...prefetchDefines(o.integration?.config),
         "process.env.NODE_ENV": '"production"',
         "import.meta.env": JSON.stringify({
           MODE: "production",
@@ -477,8 +529,13 @@ async function buildClient(
         );
         out.inlinedScripts.push([key, r.code]);
       } catch (err) {
+        // esbuild's message lists each error on a line of its own: keep them all.
         o.log?.(
-          `skipped the script of ${id}: ${String((err as Error)?.message ?? err).split("\n")[0]}`,
+          `skipped the script of ${id}: ${String((err as Error)?.message ?? err)
+            .split("\n")
+            .filter((l) => l.trim())
+            .slice(0, 6)
+            .join(" | ")}`,
         );
       }
     }

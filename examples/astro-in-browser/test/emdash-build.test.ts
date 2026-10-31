@@ -22,9 +22,11 @@ it("builds EmDash's blog template (integrations, routes, virtual modules) for ce
     root: "/app",
     packages,
     vfs,
+    session: { driver: "unstorage/drivers/cloudflare-kv-binding", options: { binding: "SESSION" } },
     evaluate: (code) =>
       import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`),
   });
+  const logged: string[] = [];
   const built = await buildAstroApp({
     esbuild,
     transform: transform as never,
@@ -36,8 +38,12 @@ it("builds EmDash's blog template (integrations, routes, virtual modules) for ce
     hostModules: cellbHostModule,
     inject: [CELLS_GLOBALS_MODULE],
     session: { driver: "unstorage/drivers/cloudflare-kv-binding", options: { binding: "SESSION" } },
-    log: (m) => console.log(m),
+    main: "src/worker.ts", // the template's entry: scheduled() and PluginBridge
+    log: (m) => (logged.push(m), console.log(m)),
   });
+  // Every component script bundles, Astro's ClientRouter included (its virtual modules).
+  expect(logged.filter((m) => m.startsWith("skipped"))).toEqual([]);
+  expect(built.code).toContain("ClientRouter.astro?astro&type=script&index=0");
   console.log(
     `built in ${built.ms} ms: ${(built.code.length / 1e6).toFixed(2)} MB, ${built.inputs.length} inputs`,
   );

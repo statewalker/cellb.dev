@@ -91,6 +91,10 @@ try {
           packages,
           vfs,
           trace,
+          session: {
+            driver: "unstorage/drivers/cloudflare-kv-binding",
+            options: { binding: "SESSION" },
+          },
           evaluate: (code) =>
             import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`),
         }),
@@ -104,6 +108,7 @@ try {
         driver: "unstorage/drivers/cloudflare-kv-binding",
         options: { binding: "SESSION" },
       },
+      main: "src/worker.ts", // the template's entry (wrangler.jsonc `main`): scheduled()
     };
   }
   const built = await trace.time("bundle", "build the Worker", () =>
