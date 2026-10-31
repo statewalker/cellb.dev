@@ -1,0 +1,98 @@
+name: EmDash on cellb (built in Node and in the browser)
+
+# EmDash (the blog-cloudflare template) built by the in-browser builder and run on cellb, in
+# Node and in Chromium: the package store's cold and warm builds, the in-memory path, the admin
+# flow with a reload and a second tab, and the package store under load. Plus cellb's unit tests,
+# among them the port-leak and the 64 MiB streaming-compaction tests.
+#
+# examples/astro-in-browser links @statewalker/webrun-bundler from a sibling checkout of
+# webrun-sites (link:../../../webrun-sites/…): both repositories are checked out side by side.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      webrun-sites-ref:
+        description: "webrun-sites branch, tag or commit"
+        default: "main"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Until fix/module-type-scopes (module types of .js files in "type": "module" scopes, no
+  # source maps by default) is merged into webrun-sites' main.
+  WEBRUN_SITES_REF: ${{ inputs.webrun-sites-ref || 'fix/module-type-scopes' }}
+
+jobs:
+  emdash:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: cellb.dev
+      - uses: actions/checkout@v7
+        with:
+          repository: statewalker/webrun-sites
+          ref: ${{ env.WEBRUN_SITES_REF }}
+          path: webrun-sites
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: cellb.dev/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: webrun-bundler (its package exports dist/)
+        working-directory: webrun-sites
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @statewalker/webrun-bundler build
+      - run: pnpm install --frozen-lockfile
+        working-directory: cellb.dev
+      - name: cellb — typecheck and unit tests (port leaks, 64 MiB compaction, LTX, SQL I/O errors)
+        working-directory: cellb.dev/packages/cellb
+        run: |
+          pnpm run typecheck
+          pnpm exec vitest run test/
+      - name: Node — EmDash built by Astro, run on cellb
+        working-directory: cellb.dev/examples/emdash
+        run: pnpm test
+      - name: Node — the in-browser builder on Node (the small app, EmDash's config and build)
+        working-directory: cellb.dev/examples/astro-in-browser
+        run: pnpm exec vitest run
+      - name: Node — the builder's EmDash bundle on cellb (D1, R2, KV, the cron trigger)
+        working-directory: cellb.dev/examples/astro-in-browser
+        run: |
+          pnpm exec tsx scripts/trace-build.mts emdash
+          pnpm exec tsx scripts/run-node.mts
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: cellb.dev/examples/astro-in-browser
+      - name: Chromium — the package store under concurrent PUTs, ranged GETs and compaction
+        working-directory: cellb.dev/examples/astro-in-browser
+        run: pnpm exec playwright test test/browser/pkgstore-probe.spec.ts test/browser/build-in-browser.spec.ts
+      - name: Chromium — EmDash built in the tab through the package store (cold, then warm)
+        working-directory: cellb.dev/examples/astro-in-browser
+        run: pnpm exec playwright test test/browser/emdash-in-browser.spec.ts
+      - name: Chromium — EmDash built in the tab, packages in memory
+        working-directory: cellb.dev/examples/astro-in-browser
+        env:
+          EMDASH_STORE: "0"
+        run: pnpm exec playwright test test/browser/emdash-in-browser.spec.ts
+      - name: Chromium — the admin flow on the in-browser build, a reload, a second tab
+        working-directory: cellb.dev/examples/astro-in-browser
+        run: pnpm exec playwright test test/browser/emdash-admin-in-browser.spec.ts
+      - name: Chromium — EmDash's static build (examples/emdash)
+        working-directory: cellb.dev/examples/emdash
+        run: pnpm test:browser
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emdash-results
+          path: |
+            cellb.dev/examples/astro-in-browser/test-results/
+            cellb.dev/examples/astro-in-browser/screenshots/
+            cellb.dev/examples/emdash/test-results/
+            cellb.dev/examples/emdash/screenshots/

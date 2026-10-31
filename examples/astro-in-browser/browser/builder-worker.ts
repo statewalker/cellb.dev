@@ -33,7 +33,10 @@ function downloadPool(n: number, store: string) {
   for (const x of workers) x.w.onmessage = (e) => waiting.get(e.data.id)?.(e.data);
   let next = 0;
   return {
+    /** Packages fetched from the registry (not found in the store). */
+    downloads: 0,
     download(ref: { pkg: string; version?: string }) {
+      this.downloads++;
       const x = workers.reduce((a, b) => (b.busy < a.busy ? b : a));
       const id = next++;
       x.busy++;
@@ -105,7 +108,9 @@ self.onmessage = async (
       const app = e.data.integrations ? "emdash" : "app";
       const cache = httpFiles(e.data.store);
       const pool = downloadPool(DOWNLOADERS, e.data.store);
-      const source = cachedSource(cache, npmRegistrySource() as never, undefined, pool.download);
+      const source = cachedSource(cache, npmRegistrySource() as never, undefined, (ref) =>
+        pool.download(ref),
+      );
       const lockPath = `/locks/${app}.json`;
       const lockText = await readText(cache, lockPath);
       const lock = lockText ? (JSON.parse(lockText) as string[]) : undefined;
@@ -130,6 +135,7 @@ self.onmessage = async (
           new TextEncoder().encode(JSON.stringify([...source.used].sort())),
         ]);
         await source.flush();
+        log(`package store: ${pool.downloads} packages downloaded from the registry`);
         pool.close();
       };
     }

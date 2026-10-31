@@ -6,8 +6,11 @@ import pkgstoreSource from "../src/pkgstore/worker.js?raw";
 import { crawlSite, zip } from "./export-site.ts";
 
 const STORE = `${location.origin}/__cellb/projects/pkgstore`;
-/** `?store`: packages through the package store Durable Object (see builder-worker.ts). */
-const USE_STORE = new URLSearchParams(location.search).has("store");
+/**
+ * Packages through the package store Durable Object (see builder-worker.ts), the default;
+ * `?memory`: in the builder's memory only, fetched from the registry on every build.
+ */
+const USE_STORE = !new URLSearchParams(location.search).has("memory");
 
 /** The package store: a Durable Object project run by cellb in this tab (the builder's cache). */
 async function startPackageStore(serviceWorker: () => Promise<ServiceWorker>) {

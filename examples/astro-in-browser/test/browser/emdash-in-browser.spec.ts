@@ -12,6 +12,9 @@ mkdirSync(shots, { recursive: true });
 const shot = (p: Page, name: string, fullPage = false) =>
   p.screenshot({ path: join(shots, `${name}.png`), fullPage });
 
+/** Packages through the package store (the default); EMDASH_STORE=0: the builder's memory. */
+const STORE = process.env.EMDASH_STORE !== "0";
+
 test("EmDash: built, run and exported entirely in the browser", async ({ context }) => {
   test.setTimeout(900_000);
   const host = await context.newPage();
@@ -48,7 +51,7 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
     w.on("console", (m) => console.log(`[sw ${m.type()}] ${m.text().slice(0, 500)}`)),
   );
   const heaps = process.env.EMDASH_HEAP ? await sampleHeaps(host) : undefined;
-  await host.goto(`/__cellb/emdash.html${process.env.EMDASH_STORE ? "?store" : ""}`);
+  await host.goto(`/__cellb/emdash.html${STORE ? "" : "?memory"}`);
   await host.waitForFunction(
     () => document.body.dataset.ready === "true" || document.body.dataset.error,
     null,
@@ -154,8 +157,15 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
   }
 
   // With the package store: a rebuild in the same browser finds every package in it (the lock).
-  if (process.env.EMDASH_STORE) {
+  if (STORE) {
     const cold = Number(await host.evaluate(() => document.body.dataset.buildMs));
+    const downloaded = async () =>
+      Number(
+        /package store: (\d+) packages downloaded/.exec(
+          (await host.locator("#log").textContent()) ?? "",
+        )?.[1],
+      );
+    const coldDownloads = await downloaded();
     await host.reload();
     await host.waitForFunction(
       () => document.body.dataset.ready === "true" || document.body.dataset.error,
@@ -171,6 +181,10 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
         .join(" | ")}`,
     );
     expect(text).toContain("from the last build's lock");
+    // Every package came from the store: none was downloaded again.
+    console.log(`downloads: cold ${coldDownloads}, warm ${await downloaded()}`);
+    expect(coldDownloads).toBeGreaterThan(0);
+    expect(await downloaded()).toBe(0);
     await shot(host, "08-host-rebuild-log");
   }
 });
