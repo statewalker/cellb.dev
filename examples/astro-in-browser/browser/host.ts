@@ -165,6 +165,12 @@ async function start() {
           },
     code: { bundle },
     assetFiles: clientAssets,
+    // The site's Durable Objects (D1, KV, R2 included) on cellb's LTX storage: SQLite in the
+    // shard over LTX files on OPFS (celld's layout), read by page, compacted in the background.
+    // `?pools`: cellb's OPFS pools instead.
+    ...(new URLSearchParams(location.search).has("pools")
+      ? {}
+      : { bucket: { ltx: `${APP}-ltx`, node: "tab" } }),
     serviceWorker,
   });
   log("shards joined; waiting for the site to answer");
