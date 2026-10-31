@@ -6,3 +6,4 @@ traces/*/client
 traces/*/*.json
 traces/*.db*
 traces/*.lock.json
+traces/emdash-node/

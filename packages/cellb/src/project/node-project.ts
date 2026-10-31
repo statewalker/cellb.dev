@@ -6,7 +6,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { builtinModules } from "node:module";
+import { builtinModules, createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Worker as NodeWorker } from "node:worker_threads";
@@ -23,6 +23,7 @@ import type { WorkerModule } from "../core/runtime.js";
 import { isolatedModuleLoader } from "../isolate/host.js";
 import type { PortLike } from "../isolate/protocol.js";
 import type { CellStorage } from "../ports.js";
+import * as workersClasses from "./cloudflare-workers.js";
 import { parseJsonc } from "./jsonc.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import {
@@ -235,6 +236,10 @@ export async function loadNodeProject(
   // The module reads `env` from `cloudflare:workers` while it is evaluated, before the
   // runtime exists: until then the scope holds the configuration's vars (and `ai`).
   const scope = workerScope(loadTimeEnv(config, host.ai));
+  // A bundle built elsewhere for cellb (cellbHostModule: webrun-bundler in a browser, say) reads
+  // the runtime from globals, as in the browser realm: set them here too, so the same bundle
+  // runs on Node. (One such project per process: the globals are the process's.)
+  installHostModuleGlobals(scope);
   const module = config.main
     ? await bundleWorker({ path: resolve(dir, config.main) }, undefined, undefined, {
         nodeCompat,
@@ -386,3 +391,16 @@ async function buildIsolateEntry(): Promise<string> {
   });
   return isolateEntryFile;
 }
+
+/** The globals `@statewalker/cellb/host-modules` bundles read (see host-modules.ts). */
+function installHostModuleGlobals(scope: WorkerScope): void {
+  const g = globalThis as Record<string, unknown>;
+  g.__cellsProjectScope = scope;
+  g.__cellsWorkersModule ??= workersClasses;
+  // node:* from Node itself (the browser realm gives cellb's polyfills).
+  g.__cellsNodeModules ??= new Proxy(
+    {},
+    { get: (_t, k) => (typeof k === "string" ? requireBuiltin(k) : undefined) },
+  );
+}
+const requireBuiltin = createRequire(import.meta.url);

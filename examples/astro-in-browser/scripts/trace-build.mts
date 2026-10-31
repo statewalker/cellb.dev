@@ -7,19 +7,18 @@
  *   tsx scripts/trace-build.mts app         # the small Astro app (app/)
  *   node scripts/trace-run.mjs emdash       # then: evaluate traces/<app>/worker.js and request it
  */
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { transform } from "@astrojs/compiler-rs";
 import { CELLS_GLOBALS_MODULE, cellbHostModule } from "@statewalker/cellb/host-modules";
 import { newNodeSqliteDb } from "@statewalker/db-sqlite-node";
 import { npmPackages } from "@statewalker/webrun-bundler";
-import { npmRegistrySource } from "@statewalker/webrun-modules";
 import { SqliteFilesApi } from "@statewalker/webrun-files-sqlite";
-import { existsSync, readFileSync } from "node:fs";
-import { cachedSource, prefetch } from "../src/builder/package-cache.ts";
+import { npmRegistrySource } from "@statewalker/webrun-modules";
 import * as esbuild from "esbuild-wasm";
 import { buildAstroApp } from "../src/builder/build.ts";
 import { preloadVfs, runAstroConfig } from "../src/builder/integrations.ts";
+import { cachedSource, prefetch } from "../src/builder/package-cache.ts";
 import { Trace } from "../src/builder/trace.ts";
 import { appFiles } from "../test/load-app.ts";
 
@@ -42,15 +41,29 @@ const files = await appFiles(
 );
 // Packages: a persistent cache in SQLite (the same SqliteFilesApi a Durable Object or a browser
 // worker on OPFS uses), filled N at a time before the build, from the last build's lock if any.
-const cacheDb = await newNodeSqliteDb({ path: join(import.meta.dirname, "../traces/package-cache.db") });
+const cacheDb = await newNodeSqliteDb({
+  path: join(import.meta.dirname, "../traces/package-cache.db"),
+});
 // Uncompressed, 256 KiB blocks: a file read is a range of a pack; a compressed 1 MiB block
 // would be inflated whole for every small file.
 const cache = new SqliteFilesApi(cacheDb, { compression: null, blockSize: 256 * 1024 });
 await cache.init();
 const source = cachedSource(cache, npmRegistrySource() as never, trace);
 const lockPath = join(import.meta.dirname, "../traces", `${app}.lock.json`);
-const lock = existsSync(lockPath) ? (JSON.parse(readFileSync(lockPath, "utf8")) as string[]) : undefined;
-const projectManifest = JSON.parse(new TextDecoder().decode((await files.stats("/app/package.json")) ? await (async () => { const c: Uint8Array[] = []; for await (const x of files.read("/app/package.json")) c.push(x); return c[0]; })() : new Uint8Array()));
+const lock = existsSync(lockPath)
+  ? (JSON.parse(readFileSync(lockPath, "utf8")) as string[])
+  : undefined;
+const projectManifest = JSON.parse(
+  new TextDecoder().decode(
+    (await files.stats("/app/package.json"))
+      ? await (async () => {
+          const c: Uint8Array[] = [];
+          for await (const x of files.read("/app/package.json")) c.push(x);
+          return c[0];
+        })()
+      : new Uint8Array(),
+  ),
+);
 // Without a lock, the walk of the whole tree (prefetch without `lock`) over-fetches: on demand.
 if (lock) await prefetch(source, projectManifest, { lock, trace, concurrency: 16 });
 const packages = npmPackages({ source: source as never });
