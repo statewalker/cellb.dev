@@ -10,7 +10,7 @@ test("the package store Durable Object stores and serves ranges", async ({ conte
       /shard|cellb|error/i.test(m.text()) &&
       console.log(`[host ${m.type()}] ${m.text().slice(0, 600)}`),
   );
-  await host.goto("/__cellb/emdash.html");
+  await host.goto("/__cellb/emdash.html?store");
   await host.waitForFunction(
     () =>
       /package store .* ready/.test(document.getElementById("log")?.textContent ?? "") ||

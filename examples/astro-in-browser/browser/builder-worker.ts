@@ -71,8 +71,7 @@ self.onmessage = async (
     for (const [path, bytes] of Object.entries(e.data.sources)) await files.write(path, [bytes]);
     // Packages: from the npm registry, in this worker's memory (default); with `store`, through
     // the package store (a Durable Object on cellb, which alone owns the storage), with misses
-    // downloaded by DOWNLOADERS workers. (The store path still runs out of memory on EmDash:
-    // ports of the shard link leak, see packages/cellb/src/transport/port.ts.)
+    // downloaded by DOWNLOADERS workers.
     let packages = npmPackages();
     let afterBuild = async () => {};
     if (e.data.store) {

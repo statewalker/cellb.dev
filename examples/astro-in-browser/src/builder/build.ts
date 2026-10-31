@@ -194,6 +194,7 @@ export const inlinedScripts = g.inlinedScripts;`;
   const run = () =>
     bundle({
       esbuild: opts.esbuild,
+      sourcemap: false, // a 26 MB bundle's map (with every source) would double the memory
       files: opts.files,
       root,
       entry: "/.astro-in-browser-entry.js",
@@ -372,6 +373,7 @@ async function buildClient(
     await o.files.write(`${o.root}${entry}`, [enc.encode(entrySource)]);
     return bundle({
       esbuild: o.esbuild,
+      sourcemap: false,
       files: o.files,
       root: o.root,
       entry,

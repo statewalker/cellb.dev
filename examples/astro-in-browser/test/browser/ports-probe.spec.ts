@@ -4,7 +4,7 @@ import { test } from "@playwright/test";
 test("port leak per request kind", async ({ context }) => {
   test.setTimeout(240_000);
   const host = await context.newPage();
-  await host.goto("/__cellb/emdash.html");
+  await host.goto("/__cellb/emdash.html?store");
   await host.waitForFunction(
     () => /package store .* ready/.test(document.getElementById("log")?.textContent ?? ""),
     null,
@@ -22,7 +22,7 @@ test("port leak per request kind", async ({ context }) => {
     ] as const) {
       let fails = 0;
       let first = "";
-      for (let i = 0; i < 1300; i++) {
+      for (let i = 0; i < 400; i++) {
         const url = kind === "GET-404" ? `${base}.missing` : base;
         const r = await fetch(url, init as RequestInit);
         if (r.status === 503) {

@@ -211,6 +211,35 @@ async function exportSite() {
 Object.assign(window, { __exportSite: exportSite });
 document.getElementById("export")?.addEventListener("click", () => void exportSite());
 
+// Memory by realm (page, each worker), every 10 s: what fills the tab (cross-origin isolated
+// pages only; the measurement waits for a garbage collection, so it can lag).
+const measure = (
+  performance as {
+    measureUserAgentSpecificMemory?: () => Promise<{
+      bytes: number;
+      breakdown: { bytes: number; attribution: { url?: string; scope?: string }[] }[];
+    }>;
+  }
+).measureUserAgentSpecificMemory;
+if (measure && crossOriginIsolated)
+  setInterval(async () => {
+    try {
+      const m = await measure.call(performance);
+      const by = new Map<string, number>();
+      for (const b of m.breakdown)
+        for (const a of b.attribution.length ? b.attribution : [{ url: "(shared)" }]) {
+          const k =
+            (a.url ?? a.scope ?? "?").replace(/^.*\/(__cellb\/)?/, "").split("?")[0] || "(page)";
+          by.set(k, (by.get(k) ?? 0) + b.bytes / Math.max(1, b.attribution.length));
+        }
+      const top = [...by]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([k, v]) => `${k} ${(v / 1e6).toFixed(0)}MB`);
+      console.info(`[memory] total ${(m.bytes / 1e6).toFixed(0)} MB: ${top.join(", ")}`);
+    } catch {}
+  }, 10_000);
+
 start().catch((e) => {
   document.body.dataset.error = String(e?.stack ?? e);
   say(`Failed: ${e?.message ?? e}`);

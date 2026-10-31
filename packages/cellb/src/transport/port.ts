@@ -10,11 +10,11 @@ import {
 import { type Send, withScheme } from "./cells-link.js";
 
 /**
- * Multiplexed ports per link. Ports of GET exchanges are not all released by webrun-rpc
- * 0.4.3 yet (a leak still under investigation: about one per request on a long-lived link),
- * and its default (1024) refused calls after ~1000 requests, which a build makes in minutes.
+ * Multiplexed ports per link: one per exchange in flight (they are released when an exchange
+ * ends, is cancelled or has no body: fetchClosing, servingClosing; p31-port-leak.test.ts).
+ * `globalThis.__cellbMaxPorts` overrides it (tests that check nothing leaks set it low).
  */
-const MAX_PORTS = 1 << 20;
+const maxPorts = () => (globalThis as { __cellbMaxPorts?: number }).__cellbMaxPorts ?? 4096;
 
 /**
  * A DEDICATED message pipe (MessagePort, or a worker_threads port). Don't pass a
@@ -33,7 +33,7 @@ export function serveRuntime(
   opts?: CellsHttpOptions,
 ): Promise<() => Promise<void>> {
   return serve(
-    { mux: overPipe(port, { codec: structuredCodec, side: "responder", maxPorts: MAX_PORTS }) },
+    { mux: overPipe(port, { codec: structuredCodec, side: "responder", maxPorts: maxPorts() }) },
     servingClosing(serveFetchOverDuplex(cellsHttpHandler(runtime, opts))),
   ) as Promise<() => Promise<void>>;
 }
@@ -64,8 +64,22 @@ async function fetchClosing(call: Call, req: Request): Promise<Response> {
     drain();
     return res;
   }
-  // The same once a body has been read to its end: the codec stops at the body's end marker.
-  const body = res.body.pipeThrough(new TransformStream({ flush: drain }));
+  // The same once the body is read to its end, or cancelled by its reader (then the exchange
+  // is abandoned: the call's iterator is returned, which closes its port).
+  const reader = (res.body as ReadableStream<Uint8Array>).getReader();
+  const body = new ReadableStream<Uint8Array>({
+    async pull(ctl) {
+      const r = await reader.read();
+      if (r.done) {
+        ctl.close();
+        drain();
+      } else ctl.enqueue(r.value);
+    },
+    async cancel(reason) {
+      await reader.cancel(reason).catch(() => {});
+      await (output as AsyncGenerator<unknown>).return?.(undefined).catch?.(() => {});
+    },
+  });
   return Object.assign(new Response(body, res), {
     webSocket: (res as { webSocket?: unknown }).webSocket ?? null,
   });
@@ -99,7 +113,7 @@ export async function connectRuntime(
   opts?: CellsHttpOptions,
 ): Promise<RemoteRuntime & { close(): Promise<void> }> {
   const { call, close } = await connect({
-    mux: overPipe(port, { codec: structuredCodec, side: "initiator", maxPorts: MAX_PORTS }),
+    mux: overPipe(port, { codec: structuredCodec, side: "initiator", maxPorts: maxPorts() }),
   });
   const remote = await remoteRuntime((req) => fetchClosing(call, req), opts);
   return Object.assign(remote, { close: async () => void (await close()) });
@@ -108,7 +122,7 @@ export async function connectRuntime(
 /** Serves any HTTP handler over a port (responder side of a link). */
 export function serveHandlerOverPort(port: CellPort, handler: Send): Promise<() => Promise<void>> {
   return serve(
-    { mux: overPipe(port, { codec: structuredCodec, side: "responder", maxPorts: MAX_PORTS }) },
+    { mux: overPipe(port, { codec: structuredCodec, side: "responder", maxPorts: maxPorts() }) },
     servingClosing(serveFetchOverDuplex(handler)),
   ) as Promise<() => Promise<void>>;
 }
@@ -118,7 +132,7 @@ export async function linkOverPort(
   port: CellPort,
 ): Promise<{ send: Send; close(): Promise<void> }> {
   const { call, close } = await connect({
-    mux: overPipe(port, { codec: structuredCodec, side: "initiator", maxPorts: MAX_PORTS }),
+    mux: overPipe(port, { codec: structuredCodec, side: "initiator", maxPorts: maxPorts() }),
   });
   return {
     send: (req) => fetchClosing(call, withScheme(req)),

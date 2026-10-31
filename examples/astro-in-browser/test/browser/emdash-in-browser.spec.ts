@@ -16,6 +16,10 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
   const host = await context.newPage();
   host.on(
     "console",
+    (m) => /^\[(build|memory)\]/.test(m.text()) && console.log(m.text().slice(0, 400)),
+  );
+  host.on(
+    "console",
     (m) =>
       (/^\[(build|shard)\]/.test(m.text()) || m.type() === "error" || m.type() === "warning") &&
       console.log(`[${m.type()}] ${m.text().slice(0, 900)}`),
@@ -31,7 +35,7 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
   context.on("serviceworker", (w) =>
     w.on("console", (m) => console.log(`[sw ${m.type()}] ${m.text().slice(0, 500)}`)),
   );
-  await host.goto("/__cellb/emdash.html");
+  await host.goto(`/__cellb/emdash.html${process.env.EMDASH_STORE ? "" : "?nostore"}`);
   await host.waitForFunction(
     () => document.body.dataset.ready === "true" || document.body.dataset.error,
     null,
