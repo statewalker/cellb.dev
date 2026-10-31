@@ -69,30 +69,44 @@ self.onmessage = async (
     log("Astro's compiler (compiler-rs wasm, from npm) ready");
     const files = new MemFilesApi();
     for (const [path, bytes] of Object.entries(e.data.sources)) await files.write(path, [bytes]);
-    // Packages: the package store (a Durable Object run by cellb in this tab, which alone owns
-    // the storage) over HTTP; misses are downloaded by DOWNLOADERS workers in parallel, each
-    // fetching, unpacking and storing a package itself.
-    const app = e.data.integrations ? "emdash" : "app";
-    const cache = httpFiles(e.data.store);
-    const pool = downloadPool(DOWNLOADERS, e.data.store);
-    const source = cachedSource(cache, npmRegistrySource() as never, undefined, pool.download);
-    const lockPath = `/locks/${app}.json`;
-    const lockText = await readText(cache, lockPath);
-    const lock = lockText ? (JSON.parse(lockText) as string[]) : undefined;
-    const manifest = JSON.parse(
-      new TextDecoder().decode(
-        e.data.sources["/app/package.json"] ?? new TextEncoder().encode("{}"),
-      ),
-    );
-    const tp = performance.now();
-    if (lock) {
-      const n = (await prefetch(source, manifest, { lock })).length;
-      log(
-        `package cache: ${n} packages from the last build's lock, ready in ${Math.round(performance.now() - tp)} ms`,
+    // Packages: from the npm registry, in this worker's memory (default); with `store`, through
+    // the package store (a Durable Object on cellb, which alone owns the storage), with misses
+    // downloaded by DOWNLOADERS workers. (The store path still runs out of memory on EmDash:
+    // ports of the shard link leak, see packages/cellb/src/transport/port.ts.)
+    let packages = npmPackages();
+    let afterBuild = async () => {};
+    if (e.data.store) {
+      const app = e.data.integrations ? "emdash" : "app";
+      const cache = httpFiles(e.data.store);
+      const pool = downloadPool(DOWNLOADERS, e.data.store);
+      const source = cachedSource(cache, npmRegistrySource() as never, undefined, pool.download);
+      const lockPath = `/locks/${app}.json`;
+      const lockText = await readText(cache, lockPath);
+      const lock = lockText ? (JSON.parse(lockText) as string[]) : undefined;
+      const manifest = JSON.parse(
+        new TextDecoder().decode(
+          e.data.sources["/app/package.json"] ?? new TextEncoder().encode("{}"),
+        ),
       );
-    } else
-      log("package cache: empty; packages come from the registry and are cached as they are read");
-    const packages = npmPackages({ source: source as never });
+      const tp = performance.now();
+      if (lock) {
+        const n = (await prefetch(source, manifest, { lock })).length;
+        log(
+          `package cache: ${n} packages from the last build's lock, ready in ${Math.round(performance.now() - tp)} ms`,
+        );
+      } else
+        log(
+          "package cache: empty; packages come from the registry and are cached as they are read",
+        );
+      packages = npmPackages({ source: source as never });
+      afterBuild = async () => {
+        await cache.write(lockPath, [
+          new TextEncoder().encode(JSON.stringify([...source.used].sort())),
+        ]);
+        await source.flush();
+        pool.close();
+      };
+    }
     let extra = {};
     if (e.data.integrations) {
       log("preloading the packages integrations read at build time…");
@@ -144,14 +158,7 @@ self.onmessage = async (
     log(
       `built in ${Math.round(performance.now() - t0)} ms: ${(built.code.length / 1e6).toFixed(2)} MB, ${built.inputs.length} inputs`,
     );
-    await cache.write(lockPath, [
-      new TextEncoder().encode(JSON.stringify([...source.used].sort())),
-    ]);
-    const tf = performance.now();
-    await source.flush();
-    pool.close();
-    log(`package cache: written in ${Math.round(performance.now() - tf)} ms after the build`);
-    log(`package cache: lock of ${source.used.size} packages saved for the next build`);
+    await afterBuild();
     postMessage({
       code: built.code,
       routes: built.routes.length,

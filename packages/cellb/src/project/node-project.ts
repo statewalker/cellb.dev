@@ -240,6 +240,16 @@ export async function loadNodeProject(
   // the runtime from globals, as in the browser realm: set them here too, so the same bundle
   // runs on Node. (One such project per process: the globals are the process's.)
   installHostModuleGlobals(scope);
+  // As the browser host: nodejs_compat fills process.env with the text vars (from compatibility
+  // date 2025-04-01). Node shares its real process with the Worker, so they land there.
+  if (
+    nodeCompat &&
+    !flags.includes("nodejs_compat_do_not_populate_process_env") &&
+    (flags.includes("nodejs_compat_populate_process_env") ||
+      (config.compatibility_date ?? "") >= "2025-04-01")
+  )
+    for (const [k, v] of Object.entries(config.vars ?? {}))
+      if (typeof v === "string") process.env[k] ??= v;
   const module = config.main
     ? await bundleWorker({ path: resolve(dir, config.main) }, undefined, undefined, {
         nodeCompat,

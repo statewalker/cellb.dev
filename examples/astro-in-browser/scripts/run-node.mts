@@ -31,9 +31,6 @@ writeFileSync(
     assets: { directory: "client", binding: "ASSETS" },
   }),
 );
-// The browser host fills the bundle's process.env from the text vars (nodejs_compat); the Node
-// host shares its real `process` with the Worker, so the vars are set here (docs/gaps.md).
-process.env.EMDASH_SITE_URL = origin;
 const t0 = performance.now();
 const { runtime, unsupported } = await loadNodeProject(dir, {
   openSql: nodeSqliteOpener(),

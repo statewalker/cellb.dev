@@ -23,7 +23,7 @@ export interface LtxStoreMessage {
 export function ltxCellStore(
   files: FilesApi,
   sab: SharedArrayBuffer,
-  opts: { root?: string; compactAfter?: number } = {},
+  opts: { root?: string; compactAfter?: number; autoCompact?: boolean } = {},
 ) {
   const ctl = new Int32Array(sab, 0, 2);
   const payload = new Uint8Array(sab, 8);
@@ -85,17 +85,54 @@ export function ltxCellStore(
   const enc = new TextEncoder();
   let queue = Promise.resolve();
 
-  const compact = async (cell: string) => {
-    const c = await cellOf(cell);
-    if (!c || c.files.length < 2) return c?.files.length ?? 0;
-    const dir = dirOf(cell);
-    const final = `${dir}/${ltxFileName(1n, c.maxTXID)}`;
-    const tmp = `${final}.tmp`;
-    await compactPagedCellTo(c, files, tmp); // page by page: memory stays at one page + index
-    for (const f of c.files) await files.remove(f.path);
-    await files.move(tmp, final);
-    cells.delete(cell);
-    return (await cellOf(cell))?.files.length ?? 0;
+  /**
+   * Folds a cell's files into one snapshot WITHOUT holding up its requests: the snapshot is
+   * written from a frozen view of the files as they are now (later commits add files after
+   * them), then, between two requests, the files it replaces are removed and the cell reopened
+   * (the snapshot plus the files written meanwhile). One compaction per cell at a time.
+   */
+  const compacting = new Map<string, Promise<number>>();
+  const compact = (cell: string): Promise<number> => {
+    const running = compacting.get(cell);
+    if (running) return running;
+    const job = (async () => {
+      const c = await cellOf(cell);
+      if (!c || c.files.length < 2) return c?.files.length ?? 0;
+      const dir = dirOf(cell);
+      const replaced = c.files.map((f) => f.path);
+      const frozen = await openPagedCell(files, replaced);
+      const final = `${dir}/${ltxFileName(1n, frozen.maxTXID)}`;
+      const tmp = `${final}.tmp`;
+      await compactPagedCellTo(frozen, files, tmp); // page runs: memory stays at a run + index
+      await new Promise<void>((resolve, reject) => {
+        queue = queue.then(async () => {
+          try {
+            for (const p of replaced) await files.remove(p);
+            await files.move(tmp, final);
+            cells.delete(cell);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+      return (await cellOf(cell))?.files.length ?? 0;
+    })().finally(() => compacting.delete(cell));
+    compacting.set(cell, job);
+    return job;
+  };
+
+  /**
+   * When to compact: past `compactAfter` files, or once the files after the snapshot hold more
+   * bytes than half of it (a large cell is not rewritten for a few small commits).
+   */
+  const deltaBytes = new Map<string, number>();
+  const wantsCompaction = (cell: string, c: PagedCell) => {
+    if (opts.autoCompact === false) return false;
+    if (c.files.length >= compactAfter) return true;
+    const snapshot = c.files[0];
+    const snapshotBytes = [...snapshot.index.values()].reduce((n, [, size]) => n + size, 0);
+    return c.files.length > 1 && (deltaBytes.get(cell) ?? 0) > Math.max(1 << 20, snapshotBytes / 2);
   };
 
   return {
@@ -161,11 +198,18 @@ export function ltxCellStore(
             stats.writeMs += t1 - t0;
             stats.appendMs += performance.now() - t1;
             // Past the threshold, fold the cell into one snapshot (after answering the commit).
-            if (c && c.files.length >= compactAfter) {
+            deltaBytes.set(
+              msg.cell,
+              (deltaBytes.get(msg.cell) ?? 0) +
+                [...written.index.values()].reduce((n, [, size]) => n + size, 0),
+            );
+            if (c && wantsCompaction(msg.cell, c) && !compacting.has(msg.cell)) {
               const t2 = performance.now();
-              await compact(msg.cell);
+              deltaBytes.set(msg.cell, 0);
+              void compact(msg.cell).then(() => {
+                stats.compactMs += performance.now() - t2;
+              });
               stats.compactions++;
-              stats.compactMs += performance.now() - t2;
             }
             return;
           }
@@ -176,10 +220,9 @@ export function ltxCellStore(
       });
     },
     /** Folds a cell's files into one snapshot; answers its file count after. */
-    compact: (cell: string) =>
-      (queue = queue.then(() => compact(cell).then(() => {}))).then(
-        async () => (await cellOf(cell))?.files.length ?? 0,
-      ),
+    /** Folds a cell's files into one snapshot (not through the request queue: it takes its
+     * own turn there to swap the files); answers the cell's file count after. */
+    compact: (cell: string) => compact(cell),
     stats,
     /** The paths of a cell's current files. */
     files: async (cell: string) => (await cellOf(cell))?.files.map((f) => f.path) ?? [],
@@ -191,7 +234,7 @@ export function ltxPageServer(files: FilesApi, dir: string, sab: SharedArrayBuff
   const m = /^(.*)\/cells\/([^/]+)\/ltx\/e1\/0000$/.exec(dir);
   const root = m ? m[1] : dir;
   const name = m ? m[2] : "cell";
-  const store = ltxCellStore(files, sab, { root, compactAfter: Number.POSITIVE_INFINITY });
+  const store = ltxCellStore(files, sab, { root, autoCompact: false });
   let count = 0;
   const refresh = async () => {
     count = (await store.files(name)).length;

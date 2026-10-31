@@ -325,8 +325,13 @@ export async function compactPagedCellTo(
   path: string,
   timestamp = Date.now(),
 ): Promise<void> {
+  // In runs of 256 pages: one range read per file a run touches (not one read per page).
   async function* pages(): AsyncGenerator<[number, Uint8Array]> {
-    for (let pgno = 1; pgno <= cell.pageCount; pgno++) yield [pgno, await cell.readPage(pgno)];
+    for (let from = 1; from <= cell.pageCount; from += 256) {
+      const run = await cell.readRun(from, 256);
+      for (let pgno = from; pgno < from + 256 && pgno <= cell.pageCount; pgno++)
+        yield [pgno, run.get(pgno) ?? new Uint8Array(cell.pageSize)];
+    }
   }
   await files.write(
     path,

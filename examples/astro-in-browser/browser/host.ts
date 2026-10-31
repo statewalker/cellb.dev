@@ -6,6 +6,8 @@ import pkgstoreSource from "../src/pkgstore/worker.js?raw";
 import { crawlSite, zip } from "./export-site.ts";
 
 const STORE = `${location.origin}/__cellb/projects/pkgstore`;
+/** `?store`: packages through the package store Durable Object (see builder-worker.ts). */
+const USE_STORE = new URLSearchParams(location.search).has("store");
 
 /** The package store: a Durable Object project run by cellb in this tab (the builder's cache). */
 async function startPackageStore(serviceWorker: () => Promise<ServiceWorker>) {
@@ -78,7 +80,11 @@ function build(
       }
     };
     worker.onerror = (e) => reject(new Error(e.message));
-    worker.postMessage({ sources: src, integrations: APP === "emdash", store: STORE });
+    worker.postMessage({
+      sources: src,
+      integrations: APP === "emdash",
+      store: USE_STORE ? STORE : undefined,
+    });
   });
 }
 
@@ -100,7 +106,7 @@ async function start() {
   const src = await sources();
   log(`${Object.keys(src).length} source files: ${Object.keys(src).join(" ")}`);
   say("Starting the package store…");
-  await startPackageStore(serviceWorker);
+  if (USE_STORE) await startPackageStore(serviceWorker);
   log("package store (a Durable Object on cellb) ready");
   say("Building the app in a worker…");
   const t0 = performance.now();
