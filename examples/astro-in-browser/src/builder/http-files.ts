@@ -11,13 +11,22 @@ import type { FilesApi } from "@statewalker/webrun-files";
 
 const BLOCK = 256 * 1024;
 
+/** A request to the store that does not answer in time fails (with what it was) instead of hanging the build. */
+const TIMEOUT_MS = 60_000;
+const timed = (url: string, init: RequestInit = {}) =>
+  fetch(url, { ...init, signal: init.signal ?? AbortSignal.timeout(TIMEOUT_MS) }).catch((err) => {
+    throw new Error(
+      `package store: ${init.method ?? "GET"} ${url} ${(init.headers as Record<string, string> | undefined)?.range ?? ""}: ${(err as Error)?.name === "TimeoutError" ? `no answer in ${TIMEOUT_MS / 1000} s` : err}`,
+    );
+  });
+
 export function httpFiles(base: string, budget = 16 * 1024 * 1024): FilesApi {
   const url = (path: string) =>
     `${base.replace(/\/$/, "")}/files${path.startsWith("/") ? path : `/${path}`}`;
   const sizes = new Map<string, number | undefined>();
   const size = async (path: string) => {
     if (sizes.has(path)) return sizes.get(path);
-    const r = await fetch(url(path), { method: "HEAD" });
+    const r = await timed(url(path), { method: "HEAD" });
     const n = r.ok ? Number(r.headers.get("content-length") ?? 0) : undefined;
     if (n !== undefined) sizes.set(path, n); // a missing file may be written later
     return n;
@@ -34,7 +43,7 @@ export function httpFiles(base: string, budget = 16 * 1024 * 1024): FilesApi {
     }
     const start = idx * BLOCK;
     const end = Math.min(start + BLOCK, total) - 1;
-    const p = fetch(url(path), { headers: { range: `bytes=${start}-${end}` } }).then(async (r) => {
+    const p = timed(url(path), { headers: { range: `bytes=${start}-${end}` } }).then(async (r) => {
       if (!r.ok)
         throw new Error(
           `package store: GET ${path} → ${r.status}: ${(await r.text()).slice(0, 300)}`,
@@ -70,7 +79,7 @@ export function httpFiles(base: string, budget = 16 * 1024 * 1024): FilesApi {
     async write(path, content) {
       const chunks: Uint8Array[] = [];
       for await (const c of content as AsyncIterable<Uint8Array>) chunks.push(c);
-      const r = await fetch(url(path), { method: "PUT", body: new Blob(chunks as BlobPart[]) });
+      const r = await timed(url(path), { method: "PUT", body: new Blob(chunks as BlobPart[]) });
       if (!r.ok) throw new Error(`package store: PUT ${path} → ${r.status}`);
       sizes.delete(path);
       for (const k of [...blocks.keys()]) if (k.startsWith(`${path}#`)) blocks.delete(k);

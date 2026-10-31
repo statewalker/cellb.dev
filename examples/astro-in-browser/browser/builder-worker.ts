@@ -45,6 +45,14 @@ function downloadPool(n: number, store: string) {
           else resolve({ name: r.name as string, version: r.version as string });
         });
         x.w.postMessage({ id, ...ref, store });
+        // A download that does not finish in 2 minutes fails, naming the package.
+        setTimeout(
+          () =>
+            waiting.get(id)?.({
+              error: `download of ${ref.pkg}@${ref.version ?? "latest"}: no answer in 120 s`,
+            }),
+          120_000,
+        );
       });
     },
     close: () => workers.forEach((x) => x.w.terminate()),

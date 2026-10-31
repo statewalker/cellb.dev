@@ -17,8 +17,9 @@ self.onmessage = (e: MessageEvent) => {
   if (m?.op === "init") {
     ready = (async () => {
       // The cells' FilesApi, by name (an instance cannot cross to this worker):
-      // "opfs-sync" (default; this worker alone owns the directory, so synchronous handles),
-      // "opfs" (OPFS through its asynchronous API), "memory" (nothing kept past the worker).
+      // "opfs" (default: OPFS through its asynchronous API), "opfs-sync" (synchronous handles:
+      // about as fast, but a file with an open handle cannot be read or reopened meanwhile,
+      // which concurrent compaction and commits ran into), "memory" (nothing kept).
       const files =
         m.files === "memory"
           ? new MemFilesApi()

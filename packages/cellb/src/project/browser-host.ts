@@ -65,8 +65,8 @@ export type BrowserBucket =
       node: string;
       leaseTtlMs?: number;
       compactAfter?: number;
-      /** The cells' FilesApi: OPFS with synchronous handles (default), OPFS async, or memory. */
-      files?: "opfs-sync" | "opfs" | "memory";
+      /** The cells' FilesApi: OPFS (default), OPFS through synchronous handles, or memory. */
+      files?: "opfs" | "opfs-sync" | "memory";
     }
   | { store: ObjectStore; node: string; leaseTtlMs?: number };
 

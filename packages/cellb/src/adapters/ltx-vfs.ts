@@ -162,7 +162,9 @@ export function installLtxVfs(
               return SQLITE_IOERR_SHORT_READ;
             }
             return SQLITE_OK;
-          } catch {
+          } catch (err) {
+            // SQLite only sees SQLITE_IOERR (and rolls the transaction back): say why.
+            console.error(`cellb ltx-vfs: ${(err as Error)?.message ?? err}`);
             return SQLITE_IOERR;
           }
         },
@@ -231,7 +233,9 @@ export function installLtxVfs(
             for (const [pgno, p] of pages) d.cache.set(pgno, p);
             d.dirty.clear();
             return SQLITE_OK;
-          } catch {
+          } catch (err) {
+            // SQLite only sees SQLITE_IOERR (and rolls the transaction back): say why.
+            console.error(`cellb ltx-vfs: ${(err as Error)?.message ?? err}`);
             return SQLITE_IOERR;
           }
         },
@@ -263,7 +267,9 @@ export function installLtxVfs(
           const main = !!(flags & SQLITE_OPEN_MAIN_DB);
           try {
             open.set(pFile, { main, path, db: main ? dbOf(path) : undefined });
-          } catch {
+          } catch (err) {
+            // SQLite only sees SQLITE_IOERR (and rolls the transaction back): say why.
+            console.error(`cellb ltx-vfs: ${(err as Error)?.message ?? err}`);
             return SQLITE_IOERR;
           }
           const f = new capi.sqlite3_file(pFile);

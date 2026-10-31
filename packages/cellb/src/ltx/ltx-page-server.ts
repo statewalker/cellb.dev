@@ -59,13 +59,17 @@ export function ltxCellStore(
   const own = async (dir: string) => {
     const locks = (globalThis.navigator as { locks?: LockManager } | undefined)?.locks;
     if (!locks || owned.has(dir)) return;
+    // Waits a while for it: on a reload, the previous page's store holds it until its worker
+    // goes, a moment later (failing at once broke the cell's Durable Object on every reload).
     const got = await new Promise<boolean>((resolve) => {
-      void locks.request(`cellb-ltx:${dir}`, { ifAvailable: true }, (lock) => {
-        resolve(!!lock);
-        return lock ? new Promise<void>(() => {}) : undefined; // held while this store lives
-      });
+      void locks
+        .request(`cellb-ltx:${dir}`, { signal: AbortSignal.timeout(20_000) }, () => {
+          resolve(true);
+          return new Promise<void>(() => {}); // held while this store lives
+        })
+        .catch(() => resolve(false));
     });
-    if (!got) throw new Error(`ltx: cell ${dir} is open in another tab or worker`);
+    if (!got) throw new Error(`ltx: cell ${dir} is open in another tab or worker (waited 20 s)`);
     owned.add(dir);
   };
   const cellOf = async (cell: string) => {
