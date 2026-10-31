@@ -191,7 +191,13 @@ export { app };
 
 export default {
   async fetch(request, env, ctx) {
-    const res = await app.render(request, { locals: { runtime: { env, ctx } } });
+    // addCookieHeader: what routes set with Astro.cookies (the session id, EmDash's setup nonce)
+    // becomes Set-Cookie, as an adapter's handler does it.
+    const res = await app.render(request, {
+      addCookieHeader: true,
+      locals: { runtime: { env, ctx } },
+      waitUntil: ctx?.waitUntil ? (p) => ctx.waitUntil(p) : undefined,
+    });
     if (!res.body) return res;
     // A body that fails mid-stream reaches the client as a network error with no cause: log it.
     const [out, watch] = res.body.tee();
