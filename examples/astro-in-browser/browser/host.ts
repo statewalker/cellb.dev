@@ -75,8 +75,8 @@ function build(
       else if (e.data.error) reject(new Error(e.data.error));
       else if (e.data.code) {
         log(`${e.data.routes} routes`);
-        resolve({ code: e.data.code, clientAssets: e.data.clientAssets });
         worker.terminate();
+        resolve({ code: new TextDecoder().decode(e.data.code), clientAssets: e.data.clientAssets });
       }
     };
     worker.onerror = (e) => reject(new Error(e.message));

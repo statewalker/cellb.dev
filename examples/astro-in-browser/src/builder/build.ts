@@ -47,6 +47,12 @@ export interface AstroBuildOptions {
   inject?: string[];
   /** Records every step (`Trace`). */
   trace?: Trace;
+  /**
+   * Called after the server bundle and after the client bundles: the caller may release
+   * esbuild's memory there (esbuild-wasm's grows during a bundle and never shrinks; a
+   * restarted instance starts small).
+   */
+  release?: () => Promise<void>;
   /** Astro session driver config (`{ driver, options }`), for the manifest. */
   session?: { driver: string; options?: Record<string, unknown> };
 }
@@ -238,6 +244,11 @@ export const inlinedScripts = g.inlinedScripts;`;
       },
       lowerAwait: !!opts.hostModules,
       esbuildOptions: {
+        // Minified (whitespace and syntax; names kept: Astro and React read function names):
+        // a smaller module for the shard to parse and hold.
+        minifyWhitespace: true,
+        minifySyntax: true,
+        keepNames: true,
         plugins: [
           pathsPlugin({
             root,
@@ -268,10 +279,12 @@ export const inlinedScripts = g.inlinedScripts;`;
   const timed = <T>(what: string, fn: () => Promise<T>) =>
     opts.trace ? opts.trace.time("bundle", what, fn) : fn();
   const first = await timed("server bundle", run);
+  await opts.release?.();
   log("bundling the client (islands, renderers' client entrypoints, component scripts)");
   const clientBuilt = await timed("client bundle", () =>
     buildClient({ ...opts, root, components: scanned, renderers, clientAssets, mounts }),
   );
+  await opts.release?.();
   client = clientBuilt;
   pageStyles = stylesByPage(first.metafile, routes, components);
   opts.trace?.add("bundle", "client build", {
@@ -433,6 +446,7 @@ async function buildClient(
       ...rendererEntries.map((s, i) => `export { default as r${i} } from ${JSON.stringify(s)};`),
     ].join("\n");
     const r = await bundleTimed(o, "client islands + renderers", () => clientBundle(src, "client"));
+    await o.release?.(); // the largest client bundle (the admin's React app): its memory back
     const bytes = enc.encode(r.code);
     const shared = `/_astro/client.${await hash(bytes)}.js`;
     o.clientAssets.set(shared, bytes);

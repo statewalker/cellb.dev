@@ -71,7 +71,10 @@ self.onmessage = async (
 ) => {
   try {
     const t0 = performance.now();
-    await esbuild.initialize({ wasmURL, worker: false });
+    // esbuild's wasm in a worker of its own: its memory grows during a bundle and is released
+    // only with that worker, so the builder restarts it between the large bundles (`release`).
+    // Plugins (the integrations' Vite plugins among them) still run in this worker.
+    await esbuild.initialize({ wasmURL, worker: true });
     log(`esbuild-wasm ${esbuild.version} ready`);
     const transform = await loadAstroCompiler();
     log("Astro's compiler (compiler-rs wasm, from npm) ready");
@@ -155,6 +158,10 @@ self.onmessage = async (
     }
     const built = await buildAstroApp({
       esbuild,
+      release: async () => {
+        await esbuild.stop();
+        await esbuild.initialize({ wasmURL, worker: true });
+      },
       transform,
       files,
       root: "/app",
@@ -166,11 +173,13 @@ self.onmessage = async (
       `built in ${Math.round(performance.now() - t0)} ms: ${(built.code.length / 1e6).toFixed(2)} MB, ${built.inputs.length} inputs`,
     );
     await afterBuild();
-    postMessage({
-      code: built.code,
-      routes: built.routes.length,
-      clientAssets: built.clientAssets,
-    });
+    // The bundle as bytes, transferred: a string would be copied into the page while this
+    // worker's own copy is still alive.
+    const code = new TextEncoder().encode(built.code);
+    postMessage(
+      { code, routes: built.routes.length, clientAssets: built.clientAssets },
+      { transfer: [code.buffer] },
+    );
   } catch (err) {
     postMessage({ error: (err as Error)?.stack ?? String(err) });
   }
