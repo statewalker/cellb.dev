@@ -25,7 +25,8 @@ export async function loadAstroCompiler(): Promise<AstroTransform> {
     throw new Error("Astro's compiler needs a cross-origin isolated realm (COOP/COEP headers)");
   const pkg = await npmRegistrySource().load({ pkg: BINDING, version: VERSION });
   const wasm = await readBytes(pkg.files, "/astro.wasm32-wasi.wasm");
-  const memory = new WebAssembly.Memory({ initial: 4000, maximum: 65536, shared: true });
+  // Start small and let it grow (it was 4000 pages: 256 MB reserved before any compilation).
+  const memory = new WebAssembly.Memory({ initial: 256, maximum: 65536, shared: true });
   const { napiModule } = instantiateNapiModuleSync(wasm, {
     context: getDefaultContext(),
     asyncWorkPoolSize: 0, // only compileAstroSync is used: no thread pool

@@ -13,7 +13,13 @@
 import { bundle, type Esbuild, type Mount, type PackageStore } from "@statewalker/webrun-bundler";
 import type { FilesApi } from "@statewalker/webrun-files";
 import { astroModule } from "./astro-modules.js";
-import { type AstroTransform, astroPlugin, type CompiledComponent, clientPartsOf, compileAstro } from "./astro-plugin.js";
+import {
+  type AstroTransform,
+  astroPlugin,
+  type CompiledComponent,
+  clientPartsOf,
+  compileAstro,
+} from "./astro-plugin.js";
 import type { IntegrationResult } from "./integrations.js";
 import { type ClientAssets, pathsPlugin } from "./paths-plugin.js";
 import { projectRoutes, type RouteData, routeFromPattern, sortRoutes } from "./routes.js";
@@ -259,10 +265,13 @@ export const inlinedScripts = g.inlinedScripts;`;
   // esbuild-wasm is single-threaded (measured: 73 s + 108 s together vs 40 s + 42 s in turn).
   const scanned = await scanComponents(opts, root, mounts);
   log(`scanned ${scanned.size} components; bundling the server`);
-  const timed = <T,>(what: string, fn: () => Promise<T>) => (opts.trace ? opts.trace.time("bundle", what, fn) : fn());
+  const timed = <T>(what: string, fn: () => Promise<T>) =>
+    opts.trace ? opts.trace.time("bundle", what, fn) : fn();
   const first = await timed("server bundle", run);
   log("bundling the client (islands, renderers' client entrypoints, component scripts)");
-  const clientBuilt = await timed("client bundle", () => buildClient({ ...opts, root, components: scanned, renderers, clientAssets, mounts }));
+  const clientBuilt = await timed("client bundle", () =>
+    buildClient({ ...opts, root, components: scanned, renderers, clientAssets, mounts }),
+  );
   client = clientBuilt;
   pageStyles = stylesByPage(first.metafile, routes, components);
   opts.trace?.add("bundle", "client build", {
@@ -324,9 +333,14 @@ async function scanComponents(
       out.set(id, { css: [], containsHead: false, propagation: false, ...clientPartsOf(r) });
     }
   }
-  o.trace?.add("transform", `scanned ${out.size} components for the client build`, {
-    islands: [...out.values()].flatMap((c) => c.islands ?? []),
-  }, performance.now() - t);
+  o.trace?.add(
+    "transform",
+    `scanned ${out.size} components for the client build`,
+    {
+      islands: [...out.values()].flatMap((c) => c.islands ?? []),
+    },
+    performance.now() - t,
+  );
   return out;
 }
 
@@ -449,7 +463,9 @@ async function buildClient(
         );
         out.inlinedScripts.push([key, r.code]);
       } catch (err) {
-        o.log?.(`skipped the script of ${id}: ${String((err as Error)?.message ?? err).split("\n")[0]}`);
+        o.log?.(
+          `skipped the script of ${id}: ${String((err as Error)?.message ?? err).split("\n")[0]}`,
+        );
       }
     }
   return out;

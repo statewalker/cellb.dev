@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
+import { sampleHeaps } from "./heap-sampler.ts";
 
 // EmDash's blog template, built in the browser (its astro.config.mjs and integrations run in
 // the builder; Astro's compiler and esbuild as wasm; every package from the npm registry),
@@ -35,7 +36,8 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
   context.on("serviceworker", (w) =>
     w.on("console", (m) => console.log(`[sw ${m.type()}] ${m.text().slice(0, 500)}`)),
   );
-  await host.goto(`/__cellb/emdash.html${process.env.EMDASH_STORE ? "" : "?nostore"}`);
+  const heaps = process.env.EMDASH_HEAP ? await sampleHeaps(host) : undefined;
+  await host.goto(`/__cellb/emdash.html${process.env.EMDASH_STORE ? "?store" : ""}`);
   await host.waitForFunction(
     () => document.body.dataset.ready === "true" || document.body.dataset.error,
     null,
@@ -44,6 +46,14 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
   console.log((await host.locator("#log").textContent())?.slice(-2500));
   expect(await host.evaluate(() => document.body.dataset.error ?? null)).toBeNull();
   await shot(host, "01-host-build-log");
+  if (heaps)
+    console.log(
+      `[heap] peaks: ${heaps
+        .stop()
+        .slice(0, 10)
+        .map(([k, v]) => `${k} ${(v / 1e6).toFixed(0)} MB`)
+        .join(", ")}`,
+    );
 
   // EmDash's setup step (the template's seed into D1), as its wizard calls it.
   const seeded = await host.evaluate(async () => {
@@ -129,5 +139,26 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
     await plain.close();
   } finally {
     server.kill();
+  }
+
+  // With the package store: a rebuild in the same browser finds every package in it (the lock).
+  if (process.env.EMDASH_STORE) {
+    const cold = Number(await host.evaluate(() => document.body.dataset.buildMs));
+    await host.reload();
+    await host.waitForFunction(
+      () => document.body.dataset.ready === "true" || document.body.dataset.error,
+      null,
+      { timeout: 600_000, polling: 2000 },
+    );
+    const warm = Number(await host.evaluate(() => document.body.dataset.buildMs));
+    const text = (await host.locator("#log").textContent()) ?? "";
+    console.log(
+      `build: cold ${cold} ms, warm ${warm} ms; ${text
+        .split("\n")
+        .filter((l) => /package cache/.test(l))
+        .join(" | ")}`,
+    );
+    expect(text).toContain("from the last build's lock");
+    await shot(host, "08-host-rebuild-log");
   }
 });

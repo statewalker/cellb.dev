@@ -110,32 +110,9 @@ async function start() {
   log("package store (a Durable Object on cellb) ready");
   say("Building the app in a worker…");
   const t0 = performance.now();
-  // `?cached`: reuse the last build (kept in OPFS), to iterate on what runs after it.
-  const opfs = await navigator.storage.getDirectory();
-  const cacheName = `${APP}-build.json`;
-  let built: { code: string; clientAssets: Map<string, Uint8Array> } | undefined;
-  if (new URLSearchParams(location.search).has("cached")) {
-    try {
-      const f = await (await opfs.getFileHandle(cacheName)).getFile();
-      const j = JSON.parse(await f.text());
-      built = {
-        code: j.code,
-        clientAssets: new Map(j.assets.map(([k, v]: [string, number[]]) => [k, new Uint8Array(v)])),
-      };
-      log(`reusing the cached build (${(j.code.length / 1e6).toFixed(2)} MB)`);
-    } catch {}
-  }
-  if (!built) {
-    built = await build(src);
-    const w = await (await opfs.getFileHandle(cacheName, { create: true })).createWritable();
-    await w.write(
-      JSON.stringify({
-        code: built.code,
-        assets: [...built.clientAssets].map(([k, v]) => [k, [...v]]),
-      }),
-    );
-    await w.close();
-  }
+  // (A debugging cache of the build, written here as JSON with every asset byte as a number,
+  // held ~370 MB on the page's heap: removed.)
+  const built = await build(src);
   const { code: bundle, clientAssets } = built;
   document.body.dataset.buildMs = String(Math.round(performance.now() - t0));
   say("Starting the built Worker on cellb…");

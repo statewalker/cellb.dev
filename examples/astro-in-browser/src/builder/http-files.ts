@@ -11,8 +11,9 @@ import type { FilesApi } from "@statewalker/webrun-files";
 
 const BLOCK = 256 * 1024;
 
-export function httpFiles(base: string, budget = 64 * 1024 * 1024): FilesApi {
-  const url = (path: string) => `${base.replace(/\/$/, "")}/files${path.startsWith("/") ? path : `/${path}`}`;
+export function httpFiles(base: string, budget = 16 * 1024 * 1024): FilesApi {
+  const url = (path: string) =>
+    `${base.replace(/\/$/, "")}/files${path.startsWith("/") ? path : `/${path}`}`;
   const sizes = new Map<string, number | undefined>();
   const size = async (path: string) => {
     if (sizes.has(path)) return sizes.get(path);
@@ -34,7 +35,10 @@ export function httpFiles(base: string, budget = 64 * 1024 * 1024): FilesApi {
     const start = idx * BLOCK;
     const end = Math.min(start + BLOCK, total) - 1;
     const p = fetch(url(path), { headers: { range: `bytes=${start}-${end}` } }).then(async (r) => {
-      if (!r.ok) throw new Error(`package store: GET ${path} → ${r.status}: ${(await r.text()).slice(0, 300)}`);
+      if (!r.ok)
+        throw new Error(
+          `package store: GET ${path} → ${r.status}: ${(await r.text()).slice(0, 300)}`,
+        );
       const b = new Uint8Array(await r.arrayBuffer());
       held += b.length;
       for (const [k, v] of blocks) {

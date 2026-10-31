@@ -19,7 +19,9 @@ export class PackageStore extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
-    this.sql.exec("CREATE TABLE IF NOT EXISTS files (path TEXT PRIMARY KEY, size INTEGER NOT NULL)");
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS files (path TEXT PRIMARY KEY, size INTEGER NOT NULL)",
+    );
     this.sql.exec(
       "CREATE TABLE IF NOT EXISTS blocks (path TEXT NOT NULL, idx INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY (path, idx))",
     );
@@ -30,11 +32,13 @@ export class PackageStore extends DurableObject {
     const at = url.pathname.indexOf("/files/");
     if (at < 0) return new Response("not found", { status: 404 });
     const path = decodeURIComponent(url.pathname.slice(at + "/files".length));
-    if (request.method === "PUT") return this.put(path, new Uint8Array(await request.arrayBuffer()));
+    if (request.method === "PUT")
+      return this.put(path, new Uint8Array(await request.arrayBuffer()));
     const row = this.sql.exec("SELECT size FROM files WHERE path = ?", path).toArray()[0];
     if (!row) return new Response(null, { status: 404 });
     const size = Number(row.size);
-    if (request.method === "HEAD") return new Response(null, { headers: { "content-length": String(size) } });
+    if (request.method === "HEAD")
+      return new Response(null, { headers: { "content-length": String(size) } });
     const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers.get("range") ?? "");
     const start = range ? Math.min(Number(range[1]), size) : 0;
     const end = range && range[2] ? Math.min(Number(range[2]) + 1, size) : size;
@@ -52,7 +56,12 @@ export class PackageStore extends DurableObject {
     this.ctx.storage.transactionSync(() => {
       this.sql.exec("DELETE FROM blocks WHERE path = ?", path);
       for (let i = 0, idx = 0; i < bytes.length || idx === 0; i += BLOCK, idx++)
-        this.sql.exec("INSERT INTO blocks (path, idx, data) VALUES (?, ?, ?)", path, idx, bytes.subarray(i, i + BLOCK));
+        this.sql.exec(
+          "INSERT INTO blocks (path, idx, data) VALUES (?, ?, ?)",
+          path,
+          idx,
+          bytes.subarray(i, i + BLOCK),
+        );
       this.sql.exec("INSERT OR REPLACE INTO files (path, size) VALUES (?, ?)", path, bytes.length);
     });
     return new Response(null, { status: 204 });
@@ -63,7 +72,12 @@ export class PackageStore extends DurableObject {
     const out = new Uint8Array(Math.max(0, end - start));
     if (!out.length) return out;
     const rows = this.sql
-      .exec("SELECT idx, data FROM blocks WHERE path = ? AND idx BETWEEN ? AND ? ORDER BY idx", path, Math.floor(start / BLOCK), Math.floor((end - 1) / BLOCK))
+      .exec(
+        "SELECT idx, data FROM blocks WHERE path = ? AND idx BETWEEN ? AND ? ORDER BY idx",
+        path,
+        Math.floor(start / BLOCK),
+        Math.floor((end - 1) / BLOCK),
+      )
       .toArray();
     for (const { idx, data } of rows) {
       const block = new Uint8Array(data);

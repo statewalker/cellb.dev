@@ -27,8 +27,12 @@ export interface Source {
 
 /** `files` seen from `prefix`: paths of the view are paths below it. */
 export function subtree(files: FilesApi, prefix: string): FilesApi {
-  const p = (path: string) => `${prefix}${path.startsWith("/") ? path : `/${path}`}`.replace(/\/$/, "") || "/";
-  const back = (info: FileInfo): FileInfo => ({ ...info, path: info.path.slice(prefix.length) || "/" });
+  const p = (path: string) =>
+    `${prefix}${path.startsWith("/") ? path : `/${path}`}`.replace(/\/$/, "") || "/";
+  const back = (info: FileInfo): FileInfo => ({
+    ...info,
+    path: info.path.slice(prefix.length) || "/",
+  });
   const view: Partial<FilesApi> = {
     read: (path, o) => files.read(p(path), o),
     write: (path, c) => files.write(p(path), c),
@@ -57,7 +61,9 @@ async function readJson<T>(files: FilesApi, path: string): Promise<T | undefined
   const chunks: Uint8Array[] = [];
   for await (const c of files.read(path)) chunks.push(c);
   if (!chunks.length) return undefined;
-  return JSON.parse(dec.decode(chunks.length === 1 ? chunks[0] : new Uint8Array(chunks.flatMap((c) => [...c]))));
+  return JSON.parse(
+    dec.decode(chunks.length === 1 ? chunks[0] : new Uint8Array(chunks.flatMap((c) => [...c]))),
+  );
 }
 const isExact = (v?: string) => !!v && /^\d+\.\d+\.\d+(-[\w.]+)?$/.test(v);
 
@@ -71,9 +77,17 @@ export type CachedSource = Source & { used: Set<string>; flush(): Promise<void> 
  * Fetches a package and stores its pack in the cache by itself (a download worker): answers
  * the exact name and version it stored.
  */
-export type Downloader = (ref: { pkg: string; version?: string }) => Promise<{ name: string; version: string }>;
+export type Downloader = (ref: {
+  pkg: string;
+  version?: string;
+}) => Promise<{ name: string; version: string }>;
 
-export function cachedSource(cache: FilesApi, inner: Source, trace?: Trace, download?: Downloader): CachedSource {
+export function cachedSource(
+  cache: FilesApi,
+  inner: Source,
+  trace?: Trace,
+  download?: Downloader,
+): CachedSource {
   const used = new Set<string>();
   const loading = new Map<string, Promise<LoadedPackage>>();
   /** `name@range` → version, as resolved before (persisted: a warm cache needs no registry). */
@@ -86,7 +100,9 @@ export function cachedSource(cache: FilesApi, inner: Source, trace?: Trace, down
   let saving: Promise<void> = Promise.resolve();
   const pendingWrites: LoadedPackage[] = [];
   const saveIndex = () =>
-    (saving = saving.then(() => cache.write("/index.json", [enc.encode(JSON.stringify(Object.fromEntries(ranges)))])));
+    (saving = saving.then(() =>
+      cache.write("/index.json", [enc.encode(JSON.stringify(Object.fromEntries(ranges)))]),
+    ));
 
   const packPath = (name: string, version: string) => `/pkgs/${name}@${version}.pack`;
   const cached = async (name: string, version: string): Promise<LoadedPackage | undefined> => {
@@ -101,7 +117,12 @@ export function cachedSource(cache: FilesApi, inner: Source, trace?: Trace, down
     const t = performance.now();
     const { chunks, files, bytes } = await packOf(p.files);
     await cache.write(packPath(p.name, p.version), chunks);
-    trace?.add("packages", `cached ${p.name}@${p.version}`, { files, bytes }, performance.now() - t);
+    trace?.add(
+      "packages",
+      `cached ${p.name}@${p.version}`,
+      { files, bytes },
+      performance.now() - t,
+    );
     return p;
   };
 
@@ -109,7 +130,9 @@ export function cachedSource(cache: FilesApi, inner: Source, trace?: Trace, down
     used,
     flush: async () => {
       for (let p = pendingWrites.shift(); p; p = pendingWrites.shift())
-        await store(p).catch((err) => trace?.add("packages", `caching ${p?.name} failed`, { error: String(err) }));
+        await store(p).catch((err) =>
+          trace?.add("packages", `caching ${p?.name} failed`, { error: String(err) }),
+        );
       await saving;
     },
     matches: (ref) => "pkg" in ref,
@@ -125,16 +148,29 @@ export function cachedSource(cache: FilesApi, inner: Source, trace?: Trace, down
           if (download) {
             const t = performance.now();
             const got = await download(ref);
-            trace?.add("packages", `downloaded ${got.name}@${got.version}`, { range: ref.version }, performance.now() - t);
+            trace?.add(
+              "packages",
+              `downloaded ${got.name}@${got.version}`,
+              { range: ref.version },
+              performance.now() - t,
+            );
             ranges.set(key, got.version);
             void saveIndex();
             const stored = await cached(got.name, got.version);
-            if (!stored) throw new Error(`${got.name}@${got.version}: not in the package store after its download`);
+            if (!stored)
+              throw new Error(
+                `${got.name}@${got.version}: not in the package store after its download`,
+              );
             return stored;
           }
           const t = performance.now();
           const fetched = await inner.load(ref);
-          trace?.add("packages", `fetched ${fetched.name}@${fetched.version}`, { range: ref.version }, performance.now() - t);
+          trace?.add(
+            "packages",
+            `fetched ${fetched.name}@${fetched.version}`,
+            { range: ref.version },
+            performance.now() - t,
+          );
           ranges.set(key, fetched.version);
           void saveIndex();
           const already = await cached(fetched.name, fetched.version);
@@ -146,7 +182,10 @@ export function cachedSource(cache: FilesApi, inner: Source, trace?: Trace, down
           return fetched;
         })();
         loading.set(key, p);
-        p.then((x) => used.add(`${x.name}@${x.version}`), () => loading.delete(key));
+        p.then(
+          (x) => used.add(`${x.name}@${x.version}`),
+          () => loading.delete(key),
+        );
       }
       return p;
     },
@@ -159,7 +198,9 @@ export function cachedSource(cache: FilesApi, inner: Source, trace?: Trace, down
  * pays per write: tens of thousands of small files took minutes in a browser), and each file is
  * read alone, as a range of the pack (SqliteFilesApi reads only the blocks a range covers).
  */
-export async function packOf(files: FilesApi): Promise<{ chunks: Uint8Array[]; files: number; bytes: number }> {
+export async function packOf(
+  files: FilesApi,
+): Promise<{ chunks: Uint8Array[]; files: number; bytes: number }> {
   const index: Record<string, [number, number]> = {};
   const body: Uint8Array[] = [];
   let offset = 0;
@@ -181,10 +222,14 @@ export async function openPack(store: FilesApi, path: string): Promise<FilesApi>
   const n = new DataView(new Uint8Array(head.flatMap((c) => [...c])).buffer).getUint32(0);
   const hdr: Uint8Array[] = [];
   for await (const c of store.read(path, { start: 4, length: n })) hdr.push(c);
-  const index = JSON.parse(dec.decode(new Uint8Array(hdr.flatMap((c) => [...c])))) as Record<string, [number, number]>;
+  const index = JSON.parse(dec.decode(new Uint8Array(hdr.flatMap((c) => [...c])))) as Record<
+    string,
+    [number, number]
+  >;
   const base = 4 + n;
   const dirs = new Set<string>(["/"]);
-  for (const p of Object.keys(index)) for (let d = p.slice(0, p.lastIndexOf("/")); d; d = d.slice(0, d.lastIndexOf("/"))) dirs.add(d);
+  for (const p of Object.keys(index))
+    for (let d = p.slice(0, p.lastIndexOf("/")); d; d = d.slice(0, d.lastIndexOf("/"))) dirs.add(d);
   const norm = (p: string) => (p.startsWith("/") ? p : `/${p}`).replace(/\/+$/, "") || "/";
   const readOnly = () => Promise.reject(new Error(`${path}: a package pack is read-only`));
   const api: Partial<FilesApi> = {
@@ -217,7 +262,11 @@ export async function openPack(store: FilesApi, path: string): Promise<FilesApi>
         if (seen.has(k)) continue;
         seen.add(k);
         const name = k.slice(k.lastIndexOf("/") + 1);
-        out.push(k in index ? { kind: "file", name, path: k, size: index[k][1], lastModified: 0 } : { kind: "directory", name, path: k });
+        out.push(
+          k in index
+            ? { kind: "file", name, path: k, size: index[k][1], lastModified: 0 }
+            : { kind: "directory", name, path: k },
+        );
       }
       out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
       for (const e of out) if (!o?.after || e.path > o.after) yield e;
@@ -241,7 +290,8 @@ export interface PrefetchOptions {
   trace?: Trace;
 }
 
-export const BUILD_TOOLING = /^(typescript|vite|rollup|@rollup\/|esbuild|@esbuild\/|rolldown|@rolldown\/|sharp|@img\/|lightningcss|prettier|@types\/|vitest|@vitejs\/|@babel\/|babel-|wrangler|miniflare|workerd|@cloudflare\/(workerd|vite-plugin|kv-asset)|@astrojs\/(check|language-server|compiler-binding)|@oxc-|oxc-|@napi-rs\/|fsevents|chokidar|svgo|@shikijs\/|shiki)/;
+export const BUILD_TOOLING =
+  /^(typescript|vite|rollup|@rollup\/|esbuild|@esbuild\/|rolldown|@rolldown\/|sharp|@img\/|lightningcss|prettier|@types\/|vitest|@vitejs\/|@babel\/|babel-|wrangler|miniflare|workerd|@cloudflare\/(workerd|vite-plugin|kv-asset)|@astrojs\/(check|language-server|compiler-binding)|@oxc-|oxc-|@napi-rs\/|fsevents|chokidar|svgo|@shikijs\/|shiki)/;
 
 /**
  * Loads packages `concurrency` at a time: the `lock` list, or else the dependency tree of
@@ -278,19 +328,24 @@ export async function prefetch(
         if (opts.lock || loaded.size >= limit) continue;
         const m = p.manifest as Record<string, Record<string, string> | undefined>;
         const optionalPeers = new Set(
-          Object.entries((m.peerDependenciesMeta ?? {}) as unknown as Record<string, { optional?: boolean }>)
+          Object.entries(
+            (m.peerDependenciesMeta ?? {}) as unknown as Record<string, { optional?: boolean }>,
+          )
             .filter(([, v]) => v?.optional)
             .map(([k]) => k),
         );
         const deps = { ...m.peerDependencies, ...m.optionalDependencies, ...m.dependencies };
         for (const [n, r] of Object.entries(deps)) {
-          if (skip(n) || optionalPeers.has(n) || /^(workspace|link|file|git|https?):/.test(r)) continue;
+          if (skip(n) || optionalPeers.has(n) || /^(workspace|link|file|git|https?):/.test(r))
+            continue;
           const key = `${n}@${r}`;
           if (!seenRange.has(key)) seenRange.add(key), queue.push([n, r]);
         }
       } catch (err) {
         failures++;
-        opts.trace?.add("packages", `prefetch ${name}@${range} failed`, { error: String((err as Error)?.message ?? err).slice(0, 300) });
+        opts.trace?.add("packages", `prefetch ${name}@${range} failed`, {
+          error: String((err as Error)?.message ?? err).slice(0, 300),
+        });
       }
     }
   };

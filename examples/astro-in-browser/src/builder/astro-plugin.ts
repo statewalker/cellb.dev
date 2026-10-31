@@ -38,10 +38,14 @@ export function compileAstro(transform: AstroTransform, id: string, source: stri
 }
 
 /** What the client build needs from a compiled component. */
-export function clientPartsOf(r: ReturnType<AstroTransform>): Pick<CompiledComponent, "scripts" | "islands"> {
+export function clientPartsOf(
+  r: ReturnType<AstroTransform>,
+): Pick<CompiledComponent, "scripts" | "islands"> {
   return {
     scripts: (r.scripts ?? []).filter((x) => x.type === "inline").map((x) => x.code ?? ""),
-    islands: [...(r.hydratedComponents ?? []), ...(r.clientOnlyComponents ?? [])].map((c) => c.resolvedPath || c.specifier),
+    islands: [...(r.hydratedComponents ?? []), ...(r.clientOnlyComponents ?? [])].map(
+      (c) => c.resolvedPath || c.specifier,
+    ),
   };
 }
 
@@ -108,7 +112,17 @@ export function astroPlugin(opts: {
         const source = await readText(mount.files, path);
         const t0 = performance.now();
         const r = compileAstro(opts.transform, args.path, source);
-        opts.trace?.add("transform", `astro ${args.path}`, { in: source.length, out: r.code.length, css: r.css.length, diagnostics: r.diagnostics.length }, performance.now() - t0);
+        opts.trace?.add(
+          "transform",
+          `astro ${args.path}`,
+          {
+            in: source.length,
+            out: r.code.length,
+            css: r.css.length,
+            diagnostics: r.diagnostics.length,
+          },
+          performance.now() - t0,
+        );
         const error = r.diagnostics.find((d) => d.severity === 1 || d.severity === "error");
         if (error) return { errors: [{ text: `${args.path}: ${error.text}` }] };
         opts.components.set(args.path, {
