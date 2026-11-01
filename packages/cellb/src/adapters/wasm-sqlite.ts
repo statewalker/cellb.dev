@@ -39,11 +39,21 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   #db: Oo1Db;
   readonly #hooks?: WasmImageHooks;
   readonly #sqlite3?: WasmSqlite3;
+  readonly #capi?: { sqlite3_get_autocommit(db: number): number };
   #pageHook?: ReturnType<typeof installPageHook>;
-  constructor(db: Oo1Db, hooks?: WasmImageHooks, sqlite3?: WasmSqlite3) {
+  constructor(
+    db: Oo1Db,
+    hooks?: WasmImageHooks,
+    sqlite3?: WasmSqlite3,
+    /** SQLite's C API, for `inTransaction()` alone (when `sqlite3` is not given). */
+    capi?: { sqlite3_get_autocommit(db: number): number },
+  ) {
     this.#db = db;
     this.#hooks = hooks;
     this.#sqlite3 = sqlite3;
+    this.#capi = capi ?? sqlite3?.capi;
+    if (!this.#capi?.sqlite3_get_autocommit)
+      (this as { inTransaction?: unknown }).inTransaction = undefined;
     this.#enableDqs();
     this.#hookPages();
     if (sqlite3?.capi?.sqlite3session_create) {
@@ -147,6 +157,10 @@ export class WasmSqliteDriver implements SyncSqlDriver {
     } finally {
       st.finalize();
     }
+  }
+  inTransaction(): boolean {
+    const pointer = (this.#db as unknown as { pointer: number }).pointer;
+    return this.#capi!.sqlite3_get_autocommit(pointer) === 0;
   }
   databaseSize(): number {
     const pc = this.exec("PRAGMA page_count", []).rows[0][0];

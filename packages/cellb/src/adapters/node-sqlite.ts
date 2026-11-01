@@ -143,6 +143,9 @@ export class NodeSqliteDriver implements SyncSqlDriver {
     const rows = (stmt.all(...args) as unknown as unknown[][]).map((row) => row.map(fromSqlite));
     return { columnNames, rows, rowsWritten: 0 };
   }
+  inTransaction(): boolean {
+    return (this.#db as unknown as { isTransaction: boolean }).isTransaction;
+  }
   databaseSize(): number {
     const [pc] = this.exec("PRAGMA page_count", []).rows[0] as [number];
     const [ps] = this.exec("PRAGMA page_size", []).rows[0] as [number];

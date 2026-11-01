@@ -101,6 +101,9 @@ export class SqlStorageCursor<T = Record<string, unknown>> implements Iterable<T
  * output gate only has to await durability of the commit.
  */
 const DDL = /^\s*(CREATE|ALTER|DROP)\b/i;
+/** Errors after which SQLite may roll the whole transaction back by itself. */
+const ROLLS_BACK =
+  /SQLITE_(IOERR|FULL|NOMEM|BUSY|INTERRUPT|CORRUPT)|disk I\/O error|database or disk is full|out of memory|interrupted/i;
 /** Statements that may write (a conservative test: WITH … and PRAGMAs count as writes). */
 const WRITES = /^\s*(INSERT|REPLACE|UPDATE|DELETE|CREATE|ALTER|DROP|WITH|PRAGMA)\b/i;
 const WRITE_TARGET =
@@ -248,12 +251,19 @@ export class SqlStorage {
    */
   #afterFailure(e: unknown): void {
     if (!this.#inTxn) return;
-    try {
-      this.#driver.exec("BEGIN", []); // succeeds only outside a transaction
-    } catch {
-      return; // still in the transaction: only the statement failed
+    const open = this.#driver.inTransaction?.();
+    if (open === true) return; // only the statement failed
+    if (open === undefined) {
+      // No way to ask the driver: only errors after which SQLite rolls back are checked, with a
+      // statement (one that fails, and is logged by some builds, while the transaction is open).
+      if (!ROLLS_BACK.test(String((e as Error)?.message ?? e))) return;
+      try {
+        this.#driver.exec("BEGIN", []); // succeeds only outside a transaction
+      } catch {
+        return;
+      }
+      this.#driver.exec("ROLLBACK", []); // the probe's own transaction
     }
-    this.#driver.exec("ROLLBACK", []);
     const wrote = this.#wrote;
     this.#inTxn = false;
     this.#wrote = false;

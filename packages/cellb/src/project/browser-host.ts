@@ -142,7 +142,8 @@ async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number, f
   const open = (cellKey: string) => {
     const db = new s3.oo1.DB({ filename: cellKey, vfs: name, flags: "c" });
     db.exec("PRAGMA journal_mode=MEMORY; PRAGMA synchronous=FULL;");
-    return new WasmSqliteDriver(db);
+    // SQLite's C API for inTransaction() only (no page hook or session capture on this VFS).
+    return new WasmSqliteDriver(db, undefined, undefined, (sqlite3 as { capi: never }).capi);
   };
   return Object.assign(open, {
     release() {
