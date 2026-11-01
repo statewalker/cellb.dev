@@ -309,9 +309,19 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
   };
 }
 
+/**
+ * A ServiceWorker's global scope (its `self`), as `installProjectRouter` takes it: typed without
+ * TypeScript's WebWorker lib, so that code importing cellb compiles with the DOM lib alone.
+ */
+export interface ServiceWorkerScope {
+  readonly location: { readonly origin: string };
+  readonly clients: unknown;
+  addEventListener(type: string, listener: (event: never) => unknown): void;
+}
+
 /** The ServiceWorker side: one CellRouter per project, fed by the tabs' shard workers. */
 export function installProjectRouter(
-  sw: ServiceWorkerGlobalScope,
+  scope: ServiceWorkerScope,
   opts: {
     /** Requests to `<basePath><name>/…` go to project `name`. */
     basePath: string;
@@ -336,6 +346,7 @@ export function installProjectRouter(
     root?: { name: string; passthrough?: string[]; hostPage?: string; hostWaitMs?: number };
   },
 ): { routers: Map<string, CellRouter> } {
+  const sw = scope as unknown as ServiceWorkerGlobalScope;
   const base = opts.basePath.endsWith("/") ? opts.basePath : `${opts.basePath}/`;
   // Held while this ServiceWorker lives: the browser releases it when it stops the worker, which
   // tells the shards that their links to it are dead (MessagePorts report nothing).

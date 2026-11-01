@@ -138,9 +138,8 @@ function pagesOf(
       const start = Math.min(...spans.map((s) => s[0]));
       const end = Math.max(...spans.map((s) => s[0] + s[1]));
       const b = await readRange(files, path, start, end - start);
-      wanted.forEach((p, i) =>
-        out.set(p, decodePage(b.subarray(spans[i][0] - start, spans[i][0] - start + spans[i][1]))),
-      );
+      for (const [i, p] of wanted.entries())
+        out.set(p, decodePage(b.subarray(spans[i][0] - start, spans[i][0] - start + spans[i][1])));
       return out;
     },
   };

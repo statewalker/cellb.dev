@@ -36,16 +36,20 @@ export interface CellsWebSocketOptions {
   timers?: { setInterval(fn: () => void, ms: number): unknown; clearInterval(id: unknown): void };
 }
 
+/**
+ * A WHATWG `WebSocket` class whose sockets reach a Worker through `connect`. Typed as the
+ * platform's `WebSocket` (the class implements that interface; its own state is private).
+ */
 export function createWebSocketClass(
   connect: WebSocketConnector,
   options: CellsWebSocketOptions = {},
-) {
+): typeof WebSocket {
   const heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
   const timers = options.timers ?? {
     setInterval: (fn: () => void, ms: number) => setInterval(fn, ms),
     clearInterval: (id: unknown) => clearInterval(id as ReturnType<typeof setInterval>),
   };
-  return class CellsWebSocket extends EventTarget {
+  class CellsWebSocket extends EventTarget {
     static readonly CONNECTING = 0;
     static readonly OPEN = 1;
     static readonly CLOSING = 2;
@@ -233,7 +237,8 @@ export function createWebSocketClass(
       this.readyState = 2;
       this.#port!.postMessage({ t: "c", code: code ?? 1005, reason: reason ?? "" } satisfies Frame);
     }
-  };
+  }
+  return CellsWebSocket as unknown as typeof WebSocket;
 }
 
 export type CellsWebSocketClass = ReturnType<typeof createWebSocketClass>;

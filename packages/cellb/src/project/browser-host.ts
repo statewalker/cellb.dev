@@ -129,7 +129,7 @@ async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
  */
 async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number, files?: string) {
   const store = new Worker(
-    new URL("../ltx/ltx-store-worker.ts", import.meta.url) /* cellb ships its TypeScript sources */,
+    new URL("../ltx/ltx-store-worker.ts", import.meta.url) /* `.js` in dist/ (scripts/build.mjs) */,
     { type: "module" },
   );
   const sab = new SharedArrayBuffer(8 + 16 * 65536); // room for a read-ahead run of 64 KiB pages

@@ -25,6 +25,7 @@ import type { PortLike } from "../isolate/protocol.js";
 import type { CellStorage } from "../ports.js";
 import * as workersClasses from "./cloudflare-workers.js";
 import { parseJsonc } from "./jsonc.js";
+import { ownModule } from "./own-module.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import {
   createProjectRuntime,
@@ -101,7 +102,7 @@ export async function bundleWorker(
   }
   const outDir = mkdtempSync(join(tmpdir(), "cells-worker-"));
   const out = join(outDir, "worker.mjs");
-  const cfWorkers = resolve(import.meta.dirname, "cloudflare-workers.ts");
+  const cfWorkers = ownModule(import.meta.dirname, "cloudflare-workers");
   // This bundle's `cloudflare:workers`: the runtime's classes plus its own `env` and `exports`.
   // A file of its own, kept out of the bundle so it adds no names to the Worker's scope.
   const workersModule = join(outDir, "cloudflare-workers.mjs");
@@ -131,7 +132,7 @@ export async function bundleWorker(
     target: "es2022",
     logLevel: "silent",
     inject: [
-      resolve(import.meta.dirname, "workers-globals.ts"),
+      ownModule(import.meta.dirname, "workers-globals"),
       ...(logs ? ["cellb:console"] : []),
       ...(outbound ? ["cellb:fetch"] : []),
     ],
@@ -177,11 +178,11 @@ export async function bundleWorker(
             external: true,
           }));
           b.onResolve({ filter: /^cloudflare:email$/ }, () => ({
-            path: resolve(import.meta.dirname, "cloudflare-email.ts"),
+            path: ownModule(import.meta.dirname, "cloudflare-email"),
             external: true,
           }));
           b.onResolve({ filter: /^cellb:ws$/ }, () => ({
-            path: resolve(import.meta.dirname, "workers-globals-module.ts"),
+            path: ownModule(import.meta.dirname, "workers-globals-module"),
             external: true,
           }));
           if (!memory) return;
@@ -356,7 +357,7 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
                 resolveDir: import.meta.dirname,
               }));
               b.onResolve({ filter: /^cloudflare:email$/ }, () => ({
-                path: resolve(import.meta.dirname, "cloudflare-email.ts"),
+                path: ownModule(import.meta.dirname, "cloudflare-email"),
               }));
               b.onResolve({ filter: /^memory:/ }, (a) => ({
                 path: a.path.slice(7),
@@ -391,7 +392,7 @@ function isolateEntryPathSync(): string {
 async function buildIsolateEntry(): Promise<string> {
   isolateEntryFile = join(mkdtempSync(join(tmpdir(), "cells-isolate-")), "isolate.mjs");
   await build({
-    entryPoints: [resolve(import.meta.dirname, "../isolate/node-entry.ts")],
+    entryPoints: [ownModule(import.meta.dirname, "../isolate/node-entry")],
     outfile: isolateEntryFile,
     bundle: true,
     format: "esm",

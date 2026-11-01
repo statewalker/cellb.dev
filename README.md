@@ -49,7 +49,9 @@ examples/astro-in-browser/  Astro apps, EmDash included, built from their source
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
-.github/workflows/     interop CI against the real celld and RustFS; EmDash built and run in Node and Chromium
+.github/workflows/     cellb (lint, typecheck, unit tests, the packed package), interop against the real celld
+                       and RustFS, and EmDash built and run in Node and Chromium
+.changeset/            changesets for the published package (@statewalker/cellb)
 ```
 
 `packages/*` are libraries; `examples/*` are private apps that use them, with the test tools only

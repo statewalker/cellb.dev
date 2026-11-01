@@ -148,7 +148,22 @@ describe("streaming compaction", () => {
       for (let p = 1; p <= 300; p++) yield [p, page(p)] as [number, Uint8Array];
     }
     // flags 0: the checksum is written and decodeLtx verifies it.
-    await files.write("/c/0/0000000000000001-0000000000000005.ltx", encodeLtxStream({ flags: 0, pageSize, commit: 300, minTXID: 1n, maxTXID: 5n, timestamp: 1, preApplyChecksum: 0n }, pages(), 1n));
+    await files.write(
+      "/c/0/0000000000000001-0000000000000005.ltx",
+      encodeLtxStream(
+        {
+          flags: 0,
+          pageSize,
+          commit: 300,
+          minTXID: 1n,
+          maxTXID: 5n,
+          timestamp: 1,
+          preApplyChecksum: 0n,
+        },
+        pages(),
+        1n,
+      ),
+    );
     const chunks: Uint8Array[] = [];
     for await (const c of files.read("/c/0/0000000000000001-0000000000000005.ltx")) chunks.push(c);
     const decoded = decodeLtx(Uint8Array.from(chunks.flatMap((c) => [...c])));
@@ -176,15 +191,31 @@ describe("streaming compaction", () => {
     async function* srcPages() {
       for (let p = 1; p <= N; p++) yield [p, page(p)] as [number, Uint8Array];
     }
-    await source.write("/cell/snap.ltx", encodeLtxStream({ pageSize, commit: N, minTXID: 1n, maxTXID: 1n, timestamp: 0, preApplyChecksum: 0n }, srcPages()));
+    await source.write(
+      "/cell/snap.ltx",
+      encodeLtxStream(
+        { pageSize, commit: N, minTXID: 1n, maxTXID: 1n, timestamp: 0, preApplyChecksum: 0n },
+        srcPages(),
+      ),
+    );
     // A delta changing 1000 pages, written the same way.
     async function* deltaPages() {
       for (let p = 1; p <= N; p += 16) yield [p, page(p + 1)] as [number, Uint8Array];
     }
-    await source.write("/cell/delta.ltx", encodeLtxStream({ pageSize, commit: N, minTXID: 2n, maxTXID: 2n, timestamp: 0, preApplyChecksum: 0n }, deltaPages()));
+    await source.write(
+      "/cell/delta.ltx",
+      encodeLtxStream(
+        { pageSize, commit: N, minTXID: 2n, maxTXID: 2n, timestamp: 0, preApplyChecksum: 0n },
+        deltaPages(),
+      ),
+    );
     // The output goes to a sink that only counts bytes: what stays in memory is the compactor's.
     let written = 0;
-    const sink = { write: async (_p: string, content: AsyncIterable<Uint8Array>) => { for await (const c of content) written += c.length; } } as unknown as MemFilesApi;
+    const sink = {
+      write: async (_p: string, content: AsyncIterable<Uint8Array>) => {
+        for await (const c of content) written += c.length;
+      },
+    } as unknown as MemFilesApi;
     (globalThis as { gc?: () => void }).gc?.();
     const base = process.memoryUsage();
     let peak = 0;
@@ -209,7 +240,9 @@ describe("streaming compaction", () => {
     await compactPagedCellTo(cell, sink, "/cell/compacted.ltx");
     clearInterval(sample);
     const ms = performance.now() - t0;
-    console.log(`64 MiB cell (${N} pages + a delta of ${Math.ceil(N / 16)}): compacted to ${(written / 1e6).toFixed(1)} MB in ${ms.toFixed(0)} ms; peak extra memory ${(peak / 1e6).toFixed(1)} MB`);
+    console.log(
+      `64 MiB cell (${N} pages + a delta of ${Math.ceil(N / 16)}): compacted to ${(written / 1e6).toFixed(1)} MB in ${ms.toFixed(0)} ms; peak extra memory ${(peak / 1e6).toFixed(1)} MB`,
+    );
     expect(written).toBeGreaterThan(N * pageSize * 0.9);
     // Retained memory stays a fraction of the 64 MiB database (garbage between collections aside).
     if ((globalThis as { gc?: () => void }).gc) expect(peak).toBeLessThan(8e6);

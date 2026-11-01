@@ -245,9 +245,8 @@ export function ltxCellStore(
               const run = await retried((c) => c.readRun(msg.pgno as number, msg.count as number));
               const size = (c as PagedCell).pageSize;
               const out = new Uint8Array(run.size * size);
-              [...run.keys()]
-                .sort((a, b) => a - b)
-                .forEach((p, i) => out.set(run.get(p) as Uint8Array, i * size));
+              const pgnos = [...run.keys()].sort((a, b) => a - b);
+              for (const [i, p] of pgnos.entries()) out.set(run.get(p) as Uint8Array, i * size);
               return answer(out);
             } finally {
               stats.readMs += performance.now() - tr;

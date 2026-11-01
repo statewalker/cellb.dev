@@ -4,12 +4,14 @@
  * Workers globals (`Response` with status 101, `WebSocketPair`) from what that runtime installs;
  * with nodejs_compat, `node:*` modules (and their bare names) become browser polyfills.
  */
+
 import { builtinModules, createRequire } from "node:module";
 import { resolve } from "node:path";
 import { type BuildOptions, build } from "esbuild";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
 import { PROJECT_WORKERS_MODULE_SHIM } from "./browser-modules.js";
 import { lowerAwait } from "./lower-await.js";
+import { ownModule } from "./own-module.js";
 import { SCHEDULER_EXPRESSION } from "./scheduler.js";
 import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
 
@@ -84,7 +86,7 @@ export async function bundleWorkerForBrowser(
     logLevel: "silent",
     inject: [
       "cells:globals",
-      ...(opts.nodeCompat ? [resolve(pkg, "src/node-compat/globals.ts")] : []),
+      ...(opts.nodeCompat ? [ownModule(import.meta.dirname, "../node-compat/globals")] : []),
     ],
     plugins: [
       {
@@ -96,7 +98,7 @@ export async function bundleWorkerForBrowser(
               const name = a.path.startsWith("node:") ? a.path : `node:${a.path}`;
               if (!a.path.startsWith("node:") && !bareBuiltin.has(a.path)) return undefined;
               const file = NODE_POLYFILL_FILES[name];
-              if (file) return { path: resolve(pkg, "src/node-compat", file) };
+              if (file) return { path: ownModule(import.meta.dirname, `../node-compat/${file}`) };
               const polyfill = NODE_POLYFILL_PACKAGES[name];
               // "buffer/" (trailing slash): the npm package, not the Node.js built-in of that name
               if (polyfill) return { path: requireFromPkg.resolve(`${polyfill}/`) };
@@ -110,7 +112,7 @@ export async function bundleWorkerForBrowser(
             loader: "js",
           }));
           b.onResolve({ filter: /^cloudflare:email$/ }, () => ({
-            path: resolve(pkg, "src/project/cloudflare-email.ts"),
+            path: ownModule(import.meta.dirname, "cloudflare-email"),
           }));
           b.onResolve({ filter: /^cloudflare:workers$|^cells:globals$/ }, (a) => ({
             path: a.path,

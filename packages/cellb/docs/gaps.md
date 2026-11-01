@@ -161,8 +161,9 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **The LTX log of fleet buckets keeps each cell's pages in memory.** `ltxLog`
   (`src/bucket/ltx-log.ts`, behind `celldBucket` and `filesApiLtxLog`) holds the pages it last
   wrote per cell; `bucket: { ltx }` reads a cell page by page instead.
-- **No build step.** The entry points are TypeScript sources. A bundler, Vite or vitest resolves
-  them; plain `node` fails with `ERR_MODULE_NOT_FOUND` for `src/…/*.js`.
+- **The workspace runs cellb from its TypeScript sources**, the published package from `dist/`
+  (`publishConfig.exports`). `scripts/pack-check.mjs`, in CI, checks the built package; a change
+  that only breaks the build shows there, not in the workspace's tests.
 
 ## Out of scope, on purpose
 
