@@ -22,9 +22,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Until fix/module-type-scopes (module types of .js files in "type": "module" scopes, no
-  # source maps by default) is merged into webrun-sites' main.
-  WEBRUN_SITES_REF: ${{ inputs.webrun-sites-ref || 'fix/module-type-scopes' }}
+  # webrun-sites' main, or the ref a manual run names (to try a webrun-sites branch).
+  WEBRUN_SITES_REF: ${{ inputs.webrun-sites-ref || 'main' }}
 
 jobs:
   emdash:
