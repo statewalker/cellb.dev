@@ -77,6 +77,11 @@ jobs:
       - name: Chromium — the package store under concurrent PUTs, ranged GETs and compaction
         working-directory: cellb.dev/examples/astro-in-browser
         run: pnpm exec playwright test test/browser/pkgstore-probe.spec.ts test/browser/build-in-browser.spec.ts
+      - name: Node + Chromium — notebooks through an Astro theme on cellb, the static export's cells
+        working-directory: cellb.dev/examples/notebook-site
+        run: |
+          pnpm run typecheck
+          pnpm exec vitest run
       - name: Chromium — EmDash built in the tab through the package store (cold, then warm)
         working-directory: cellb.dev/examples/astro-in-browser
         run: pnpm exec playwright test test/browser/emdash-in-browser.spec.ts

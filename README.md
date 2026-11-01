@@ -48,6 +48,8 @@ examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
 examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
 examples/astro-in-browser/  Astro apps, EmDash included, built from their sources in a browser tab and run there on cellb
+examples/notebook-site/  Markdown notebooks as an Astro site: page models in KV, a theme built by astro-builder,
+                       run on cellb and exported as a static site
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
@@ -82,6 +84,8 @@ they use. Both are workspaces
    It links `@statewalker/webrun-bundler` from a sibling checkout of webrun-sites (see its README).
 10. `cd packages/astro-builder && pnpm test`: the builder alone, a small project built and run on
     cellb in Node (needs the same sibling checkout and access to registry.npmjs.org).
+11. `cd examples/notebook-site && pnpm test`: Markdown notebooks through an Astro theme on cellb,
+    an edit without a rebuild, and a static export whose cells run in Chromium.
 
 `pnpm test` at the root runs every workspace's tests, and stops at the first one that fails.
 

@@ -1,0 +1,8 @@
+{
+  "name": "notebook-site-theme",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "astro": "7.4.4"
+  }
+}
