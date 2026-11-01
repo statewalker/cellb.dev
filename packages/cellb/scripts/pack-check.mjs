@@ -128,6 +128,7 @@ try {
     join(project, "index.js"),
     `import { DurableObject } from "cloudflare:workers";
 import { Buffer } from "node:buffer";
+import { tail } from "./lib.cjs";
 export class Counter extends DurableObject {
   async inc() {
     const n = ((await this.ctx.storage.get("n")) ?? 0) + 1;
@@ -138,10 +139,16 @@ export class Counter extends DurableObject {
 export default {
   async fetch(req, env) {
     const n = await env.COUNTER.getByName("a").inc();
-    return new Response(Buffer.from("n=" + n).toString());
+    return new Response(Buffer.from(tail("/n=" + n)).toString());
   },
 };
 `,
+  );
+
+  // CommonJS that requires a Node built-in, as many npm packages do (mime-types: node:path).
+  write(
+    join(project, "lib.cjs"),
+    `const path = require("node:path");\nexports.tail = (p) => path.basename(p);\n`,
   );
 
   step("1. plain Node: loadNodeProject, bundleWorkerForBrowser");
