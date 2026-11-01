@@ -6,7 +6,9 @@ shards with its Durable Objects on cellb's LTX storage. Two apps are built this 
 app (`app/`) and [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare` template
 (`../emdash`), which brings `astro.config.mjs`, its integrations, 225 routes, React islands, D1,
 R2, KV and a cron trigger. The same builder runs on Node, and its output runs on cellb in Node too.
-The package is private: it is a test of cellb and of webrun-bundler, not a library.
+The builder itself is [`@statewalker/astro-builder`](../../packages/astro-builder); this package is
+the browser host around it (ServiceWorker, package store, workers, export) and its tests. It is
+private: a test of cellb, of the builder and of webrun-bundler, not a library.
 
 ## How it fits together
 
@@ -18,10 +20,12 @@ host tab (browser/host.ts, emdash.html or index.html)
  │    (bucket: { ltx: "pkgstore-ltx" }); packs in 256 KiB deflated blocks, served by range
  ├─ builder worker (browser/builder-worker.ts)
  │    ├─ download workers: fetch a package from the registry, pack it, PUT it to the store
- │    ├─ Astro's compiler (compiler-rs, WebAssembly, from npm)
+ │    ├─ Astro's compiler (compiler-rs, WebAssembly, from npm: loadAstroCompiler of
+ │    │    @statewalker/astro-builder/browser)
  │    ├─ esbuild-wasm in a worker of its own, restarted after each large bundle
- │    └─ src/builder: astro.config.mjs and its integrations, routes, virtual modules, the server
- │       bundle (ONE Worker module) and the client bundles
+ │    └─ @statewalker/astro-builder (packages/astro-builder): astro.config.mjs and its
+ │       integrations, routes, virtual modules, the server bundle (ONE Worker module) and the
+ │       client bundles; src/pkgstore/http-files.ts reads the package store over HTTP
  └─ site shard (browser/shard-worker.ts): the built Worker on cellb, its Durable Objects (D1, KV,
       R2 included) on the LTX storage (bucket: { ltx: "<app>-ltx" })
 ```
@@ -44,7 +48,7 @@ host tab (browser/host.ts, emdash.html or index.html)
 
 ## How to use it
 
-`examples/astro-in-browser` links `@statewalker/webrun-bundler` from a sibling checkout of
+`examples/astro-in-browser` and `packages/astro-builder` link `@statewalker/webrun-bundler` from a sibling checkout of
 [webrun-sites](https://github.com/statewalker/webrun-sites) (`../../../webrun-sites`), whose
 `dist/` must be built:
 

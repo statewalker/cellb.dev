@@ -42,6 +42,8 @@ Where cellb follows Cloudflare or workerd instead of celld, and what still diffe
 
 ```
 packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
+packages/astro-builder/  an Astro SSR build on esbuild-wasm over a FilesApi, for browsers, workers and Node
+                       (private until webrun-bundler 0.1.1 is published)
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
 examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
@@ -78,6 +80,8 @@ they use. Both are workspaces
 9. `cd examples/astro-in-browser && pnpm test`: the in-browser builder on Node;
    `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab.
    It links `@statewalker/webrun-bundler` from a sibling checkout of webrun-sites (see its README).
+10. `cd packages/astro-builder && pnpm test`: the builder alone, a small project built and run on
+    cellb in Node (needs the same sibling checkout and access to registry.npmjs.org).
 
 `pnpm test` at the root runs every workspace's tests, and stops at the first one that fails.
 

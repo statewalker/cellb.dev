@@ -449,7 +449,7 @@ async function buildClient(
     ...new Set(o.renderers.map((r) => r.clientEntrypoint).filter(Boolean)),
   ] as string[];
   const hash = async (b: Uint8Array) =>
-    [...new Uint8Array(await crypto.subtle.digest("SHA-1", b))]
+    [...new Uint8Array(await crypto.subtle.digest("SHA-1", b as Uint8Array<ArrayBuffer>))]
       .slice(0, 5)
       .map((x) => x.toString(16).padStart(2, "0"))
       .join("");

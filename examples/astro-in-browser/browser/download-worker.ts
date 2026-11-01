@@ -2,8 +2,9 @@
 // A download worker: fetches a package from the npm registry (packument and tarball, gunzip and
 // untar in this worker), packs it (one file, see package-cache.ts), and PUTs the pack to the
 // package store. Several run at once; none of them keeps a package once it is stored.
+
+import { packOf } from "@statewalker/astro-builder";
 import { npmRegistrySource } from "@statewalker/webrun-modules";
-import { packOf } from "../src/builder/package-cache.ts";
 
 const registry = npmRegistrySource();
 self.onmessage = async (

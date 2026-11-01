@@ -108,9 +108,9 @@ importers:
       '@astrojs/compiler':
         specifier: 4.0.0
         version: 4.0.0
-      '@napi-rs/wasm-runtime':
-        specifier: 1.2.6
-        version: 1.2.6(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
+      '@statewalker/astro-builder':
+        specifier: workspace:*
+        version: link:../../packages/astro-builder
       '@statewalker/db-sqlite-browser':
         specifier: 0.2.1
         version: 0.2.1
@@ -300,6 +300,43 @@ importers:
       wrangler:
         specifier: ^4.152.0
         version: 4.153.0(@cloudflare/workers-types@5.20261026.1)(@types/node@26.6.5)
+
+  packages/astro-builder:
+    dependencies:
+      '@napi-rs/wasm-runtime':
+        specifier: 1.2.6
+        version: 1.2.6(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)
+      '@statewalker/webrun-bundler':
+        specifier: link:../../../webrun-sites/packages/webrun-bundler
+        version: link:../../../webrun-sites/packages/webrun-bundler
+      '@statewalker/webrun-files':
+        specifier: ^0.10.0
+        version: 0.10.3
+      '@statewalker/webrun-modules':
+        specifier: 0.3.6
+        version: 0.3.6
+    devDependencies:
+      '@astrojs/compiler-rs':
+        specifier: 0.5.2
+        version: 0.5.2
+      '@statewalker/cellb':
+        specifier: workspace:*
+        version: link:../cellb
+      '@statewalker/webrun-files-mem':
+        specifier: ^0.10.0
+        version: 0.10.3
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      esbuild-wasm:
+        specifier: 0.28.2
+        version: 0.28.2
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/cellb:
     dependencies:

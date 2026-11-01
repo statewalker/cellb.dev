@@ -56,6 +56,11 @@ jobs:
         run: |
           pnpm run typecheck
           pnpm exec vitest run test/
+      - name: astro-builder — typecheck, routes, a project built and run on cellb in Node
+        working-directory: cellb.dev/packages/astro-builder
+        run: |
+          pnpm run typecheck
+          pnpm exec vitest run
       - name: Node — EmDash built by Astro, run on cellb
         working-directory: cellb.dev/examples/emdash
         run: pnpm test

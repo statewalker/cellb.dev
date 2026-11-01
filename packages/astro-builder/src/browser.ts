@@ -6,7 +6,7 @@
  */
 import { getDefaultContext, instantiateNapiModuleSync, WASI } from "@napi-rs/wasm-runtime";
 import { npmRegistrySource } from "@statewalker/webrun-modules";
-import type { AstroTransform } from "../src/builder/astro-plugin.ts";
+import type { AstroTransform } from "./astro-plugin.js";
 
 const BINDING = "@astrojs/compiler-binding-wasm32-wasi";
 const VERSION = "0.5.2"; // the binding of @astrojs/compiler-rs 0.5.2, which astro 7.4.4 uses

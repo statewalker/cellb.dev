@@ -17,6 +17,11 @@ export type AstroTransform = (
   diagnostics: { severity: unknown; text: string }[];
   containsHead?: boolean;
   propagation?: boolean;
+  /** Component `<script>`s; the inline ones go to the client build. */
+  scripts?: { type: string; code?: string }[];
+  /** Islands (`client:*`) and `client:only` components, by specifier and resolved file id. */
+  hydratedComponents?: { specifier: string; resolvedPath?: string }[];
+  clientOnlyComponents?: { specifier: string; resolvedPath?: string }[];
 };
 
 /** Compiles one `.astro` file as Astro's Vite plugin does (`id`: its file id). */
@@ -127,10 +132,7 @@ export function astroPlugin(opts: {
         if (error) return { errors: [{ text: `${args.path}: ${error.text}` }] };
         opts.components.set(args.path, {
           css: r.css,
-          scripts: (r.scripts ?? []).filter((x) => x.type === "inline").map((x) => x.code ?? ""),
-          islands: [...(r.hydratedComponents ?? []), ...(r.clientOnlyComponents ?? [])].map(
-            (c) => c.resolvedPath || c.specifier,
-          ),
+          ...clientPartsOf(r),
           containsHead: !!r.containsHead,
           propagation: !!r.propagation,
         });

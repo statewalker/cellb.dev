@@ -2,12 +2,12 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { transform } from "@astrojs/compiler-rs";
+import { buildAstroApp } from "@statewalker/astro-builder";
 import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
 import { npmPackages } from "@statewalker/webrun-bundler";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import * as esbuild from "esbuild-wasm";
 import { expect, it } from "vitest";
-import { buildAstroApp } from "../src/builder/build.ts";
 import { appFiles } from "./load-app.ts";
 
 // The same build the browser runs (esbuild-wasm, packages from the npm registry, sources in a

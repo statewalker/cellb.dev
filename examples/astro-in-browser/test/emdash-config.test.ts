@@ -1,8 +1,8 @@
 import { join } from "node:path";
+import { preloadVfs, runAstroConfig } from "@statewalker/astro-builder";
 import { npmPackages } from "@statewalker/webrun-bundler";
 import * as esbuild from "esbuild-wasm";
 import { expect, it } from "vitest";
-import { preloadVfs, runAstroConfig } from "../src/builder/integrations.ts";
 import { appFiles } from "./load-app.ts";
 
 it("runs EmDash's astro.config.mjs and its integrations at build time", async () => {

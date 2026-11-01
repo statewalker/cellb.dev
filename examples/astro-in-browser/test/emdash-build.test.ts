@@ -1,11 +1,10 @@
 import { join } from "node:path";
 import { transform } from "@astrojs/compiler-rs";
+import { buildAstroApp, preloadVfs, runAstroConfig } from "@statewalker/astro-builder";
 import { CELLS_GLOBALS_MODULE, cellbHostModule } from "@statewalker/cellb/host-modules";
 import { npmPackages } from "@statewalker/webrun-bundler";
 import * as esbuild from "esbuild-wasm";
 import { expect, it } from "vitest";
-import { buildAstroApp } from "../src/builder/build.ts";
-import { preloadVfs, runAstroConfig } from "../src/builder/integrations.ts";
 import { appFiles } from "./load-app.ts";
 
 it("builds EmDash's blog template (integrations, routes, virtual modules) for cellb", async () => {
