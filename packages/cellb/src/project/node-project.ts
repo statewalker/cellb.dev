@@ -131,6 +131,17 @@ export async function bundleWorker(
     mainFields: ["module", "main"],
     target: "es2022",
     logLevel: "silent",
+    // nodejs_compat: CommonJS dependencies `require()` Node's built-ins (mime-types requires
+    // node:path), as they may under workerd's nodejs_compat. In an ES module bundle esbuild's
+    // require shim needs a `require` in scope: vitest's module runner provides one, plain Node
+    // does not.
+    ...(opts.nodeCompat
+      ? {
+          banner: {
+            js: 'import { createRequire as __cellbCreateRequire } from "node:module";\nconst require = __cellbCreateRequire(import.meta.url);',
+          },
+        }
+      : {}),
     inject: [
       ownModule(import.meta.dirname, "workers-globals"),
       ...(logs ? ["cellb:console"] : []),
