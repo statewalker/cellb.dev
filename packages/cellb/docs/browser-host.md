@@ -166,6 +166,44 @@ to one worker. Measured (examples/astro-in-browser, `cells-lab.spec.ts`, 48 cell
 then a reload): 8 shards 5.1 s (OPFS pools: 9.1 s), 16 shards 5.3 s (8.9 s); every cell read
 back after the reload. Reads after a restart replay the log (1.4–2.2 s vs 0.6–0.9 s).
 
+#### Cells on LTX files in OPFS: `bucket: { ltx, node }`
+
+With `bucket: { ltx: "<directory>", node }`, a shard keeps each cell as celld keeps it: a snapshot
+and one LTX file per commit, in an OPFS directory, in celld's layout
+(`cells/<Class>:<idHex>/ltx/e1/0000/<min>-<max>.ltx`). SQLite never holds the database: it reads
+pages through a VFS, so a cell's memory is its page cache, whatever its size.
+
+```
+shard worker                                          LTX store worker (one per shard)
+  SQLite WASM ─ ltx VFS (src/adapters/ltx-vfs.ts)        ltxCellStore (src/ltx/ltx-page-server.ts)
+     xRead ──► page cache (LRU, 2048 pages) ─ miss ──►     readRun: one range read per file
+     xSync ──► the transaction's pages ───────────────►    commit: one LTX file, appended
+     blocked on a SharedArrayBuffer (Atomics.wait)  ◄──    answer written into the buffer
+                                                         opfsSyncFiles (src/ltx/opfs-sync-files.ts)
+                                                           SyncAccessHandles in <directory>
+```
+
+- **Reads.** A page miss asks the store for a run of 16 pages (read-ahead); the store reads each
+  file the run touches once, by range. A file is opened by its header and page index only
+  (`src/ltx/ltx-pages.ts`).
+- **Commits.** The journal is in memory (`journal_mode=MEMORY`); at `xSync` the transaction's
+  pages become one LTX file, written under a temporary name and moved into place, so no reader
+  sees a partial file.
+- **Compaction.** Past `compactAfter` files (default 64), or once the files after the snapshot
+  hold more than half of it, the store writes a new snapshot beside the old files (streamed: a
+  run of pages and the index in memory), then swaps them between two requests. It checks the
+  origin's free space first and skips the compaction without room for the new snapshot.
+- **One writer per cell.** The store holds a Web Lock per cell, named after the directory and
+  the cell, while the cell is open. A store that wants a cell another tab or worker holds waits
+  up to 20 s (a reload's previous page lets go a moment later), then fails the request.
+- **Needs cross-origin isolation** (SharedArrayBuffer): COOP/COEP headers, which a ServiceWorker
+  can add (examples/astro-in-browser does).
+- `files: "opfs"` uses OPFS's asynchronous API instead of synchronous handles; `"memory"` keeps
+  nothing (tests).
+
+Measured (examples/astro-in-browser): EmDash's site and its package store run on it; a 64 MiB
+cell compacts with about 4 MB in memory (`test/p30-ltx-pages.test.ts`).
+
 #### A project at the origin's root: `root`
 
 An app that builds absolute paths (EmDash's admin calls `/_emdash/…`) cannot live under
@@ -303,6 +341,17 @@ tabs or workers with no server. Its conditional writes are atomic only within on
   works. The bucket lacks a CORS rule, or does not expose `etag`: conditional writes need it.
 - **`SignatureDoesNotMatch` through a proxy.** `signAs` is missing or differs from the host the proxy
   sends to, or the proxy rewrote the path.
+- **`storage quota exceeded writing …/ltx/…`** with `bucket: { ltx }`. The origin's storage is
+  full: the commit fails (the Durable Object resets, as on workerd, when its transaction had
+  written) and nothing is left half-written. Past the quota, Chromium's `SyncAccessHandle.write()`
+  does not throw: it returns an error code as an unsigned count (4294967288), which the store
+  checks for. In a Playwright context `navigator.storage.estimate()` overstates the room.
+- **`ltx: cell … is open in another tab or worker (waited 20 s)`.** Another store holds the cell's
+  Web Lock: another tab runs the same shard over the same directory, or a closed page's store
+  worker has not ended. Requests to that cell fail until it is released.
+- **`ltx: short read of …`** in the console. A file changed under a cell's view of it (a
+  compaction swapped it); the store reopens the cell and reads again. Repeated, it means the
+  directory is written by something else.
 - **Two tabs on one OPFS bucket corrupt each other's cells.** Conditions are checked and then
   written; with two writers both can win. Use one tab or worker at a time, or S3.
 - **A WebSocket closes with `1006` although nobody closed it.** The heartbeat found the far end gone

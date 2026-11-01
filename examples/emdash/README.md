@@ -11,6 +11,11 @@ with D1 (Kysely, multi-statement triggers), KV sessions, R2 media, a cron trigge
 cookies and passkeys, `waitUntil` from `cloudflare:workers`, a top-level `await`, and
 `node:module`/`node:crypto` in its dependencies. Running it found and closed those gaps in cellb.
 
+This example takes Astro's own build output. [`examples/astro-in-browser`](../astro-in-browser)
+builds the same template from these sources inside a browser tab instead, and its spec
+`emdash-admin-in-browser.spec.ts` drives the same admin flow
+(`test/static/admin-flow.ts`, shared) on that build.
+
 ## How to use it
 
 ```

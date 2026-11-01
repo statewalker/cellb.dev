@@ -29,7 +29,9 @@ step yet), so import it through a bundler, Vite or vitest.
 |---|---|
 | `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes, and the errors embedders catch |
 | `@statewalker/cellb/node` | `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
-| `@statewalker/cellb/browser` | `browserProjectRuntime`, `sahpoolOpener`, `createProjectSite`, `serviceWorkerConnector` |
+| `@statewalker/cellb/browser` | `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `createProjectSite`, `serviceWorkerConnector` |
+| `@statewalker/cellb/host-modules` | for bundlers other than cellb's own (webrun-bundler in a browser, say): the sources of `cloudflare:workers`, `node:*` and the Workers globals as cellb's realms provide them (`cellbHostModule`, `CELLS_GLOBALS_MODULE`) |
+| `@statewalker/cellb/isolate-worker` | the Dedicated Worker that runs a Worker-Loader Worker in a realm of its own (`isolateScript`) |
 
 Node 22.13 or later is needed for `node:sqlite`. `loadNodeProject` bundles a project with
 `esbuild`, which the embedder must install.
@@ -130,6 +132,12 @@ const res = await host.runtime.fetch(new Request("http://browser/"));
 await host.close();
 ```
 
+Where the cells live is the `pool` (an opfs-sahpool SQLite pool, one per worker) unless `bucket`
+says otherwise: `bucket: { idb, node }` keeps them in memory with page logs in IndexedDB, and
+`bucket: { ltx, node }` keeps each one as LTX files in an OPFS directory, read page by page through
+a SQLite VFS (cross-origin isolation needed). [docs/browser-host.md](docs/browser-host.md)
+compares them.
+
 To run each Worker-Loader Worker in a Dedicated Worker of its own, pass the shipped isolate worker:
 with Vite, `import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url"` and
 `isolateScript: new URL(isolateWorker, import.meta.url)`.
@@ -164,9 +172,10 @@ layers.
 ```
 src/core            runtime, stubs, ids, gates, SQL and KV storage, alarms, celld's internal schema
 src/ports.ts        the port interfaces and CellStorage
-src/adapters        node:sqlite and SQLite WASM drivers, the WASM page hook, FilesApi logs and backups
+src/adapters        node:sqlite and SQLite WASM drivers, the WASM page hook, the LTX VFS, FilesApi logs and backups
 src/bucket          object stores (S3, SQLite, memory, FilesApi), the LTX writer, celldBucket
-src/ltx             the LTX v3 codec (LZ4, CRC-64, xxHash32)
+src/ltx             the LTX v3 codec (LZ4, CRC-64, xxHash32), page reads and compaction over a FilesApi,
+                    the LTX store worker and its OPFS files (bucket: { ltx })
 src/v8              V8 serialization in TypeScript
 src/transport       the HTTP surface of a runtime, and links over ports
 src/router          CellRouter and the shard worker (browser origins)
@@ -251,6 +260,9 @@ What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches ce
   directory does not exist; neither creates it. (`celld dev` creates `.celld/dev/` on its first run.)
 - **`NoModificationAllowedError` in a browser.** Two workers opened the same OPFS pool. Each worker
   needs its own `pool`.
+- **`storage quota exceeded writing …`** or **`ltx: cell … is open in another tab or worker`** with
+  `bucket: { ltx }`: the origin's storage is full, or another tab's store holds the cell. See
+  [docs/browser-host.md](docs/browser-host.md#what-breaks).
 - **`A stub was used after it was disposed.`** Loaded code, or its host, called a stub of the other
   side after `stub[Symbol.dispose]()`. A stub into a loaded Worker holds its value until disposed or
   garbage-collected ([docs/gaps.md](docs/gaps.md)).

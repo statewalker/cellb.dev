@@ -57,15 +57,19 @@ export type BrowserBucket =
   /**
    * `ltx`: cells as celld keeps them, LTX files (a snapshot and one file per commit) in an OPFS
    * directory, read page by page (a SQLite VFS over a store worker): no OPFS pool, and a
-   * cell's memory is its page cache, not its database. Files past `compactAfter` (default
-   * 64) are folded into one snapshot, streamed.
+   * cell's memory is its page cache, not its database. A cell is folded into one snapshot
+   * (streamed) past `compactAfter` files (default 64), or once the files after its snapshot hold
+   * more than half of it. See docs/browser-host.md.
    */
   | {
       ltx: string;
       node: string;
       leaseTtlMs?: number;
       compactAfter?: number;
-      /** The cells' FilesApi: OPFS (default), OPFS through synchronous handles, or memory. */
+      /**
+       * The cells' FilesApi in the store worker: OPFS through synchronous handles (default,
+       * `opfs-sync`), OPFS through its asynchronous API (`opfs`), or memory (nothing kept).
+       */
       files?: "opfs" | "opfs-sync" | "memory";
     }
   | { store: ObjectStore; node: string; leaseTtlMs?: number };

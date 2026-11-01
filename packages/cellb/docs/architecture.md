@@ -26,7 +26,7 @@ supplies:
 
 | Port | What it is | Implementations |
 |---|---|---|
-| `OpenCellSql` → `SyncSqlDriver` | a synchronous SQLite database per cell | `nodeSqliteOpener` (node:sqlite), `sahpoolOpener` (SQLite WASM on OPFS), `wasmMemoryOpener` (SQLite WASM in memory) |
+| `OpenCellSql` → `SyncSqlDriver` | a synchronous SQLite database per cell | `nodeSqliteOpener` (node:sqlite), `sahpoolOpener` (SQLite WASM on OPFS), `wasmMemoryOpener` (SQLite WASM in memory), the LTX VFS (`bucket: { ltx }`: SQLite WASM reading a cell's LTX files page by page, [browser-host.md](browser-host.md)) |
 | `CellStorage` | durability, backup, ownership and R2 objects, as one bundle the runtime closes | `celldBucket` (a fleet bucket), `filesApiLtxLog`, `filesApiChangeLog`; `filesApiBackup` for its `backup` part |
 | `Lease` | per-cell ownership with an epoch and a "lost" signal | `celldBucket(...).ownership` |
 | `ObjectStore` | a bucket with conditional writes | `s3ObjectStore`, `sqliteObjectStore` (celld dev's local store), `memoryObjectStore`, `filesApiObjectStore` |
@@ -35,7 +35,14 @@ supplies:
 
 The SQL port is synchronous on purpose: `ctx.storage.sql.exec()` returns rows at once, as on
 Cloudflare. Both drivers are synchronous underneath (node:sqlite, and the SQLite WASM `oo1` API in a
-Dedicated Worker), so no async layer sits in between.
+Dedicated Worker), so no async layer sits in between. The LTX VFS is the one exception inside:
+its reads block the shard worker on a SharedArrayBuffer while a store worker reads the page.
+
+A driver may answer `inTransaction()` (node:sqlite's `isTransaction`, SQLite WASM's
+`sqlite3_get_autocommit`). After a failed statement, `SqlStorage` uses it to tell an ordinary
+error from one after which SQLite rolled the whole transaction back (an I/O error, a full disk):
+a rolled-back transaction that had only read fails the statement alone, one that had written
+fails its commit, and the object resets, as on workerd.
 
 ## The path of a request
 
@@ -114,14 +121,14 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
 |---|---|---|
 | `src/core` | core | runtime, namespaces and stubs, ids, object hosts, input/output gates, SQL and KV storage, alarms, celld's internal schema |
 | `src/ports.ts` | core | the port interfaces and `CellStorage` |
-| `src/adapters` | platform | SQL drivers (node:sqlite, SQLite WASM, the WASM page hook), FilesApi logs and backups |
+| `src/adapters` | platform | SQL drivers (node:sqlite, SQLite WASM, the WASM page hook, the LTX VFS), FilesApi logs and backups |
 | `src/bucket` | storage | object stores (S3, SQLite, memory, FilesApi), the LTX writer, `celldBucket` |
-| `src/ltx` | storage | the LTX v3 codec: LZ4, CRC-64, xxHash32 |
+| `src/ltx` | storage | the LTX v3 codec (LZ4, CRC-64, xxHash32); page reads over a FilesApi, the streaming writer and compaction (`ltx-pages`); the store a VFS talks to (`ltx-page-server`, `ltx-store-worker`) and its OPFS files (`opfs-sync-files`) |
 | `src/v8` | storage | V8 serialization in TypeScript, for platforms without `v8.serialize` |
 | `src/transport` | links | the HTTP surface (`cellsHttpHandler`, `remoteRuntime`) and links over ports |
 | `src/router` | browser placement | `CellRouter` and the shard worker |
 | `src/ws` | WebSockets | the WHATWG client, `WebSocketPair` and the 101 `Response` over MessagePorts, the control channel |
-| `src/project` | projects | wrangler loading for Node and browsers, the in-browser site, Workers globals |
+| `src/project` | projects | wrangler loading for Node and browsers, the in-browser site, Workers globals (on Node also a workerd-like `MessageChannel`, whose idle ports do not keep the process alive), host modules for bundles made by other bundlers |
 | `src/bindings` | projects | assets, cache, cron, D1 migrations, HTMLRewriter, KV, Queues, R2, Workflows, Worker Loader |
 | `src/isolate` | projects | loaded Workers in their own realm (Node and browser) |
 | `src/peer` | fleet | celld's peer protocol: a server for celld's requests and a client to reach celld owners (Node only) |

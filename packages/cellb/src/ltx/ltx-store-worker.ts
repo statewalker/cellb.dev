@@ -16,10 +16,10 @@ self.onmessage = (e: MessageEvent) => {
   const m = e.data;
   if (m?.op === "init") {
     ready = (async () => {
-      // The cells' FilesApi, by name (an instance cannot cross to this worker):
-      // "opfs" (default: OPFS through its asynchronous API), "opfs-sync" (synchronous handles:
-      // about as fast, but a file with an open handle cannot be read or reopened meanwhile,
-      // which concurrent compaction and commits ran into), "memory" (nothing kept).
+      // The cells' FilesApi, by name (an instance cannot cross to this worker): "opfs-sync"
+      // (default: synchronous handles; each file written under a temporary name and moved into
+      // place, so a file being written is never read), "opfs" (OPFS's asynchronous API),
+      // "memory" (nothing kept).
       const files =
         m.files === "memory"
           ? new MemFilesApi()

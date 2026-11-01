@@ -1,13 +1,18 @@
 /**
  * An Astro SSR build that runs wherever esbuild-wasm does, a browser included: it reads the
  * project from a FilesApi, takes `astro` and its dependencies from a PackageStore (the npm
- * registry, fetched on demand), compiles `.astro` with Astro's compiler, and writes ONE Worker
- * module: Astro's `App`, a manifest of the project's routes, and every page, bundled.
+ * registry fetched on demand, or the package store), compiles `.astro` with Astro's compiler, and
+ * writes ONE Worker module (Astro's `App`, a manifest of the routes, every page) plus the client
+ * assets.
  *
  * It does what Astro's build does for an on-demand (`output: "server"`) site with a fetch-style
- * adapter: routes from `src/pages`, `src/middleware.ts`, components' styles inlined per route.
- * It does not do what Astro's Vite plugins add on top: integrations, content collections,
- * `astro:assets`, client islands, prerendering, CSS bundling of imported `.css` files.
+ * adapter: routes from `src/pages`, `src/middleware.ts` and the integrations' injected routes and
+ * middleware (`integration`, from integrations.ts), the integrations' Vite plugins (through
+ * vite-adapter.ts), Astro's virtual modules (astro-modules.ts: live content collections,
+ * `astro:assets` with the no-op image service), styles (components' and imported `.css` files,
+ * relative `@import`s inlined) inlined per route, and the client: islands, renderers' client
+ * entrypoints and component scripts, in bundles of their own. With `main`, the project's own
+ * Worker entry (wrangler's `main`) wraps the app. It does not prerender pages.
  */
 
 import { bundle, type Esbuild, type Mount, type PackageStore } from "@statewalker/webrun-bundler";
