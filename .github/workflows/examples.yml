@@ -1,0 +1,131 @@
+name: examples
+
+# The examples (examples/: their own pnpm workspace and lockfile) as cellb's users run them:
+# on @statewalker/cellb from npm, at the range they pin. A change to cellb reaches them through a
+# release (Dependabot raises the range), not through this repository's sources, so a cellb pull
+# request does not run them; a change to the examples does.
+#
+# With `cellb: packed` (examples-canary.yml, nightly) the examples run instead on cellb as this
+# checkout would publish it: packages/cellb packed, and the tarball installed in place of the
+# release. The canary says early whether the next release breaks an example.
+#
+# examples/astro-in-browser links @statewalker/webrun-bundler from a sibling checkout of
+# webrun-sites: both repositories are checked out side by side.
+on:
+  push:
+    branches: [main]
+    paths: ["examples/**", ".github/workflows/examples.yml"]
+  pull_request:
+    paths: ["examples/**", ".github/workflows/examples.yml"]
+  workflow_dispatch:
+    inputs:
+      cellb:
+        description: "`released` (the examples' lockfile) or `packed` (packages/cellb of this ref)"
+        default: released
+      webrun-sites-ref:
+        description: webrun-sites branch, tag or commit
+        default: main
+  workflow_call:
+    inputs:
+      cellb:
+        type: string
+        default: released
+      webrun-sites-ref:
+        type: string
+        default: main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.cellb || 'released' }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  example:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Node (fake-openai, Flue, pi and opencode, EmDash, the in-browser builder)
+            browser: false
+            run: |
+              pnpm --filter @statewalker/fake-openai test
+              pnpm --filter @statewalker/flue-example test
+              pnpm --filter @statewalker/agent-examples test
+              pnpm --filter @statewalker/emdash-example test
+              cd astro-in-browser
+              pnpm exec vitest run
+              pnpm exec tsx scripts/trace-build.mts emdash
+              pnpm exec tsx scripts/run-node.mts
+          - name: Chromium — Flue in tabs
+            browser: true
+            dir: flue
+            run: pnpm test:browser
+          - name: Chromium — EmDash's static build
+            browser: true
+            dir: emdash
+            run: pnpm test:browser
+          - name: Chromium — EmDash built in the tab (package store, cold and warm; in memory)
+            browser: true
+            dir: astro-in-browser
+            run: |
+              pnpm exec playwright test test/browser/pkgstore-probe.spec.ts test/browser/build-in-browser.spec.ts test/browser/cells-lab.spec.ts
+              pnpm exec playwright test test/browser/emdash-in-browser.spec.ts
+              EMDASH_STORE=0 pnpm exec playwright test test/browser/emdash-in-browser.spec.ts
+          - name: Chromium — EmDash's admin on the in-browser build (reload, two tabs)
+            browser: true
+            dir: astro-in-browser
+            run: pnpm exec playwright test test/browser/emdash-admin-in-browser.spec.ts
+    defaults:
+      run:
+        working-directory: cellb.dev/examples
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: cellb.dev
+      - uses: actions/checkout@v7
+        with:
+          repository: statewalker/webrun-sites
+          ref: ${{ inputs.webrun-sites-ref || 'main' }}
+          path: webrun-sites
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: cellb.dev/examples/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: webrun-bundler (its package exports dist/)
+        working-directory: webrun-sites
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @statewalker/webrun-bundler build
+
+      - name: Install (cellb as released)
+        if: (inputs.cellb || 'released') == 'released'
+        run: pnpm install --frozen-lockfile
+      - name: Install (cellb as this checkout would publish it)
+        if: inputs.cellb == 'packed'
+        run: |
+          pnpm --dir .. install --frozen-lockfile
+          pnpm --dir ../packages/cellb pack --pack-destination "$RUNNER_TEMP"
+          tarball=$(ls "$RUNNER_TEMP"/statewalker-cellb-*.tgz)
+          printf '\noverrides:\n  "@statewalker/cellb": "file:%s"\n' "$tarball" >> pnpm-workspace.yaml
+          pnpm install --no-frozen-lockfile
+          echo "cellb: $(node -p 'require("./emdash/node_modules/@statewalker/cellb/package.json").version') from $tarball"
+
+      - name: Chromium
+        if: matrix.browser
+        working-directory: cellb.dev/examples/${{ matrix.dir }}
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run
+        working-directory: cellb.dev/examples/${{ matrix.dir || '.' }}
+        run: ${{ matrix.run }}
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: examples-${{ strategy.job-index }}-${{ inputs.cellb || 'released' }}
+          path: |
+            cellb.dev/examples/*/test-results/
+            cellb.dev/examples/*/screenshots/

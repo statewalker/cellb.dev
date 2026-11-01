@@ -2,11 +2,8 @@
 // The store in a worker of its own: a cell's LTX files on OPFS, served to VFS workers that
 // connect with a MessagePort (their reads and commits), answered into the shared buffer.
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
-import { ltxPageServer } from "../../../packages/cellb/src/ltx/ltx-page-server.ts";
-import {
-  opfsSyncFiles,
-  opfsSyncWriteStats,
-} from "../../../packages/cellb/src/ltx/opfs-sync-files.ts";
+import { ltxPageServer } from "../../../src/ltx/ltx-page-server.ts";
+import { opfsSyncFiles, opfsSyncWriteStats } from "../../../src/ltx/opfs-sync-files.ts";
 
 let server: ReturnType<typeof ltxPageServer> | undefined;
 self.onmessage = async (e: MessageEvent) => {

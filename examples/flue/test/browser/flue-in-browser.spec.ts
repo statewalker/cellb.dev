@@ -1,10 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
-import { shardOf } from "@statewalker/cellb";
+import { createCellRuntime, shardOf } from "@statewalker/cellb";
 import { bundleWorkerForBrowser } from "@statewalker/cellb/node";
-// Not exported: where a Durable Object id lands decides which tab's shard runs it.
-import { idFromName, namespaceKey } from "../../../../packages/cellb/src/core/id.ts";
 import { startFakeLlm } from "../fake-llm.ts";
 import { whoamiScript, wrongIdentities } from "../whoami.ts";
 
@@ -260,10 +258,21 @@ test("Agents SDK WebSockets in tabs: chat, a ServiceWorker restart, a shard hand
   );
   const job = { name, shards: 2, config, bundle };
   // A room whose agent runs in shard 0: the first tab's shard once two tabs share the app.
-  const ns = namespaceKey(config.name, "ChatAgent");
+  // Its id, as the app's runtime derives it (from the script's name and the class), through the
+  // Workers API: a namespace's idFromName() of a runtime with the same name and binding.
+  const ids = createCellRuntime({
+    worker: { default: {}, ChatAgent: class {} } as never,
+    durableObjects: { ChatAgent: { className: "ChatAgent" } },
+    scriptName: config.name,
+    openSql: () => {
+      throw new Error("ids only: no storage");
+    },
+  });
+  const ns = ids.env.ChatAgent as { idFromName(name: string): { toString(): string } };
   const room = Array.from({ length: 50 }, (_, i) => `room-${i}`).find(
-    (r) => shardOf(idFromName(ns, r).toString(), 2) === 0,
+    (r) => shardOf(ns.idFromName(r).toString(), 2) === 0,
   );
+  await ids.close();
   const owned = (p: Page) =>
     p.evaluate(() => (document.body.dataset.owned ?? "").split(",").filter(Boolean).map(Number));
   const open = async () => {

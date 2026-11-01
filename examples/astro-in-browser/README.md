@@ -50,7 +50,7 @@ host tab (browser/host.ts, emdash.html or index.html)
 
 ```
 cd ../../../webrun-sites && pnpm install && pnpm --filter @statewalker/webrun-bundler build
-cd - && pnpm install          # at the repository root
+cd - && pnpm --dir .. install  # the examples' workspace (examples/; cellb from npm)
 pnpm dev:browser              # Vite; open http://localhost:<port>/__cellb/emdash.html (or /__cellb/)
 pnpm test                     # the builder on Node: the small app, EmDash's config and build
 pnpm test:browser             # every Playwright spec in test/browser (long; see below)
@@ -65,7 +65,7 @@ pools instead of the LTX storage. Network access to registry.npmjs.org is needed
 | `emdash-in-browser.spec.ts` | EmDash built in the tab through the package store (cold: ~320 downloads; then a reload, warm: 0), run on the LTX storage, seeded, its pages and hydrated admin rendered, exported as a ZIP and served from disk. `EMDASH_STORE=0`: packages in memory. `EMDASH_HEAP=1`: memory of every realm. Fails on skipped component scripts, unsupported configuration and LTX store failures |
 | `emdash-admin-in-browser.spec.ts` | on the build made in the tab: EmDash's setup wizard, a passkey account, a post with a featured image in R2, published; the post after a reload of the host tab (a new build); a second host tab taking the shard over when the first closes |
 | `pkgstore-probe.spec.ts` | the package store alone, then under concurrent 5–20 MB PUTs, ranged GETs and compaction, with an integrity pass (`PKGSTORE_PACKS=80 PKGSTORE_CONCURRENCY=8` runs past the context's storage: only PUTs may fail) |
-| `ltx-lab`, `cells-lab`, `sqlite-lab`, `*-probe` | labs and probes for the storage choices (see each file's header) |
+| `cells-lab`, `*-probe` | a lab of the storage choices for shards, and probes (see each file's header). The labs of cellb's storage internals (`ltx-lab`, `sqlite-lab`) are in cellb: `packages/cellb/e2e-browser/probes` |
 
 On Node: `npx tsx scripts/trace-build.mts emdash` builds EmDash with the builder and writes a trace
 (`traces/emdash/`); `npx tsx scripts/run-node.mts` then runs that bundle on cellb in Node with D1,

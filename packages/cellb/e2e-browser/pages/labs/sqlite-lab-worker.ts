@@ -10,7 +10,7 @@
 //                   OPFS log file through the ASYNC OPFS API (no sync handle), restored on open
 // - memdb-pages-idb: the same, with the page log in IndexedDB
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { installPageHook } from "../../../packages/cellb/src/adapters/wasm-page-hook.ts";
+import { installPageHook } from "../../../src/adapters/wasm-page-hook.ts";
 
 type Msg = { mode: string; id: number; k: number; run: string };
 
@@ -175,8 +175,10 @@ function idbLog(dbName: string, key: string): PageLog {
       r.onerror = () => rej(r.error);
     });
   let db: Promise<IDBDatabase> | undefined;
-  const tx = async (mode: IDBTransactionMode) =>
-    (await (db ??= open())).transaction("frames", mode).objectStore("frames");
+  const tx = async (mode: IDBTransactionMode) => {
+    db ??= open();
+    return (await db).transaction("frames", mode).objectStore("frames");
+  };
   return {
     async read() {
       const store = await tx("readonly");

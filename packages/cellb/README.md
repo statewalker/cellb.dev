@@ -29,7 +29,8 @@ npm install esbuild   # for loadNodeProject and bundleWorkerForBrowser (an optio
 
 The package has three entry points, one per platform, and two more for bundling. Published, it is
 JavaScript with type declarations (`dist/`, built by `scripts/build.mjs`); in this repository the
-entry points are the TypeScript sources, which the workspace's examples and tests import directly.
+entry points are the TypeScript sources, which cellb's tests and browser pages import directly
+(the examples, in a workspace of their own, use the published package).
 In a browser app, a bundler must handle `new Worker(new URL("…", import.meta.url))`: the LTX store
 worker is started that way (checked with a Vite build, see `scripts/pack-check.mjs`).
 
@@ -199,7 +200,8 @@ conformance/        celld examples, our projects, workerd's tests, recorded gold
 test/               unit tests (vitest, Node)
 e2e/                tests against a real celld and RustFS (vitest; skipped without CELLD_BIN)
 e2e-browser/        Playwright specs; pages/ holds the demo pages, the host app, ServiceWorker and
-                    shard workers they drive; probes/ the exploratory browser probes (ServiceWorker idling)
+                    shard workers they drive, and labs/ (storage internals, measured; cross-origin isolated); probes/
+                    the exploratory browser probes (ServiceWorker idling, the ltx and sqlite labs)
 scripts/            vendoring, the interop environment, mutation harnesses
 probes/             Node hypothesis probes (SQLite locks, webrun-modules globals)
 docs/               topic pages
@@ -298,6 +300,7 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 | `pnpm e2e:firefox`, `pnpm e2e:webkit` | the same suite in Playwright's Firefox or WebKit (`npx playwright install firefox webkit`; `PW_BROWSERS` takes a comma-separated list). What differs in Firefox: [docs/browser-host.md](docs/browser-host.md#firefox-and-webkit). |
 | `pnpm interop` | `e2e/` and the celld conformance in Node: `scripts/interop-env.sh` downloads the pinned celld and RustFS into `~/.cache/cellb-interop`, starts a shared RustFS on `127.0.0.1:9200` (`RUSTFS_PORT`), and sets `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` |
 | `pnpm interop:browser` | the same for Chromium |
+| `pnpm probes:browser` | the exploratory probes in Chromium (`e2e-browser/probes`), measurements printed, not part of `pnpm e2e`; among them the storage labs: `ltx-lab` (SQLite over a cell's LTX files; `LTX_STORE=worker`, `LTX_SYNC=1`) and `sqlite-lab` (SQLite in N workers, six storage modes). Add a spec name to run one |
 | `pnpm mutate`, `pnpm mutate:browser` | mutation harnesses in a throw-away copy, after a baseline run; `MUTANTS=0,3` runs a subset |
 | `pnpm browser:dev` | the demo pages in `e2e-browser/pages`: `/` (one cell worker), `/sharded/`, `/backup/`, and `/host/`, the host app that runs a project folder |
 
