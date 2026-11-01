@@ -20,7 +20,10 @@ export {
 /** The project's `websocket_standard_binary_type` flag ("cellb:compat", one per bundle). */
 export const WebSocketPair = standardBinaryType ? StandardWebSocketPair : LegacyWebSocketPair;
 
-/** workerd's `scheduler`: `await scheduler.wait(ms)` is a promise-based setTimeout. */
+/** workerd's `MessageChannel`: an idle port does not keep the Node host alive. */
+export { WorkerdMessageChannel as MessageChannel } from "./workerd-message-channel.js";
+
+/** workerd's `scheduler`:`await scheduler.wait(ms)` is a promise-based setTimeout. */
 export const scheduler = {
   wait: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
 };

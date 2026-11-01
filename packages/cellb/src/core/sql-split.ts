@@ -2,6 +2,29 @@
 const TRIGGER = /^\s*(?:EXPLAIN\s+)?CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TRIGGER\b/i;
 
 /**
+ * Whether a trigger's text so far ends its body: its `BEGIN` closed by an `END` that does not
+ * close a `CASE` (a body's statements may hold `CASE … END`, as in `SELECT CASE WHEN … THEN
+ * RAISE(ABORT, …) END;`). Quoted text and identifiers are left out of the count.
+ */
+function triggerEnded(text: string): boolean {
+  const words = text
+    .replace(/'[^']*'|"[^"]*"|`[^`]*`|\[[^\]]*\]/g, " ")
+    .match(/\b(BEGIN|CASE|END)\b/gi);
+  if (!words) return false;
+  let depth = 0;
+  let begun = false;
+  for (const w of words) {
+    const u = w.toUpperCase();
+    if (u === "BEGIN") {
+      begun = true;
+      depth++;
+    } else if (u === "CASE") depth++;
+    else depth--;
+  }
+  return begun && depth <= 0 && /\bEND\s*$/i.test(text);
+}
+
+/**
  * The statements of a SQL script ended by a top-level `;` (quotes, comments and trigger bodies
  * respected), each without its comments, with the offset just past its `;`; then the text after
  * the last one, with `end` undefined.
@@ -23,7 +46,7 @@ function* scanSql(sql: string): Generator<{ text: string; end?: number }> {
       i = end < 0 ? sql.length : end + 1;
     } else if (c === ";") {
       // A trigger body (CREATE TRIGGER … BEGIN …; …; END) is one statement.
-      if (TRIGGER.test(cur) && !/\bEND\s*$/i.test(cur)) {
+      if (TRIGGER.test(cur) && !triggerEnded(cur)) {
         cur += c;
         continue;
       }

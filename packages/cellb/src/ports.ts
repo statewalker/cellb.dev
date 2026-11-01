@@ -22,6 +22,12 @@ export interface SyncSqlDriver {
   exec(sql: string, params: unknown[]): SqlResult;
   /** Size of the database in bytes (ctx.storage.sql.databaseSize). */
   databaseSize(): number;
+  /**
+   * Whether a transaction is open (SQLite's `sqlite3_get_autocommit() == 0`): after a failed
+   * statement, tells whether SQLite rolled the transaction back by itself (I/O errors, a full
+   * disk, out of memory). Optional; without it the storage asks SQLite with a statement.
+   */
+  inTransaction?(): boolean;
   close(): void;
   /** Loads a named SQLite extension (e.g. "sqlite_vec" for celld's `sqlite_vec` flag). */
   loadExtension(name: string): void;

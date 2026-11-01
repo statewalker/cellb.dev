@@ -65,8 +65,17 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **Configuration cellb does not support** is reported in `createProjectRuntime(...).unsupported`,
   not silently ignored: `migrations.renamed_classes`, `durable_objects.bindings[].script_name`,
   service bindings to other scripts, the Workers AI binding (`ai`) when the host names no
-  OpenAI-compatible endpoint for it, and compatibility flags it does not know. Renaming a Flue
-  agent renames its class, so it needs `renamed_classes`.
+  OpenAI-compatible endpoint for it, cron triggers without a `scheduled()` handler, and
+  compatibility flags it does not know. Renaming a Flue agent renames its class, so it needs
+  `renamed_classes`. Browser tabs log it (`cellb: project … shard …: unsupported: …`).
+- **`process.env` holds the project's text `vars` in a browser only.** workerd fills it under
+  nodejs_compat from compatibility date 2025-04-01; a browser host does, but a Node host shares
+  its real `process` with the Worker, so there the embedder sets what the code reads.
+- **`waitUntil` of `cloudflare:workers` runs in the runtime's background** until `drain()`, not
+  tied to the event that called it (nothing cancels an event's work after its response here).
+- **`node:crypto` in a browser has no signature checks.** `createPublicKey` returns a `KeyObject`
+  (type and DER/PEM export) and `verify`/`createVerify` throw: a synchronous check needs a
+  pure-JS implementation. `node:module`'s `require` serves only the built-ins cellb polyfills.
 - **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
   embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
   image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.
@@ -145,6 +154,13 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   config is reported in `unsupported`). `pi` and `opencode` need a model on the network as celld
   ships them; `examples/agents` runs both, adapted to take their model from an endpoint in
   their vars, against a fake OpenAI-compatible model.
+- **The LTX store's room check is a hint.** Before a compaction it compares the cell's size with
+  `navigator.storage.estimate()`, which overstates the room in a Playwright (off-the-record)
+  context, where OPFS lives in memory with its own limit. A write past the limit still fails
+  cleanly (`storage quota exceeded writing …`), with nothing left half-written.
+- **The LTX log of fleet buckets keeps each cell's pages in memory.** `ltxLog`
+  (`src/bucket/ltx-log.ts`, behind `celldBucket` and `filesApiLtxLog`) holds the pages it last
+  wrote per cell; `bucket: { ltx }` reads a cell page by page instead.
 - **No build step.** The entry points are TypeScript sources. A bundler, Vite or vitest resolves
   them; plain `node` fails with `ERR_MODULE_NOT_FOUND` for `src/…/*.js`.
 

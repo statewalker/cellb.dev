@@ -1,4 +1,5 @@
 export { sahpoolOpener } from "./adapters/wasm-sqlite.js";
+export { idbObjectStore } from "./bucket/idb-object-store.js";
 export {
   type BrowserBucket,
   type BrowserProjectOptions,

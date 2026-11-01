@@ -1,0 +1,13 @@
+---
+import Card from "../components/Card.astro";
+import Base from "../layouts/Base.astro";
+import { posts } from "../posts";
+
+const now = new Date().toISOString();
+---
+<Base title="Home">
+	<h1>An Astro site built in this browser</h1>
+	<p>Its sources were compiled with <code>@astrojs/compiler</code>, bundled with esbuild-wasm by
+		<code>webrun-bundler</code> (packages from the npm registry), and the result runs on cellb. Rendered at {now}.</p>
+	{posts.map((p) => <Card href={`/posts/${p.slug}`} title={p.title}>{p.summary}</Card>)}
+</Base>

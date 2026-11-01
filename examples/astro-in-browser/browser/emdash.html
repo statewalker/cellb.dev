@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>EmDash, built in the browser</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+      #status { padding: .6rem 1rem; border-radius: 6px; background: #8882; }
+      body[data-ready="true"] #status { background: #2a72; }
+      body[data-error] #status { background: #d332; white-space: pre-wrap; }
+      #log { font: 12px/1.45 ui-monospace, monospace; background: #111; color: #9f9; padding: .75rem 1rem; border-radius: 6px;
+        max-height: 22rem; overflow: auto; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body data-app="emdash">
+    <h1>EmDash, built in the browser</h1>
+    <p>This page reads the app's sources, builds them in a worker (esbuild-wasm, Astro's compiler as
+      wasm, packages from the npm registry), and runs the result on cellb. The site is then served
+      from this tab at the origin's root.</p>
+    <p id="status">Starting…</p>
+    <p><a href="/" target="_blank">Open the built site</a> · <button id="export" type="button">Export the site (ZIP)</button></p>
+    <pre id="log"></pre>
+    <script type="module" src="./host.ts"></script>
+  </body>
+</html>

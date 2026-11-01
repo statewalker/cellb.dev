@@ -101,6 +101,11 @@ export class SqlStorageCursor<T = Record<string, unknown>> implements Iterable<T
  * output gate only has to await durability of the commit.
  */
 const DDL = /^\s*(CREATE|ALTER|DROP)\b/i;
+/** Errors after which SQLite may roll the whole transaction back by itself. */
+const ROLLS_BACK =
+  /SQLITE_(IOERR|FULL|NOMEM|BUSY|INTERRUPT|CORRUPT)|disk I\/O error|database or disk is full|out of memory|interrupted/i;
+/** Statements that may write (a conservative test: WITH … and PRAGMAs count as writes). */
+const WRITES = /^\s*(INSERT|REPLACE|UPDATE|DELETE|CREATE|ALTER|DROP|WITH|PRAGMA)\b/i;
 const WRITE_TARGET =
   /^\s*(?:INSERT|REPLACE)(?:\s+OR\s+\w+)?\s+INTO\s+["`[]?([\w$]+)|^\s*UPDATE(?:\s+OR\s+\w+)?\s+["`[]?([\w$]+)|^\s*DELETE\s+FROM\s+["`[]?([\w$]+)/i;
 
@@ -108,6 +113,10 @@ export class SqlStorage {
   #driver: SyncSqlDriver;
   #onCommit: (changes?: CommitChanges) => void;
   #inTxn = false;
+  /** The implicit transaction has written (its loss must fail the commit, not pass silently). */
+  #wrote = false;
+  /** Why SQLite rolled the implicit transaction back by itself (after an I/O error), if it did. */
+  #lost: unknown;
   #holds = 0;
   #depth = 0;
   // Transaction-log capture (only when the durability port asks for it).
@@ -222,9 +231,50 @@ export class SqlStorage {
   /** Unguarded path for the runtime's own tables (_cf_KV, _cf_METADATA). */
   internalExec(query: string, bindings: unknown[] = []): SqlResult {
     this.#ensureTxn();
-    const r = this.#driver.exec(query, bindings);
+    let r: SqlResult;
+    try {
+      r = this.#driver.exec(query, bindings);
+    } catch (e) {
+      this.#afterFailure(e);
+      throw e;
+    }
+    if (!this.#wrote && WRITES.test(query)) this.#wrote = true;
     this.#record(query, bindings);
     return r;
+  }
+
+  /**
+   * After a failed statement: SQLite rolls the whole transaction back by itself on some errors
+   * (I/O, disk full, out of memory). A read-only transaction lost nothing: the statement's error
+   * fails the request, and the next one starts afresh. One that had written lost those writes:
+   * its commit fails with the cause (the object resets, as workerd's does).
+   */
+  #afterFailure(e: unknown): void {
+    if (!this.#inTxn) return;
+    const open = this.#driver.inTransaction?.();
+    if (open === true) return; // only the statement failed
+    if (open === undefined) {
+      // No way to ask the driver: only errors after which SQLite rolls back are checked, with a
+      // statement (one that fails, and is logged by some builds, while the transaction is open).
+      if (!ROLLS_BACK.test(String((e as Error)?.message ?? e))) return;
+      try {
+        this.#driver.exec("BEGIN", []); // succeeds only outside a transaction
+      } catch {
+        return;
+      }
+      this.#driver.exec("ROLLBACK", []); // the probe's own transaction
+    }
+    const wrote = this.#wrote;
+    this.#inTxn = false;
+    this.#wrote = false;
+    this.#driver.discardDirtyPages?.();
+    for (const f of this.rolledBack) f();
+    if (this.#capture) {
+      this.#driver.captureDiscard?.();
+      this.#ddl = [];
+      this.#statements = [];
+    }
+    if (wrote) this.#lost = e;
   }
 
   transactionSync<T>(fn: () => T): T {
@@ -237,6 +287,8 @@ export class SqlStorage {
       this.#driver.exec(`RELEASE ${sp}`, []);
       return r;
     } catch (e) {
+      // SQLite rolled the whole transaction back by itself (#afterFailure): no savepoint left.
+      if (!this.#inTxn) throw e;
       this.#driver.exec(`ROLLBACK TO ${sp}`, []);
       for (const f of this.rolledBack) f();
       this.#ddl.length = marks[0];
@@ -266,6 +318,13 @@ export class SqlStorage {
 
   /** Commits the implicit transaction now (no-op if none, or if held). */
   commit(): void {
+    if (this.#lost !== undefined && this.#holds === 0) {
+      const cause = this.#lost;
+      this.#lost = undefined;
+      throw new Error(`the transaction's writes were rolled back after: ${sqliteMessage(cause)}`, {
+        cause,
+      });
+    }
     if (!this.#inTxn || this.#holds > 0) return;
     let changes: CommitChanges | undefined;
     // Read-only transactions produce no log segment ("IF NOT EXISTS" DDL that changed
@@ -286,6 +345,7 @@ export class SqlStorage {
       };
     }
     this.#inTxn = false;
+    this.#wrote = false;
     this.#driver.exec("COMMIT", []);
     if (this.#capture) {
       const changeset = this.#driver.captureTake!();
@@ -300,8 +360,10 @@ export class SqlStorage {
   readonly rolledBack = new Set<() => void>();
 
   rollback(): void {
+    this.#lost = undefined;
     if (!this.#inTxn) return;
     this.#inTxn = false;
+    this.#wrote = false;
     this.#driver.exec("ROLLBACK", []);
     this.#driver.discardDirtyPages?.(); // pages a rolled-back transaction spilled are not a commit
     for (const f of this.rolledBack) f();

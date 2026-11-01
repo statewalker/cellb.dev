@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8" /><title>SQLite lab</title></head>
+<body><pre id="out"></pre>
+<script type="module">
+  // Runs N workers at once in one storage mode: window.__lab(mode, n, k) → per-worker results.
+  const reg = await navigator.serviceWorker.register("/__cellb/sw.ts", { type: "module", scope: "/" });
+  await navigator.serviceWorker.ready;
+  if (!crossOriginIsolated && !sessionStorage.getItem("lab-reload")) { sessionStorage.setItem("lab-reload", "1"); location.reload(); }
+  window.__lab = (mode, n, k, run) =>
+    Promise.all(Array.from({ length: n }, (_, id) => new Promise((resolve) => {
+      const w = new Worker(new URL("./sqlite-lab-worker.ts", import.meta.url), { type: "module" });
+      w.onmessage = (e) => { resolve(e.data); w.terminate(); };
+      w.onerror = (e) => resolve({ id, ok: false, error: e.message });
+      w.postMessage({ mode, id, k, run });
+    })));
+  document.body.dataset.ready = String(crossOriginIsolated);
+</script></body></html>

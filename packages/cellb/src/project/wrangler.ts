@@ -37,8 +37,8 @@ export interface WranglerConfig {
     renamed_classes?: { from: string; to: string }[];
     deleted_classes?: string[];
   }[];
-  kv_namespaces?: { binding: string; id: string }[];
-  d1_databases?: { binding: string; database_name: string; database_id: string }[];
+  kv_namespaces?: { binding: string; id?: string }[];
+  d1_databases?: { binding: string; database_name?: string; database_id?: string }[];
   r2_buckets?: { binding: string; bucket_name: string }[];
   queues?: {
     producers?: { binding: string; queue: string; delivery_delay?: number }[];
@@ -116,6 +116,7 @@ export function createProjectRuntime(
   module: WorkerModule,
   host: ProjectHost,
 ): ProjectRuntime {
+  config = withResourceIds(config);
   const unsupported: string[] = [];
   const durableObjects: NonNullable<CellRuntimeOptions["durableObjects"]> = {};
   const sqliteClasses = new Set<string>();
@@ -305,7 +306,7 @@ export function createProjectRuntime(
       makeD1Binding({
         fetcher: simulatorFetcher(
           env[D1_OBJECTS] as DurableObjectNamespace,
-          d1.database_id,
+          d1.database_id as string, // set by withResourceIds
         ) as never,
       }) as D1Like,
     );
@@ -424,5 +425,24 @@ function cronState(db: ReturnType<ProjectHost["openSql"]>) {
         e,
         t,
       ]),
+  };
+}
+
+/**
+ * KV namespaces and D1 databases may omit their ids: wrangler provisions them on deploy, and
+ * framework builds (Astro's Cloudflare adapter, for one) emit such entries. A KV namespace
+ * then takes its binding name as id; a D1 database its `database_name`, else its binding name.
+ * Entries with ids are kept as they are, so storage shared with celld keeps its names.
+ */
+export function withResourceIds(config: WranglerConfig): WranglerConfig {
+  const kv = config.kv_namespaces;
+  const d1 = config.d1_databases;
+  if (!kv?.some((n) => !n.id) && !d1?.some((d) => !d.database_id)) return config;
+  return {
+    ...config,
+    kv_namespaces: kv?.map((n) => (n.id ? n : { ...n, id: n.binding })),
+    d1_databases: d1?.map((d) =>
+      d.database_id ? d : { ...d, database_id: d.database_name ?? d.binding },
+    ),
   };
 }

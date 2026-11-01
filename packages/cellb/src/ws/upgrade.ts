@@ -19,9 +19,25 @@ export function withUpgrade<R extends Request>(
   return req;
 }
 
-/** Copies `Upgrade` and `Sec-WebSocket-*` from `from` onto a rebuilt request (no-op if none). */
+/**
+ * `req` with `extra` headers set on top of its own, as an own `headers` property (a standalone
+ * `Headers`, which keeps the names a browser drops from Requests: `Cookie`, `Upgrade`, `Sec-*`).
+ */
+export function withHeaders<R extends Request>(req: R, extra: HeadersInit): R {
+  const headers = new Headers(req.headers);
+  for (const [k, v] of new Headers(extra)) headers.set(k, v);
+  Object.defineProperty(req, "headers", { value: headers, configurable: true, enumerable: true });
+  return req;
+}
+
+/**
+ * Copies `Upgrade`, `Sec-WebSocket-*` and `Cookie` from `from` onto a rebuilt request (no-op if
+ * none): a browser drops them from every `new Request()`.
+ */
 export function carryWebSocketHeaders<R extends Request>(from: Headers, to: R): R {
   const upgrade = from.get("Upgrade");
+  const cookie = from.get("Cookie");
+  if (cookie !== null && to.headers.get("Cookie") !== cookie) withHeaders(to, { cookie });
   if (!upgrade) return to;
   const extra: [string, string][] = [];
   for (const [k, v] of from) if (k !== "upgrade" && isWebSocketHeader(k)) extra.push([k, v]);
@@ -31,18 +47,22 @@ export function carryWebSocketHeaders<R extends Request>(from: Headers, to: R): 
 const HostRequest = globalThis.Request;
 
 /**
- * The `Request` global of Worker code. A browser drops `Upgrade` and `Sec-WebSocket-*` from every
- * `new Request()`, so a Worker that copies an upgrade request (`new Request(req)`, as partyserver
- * does before it forwards a socket to its Durable Object) would lose them; this one carries them
- * over, like the rest of the headers. Requests the host makes are instances too.
+ * The `Request` global of Worker code. A browser drops `Upgrade`, `Sec-WebSocket-*` and `Cookie`
+ * from every `new Request()`, so a Worker that copies an upgrade request (`new Request(req)`, as
+ * partyserver does before it forwards a socket to its Durable Object) or a request with cookies
+ * would lose them; this one carries them over, like the rest of the headers. Requests the host
+ * makes are instances too.
  */
 export class CellsRequest extends HostRequest {
   constructor(input: RequestInfo | URL, init?: RequestInit) {
     super(input, init);
     // `init.headers` replaces the input's headers, as in `Request` itself.
+    // Not a fresh `Headers` from a Request's own: a browser's would drop what it carries.
     const from =
       init?.headers !== undefined
-        ? new Headers(init.headers)
+        ? init.headers instanceof Headers
+          ? init.headers
+          : new Headers(init.headers)
         : input instanceof HostRequest
           ? input.headers
           : undefined;

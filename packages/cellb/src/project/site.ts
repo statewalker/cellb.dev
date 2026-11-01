@@ -159,6 +159,7 @@ const WORKERS_MODULE_NAMES = [
   "RpcTarget",
   "env",
   "exports",
+  "waitUntil",
 ];
 
 /**
@@ -185,7 +186,7 @@ export function workersHostRegistry(entries: {
   WebSocket?: unknown;
 }): void {
   const map = new Map<string, unknown>([
-    ["cloudflare:workers", { env: {}, exports: {}, ...entries.workersModule }],
+    ["cloudflare:workers", { env: {}, exports: {}, waitUntil: () => {}, ...entries.workersModule }],
     ["cloudflare:email", entries.emailModule],
     ...WORKERS_GLOBAL_NAMES.map((n) => [n, entries[n]] as const),
     ...Object.entries(entries.node ?? {}),

@@ -87,4 +87,18 @@ describe("P15 sql.ingest", () => {
         expect(rows).toBeGreaterThanOrEqual(18);
       }
     }));
+
+  it("runs a trigger whose body holds CASE … END (EmDash's media-usage triggers)", () =>
+    withSql((sql) => {
+      sql.exec(`
+        CREATE TABLE posts(id INTEGER PRIMARY KEY);
+        CREATE TABLE log(n INTEGER);
+        CREATE TRIGGER t AFTER INSERT ON posts FOR EACH ROW BEGIN
+          INSERT INTO log VALUES (CASE WHEN NEW.id > 1 THEN 2 ELSE 1 END);
+          SELECT CASE WHEN changes() <> 1 THEN RAISE(ABORT, 'end of the log') END;
+        END;
+        INSERT INTO posts VALUES (1), (2);
+      `);
+      expect(sql.exec("SELECT group_concat(n) AS n FROM log").one().n).toBe("1,2");
+    }));
 });

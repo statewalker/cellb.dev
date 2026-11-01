@@ -18,4 +18,5 @@ export const NODE_POLYFILL_FILES: Record<string, string> = {
   "node:diagnostics_channel": "diagnostics_channel.ts",
   "node:os": "os.ts",
   "node:fs": "fs.ts",
+  "node:module": "module.ts",
 };

@@ -18,7 +18,7 @@ const WORKERS_CLASSES =
  * bundled with the Worker, so it declares no names beyond its exports: esbuild would rename the
  * Worker's own variables of the same name, and those names show in error messages.
  */
-export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env = globalThis.__cellsProjectScope?.env ?? {}, exports = globalThis.__cellsProjectScope?.exports ?? {};`;
+export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env = globalThis.__cellsProjectScope?.env ?? {}, exports = globalThis.__cellsProjectScope?.exports ?? {}, waitUntil = (p) => globalThis.__cellsProjectScope?.waitUntil(p);`;
 
 /**
  * Worker Loader in a browser realm: each module of a WorkerCode becomes a Blob-URL ES
@@ -40,7 +40,7 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
       g.__cellsWorkerScopes ??= {};
       (g.__cellsWorkerScopes as Record<string, unknown>)[key] = scope;
       shimUrl = blob(
-        `${WORKERS_CLASSES} const s = globalThis.__cellsWorkerScopes[${JSON.stringify(key)}]; export const env = s.env, exports = s.exports;`,
+        `${WORKERS_CLASSES} const s = globalThis.__cellsWorkerScopes[${JSON.stringify(key)}]; export const env = s.env, exports = s.exports, waitUntil = s.waitUntil;`,
       );
     }
     let consolePrelude = "";

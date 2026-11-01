@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>EmDash on cellb</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 3rem auto; padding: 0 1rem; }
+      code { background: #8881; padding: 0 .25em; border-radius: 3px; }
+      #status { padding: .75rem 1rem; border-radius: 6px; background: #8882; }
+      body[data-ready="true"] #status { background: #2a72; }
+      body[data-error] #status { background: #d332; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>EmDash on cellb</h1>
+    <p>
+      This tab runs the EmDash site (Astro's Cloudflare build) on cellb: a Dedicated Worker holds
+      its Worker, its D1 database, KV sessions and R2 media in SQLite on OPFS, and a ServiceWorker
+      routes this origin's requests to it. Keep this tab open while you use the site.
+    </p>
+    <p id="status">Starting…</p>
+    <p id="next" hidden>The page you asked for: <a href="/" target="_blank">/</a></p>
+    <ul>
+      <li><a href="/" target="_blank">The site</a></li>
+      <li><a href="/_emdash/admin" target="_blank">The admin</a> (first visit: the setup wizard)</li>
+    </ul>
+    <script type="module" src="./host.ts"></script>
+  </body>
+</html>

@@ -1,8 +1,10 @@
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
-import { sahpoolOpener } from "../adapters/wasm-sqlite.js";
+import { installLtxVfs } from "../adapters/ltx-vfs.js";
+import { sahpoolOpener, WasmSqliteDriver, wasmMemoryOpener } from "../adapters/wasm-sqlite.js";
 import type { AssetFiles } from "../bindings/assets.js";
 import type { WorkersAiOptions } from "../bindings/workers-ai.js";
 import { celldBucket } from "../bucket/celld-cells.js";
+import { idbObjectStore } from "../bucket/idb-object-store.js";
 import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js";
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
 import type { CellRuntimeOptions, WorkerModule } from "../core/runtime.js";
@@ -46,6 +48,30 @@ export type BrowserBucket =
       leaseTtlMs?: number;
     }
   | { opfs: string; node: string; leaseTtlMs?: number }
+  /**
+   * `idb`: a bucket in this origin's IndexedDB (atomic conditional writes across tabs and
+   * workers). Cells then run SQLite in memory and persist through the bucket's page-level logs:
+   * no OPFS pool, so any number of workers can serve cells at once.
+   */
+  | { idb: string; node: string; leaseTtlMs?: number }
+  /**
+   * `ltx`: cells as celld keeps them, LTX files (a snapshot and one file per commit) in an OPFS
+   * directory, read page by page (a SQLite VFS over a store worker): no OPFS pool, and a
+   * cell's memory is its page cache, not its database. A cell is folded into one snapshot
+   * (streamed) past `compactAfter` files (default 64), or once the files after its snapshot hold
+   * more than half of it. See docs/browser-host.md.
+   */
+  | {
+      ltx: string;
+      node: string;
+      leaseTtlMs?: number;
+      compactAfter?: number;
+      /**
+       * The cells' FilesApi in the store worker: OPFS through synchronous handles (default,
+       * `opfs-sync`), OPFS through its asynchronous API (`opfs`), or memory (nothing kept).
+       */
+      files?: "opfs" | "opfs-sync" | "memory";
+    }
   | { store: ObjectStore; node: string; leaseTtlMs?: number };
 
 export interface BrowserProjectOptions {
@@ -88,11 +114,47 @@ export interface BrowserProjectOptions {
 async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
   if ("store" in b) return b.store;
   if ("s3" in b) return s3ObjectStore({ region: "us-east-1", ...b.s3 });
+  if ("idb" in b) return idbObjectStore(b.idb);
+  if ("ltx" in b) throw new Error("an ltx directory is cell storage, not a bucket");
   const root = await navigator.storage.getDirectory();
   return filesApiObjectStore(
     new BrowserFilesApi({ rootHandle: await root.getDirectoryHandle(b.opfs, { create: true }) }),
     "",
   );
+}
+
+/**
+ * Cells on the LTX VFS: a store worker owns the OPFS directory; each cell is a SQLite database
+ * whose main file is its LTX files, read page by page (src/adapters/ltx-vfs.ts).
+ */
+async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number, files?: string) {
+  const store = new Worker(
+    new URL("../ltx/ltx-store-worker.ts", import.meta.url) /* cellb ships its TypeScript sources */,
+    { type: "module" },
+  );
+  const sab = new SharedArrayBuffer(8 + 16 * 65536); // room for a read-ahead run of 64 KiB pages
+  // Wait until the store worker runs before any synchronous call: a nested worker is started
+  // (its script fetched) through this worker's event loop, which Atomics.wait would block.
+  const ready = new Promise<void>((resolve, reject) => {
+    store.addEventListener("message", (e) => e.data?.op === "ready" && resolve(), { once: false });
+    store.addEventListener("error", (e) => reject(new Error(`ltx store worker: ${e.message}`)));
+  });
+  store.postMessage({ op: "init", sab, dir, compactAfter, files });
+  await ready;
+  const { name } = installLtxVfs(sqlite3, { sab, post: (m) => store.postMessage(m) });
+  const s3 = sqlite3 as { oo1: { DB: new (o: Record<string, unknown>) => any } };
+  const open = (cellKey: string) => {
+    const db = new s3.oo1.DB({ filename: cellKey, vfs: name, flags: "c" });
+    db.exec("PRAGMA journal_mode=MEMORY; PRAGMA synchronous=FULL;");
+    // SQLite's C API for inTransaction() only (no page hook or session capture on this VFS).
+    return new WasmSqliteDriver(db, undefined, undefined, (sqlite3 as { capi: never }).capi);
+  };
+  return Object.assign(open, {
+    release() {
+      store.terminate();
+    },
+    reserve: async (n: number) => n,
+  });
 }
 
 /** Installs the Workers globals the code reads, then imports its `main`. */
@@ -105,6 +167,17 @@ async function importWorkerCode(
   const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
   if (nodeCompat) {
     installNodeGlobals();
+    // node:* for bundles built with cellbHostModule (another bundler than bundleWorkerForBrowser);
+    // loaded after installNodeGlobals(), as the npm `util` polyfill reads `process`.
+    (globalThis as Record<string, unknown>).__cellsNodeModules = (
+      await import("../node-compat/browser-registry.js")
+    ).nodeRegistryEntries;
+    if (populatesProcessEnv(config)) {
+      const env = processEnvOf(config);
+      // The bundle's own `process` reads it when evaluated; a site's modules use this realm's.
+      (globalThis as Record<string, unknown>).__cellsProcessEnv = env;
+      Object.assign((globalThis as { process: { env: Record<string, string> } }).process.env, env);
+    }
     // node:async_hooks: continuations carry their AsyncLocalStorage stores (with AsyncContext
     // the engine does, and this installs nothing). The code's awaits are lowered so that they go
     // through them: by bundleWorkerForBrowser for a bundle, by createProjectSite (nodeCompat) for
@@ -122,7 +195,12 @@ async function importWorkerCode(
   if ("site" in code) {
     workersHostRegistry({
       workersModule,
-      projectWorkersModule: { ...workersModule, env: scope.env, exports: scope.exports },
+      projectWorkersModule: {
+        ...workersModule,
+        env: scope.env,
+        exports: scope.exports,
+        waitUntil: scope.waitUntil,
+      },
       loadedPrefix: `${code.site}loaded/`,
       emailModule: await import("./cloudflare-email.js"),
       ...globals,
@@ -155,15 +233,25 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
   const scope = workerScope(loadTimeEnv(opts.config, opts.ai));
   const module = await importWorkerCode(opts.config, opts.code, scope);
   const site = "site" in opts.code ? opts.code.site : undefined;
-  const openSql = await sahpoolOpener(opts.sqlite3 as never, {
-    name: opts.pool,
-    initialCapacity: 64, // grows on demand (sahpoolOpener)
-  });
+  // With an IndexedDB bucket, cells live in memory and in the bucket's logs (no OPFS pool).
+  const openSql =
+    opts.bucket && "ltx" in opts.bucket
+      ? await ltxOpener(opts.sqlite3, opts.bucket.ltx, opts.bucket.compactAfter, opts.bucket.files)
+      : opts.bucket && "idb" in opts.bucket
+        ? Object.assign(wasmMemoryOpener(opts.sqlite3 as never), {
+            release() {},
+            reserve: async (n: number) => n,
+          })
+        : await sahpoolOpener(opts.sqlite3 as never, {
+            name: opts.pool,
+            initialCapacity: 64, // grows on demand (sahpoolOpener)
+          });
   const root = await navigator.storage.getDirectory();
   const files = new BrowserFilesApi({
     rootHandle: await root.getDirectoryHandle(opts.filesDir, { create: true }),
   });
-  const store = opts.bucket ? await bucketStore(opts.bucket) : undefined;
+  // An `ltx` directory is the cells' own storage (the VFS), not a fleet bucket.
+  const store = opts.bucket && !("ltx" in opts.bucket) ? await bucketStore(opts.bucket) : undefined;
   const shared =
     opts.bucket && store
       ? celldBucket(store, { node: opts.bucket.node, leaseTtlMs: opts.bucket.leaseTtlMs })
@@ -195,4 +283,25 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       openSql.release(); // the pool's files, for the next worker that opens it
     },
   };
+}
+
+/**
+ * workerd fills `process.env` with the project's text `vars` under nodejs_compat from
+ * compatibility date 2025-04-01 (`nodejs_compat_populate_process_env`), unless
+ * `nodejs_compat_do_not_populate_process_env` is set. Frameworks read their settings there
+ * (EmDash's `EMDASH_SITE_URL`, for one).
+ */
+export function populatesProcessEnv(config: WranglerConfig): boolean {
+  const flags = config.compatibility_flags ?? [];
+  if (!flags.some((f) => f.startsWith("nodejs_compat"))) return false;
+  if (flags.includes("nodejs_compat_do_not_populate_process_env")) return false;
+  if (flags.includes("nodejs_compat_populate_process_env")) return true;
+  return (config.compatibility_date ?? "") >= "2025-04-01";
+}
+
+/** The text `vars` of a project, as `process.env` holds them. */
+export function processEnvOf(config: WranglerConfig): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(config.vars ?? {})) if (typeof v === "string") env[k] = v;
+  return env;
 }

@@ -1,0 +1,28 @@
+---
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+---
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title} · Built in the browser</title>
+	</head>
+	<body>
+		<header>
+			<a href="/">Home</a>
+			<a href="/posts/hello">Hello</a>
+			<a href="/posts/cells">Cells</a>
+			<a href="/api/time">API</a>
+		</header>
+		<main><slot /></main>
+		<footer>Rendered by Astro on cellb · request {Astro.locals.requestId}</footer>
+	</body>
+</html>
+<style is:global>
+	body { font: 16px/1.6 system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
+	header { display: flex; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #ddd; }
+	footer { margin-top: 3rem; color: #777; font-size: .85rem; }
+</style>

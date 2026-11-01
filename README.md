@@ -44,10 +44,12 @@ Where cellb follows Cloudflare or workerd instead of celld, and what still diffe
 packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
+examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
+examples/astro-in-browser/  Astro apps, EmDash included, built from their sources in a browser tab and run there on cellb
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
-.github/workflows/     interop CI against the real celld and RustFS
+.github/workflows/     interop CI against the real celld and RustFS; EmDash built and run in Node and Chromium
 ```
 
 `packages/*` are libraries; `examples/*` are private apps that use them, with the test tools only
@@ -69,6 +71,11 @@ they use. Both are workspaces
    writes it to `site/dist/`.
 7. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
    and RustFS releases and starts RustFS on `127.0.0.1:9200`.
+8. `cd examples/emdash && pnpm test && pnpm test:browser`: EmDash built by Astro, on cellb in Node
+   and as a static site in Chromium.
+9. `cd examples/astro-in-browser && pnpm test`: the in-browser builder on Node;
+   `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab.
+   It links `@statewalker/webrun-bundler` from a sibling checkout of webrun-sites (see its README).
 
 `pnpm test` at the root runs every workspace's tests, and stops at the first one that fails.
 
@@ -78,7 +85,8 @@ they use. Both are workspaces
   by internal module, so `@statewalker/cellb`, `/node` and `/browser` are the seams.
 - **CI runs against the real celld.** celld is the conformance judge, so the interop workflow
   downloads the pinned celld and RustFS and runs the Node and Chromium interop suites on every pull
-  request.
+  request. A second workflow (`emdash.yml`) builds EmDash in Node and in Chromium and runs it on
+  cellb, with webrun-sites checked out beside the repository.
 - **Examples run offline.** Agent frameworks need a model; the examples point theirs at
   `@statewalker/fake-openai`, so CI needs no key and no network beyond the package registry.
 

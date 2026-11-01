@@ -19,6 +19,7 @@
 import { CellRouter } from "../router/cell-router.js";
 import { linkOverPort, serveHandlerOverPort } from "../transport/port.js";
 import { SW_SOCKET } from "../ws/sw-connector.js";
+import { applyWorkerCookies, withPageCookies } from "./browser-cookies.js";
 import type { BrowserBucket, BrowserProjectOptions } from "./browser-host.js";
 import {
   SHARD_KEEPALIVE,
@@ -119,7 +120,12 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
   };
 
   const ask = (w: Worker, data: unknown, ports: MessagePort[] = []) =>
-    new Promise<{ ok: boolean; error?: string; ownerLock?: string }>((resolve) => {
+    new Promise<{
+      ok: boolean;
+      error?: string;
+      ownerLock?: string;
+      unsupported?: string[];
+    }>((resolve) => {
       const { port1, port2 } = new MessageChannel();
       port1.onmessage = (e) => {
         port1.close();
@@ -209,6 +215,12 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
             filesDir: `${opts.name}-files-${shard}`,
           } satisfies TabShardInit);
           if (!started.ok || !started.ownerLock) throw new Error(started.error);
+          // What the configuration asks for and this runtime does not provide (a cron trigger
+          // without a scheduled() handler, say): said once, not silently ignored.
+          if (started.unsupported?.length)
+            console.warn(
+              `cellb: project ${opts.name} shard ${shard}: unsupported: ${started.unsupported.join("; ")}`,
+            );
           owners.set(shard, started.ownerLock);
           if (!h.stop.signal.aborted) {
             await attach(shard, w, started.ownerLock);
@@ -230,7 +242,13 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
           changed();
         }
       })
-      .catch(() => {}) // aborted while waiting
+      .catch((err) => {
+        // Aborted while waiting is expected; a shard that failed to start is reported.
+        if (!h.stop.signal.aborted)
+          console.error(
+            `cellb: ${opts.name} shard ${shard} failed: ${(err as Error)?.message ?? err}`,
+          );
+      })
       .finally(() => {
         if (held.get(shard) === h) held.delete(shard);
       });
@@ -304,6 +322,18 @@ export function installProjectRouter(
      */
     stripBase?: boolean;
     attachTimeoutMs?: number;
+    /**
+     * A project served at the origin's root, for apps that build absolute paths (EmDash's
+     * `/_emdash/…`, say) and so cannot live under `<basePath><n>/`. Every same-origin request
+     * outside `basePath` and outside the `passthrough` path prefixes (the host page's own files)
+     * goes to project `name` with its URL unchanged, navigations included.
+     *
+     * With `hostPage`, a navigation that finds no tab running the project's shards (after
+     * `hostWaitMs`, default 2 s, for one to link) is redirected there, with the URL it asked
+     * for as `?next=`: the page that starts the project, which a person reopening the site
+     * would otherwise never reach, as every path of the origin belongs to the project.
+     */
+    root?: { name: string; passthrough?: string[]; hostPage?: string; hostWaitMs?: number };
   },
 ): { routers: Map<string, CellRouter> } {
   const base = opts.basePath.endsWith("/") ? opts.basePath : `${opts.basePath}/`;
@@ -406,7 +436,7 @@ export function installProjectRouter(
           try {
             const { name, path } = split(new URL(m.url));
             const url = new URL(m.url);
-            if (opts.stripBase) url.pathname = path;
+            if (opts.stripBase && !atRoot(url)) url.pathname = path;
             const { port, protocol } = await (await routerNamed(name)).connectWebSocket(
               url.toString(),
               m.protocols ?? [],
@@ -419,8 +449,16 @@ export function installProjectRouter(
       );
   });
 
+  /** Whether `url` goes to the root project (`opts.root`). */
+  const atRoot = (url: URL) =>
+    !!opts.root &&
+    url.origin === sw.location.origin &&
+    !url.pathname.startsWith(base) &&
+    !(opts.root.passthrough ?? []).some((p) => url.pathname.startsWith(p));
+
   /** `<base><name>/<rest>` → the project's name and the Worker's path `/<rest>`. */
   const split = (url: URL) => {
+    if (opts.root && atRoot(url)) return { name: opts.root.name, path: url.pathname };
     if (!url.pathname.startsWith(base)) throw new Error(`not a project URL: ${url}`);
     const rest = url.pathname.slice(base.length);
     const slash = rest.indexOf("/");
@@ -430,28 +468,67 @@ export function installProjectRouter(
 
   sw.addEventListener("fetch", (e: FetchEvent) => {
     const url = new URL(e.request.url);
-    if (url.origin !== sw.location.origin || !url.pathname.startsWith(base)) return;
-    if (e.request.mode === "navigate") return;
+    const root = atRoot(url);
+    if (!root) {
+      if (url.origin !== sw.location.origin || !url.pathname.startsWith(base)) return;
+      if (e.request.mode === "navigate") return;
+    }
     const { name, path } = split(url);
     if (!name) return;
     const req = e.request;
-    const target = opts.stripBase ? new URL(`${path}${url.search}`, url.origin) : url;
-    e.respondWith(
-      routerNamed(name).then(
-        (router) =>
-          router.ingress(
-            new Request(target, {
-              method: req.method,
-              headers: req.headers,
-              body: req.body,
-              signal: req.signal,
-              duplex: "half",
-            } as RequestInit),
-          ),
-        (err) => new Response(String((err as Error)?.message ?? err), { status: 503 }),
-      ),
-    );
+    const target = opts.stripBase && !root ? new URL(`${path}${url.search}`, url.origin) : url;
+    const hostPage = root && req.mode === "navigate" ? opts.root?.hostPage : undefined;
+    if (hostPage)
+      e.respondWith(
+        runningShards(name, opts.root?.hostWaitMs ?? 2_000).then((running) =>
+          running
+            ? serve(name, req, target)
+            : Response.redirect(
+                `${new URL(hostPage, url.origin).href}?next=${encodeURIComponent(`${url.pathname}${url.search}`)}`,
+                302,
+              ),
+        ),
+      );
+    else e.respondWith(serve(name, req, target));
   });
+
+  /** Whether a tab runs project `name`'s shards, waiting up to `ms` for one to link. */
+  const runningShards = async (name: string, ms: number): Promise<boolean> => {
+    const live = () => (routers.get(name)?.attachedShards.length ?? 0) > 0;
+    if (live()) return true;
+    void askForLinks(name);
+    for (const until = Date.now() + ms; Date.now() < until; ) {
+      await new Promise((r) => setTimeout(r, 100));
+      if (live()) return true;
+    }
+    return false;
+  };
+
+  /** A request to project `name`, with the page's cookies in and the Worker's out. */
+  const serve = (name: string, req: Request, target: URL): Promise<Response> =>
+    routerNamed(name).then(
+      async (router) => {
+        try {
+          return await applyWorkerCookies(
+            sw,
+            await router.ingress(
+              new Request(target, {
+                method: req.method,
+                headers: await withPageCookies(sw, req),
+                body: req.body,
+                signal: req.signal,
+                duplex: "half",
+              } as RequestInit),
+            ),
+          );
+        } catch (err) {
+          // A response the page can read, instead of a network error with no cause.
+          console.error(`cellb: ${req.method} ${target.pathname} failed:`, err);
+          return new Response(`cellb: ${(err as Error)?.stack ?? err}`, { status: 502 });
+        }
+      },
+      (err) => new Response(String((err as Error)?.message ?? err), { status: 503 }),
+    );
 
   return { routers };
 }

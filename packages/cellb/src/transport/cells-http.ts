@@ -6,7 +6,7 @@ import type { CellRuntime } from "../core/runtime.js";
 import type { ValueCodec } from "../ports.js";
 import { v8Codec } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
-import { withUpgrade } from "../ws/upgrade.js";
+import { withHeaders, withUpgrade } from "../ws/upgrade.js";
 import {
   control,
   H,
@@ -54,7 +54,14 @@ export function cellsHttpHandler(
   return async (incoming) => {
     const req = await restoreScheme(incoming);
     const kind = req.headers.get(H.kind);
-    if (!kind) return runtime.fetch(stripControl(req));
+    if (!kind) {
+      const cookie = req.headers.get(H.cookie);
+      if (cookie === null) return runtime.fetch(stripControl(req));
+      // From a ServiceWorker: the cookies in, the Worker's Set-Cookie out, under H.cookie and
+      // H.setCookie (a browser drops both headers from every Request and Response it builds).
+      const inner = cookie ? withHeaders(stripControl(req), { cookie }) : stripControl(req);
+      return tunnelSetCookies(await runtime.fetch(inner));
+    }
     try {
       if (kind === "describe")
         return Response.json({
@@ -158,10 +165,21 @@ async function restoreScheme(req: Request): Promise<Request> {
   return keepUpgrade(req, await withUrl(req, url));
 }
 
-export function stripControl(req: Request): Request {
+/** The Set-Cookie values of a response as one H.setCookie header (status 101 left as it is). */
+function tunnelSetCookies(res: Response): Response {
+  const cookies = res.status === 101 ? [] : (res.headers.getSetCookie?.() ?? []);
+  if (!cookies.length) return res;
+  const headers = new Headers();
+  for (const [k, v] of res.headers) if (k !== "set-cookie") headers.append(k, v);
+  headers.set(H.setCookie, cookies.map(encodeURIComponent).join(","));
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+export function stripControl(req: Request, keep: string[] = []): Request {
   const headers = new Headers(req.headers);
   let changed = false;
-  for (const h of Object.values(H)) if (headers.has(h)) headers.delete(h), (changed = true);
+  for (const h of Object.values(H))
+    if (headers.has(h) && !keep.includes(h)) headers.delete(h), (changed = true);
   if (!changed) return req;
   return keepUpgrade(req, new Request(req, { headers })); // keeps the body in Firefox too (addHeaders)
 }

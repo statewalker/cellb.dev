@@ -2,8 +2,17 @@
 export interface WorkerScope {
   readonly env: Record<string, unknown>;
   readonly exports: Record<string, unknown>;
+  /**
+   * `waitUntil` of `cloudflare:workers`: the promise runs in the runtime's background (until its
+   * `drain()`); before the scope is bound to a runtime, it just runs.
+   */
+  readonly waitUntil: (p: Promise<unknown>) => void;
   /** Points both at the runtime's own objects (the ones `fetch` and `ctx.exports` see). */
-  bind(runtime: { env: Record<string, unknown>; exports: Record<string, unknown> }): void;
+  bind(runtime: {
+    env: Record<string, unknown>;
+    exports: Record<string, unknown>;
+    waitUntil?: (p: Promise<unknown>) => void;
+  }): void;
 }
 
 /**
@@ -13,6 +22,7 @@ export interface WorkerScope {
 export function workerScope(vars: Record<string, unknown> = {}): WorkerScope {
   let env: Record<string, unknown> = { ...vars };
   let exports: Record<string, unknown> = {};
+  let background: ((p: Promise<unknown>) => void) | undefined;
   const forward = (target: () => Record<string, unknown>) =>
     new Proxy({} as Record<string, unknown>, {
       get: (_, k) => Reflect.get(target(), k),
@@ -28,9 +38,14 @@ export function workerScope(vars: Record<string, unknown> = {}): WorkerScope {
   return {
     env: forward(() => env),
     exports: forward(() => exports),
+    waitUntil: (p) => {
+      if (background) background(p);
+      else void Promise.resolve(p).catch(() => {}); // a rejection is the code's own, unreported
+    },
     bind(runtime) {
       env = runtime.env;
       exports = runtime.exports;
+      background = runtime.waitUntil ?? background;
     },
   };
 }
