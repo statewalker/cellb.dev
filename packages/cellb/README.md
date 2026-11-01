@@ -22,8 +22,16 @@ mix celld nodes, cellb nodes and browsers.
 
 ## How to use it
 
-The package has three entry points, one per platform. Its sources are TypeScript (there is no build
-step yet), so import it through a bundler, Vite or vitest.
+```sh
+npm install @statewalker/cellb
+npm install esbuild   # for loadNodeProject and bundleWorkerForBrowser (an optional peer dependency)
+```
+
+The package has three entry points, one per platform, and two more for bundling. Published, it is
+JavaScript with type declarations (`dist/`, built by `scripts/build.mjs`); in this repository the
+entry points are the TypeScript sources, which the workspace's examples and tests import directly.
+In a browser app, a bundler must handle `new Worker(new URL("…", import.meta.url))`: the LTX store
+worker is started that way (checked with a Vite build, see `scripts/pack-check.mjs`).
 
 | Import | What it gives |
 |---|---|
@@ -248,8 +256,9 @@ What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches ce
 
 ### What will surprise you
 
-- **`ERR_MODULE_NOT_FOUND` for `…/src/…/*.js` when importing with plain `node`.** The entry points
-  are TypeScript sources; import them through a bundler, Vite or vitest.
+- **`ERR_MODULE_NOT_FOUND` for `…/src/…/*.js` when importing this repository's sources with plain
+  `node`.** In the workspace the entry points are TypeScript; use vitest or tsx there, or the
+  published package (`pnpm pack`).
 - **`Durable Object <Class>/<id> is owned by another node`** (`CellOwnedElsewhereError`). Another live
   node owns the cell in the fleet bucket. Pass `peers` to route to it, or wait for it to release the
   cell or for its node lease to expire.
@@ -283,12 +292,29 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 |---|---|
 | `pnpm test` | `test/` and `e2e/` (vitest). The `e2e/` tests skip without `CELLD_BIN`; with it, each run makes its own S3 bucket (`TEST_BUCKET`) on `RUSTFS_ENDPOINT`, or starts a RustFS of its own on a free port when that is unset. Every server a test starts takes a free port, so several checkouts can run at once. `pnpm test:unit` and `pnpm test:e2e` run one folder. |
 | `pnpm typecheck` | TypeScript for `src/`, `test/`, `e2e/` and the browser pages |
+| `pnpm build` | `dist/` as published: `tsc -p tsconfig.build.json`, the hand-written declarations, worker URLs pointed at the compiled `.js` (`scripts/build.mjs`); `pnpm pack` runs it |
+| `node scripts/pack-check.mjs` | the package as published: packs it, checks the packed manifest (no `workspace:`/`catalog:` specifier, export targets present, every import of `dist/` and `vendor/` declared), installs the tarball with npm outside the workspace and runs it from plain Node, TypeScript and a Vite app in Chromium (`PW_CHROMIUM` for the binary) |
 | `pnpm e2e` | Chromium tests (Playwright, `e2e-browser/`), on a dev server at a free port, with the same bucket setup as `pnpm test`. Chromium is found from `PW_CHROMIUM`, then Playwright's own, then the one `@sparticuz/chromium` packages in `node_modules`. |
 | `pnpm e2e:firefox`, `pnpm e2e:webkit` | the same suite in Playwright's Firefox or WebKit (`npx playwright install firefox webkit`; `PW_BROWSERS` takes a comma-separated list). What differs in Firefox: [docs/browser-host.md](docs/browser-host.md#firefox-and-webkit). |
 | `pnpm interop` | `e2e/` and the celld conformance in Node: `scripts/interop-env.sh` downloads the pinned celld and RustFS into `~/.cache/cellb-interop`, starts a shared RustFS on `127.0.0.1:9200` (`RUSTFS_PORT`), and sets `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` |
 | `pnpm interop:browser` | the same for Chromium |
 | `pnpm mutate`, `pnpm mutate:browser` | mutation harnesses in a throw-away copy, after a baseline run; `MUTANTS=0,3` runs a subset |
 | `pnpm browser:dev` | the demo pages in `e2e-browser/pages`: `/` (one cell worker), `/sharded/`, `/backup/`, and `/host/`, the host app that runs a project folder |
+
+### Releasing
+
+Releases are made by hand from a local checkout, with the maintainer's npm login and 2FA; CI
+never publishes (the statewalker convention). A change to the package carries a changeset
+(`pnpm changeset` at the repository root). To release:
+
+```sh
+pnpm changeset version                 # versions and changelog from the pending changesets
+git commit -am "chore: version packages"
+pnpm changeset publish                 # publishes what npm lacks (prepack builds dist/), tags it
+git push --follow-tags
+```
+
+Run `node scripts/pack-check.mjs` first: it checks exactly what `publish` uploads.
 
 ## License
 

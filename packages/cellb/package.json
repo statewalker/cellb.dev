@@ -1,8 +1,18 @@
 {
   "name": "@statewalker/cellb",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "cellb: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/statewalker/cellb.dev.git",
+    "directory": "packages/cellb"
+  },
+  "homepage": "https://github.com/statewalker/cellb.dev/tree/main/packages/cellb#readme",
+  "engines": {
+    "node": ">=22.13"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./node": "./src/node.ts",
@@ -10,8 +20,40 @@
     "./host-modules": "./src/project/host-modules.ts",
     "./isolate-worker": "./src/isolate/isolate-worker.ts"
   },
-  "license": "MIT",
+  "files": [
+    "dist",
+    "vendor",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./node": {
+        "types": "./dist/node.d.ts",
+        "default": "./dist/node.js"
+      },
+      "./browser": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      },
+      "./host-modules": {
+        "types": "./dist/project/host-modules.d.ts",
+        "default": "./dist/project/host-modules.js"
+      },
+      "./isolate-worker": {
+        "types": "./dist/isolate/isolate-worker.d.ts",
+        "default": "./dist/isolate/isolate-worker.js"
+      }
+    }
+  },
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepack": "node scripts/build.mjs",
     "test": "vitest run",
     "test:unit": "vitest run test/",
     "test:e2e": "vitest run e2e/",
@@ -35,8 +77,11 @@
     "@noble/hashes": "^1.8.0",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
     "@statewalker/webrun-files": "^0.10.0",
+    "@statewalker/webrun-files-browser": "^0.10.0",
+    "@statewalker/webrun-files-mem": "^0.10.0",
     "@statewalker/webrun-http-browser": "catalog:",
     "@statewalker/webrun-http-streams": "^0.3.0",
+    "@statewalker/webrun-modules": "catalog:",
     "@statewalker/webrun-rpc": "^0.5.0",
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",
@@ -49,14 +94,20 @@
     "sqlite-vec": "^0.1.7",
     "util": "^0.12.5",
     "worker-timers": "^8.0.0",
-    "@statewalker/webrun-files-mem": "^0.10.0"
+    "ws": "catalog:"
+  },
+  "peerDependencies": {
+    "esbuild": ">=0.25"
+  },
+  "peerDependenciesMeta": {
+    "esbuild": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@sparticuz/chromium": "^153.0.0",
-    "@statewalker/webrun-files-browser": "^0.10.0",
     "@statewalker/webrun-http-browser": "^0.7.0",
-    "@statewalker/webrun-modules": "catalog:",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "esbuild": "^0.28.0",
@@ -66,8 +117,6 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "ws": "catalog:",
     "zod": "^3.25.0"
-  },
-  "private": true
+  }
 }

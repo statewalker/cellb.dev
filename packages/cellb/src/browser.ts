@@ -15,6 +15,7 @@ export {
   joinProjectShards,
   type ProjectTabs,
   type ProjectTabsOptions,
+  type ServiceWorkerScope,
   shardOwner,
 } from "./project/browser-tabs.js";
 export { createProjectSite } from "./project/site.js";
