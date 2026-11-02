@@ -136,32 +136,38 @@ const groups: { title: string; rows: Row[] }[] = [
 ---
 
 <div class="overflow-x-auto rounded-xl border bg-card">
-  <table class="w-full min-w-[640px] text-sm">
+  <table class="w-full text-sm">
     <thead>
       <tr class="border-b bg-muted/40 text-left">
-        <th class="px-4 py-3 font-medium"></th>
-        <th class="px-4 py-3 text-right font-mono font-medium text-primary">Node</th>
-        <th class="px-4 py-3 text-right font-mono font-medium text-primary">Chromium</th>
-        <th class="w-28 px-4 py-3"></th>
+        <th class="px-3 py-3 font-medium sm:px-4"></th>
+        <th class="px-3 py-3 text-right font-mono font-medium text-primary sm:px-4">Node</th>
+        <th class="px-3 py-3 text-right font-mono font-medium text-primary sm:px-4">Chromium</th>
+        <th class="hidden w-28 px-4 py-3 sm:table-cell"></th>
       </tr>
     </thead>
     {groups.map((g) => (
       <tbody>
         <tr class="border-b">
-          <th colspan="4" class="px-4 pt-6 pb-2 text-left font-medium text-muted-foreground">
+          <th colspan="4" class="px-3 pt-6 pb-2 text-left font-medium text-muted-foreground sm:px-4">
             {g.title}
             {g.title !== "Durability" && <sup class="ml-0.5 font-mono text-[10px]">1</sup>}
           </th>
         </tr>
         {g.rows.map((r) => (
           <tr class="border-b last:border-0">
-            <td class="px-4 py-3">
+            <td class="px-3 py-3 sm:px-4">
               {r.label}
               {r.ref && <sup class="ml-0.5 font-mono text-[10px] text-muted-foreground">{r.ref}</sup>}
             </td>
-            <td class:list={["px-4 py-3 text-right font-mono tabular-nums", r.node === "—" ? "text-muted-foreground" : "font-semibold"]}>{r.node}</td>
-            <td class:list={["px-4 py-3 text-right font-mono tabular-nums", r.browser === "—" ? "text-muted-foreground" : "font-semibold"]}>{r.browser}</td>
-            <td class="px-4 py-3 text-muted-foreground">{r.unit}</td>
+            <td class:list={["px-3 py-3 text-right font-mono tabular-nums sm:px-4", r.node === "—" ? "text-muted-foreground" : "font-semibold"]}>
+              {r.node}
+              {r.unit && r.node !== "—" && <span class="block text-[11px] font-normal text-muted-foreground sm:hidden">{r.unit}</span>}
+            </td>
+            <td class:list={["px-3 py-3 text-right font-mono tabular-nums sm:px-4", r.browser === "—" ? "text-muted-foreground" : "font-semibold"]}>
+              {r.browser}
+              {r.unit && r.browser !== "—" && <span class="block text-[11px] font-normal text-muted-foreground sm:hidden">{r.unit}</span>}
+            </td>
+            <td class="hidden px-4 py-3 text-muted-foreground sm:table-cell">{r.unit}</td>
           </tr>
         ))}
       </tbody>
@@ -184,8 +190,9 @@ const groups: { title: string; rows: Row[] }[] = [
 </ol>
 <a
   href={repoFile("packages/cellb/bench/README.md")}
-  class="mt-4 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+  class="mt-4 inline-block text-sm text-primary hover:underline"
 >
-  Reproduce: <code class="font-mono">pnpm bench</code> and <code class="font-mono">pnpm bench:browser</code>
-  <Icon name="externalLink" class="size-3" />
+  Reproduce: <code class="font-mono whitespace-nowrap">pnpm bench</code> and
+  <code class="font-mono whitespace-nowrap">pnpm bench:browser</code>
+  <Icon name="externalLink" class="ml-1 inline size-3 align-[-1px]" />
 </a>
