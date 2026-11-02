@@ -51,7 +51,9 @@ self.onmessage = async (e: MessageEvent) => {
         print() {},
         printErr() {},
       });
-      const openSql = await sahpoolOpener(sqlite3 as never, { name: `capacity-${Date.now()}` });
+      const openSql = await sahpoolOpener(sqlite3 as never, {
+        name: `capacity-${crypto.randomUUID()}`,
+      });
       rt = createCellRuntime({
         worker: { Cell, default: { fetch: () => new Response("ok") } } as never,
         durableObjects: { CELL: { className: "Cell" } },

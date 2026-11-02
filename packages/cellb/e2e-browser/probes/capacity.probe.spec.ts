@@ -1,5 +1,6 @@
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { test } from "@playwright/test";
+import { chromiumMemory } from "./chromium-memory.ts";
 
 // How many cells one browser worker holds, and what they cost. The worker makes cells resident
 // in steps (a table and a row each, in SQLite WASM on an OPFS pool) until a step fails, the
@@ -15,26 +16,6 @@ import { test } from "@playwright/test";
 // memory stays bounded.
 //
 // Linux only (it reads /proc).
-
-/** PSS of every Chromium process, in MB; `renderer` is the largest renderer (the page's). */
-function chromiumMemory() {
-  let total = 0;
-  let renderer = 0;
-  for (const pid of readdirSync("/proc").filter((d) => /^\d+$/.test(d))) {
-    try {
-      const cmd = readFileSync(`/proc/${pid}/cmdline`, "utf8");
-      if (!/chrom/i.test(cmd.split("\0")[0] ?? "")) continue;
-      const pss = Number(
-        /^Pss:\s+(\d+) kB/m.exec(readFileSync(`/proc/${pid}/smaps_rollup`, "utf8"))?.[1] ?? 0,
-      );
-      total += pss;
-      if (cmd.includes("--type=renderer")) renderer = Math.max(renderer, pss);
-    } catch {
-      // the process exited, or is not ours to read
-    }
-  }
-  return { chromiumPssMB: Math.round(total / 1024), rendererPssMB: Math.round(renderer / 1024) };
-}
 
 const round = (x: number) => Math.round(x * 10) / 10;
 
