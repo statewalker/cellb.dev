@@ -3,6 +3,8 @@ import CodeBlock from "@/components/CodeBlock.astro";
 import HeroVisual from "@/components/HeroVisual.astro";
 import Icon from "@/components/Icon.astro";
 import LiveDemo from "@/components/LiveDemo.astro";
+import Showcase from "@/components/Showcase.astro";
+import Stats from "@/components/Stats.astro";
 import Badge from "@/components/ui/Badge.astro";
 import Button from "@/components/ui/Button.astro";
 import Card from "@/components/ui/Card.astro";
@@ -48,6 +50,8 @@ const host = await browserProjectRuntime({
   sqlite3: await sqlite3InitModule(),
   pool: "my-app",    // the OPFS SQLite pool of this worker
   filesDir: "my-app-files",
+  // or keep each cell as celld does, LTX files in OPFS read page by page:
+  // bucket: { ltx: "my-app-ltx", node: "tab" },
 });
 
 const res = await host.runtime.fetch(new Request("http://browser/"));`;
@@ -93,10 +97,10 @@ const hosts = [
     title: "In the browser",
     tag: "@statewalker/cellb/browser",
     points: [
-      "SQLite WASM on OPFS inside Dedicated Workers",
-      "Requests through a ServiceWorker, WebSockets over MessagePorts",
+      "SQLite WASM in Dedicated Workers: on OPFS pools, on LTX files in OPFS read page by page, or in memory with an IndexedDB log",
+      "Requests through a ServiceWorker, even at the origin's root; WebSockets over MessagePorts",
       "Shards spread across the open tabs of an origin; another tab takes over when one closes",
-      "Works offline. No server, no COOP/COEP headers",
+      "A whole app served from static files keeps running when the file server stops",
     ],
   },
   {
@@ -106,7 +110,7 @@ const hosts = [
     points: [
       "node:sqlite, one file per cell",
       "loadNodeProject runs a wrangler project as celld deploys it",
-      "Loaded Workers in worker threads of their own",
+      "Loaded Workers in worker threads of their own; bundles from other bundlers through host-modules",
       "Speaks celld's peer protocol to reach owners on other nodes",
     ],
   },
@@ -274,7 +278,7 @@ const useCases = [
   {
     icon: "wifiOff",
     title: "Local-first apps",
-    body: "Cells answer from OPFS inside the tab, with no network and no server. Configure a fleet bucket and the same cells are logged in celld's format, so a server node can serve them when the tab is closed.",
+    body: "Cells answer from OPFS inside the tab, with no network and no server: EmDash keeps publishing posts after its file server is stopped. Configure a fleet bucket and the same cells are logged in celld's format, so a server node can serve them when the tab is closed.",
   },
   {
     icon: "globe",
@@ -334,7 +338,7 @@ const lifecycle = [
           <Button href="/docs" size="lg">Get started <Icon name="arrowRight" /></Button>
           <Button href="#compare" size="lg" variant="outline">Compare with celld</Button>
         </div>
-        <CodeBlock code={`git clone ${REPO}\ncd cellb.dev && pnpm install`} class="max-w-md" />
+        <CodeBlock code="npm install @statewalker/cellb" class="max-w-md" />
       </div>
       <HeroVisual />
     </div>
@@ -425,8 +429,28 @@ const lifecycle = [
     </div>
   </section>
 
+  <!-- Real apps -->
+  <section id="apps" class="border-y bg-muted/30 scroll-mt-20">
+    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div class="max-w-3xl space-y-3">
+        <p class="font-mono text-sm text-primary">// real apps</p>
+        <h2 class="text-3xl font-semibold tracking-tight text-balance">
+          Large Cloudflare apps that cellb did not write, running in a tab.
+        </h2>
+        <p class="text-muted-foreground">
+          The examples use cellb as its users do, from npm, and a nightly CI run checks them on
+          cellb as the next release would publish it. Running them found gaps in cellb, which are
+          now closed.
+        </p>
+      </div>
+      <div class="mt-10">
+        <Showcase />
+      </div>
+    </div>
+  </section>
+
   <!-- Code -->
-  <section class="border-y bg-muted/30">
+  <section>
     <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
       <div class="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] [&>*]:min-w-0">
         <div class="space-y-3">
@@ -455,7 +479,8 @@ const lifecycle = [
   </section>
 
   <!-- Comparison -->
-  <section id="compare" class="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6">
+  <section id="compare" class="scroll-mt-20 border-y bg-muted/30">
+   <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
     <div class="max-w-3xl space-y-3">
       <p class="font-mono text-sm text-primary">// next to celld</p>
       <h2 class="text-3xl font-semibold tracking-tight">celld is the judge.</h2>
@@ -518,10 +543,11 @@ const lifecycle = [
         Where cellb follows Cloudflare instead of celld <Icon name="externalLink" class="size-3" />
       </a>
     </div>
+   </div>
   </section>
 
   <!-- Lifecycle -->
-  <section class="border-y bg-muted/30">
+  <section>
     <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
       <div class="max-w-2xl space-y-3">
         <p class="font-mono text-sm text-primary">// life of a cell</p>
@@ -542,6 +568,23 @@ const lifecycle = [
         ))}
       </ol>
     </div>
+  </section>
+
+  <!-- Numbers -->
+  <section id="numbers" class="scroll-mt-20 border-y bg-muted/30">
+   <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+    <div class="max-w-3xl space-y-3">
+      <p class="font-mono text-sm text-primary">// by the numbers</p>
+      <h2 class="text-3xl font-semibold tracking-tight">Measured, and reproducible.</h2>
+      <p class="text-muted-foreground">
+        The rows celld.dev reports, measured for cellb on Node and in Chromium by the benchmark in
+        the repository. The page reads its last recorded run.
+      </p>
+    </div>
+    <div class="mt-10">
+      <Stats />
+    </div>
+   </div>
   </section>
 
   <!-- Demo -->

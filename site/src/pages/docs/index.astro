@@ -6,7 +6,7 @@ import { REPO, repoDoc } from "@/lib/site";
 ---
 
 <Docs title="Getting started" description="Run a Worker and its Durable Objects with cellb in Node and in a browser.">
-  <Badge variant="brand" class="mb-4">v0.0.1 · not yet published to npm</Badge>
+  <Badge variant="brand" class="mb-4">@statewalker/cellb 0.1 · on npm</Badge>
   <h1>Getting started</h1>
   <p>
     cellb (<code>@statewalker/cellb</code>) is a Durable Objects runtime written in TypeScript. It
@@ -17,21 +17,25 @@ import { REPO, repoDoc } from "@/lib/site";
   </p>
 
   <h2>Install</h2>
+  <CodeBlock code={`npm install @statewalker/cellb\nnpm install esbuild   # for loadNodeProject and bundleWorkerForBrowser`} />
   <p>
-    The package lives in the <a href={REPO}>cellb.dev monorepo</a> and has no build step yet. Its
-    entry points are TypeScript sources, so import them through a bundler, Vite or vitest. Node
-    22.13 or later is needed for <code>node:sqlite</code>.
+    The published package is JavaScript with type declarations. Node 22.13 or later is needed for
+    <code>node:sqlite</code>. esbuild is an optional peer dependency: install it to load wrangler
+    projects or bundle them for browsers. In a browser app, the bundler must handle
+    <code>new Worker(new URL("…", import.meta.url))</code>, which Vite does. The sources live in
+    the <a href={REPO}>cellb.dev monorepo</a>.
   </p>
-  <CodeBlock code={`git clone ${REPO}\ncd cellb.dev\npnpm install`} />
 
-  <h2>Three entry points</h2>
-  <p>Callers differ by platform, so the package is split by platform:</p>
+  <h2>Entry points</h2>
+  <p>Callers differ by platform, so the package is split by platform, plus two entry points for bundling:</p>
   <table>
     <thead><tr><th>Import</th><th>What it gives</th></tr></thead>
     <tbody>
       <tr><td><code>@statewalker/cellb</code></td><td>The isomorphic runtime: <code>createCellRuntime</code>, <code>createProjectRuntime</code>, <code>DurableObject</code>, <code>WorkerEntrypoint</code>, <code>celldBucket</code>, the object stores, links over ports, <code>CellRouter</code></td></tr>
       <tr><td><code>@statewalker/cellb/node</code></td><td><code>nodeSqliteOpener</code>, <code>sqliteObjectStore</code>, <code>loadNodeProject</code>, D1 migrations, and celld's peer protocol</td></tr>
-      <tr><td><code>@statewalker/cellb/browser</code></td><td><code>browserProjectRuntime</code>, <code>sahpoolOpener</code>, <code>createProjectSite</code>, <code>serviceWorkerConnector</code></td></tr>
+      <tr><td><code>@statewalker/cellb/browser</code></td><td><code>browserProjectRuntime</code>; <code>startProjectShards</code>, <code>joinProjectShards</code> and <code>serveProjectShard</code> (shards in workers and tabs); <code>installProjectRouter</code> (the ServiceWorker side); <code>sahpoolOpener</code>, <code>idbObjectStore</code>, <code>createProjectSite</code>, <code>serviceWorkerConnector</code></td></tr>
+      <tr><td><code>@statewalker/cellb/host-modules</code></td><td>For bundlers other than cellb's own: the sources of <code>cloudflare:workers</code>, <code>node:*</code> and the Workers globals as cellb provides them</td></tr>
+      <tr><td><code>@statewalker/cellb/isolate-worker</code></td><td>The Dedicated Worker that runs a Worker Loader's Worker in a realm of its own</td></tr>
     </tbody>
   </table>
 
@@ -75,7 +79,7 @@ await runtime.close();`}
 
   <h2>The same project in a browser</h2>
   <p>
-    In a browser, cells live in SQLite WASM on OPFS inside a Dedicated Worker, and requests arrive
+    In a browser, cells live in SQLite WASM inside a Dedicated Worker, and requests arrive
     through a ServiceWorker.
   </p>
   <CodeBlock
@@ -93,6 +97,17 @@ const host = await browserProjectRuntime({
 });
 const res = await host.runtime.fetch(new Request("http://browser/"));`}
   />
+
+  <p>Where the cells' data lives is a choice of the <code>bucket</code> option:</p>
+  <table>
+    <thead><tr><th>Storage</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td>an OPFS pool (default)</td><td>One SQLite file per cell in the worker's opfs-sahpool pool. Needs no COOP/COEP headers; a pool belongs to one worker</td></tr>
+      <tr><td><code>{"{ ltx, node }"}</code></td><td>Each cell as celld keeps it: a snapshot and one LTX file per commit in OPFS, read page by page, so a cell's memory is its page cache. Compacts itself; needs cross-origin isolation</td></tr>
+      <tr><td><code>{"{ idb, node }"}</code></td><td>SQLite in memory, persisted through page-level logs in IndexedDB, whose conditional writes are atomic across tabs and workers</td></tr>
+      <tr><td><code>{"{ s3, node }"}</code></td><td>A celld fleet bucket on S3, shared with celld and Node nodes</td></tr>
+    </tbody>
+  </table>
 
   <h2>Join a celld fleet</h2>
   <p>
