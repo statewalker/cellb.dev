@@ -27,7 +27,10 @@ let rt: CellRuntime | undefined;
 let sqlite3: { wasm: { heap8u(): Uint8Array } } | undefined;
 let made = 0;
 
-const stub = (i: number) => (rt?.env as unknown as Env).CELL.getByName(`c${i}`);
+const stub = (i: number) => {
+  if (!rt) throw new Error("not initialized");
+  return (rt.env as unknown as Env).CELL.getByName(`c${i}`);
+};
 const snapshot = async () => {
   const est = await navigator.storage.estimate();
   return {

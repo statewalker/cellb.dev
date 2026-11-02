@@ -10,6 +10,10 @@ import { test } from "@playwright/test";
 //   CAPACITY_STEP=2000 CAPACITY_MAX=100000 BENCH_JSON=bench/results/chromium-capacity.json \
 //     pnpm probes:browser capacity
 //
+// CAPACITY_ROLLING=1 closes every database after each step (hibernation with closeDatabaseAfterMs),
+// so only one step's cells are open at a time: how many cells a worker keeps on disk while its
+// memory stays bounded.
+//
 // Linux only (it reads /proc).
 
 /** PSS of every Chromium process, in MB; `renderer` is the largest renderer (the page's). */
@@ -38,6 +42,7 @@ test("cells in one browser worker: how many, and their memory", async ({ page })
   const step = Number(process.env.CAPACITY_STEP ?? 2_000);
   const max = Number(process.env.CAPACITY_MAX ?? 100_000);
   const budgetMs = Number(process.env.CAPACITY_BUDGET_MS ?? 20 * 60_000);
+  const rolling = process.env.CAPACITY_ROLLING === "1";
   test.setTimeout(budgetMs + 5 * 60_000);
   page.on(
     "console",
@@ -67,8 +72,10 @@ test("cells in one browser worker: how many, and their memory", async ({ page })
       break;
     }
     try {
-      const v: any = await call({ op: "grow", n: step });
-      steps.push(row(v, { stepMs: v.stepMs }));
+      let v: any = await call({ op: "grow", n: step });
+      const stepMs = v.stepMs;
+      if (rolling) v = await call({ op: "sleep" });
+      steps.push(row(v, { stepMs }));
       console.log(JSON.stringify(steps.at(-1)));
     } catch (err) {
       stopped = String((err as Error).message)
@@ -117,6 +124,7 @@ test("cells in one browser worker: how many, and their memory", async ({ page })
     date: new Date().toISOString().slice(0, 10),
     userAgent: await page.evaluate(() => navigator.userAgent),
     step,
+    rolling,
     stopped,
     base,
     resident,
