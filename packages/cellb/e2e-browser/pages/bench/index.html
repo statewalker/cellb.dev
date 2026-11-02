@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>cellb — benchmark in a Dedicated Worker</title>
+<body>
+  <script type="module">
+    // The probe calls __bench(options); the worker measures inside itself, so no
+    // postMessage hop is counted (bench/node-bench.mjs measures the same rows on Node).
+    window.__bench = (opts) =>
+      new Promise((resolve, reject) => {
+        const w = new Worker(new URL("./bench-worker.ts", import.meta.url), { type: "module" });
+        w.onmessage = (e) => {
+          w.terminate();
+          e.data.ok ? resolve(e.data.result) : reject(new Error(e.data.error));
+        };
+        w.postMessage(opts);
+      });
+    document.body.dataset.ready = "true";
+  </script>
+</body>
