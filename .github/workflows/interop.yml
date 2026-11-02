@@ -29,7 +29,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         working-directory: .
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/cellb-interop/bin
           key: interop-bin-celld-0.6.3-rustfs-1.0.3
@@ -40,7 +40,7 @@ jobs:
       - name: Chromium — browser hosts on the shared bucket
         run: pnpm run interop:browser
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: interop-logs
           path: |
