@@ -23,6 +23,23 @@ import { SqlStorage } from "./sql-storage.js";
 import { DurableObjectState } from "./state.js";
 import { DurableObjectStorage, SyncKvStorage } from "./storage.js";
 
+/**
+ * The request as the object sees it: its signal also aborts when the host closes (the runtime
+ * shuts down), as on Cloudflare when the client goes away; a long poll or an SSE stream that
+ * waits on it then ends instead of running on into a closed database.
+ */
+export function closingWith(req: Request, closing: AbortSignal): Request {
+  if (closing.aborted) return req;
+  const r = new Request(req, { signal: AbortSignal.any([req.signal, closing]) });
+  // What cellb set on the request itself (`cf`; `headers` carrying a WebSocket upgrade's
+  // headers, which a Request would drop) stays as it was.
+  for (const k of ["cf", "headers"]) {
+    const d = Object.getOwnPropertyDescriptor(req, k);
+    if (d) Object.defineProperty(r, k, d);
+  }
+  return r;
+}
+
 /** The object's host was closed for good: its storage and events fail with this. */
 export class ObjectClosedError extends Error {
   override name = "ObjectClosedError";
@@ -377,9 +394,21 @@ export class ObjectHost {
 
   /** Closed for good: storage calls throw ObjectClosedError. */
   #closed = false;
+  readonly #closing = new AbortController();
+  /** Aborts when the host is shutting down: the signal of the requests it is handed. */
+  get closing(): AbortSignal {
+    return this.#closing.signal;
+  }
+  /** The first step of a shutdown: requests in flight see their signal abort. */
+  shutdown(): void {
+    if (this.#closing.signal.aborted) return;
+    this.#closing.abort(new ObjectClosedError(this.cellKey));
+    for (const facet of this.#facets) facet.shutdown();
+  }
 
   /** Settles once the cell lease is released (a store closed earlier would keep it held). */
   close(): Promise<void> {
+    this.shutdown();
     this.#closed = true;
     for (const facet of this.#facets) void facet.close();
     this.#facets.clear();
@@ -658,7 +687,7 @@ function createFacets(
         if (typeof fn !== "function") throw new TypeError(`${method} is not a function`);
         return fn.apply(obj, args);
       }),
-    fetch: (req) => h.deliver((obj) => obj.fetch(req)),
+    fetch: (req) => h.deliver((obj) => obj.fetch(closingWith(req, h.closing))),
     restart: () => h.restart(),
     delete: async () => {
       await h.deliver((_o, state) => state.storage.deleteAll());
