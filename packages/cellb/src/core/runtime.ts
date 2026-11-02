@@ -82,6 +82,11 @@ export interface CellRuntimeOptions {
    * restores the cell (a log or a backup).
    */
   closeDatabaseAfterMs?: number;
+  /**
+   * On `close()`, how long (ms) events still running and `waitUntil` work may take to finish
+   * before the databases close under them (they then fail with ObjectClosedError). Default 2000.
+   */
+  closeGraceMs?: number;
   /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
   sqlExtensions?: string[];
   /** `delete_all_preserves_alarm`: storage.deleteAll() keeps the alarm (default: deletes it). */
@@ -436,6 +441,17 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       alarms.stop();
       clock.clearTimeout(timer);
       timer = undefined;
+      // Events in flight (a conversation's last writes, say) and waitUntil work finish first,
+      // within the grace period: their writes are then in the final backups too.
+      const grace = opts.closeGraceMs ?? 2_000;
+      if (grace > 0) {
+        let t: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          Promise.all([...[...hosts.values()].map((h) => h.settled()), ...[...background]]),
+          new Promise((r) => (t = setTimeout(r, grace))),
+        ]);
+        clearTimeout(t);
+      }
       await backupAll("close");
       // The releases reach the store before it closes.
       await Promise.all([...hosts.values()].map((h) => h.close()));
