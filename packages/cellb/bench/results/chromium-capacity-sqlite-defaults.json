@@ -1,0 +1,103 @@
+{
+  "date": "2026-11-02",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8078.4 Safari/537.36",
+  "step": 1000,
+  "stopped": "page.evaluate: Error: SQLite3Error: SQLITE_NOMEM: sqlite3 result code 7: out of memory",
+  "base": {
+    "cells": 0,
+    "sqliteWasmMB": 8,
+    "opfsMB": 0.1,
+    "chromiumPssMB": 448,
+    "rendererPssMB": 119
+  },
+  "resident": {
+    "cells": 8000,
+    "perCellChromiumKB": 273,
+    "perCellRendererKB": 206,
+    "perCellSqliteWasmKB": 240,
+    "perCellOpfsKB": 29
+  },
+  "asleep": {
+    "cells": 8000,
+    "sqliteWasmMB": 2048,
+    "opfsMB": 308.4,
+    "chromiumPssMB": 3298,
+    "rendererPssMB": 2099
+  },
+  "woken": {
+    "cells": 8000,
+    "sqliteWasmMB": 2048,
+    "opfsMB": 314.3,
+    "chromiumPssMB": 3313,
+    "rendererPssMB": 2108,
+    "ok": 500,
+    "of": 500,
+    "perCellMs": 9.9
+  },
+  "steps": [
+    {
+      "cells": 1000,
+      "sqliteWasmMB": 259.5,
+      "opfsMB": 27.9,
+      "chromiumPssMB": 718,
+      "rendererPssMB": 324,
+      "stepMs": 17209
+    },
+    {
+      "cells": 2000,
+      "sqliteWasmMB": 538.3,
+      "opfsMB": 55.7,
+      "chromiumPssMB": 985,
+      "rendererPssMB": 529,
+      "stepMs": 17404
+    },
+    {
+      "cells": 3000,
+      "sqliteWasmMB": 730.6,
+      "opfsMB": 91.9,
+      "chromiumPssMB": 1294,
+      "rendererPssMB": 741,
+      "stepMs": 24428
+    },
+    {
+      "cells": 4000,
+      "sqliteWasmMB": 922.8,
+      "opfsMB": 111.5,
+      "chromiumPssMB": 1504,
+      "rendererPssMB": 925,
+      "stepMs": 11531
+    },
+    {
+      "cells": 5000,
+      "sqliteWasmMB": 1211.1,
+      "opfsMB": 164.3,
+      "chromiumPssMB": 1954,
+      "rendererPssMB": 1191,
+      "stepMs": 39414
+    },
+    {
+      "cells": 6000,
+      "sqliteWasmMB": 1403.4,
+      "opfsMB": 183.8,
+      "chromiumPssMB": 2163,
+      "rendererPssMB": 1371,
+      "stepMs": 11735
+    },
+    {
+      "cells": 7000,
+      "sqliteWasmMB": 1691.7,
+      "opfsMB": 203.4,
+      "chromiumPssMB": 2373,
+      "rendererPssMB": 1552,
+      "stepMs": 11797
+    },
+    {
+      "cells": 8000,
+      "sqliteWasmMB": 1883.9,
+      "opfsMB": 222.9,
+      "chromiumPssMB": 2580,
+      "rendererPssMB": 1732,
+      "stepMs": 11397
+    }
+  ]
+}
