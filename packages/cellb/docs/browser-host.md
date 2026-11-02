@@ -18,7 +18,8 @@ and WebKit.
   grows in the background whenever less than half of it is free.
 - **One worker's cells share one SQLite heap of at most 2 GiB, which never shrinks.** Each open
   cell takes about 120 KiB of it (a connection without lookaside, 4 KiB pages for a new
-  database), so about 16,000 small cells can be open in one worker. Memory of a closed database
+  database), so about 20,000 small cells can be open in one worker (measured in Chromium:
+  [browser-capacity.md](browser-capacity.md)). Memory of a closed database
   is reused by the next one opened (`closeDatabaseAfterMs` closes idle cells' databases), so the
   cells a worker keeps on disk are not limited by the heap. A worker that ends gives its heap
   back.
