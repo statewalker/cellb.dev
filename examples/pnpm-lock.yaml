@@ -37,7 +37,7 @@ importers:
     devDependencies:
       '@statewalker/cellb':
         specifier: ~0.1.0
-        version: 0.1.0(esbuild@0.28.2)
+        version: 0.1.1(esbuild@0.28.2)
       '@statewalker/fake-openai':
         specifier: workspace:*
         version: link:../fake-openai
@@ -98,7 +98,7 @@ importers:
         version: 3.53.4-build2
       '@statewalker/cellb':
         specifier: ~0.1.0
-        version: 0.1.0(esbuild@0.28.2)
+        version: 0.1.1(esbuild@0.28.2)
       '@statewalker/db-sqlite-node':
         specifier: 0.3.0
         version: 0.3.0
@@ -156,7 +156,7 @@ importers:
         version: 3.53.4-build2
       '@statewalker/cellb':
         specifier: ~0.1.0
-        version: 0.1.0(esbuild@0.28.2)
+        version: 0.1.1(esbuild@0.28.2)
       '@statewalker/webrun-files-mem':
         specifier: ^0.10.0
         version: 0.10.3
@@ -226,7 +226,7 @@ importers:
         version: 3.53.4-build2
       '@statewalker/cellb':
         specifier: ~0.1.0
-        version: 0.1.0(esbuild@0.28.2)
+        version: 0.1.1(esbuild@0.28.2)
       '@statewalker/fake-openai':
         specifier: workspace:*
         version: link:../fake-openai
@@ -2746,8 +2746,8 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@statewalker/cellb@0.1.0':
-    resolution: {integrity: sha512-Lpt5TWPPgDy16d04D/A2qtpyaHpmUiPiFeWmyPk3Rd25vw3b4fltVWnkL/Ecnc6HF1xbTDUplv3uXb5/zxfcFA==}
+  '@statewalker/cellb@0.1.1':
+    resolution: {integrity: sha512-JQPSRexfquuimMiBQiTe1Ia6Nm9JiufYOT8tUD41hwVeGS4BwCgSb9Bs1L4iIeRXD1lG4m8EyBclp7G/7MuUHA==}
     engines: {node: '>=22.13'}
     peerDependencies:
       esbuild: '>=0.25'
@@ -10137,7 +10137,7 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@statewalker/cellb@0.1.0(esbuild@0.28.2)':
+  '@statewalker/cellb@0.1.1(esbuild@0.28.2)':
     dependencies:
       '@noble/hashes': 1.8.0
       '@sqlite.org/sqlite-wasm': 3.53.4-build2
