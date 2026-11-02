@@ -20,12 +20,7 @@
   "rows": [
     {
       "cells": 4000,
-      "perWorker": [
-        1000,
-        1000,
-        1000,
-        1000
-      ],
+      "perWorker": [1000, 1000, 1000, 1000],
       "sqliteWasmMB": 416.8,
       "stepMs": 30845,
       "chromiumPssMB": 1369,
@@ -34,12 +29,7 @@
     },
     {
       "cells": 8000,
-      "perWorker": [
-        2000,
-        2000,
-        2000,
-        2000
-      ],
+      "perWorker": [2000, 2000, 2000, 2000],
       "sqliteWasmMB": 865,
       "stepMs": 31132,
       "chromiumPssMB": 2126,
@@ -48,12 +38,7 @@
     },
     {
       "cells": 12000,
-      "perWorker": [
-        3000,
-        3000,
-        3000,
-        3000
-      ],
+      "perWorker": [3000, 3000, 3000, 3000],
       "sqliteWasmMB": 1245.8,
       "stepMs": 45520,
       "chromiumPssMB": 3167,
@@ -62,12 +47,7 @@
     },
     {
       "cells": 16000,
-      "perWorker": [
-        4000,
-        4000,
-        4000,
-        4000
-      ],
+      "perWorker": [4000, 4000, 4000, 4000],
       "sqliteWasmMB": 1794,
       "stepMs": 21497,
       "chromiumPssMB": 3714,
@@ -76,12 +56,7 @@
     },
     {
       "cells": 20000,
-      "perWorker": [
-        5000,
-        5000,
-        5000,
-        5000
-      ],
+      "perWorker": [5000, 5000, 5000, 5000],
       "sqliteWasmMB": 2153,
       "stepMs": 83639,
       "chromiumPssMB": 5242,
@@ -90,12 +65,7 @@
     },
     {
       "cells": 24000,
-      "perWorker": [
-        6000,
-        6000,
-        6000,
-        6000
-      ],
+      "perWorker": [6000, 6000, 6000, 6000],
       "sqliteWasmMB": 2537.3,
       "stepMs": 25477,
       "chromiumPssMB": 5805,
@@ -104,12 +74,7 @@
     },
     {
       "cells": 28000,
-      "perWorker": [
-        7000,
-        7000,
-        7000,
-        7000
-      ],
+      "perWorker": [7000, 7000, 7000, 7000],
       "sqliteWasmMB": 2921.5,
       "stepMs": 25612,
       "chromiumPssMB": 6327,
@@ -118,12 +83,7 @@
     },
     {
       "cells": 32000,
-      "perWorker": [
-        8000,
-        8000,
-        8000,
-        8000
-      ],
+      "perWorker": [8000, 8000, 8000, 8000],
       "sqliteWasmMB": 3305.8,
       "stepMs": 24222,
       "chromiumPssMB": 6867,
@@ -132,12 +92,7 @@
     },
     {
       "cells": 32000,
-      "perWorker": [
-        8000,
-        8000,
-        8000,
-        8000
-      ],
+      "perWorker": [8000, 8000, 8000, 8000],
       "sqliteWasmMB": 3305.8,
       "stepMs": 148999,
       "chromiumPssMB": 9265,
