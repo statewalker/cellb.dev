@@ -2,7 +2,7 @@
 // SQLite in this worker, synchronously, over a cell's LTX files that the page reads and writes
 // asynchronously (ltxPageServer): the LTX VFS blocks on a SharedArrayBuffer per page miss.
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { installLtxVfs } from "../../../packages/cellb/src/adapters/ltx-vfs.ts";
+import { installLtxVfs } from "../../../src/adapters/ltx-vfs.ts";
 
 self.onmessage = async (
   e: MessageEvent<{

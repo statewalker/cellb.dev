@@ -49,37 +49,53 @@ examples/astro-in-browser/  Astro apps, EmDash included, built from their source
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
-.github/workflows/     cellb (lint, typecheck, unit tests, the packed package), interop against the real celld
-                       and RustFS, and EmDash built and run in Node and Chromium
+.github/workflows/     cellb (lint, typecheck, unit tests, the packed package) and interop against the real
+                       celld and RustFS, on every pull request; examples (on released cellb, when examples/
+                       change) and its nightly canary (on cellb as main would publish it)
+.github/dependabot.yml weekly dependency updates, for both workspaces
 .changeset/            changesets for the published package (@statewalker/cellb)
 ```
 
-`packages/*` are libraries; `examples/*` are private apps that use them, with the test tools only
-they use. Both are workspaces
-(`pnpm-workspace.yaml`), so an example depends on `@statewalker/cellb` and
-`@statewalker/fake-openai` through `workspace:*`.
+Two pnpm workspaces. The root one (`pnpm-workspace.yaml`) holds cellb and the website. The
+examples are private apps in a workspace of their own (`examples/pnpm-workspace.yaml`, its own
+lockfile) and use cellb as its users do: `@statewalker/cellb` from npm, at a released range
+(`~0.1.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
+cellb reaches the examples through a release: Dependabot raises the range, and its pull request
+runs them. Cellb's own storage labs (`ltx-lab`, `sqlite-lab`) are in
+`packages/cellb/e2e-browser`.
 
 ## How to run it
+
+cellb, at the root:
 
 1. `pnpm install`
 2. `cd packages/cellb && pnpm test`: the unit tests (`test/`) and the celld end-to-end tests
    (`e2e/`), which skip without `CELLD_BIN`.
 3. `pnpm exec playwright test`: the Chromium end-to-end suite.
-4. `cd examples/flue && pnpm test`: builds a Flue app with Flue's own Cloudflare build and
-   runs it on cellb against a fake model endpoint; `pnpm test:browser` runs the same app in Chromium.
-5. `cd examples/agents && pnpm test`: pi and opencode, each in a Durable Object on cellb, against
-   the fake model.
+4. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
+   and RustFS releases and starts RustFS on `127.0.0.1:9200`.
+5. `node packages/cellb/scripts/pack-check.mjs`: the package as it would be published.
 6. `pnpm --filter @statewalker/cellb-site dev`: the website at `http://localhost:4321`; `build`
    writes it to `site/dist/`.
-7. `pnpm run interop`: the celld interop suite. `scripts/interop-env.sh` downloads the pinned celld
-   and RustFS releases and starts RustFS on `127.0.0.1:9200`.
-8. `cd examples/emdash && pnpm test && pnpm test:browser`: EmDash built by Astro, on cellb in Node
-   and as a static site in Chromium.
-9. `cd examples/astro-in-browser && pnpm test`: the in-browser builder on Node;
-   `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab.
-   It links `@statewalker/webrun-bundler` from a sibling checkout of webrun-sites (see its README).
 
 `pnpm test` at the root runs every workspace's tests, and stops at the first one that fails.
+
+The examples, in `examples/` (`pnpm install` there: they have their own lockfile):
+
+1. `cd flue && pnpm test`: builds a Flue app with Flue's own Cloudflare build and runs it on cellb
+   against a fake model endpoint; `pnpm test:browser` runs the same app in Chromium.
+2. `cd agents && pnpm test`: pi and opencode, each in a Durable Object on cellb, against the fake
+   model.
+3. `cd emdash && pnpm test && pnpm test:browser`: EmDash built by Astro, on cellb in Node and as a
+   static site in Chromium.
+4. `cd astro-in-browser && pnpm test`: the in-browser builder on Node;
+   `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab. It
+   links `@statewalker/webrun-bundler` from a sibling checkout of webrun-sites (see its README).
+
+To try the examples on cellb as it is in this checkout, before a release: pack it
+(`pnpm --dir packages/cellb pack`) and add to `examples/pnpm-workspace.yaml`
+`overrides: { "@statewalker/cellb": "file:<the .tgz>" }`, then `pnpm install --no-frozen-lockfile`
+in `examples/` (what the nightly canary does; do not commit it).
 
 ## Why it is the way it is
 
@@ -87,8 +103,13 @@ they use. Both are workspaces
   by internal module, so `@statewalker/cellb`, `/node` and `/browser` are the seams.
 - **CI runs against the real celld.** celld is the conformance judge, so the interop workflow
   downloads the pinned celld and RustFS and runs the Node and Chromium interop suites on every pull
-  request. A second workflow (`emdash.yml`) builds EmDash in Node and in Chromium and runs it on
-  cellb, with webrun-sites checked out beside the repository.
+  request. cellb's own checks (`cellb.yml`: lint, typecheck, unit tests, the packed package) run
+  there too.
+- **Examples pin a released cellb.** They show cellb as its users get it, so they run on npm's
+  `@statewalker/cellb`, not on this repository's sources: a cellb pull request does not wait on
+  them, and an example breaks only by a release it moves to. `examples.yml` runs them when they
+  change; `examples-canary.yml` runs them nightly on cellb as main would publish it, so a change
+  that would break one is known before the release.
 - **Examples run offline.** Agent frameworks need a model; the examples point theirs at
   `@statewalker/fake-openai`, so CI needs no key and no network beyond the package registry.
 

@@ -17,7 +17,7 @@ Agents SDK app uses them.
 ## How to use it
 
 ```
-pnpm install            # at the repository root; needs network access
+pnpm install            # in examples/ (their own workspace; cellb from npm); needs network
 pnpm test               # in this directory: vite build, then vitest run (Node)
 pnpm test:browser       # vite build, then Playwright in Chromium
 ```

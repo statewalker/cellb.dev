@@ -19,7 +19,7 @@ builds the same template from these sources inside a browser tab instead, and it
 ## How to use it
 
 ```
-pnpm install              # at the repository root; needs network access
+pnpm install              # in examples/ (their own workspace; cellb from npm); needs network
 pnpm test                 # astro build, then vitest (Node)
 pnpm build:static         # astro build, the browser bundle, the static site in dist/static
 pnpm serve:static         # python3 -m http.server on 127.0.0.1:8080

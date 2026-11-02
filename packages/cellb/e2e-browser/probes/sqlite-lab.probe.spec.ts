@@ -8,7 +8,7 @@ test("SQLite in parallel workers: storage modes", async ({ page }) => {
     "console",
     (m) => m.type() === "error" && console.log(`[page] ${m.text().slice(0, 300)}`),
   );
-  await page.goto("/__cellb/sqlite-lab.html");
+  await page.goto("/labs/sqlite-lab.html");
   await page.waitForFunction(() => document.body.dataset.ready === "true", null, {
     timeout: 60_000,
   });

@@ -1,0 +1,54 @@
+# The statewalker convention (statewalker/.github README): weekly, ranges kept while new versions
+# fit them, versions younger than 3 days skipped, grouped pull requests merged by hand.
+# Two npm workspaces: cellb's (/) and the examples' (/examples). A new @statewalker/cellb
+# release reaches the examples through the /examples group: the pull request runs them on it.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    versioning-strategy: increase-if-necessary
+    cooldown:
+      default-days: 3
+    groups:
+      statewalker:
+        patterns: ["@statewalker/*"]
+      external-minor-patch:
+        patterns: ["*"]
+        exclude-patterns: ["@statewalker/*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /examples
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    versioning-strategy: increase-if-necessary
+    cooldown:
+      default-days: 3
+    groups:
+      statewalker:
+        patterns: ["@statewalker/*"]
+      external-minor-patch:
+        patterns: ["*"]
+        exclude-patterns: ["@statewalker/*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    cooldown:
+      default-days: 3
+    groups:
+      actions:
+        patterns: ["*"]

@@ -21,7 +21,7 @@ tests point at the fake model, and they run on cellb as celld runs them.
 ## How to use it
 
 ```
-pnpm install            # at the repository root
+pnpm install            # in examples/ (their own workspace; cellb from npm)
 pnpm test               # in this directory: each example on cellb (Node), against the fake model
 ```
 

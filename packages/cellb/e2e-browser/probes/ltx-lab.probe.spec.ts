@@ -9,7 +9,7 @@ test("sync SQLite over async LTX files: write, read back cold, compact", async (
     (m) => m.type() === "error" && console.log(`[page] ${m.text().slice(0, 300)}`),
   );
   await page.goto(
-    `/__cellb/ltx-lab.html?store=${process.env.LTX_STORE ?? "page"}${process.env.LTX_SYNC ? "&sync" : ""}`,
+    `/labs/ltx-lab.html?store=${process.env.LTX_STORE ?? "page"}${process.env.LTX_SYNC ? "&sync" : ""}`,
   );
   await page.waitForFunction(() => document.body.dataset.ready === "true", null, {
     timeout: 60_000,

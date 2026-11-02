@@ -58,7 +58,9 @@ function downloadPool(n: number, store: string) {
         );
       });
     },
-    close: () => workers.forEach((x) => x.w.terminate()),
+    close: () => {
+      for (const x of workers) x.w.terminate();
+    },
   };
 }
 /** wrangler.jsonc's `main`, relative to the app (comments and trailing commas allowed). */

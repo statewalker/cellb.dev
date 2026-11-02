@@ -1,0 +1,15 @@
+name: examples canary (cellb main)
+
+# Nightly: the examples on cellb as main would publish it (packages/cellb packed, its tarball in
+# place of the released version). Not a check on any pull request: it reports, in this workflow's
+# history, a change to cellb that would break an example once released.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  canary:
+    uses: ./.github/workflows/examples.yml
+    with:
+      cellb: packed
