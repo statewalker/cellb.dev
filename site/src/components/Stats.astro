@@ -1,0 +1,198 @@
+---
+import { repoFile } from "@/lib/site";
+// cellb's numbers, in the shape celld.dev reports celld's. They are read from the last recorded
+// runs of packages/cellb/bench (`pnpm bench`, `pnpm bench:browser`), so the page shows exactly
+// what the benchmark printed.
+import chromium from "../../../packages/cellb/bench/results/chromium.json";
+import node from "../../../packages/cellb/bench/results/node.json";
+import Icon from "./Icon.astro";
+
+/** Milliseconds, with as many digits as the size of the number deserves. */
+const ms = (x: number) =>
+  x >= 10 ? Math.round(x).toString() : x >= 1 ? x.toFixed(1) : x.toFixed(2);
+const k = (x: number) => `~${Math.round(x / 1000)}k`;
+const thousands = (x: number) => `~${(Math.round(x / 1000) * 1000).toLocaleString("en-US")}`;
+const rtt90 = node.durable.bucketRtt90ms;
+// celld's docs price an 8 GB node at about $50 a month (1,000 cells × $0.05).
+const nodeMonth = 50;
+
+type Row = { label: string; node: string; browser: string; unit: string; ref?: number };
+const groups: { title: string; rows: Row[] }[] = [
+  {
+    title: "Durability",
+    rows: [
+      { label: "Writers per cell (epoch-fenced)", node: "1", browser: "1", unit: "" },
+      {
+        label: `Acknowledged writes lost on SIGKILL (of ${node.failover.acknowledged})`,
+        node: String(node.failover.lostAcknowledged),
+        browser: "—",
+        unit: "RPO=0",
+      },
+      {
+        label: "Durable write latency (bucket 90 ms away)",
+        node: `~${ms(rtt90.p50Ms)}`,
+        browser: "—",
+        unit: "ms",
+        ref: 2,
+      },
+      {
+        label: "cellb's own cost per durable write",
+        node: ms(node.durable.bucketRtt0ms.p50Ms),
+        browser: "—",
+        unit: "ms",
+        ref: 2,
+      },
+      {
+        label: "Commit to OPFS (local)",
+        node: "—",
+        browser: ms(chromium.opfsWrite.p50Ms),
+        unit: "ms",
+      },
+      {
+        label: "Failover after node loss, 0 lost",
+        node: `~${(node.failover.failoverMs / 1000).toFixed(0)}`,
+        browser: "—",
+        unit: "s",
+        ref: 3,
+      },
+    ],
+  },
+  {
+    title: "Speed (warm)",
+    rows: [
+      {
+        label: "Stateless request p50 / p99, in process",
+        node: `${ms(node.stateless.inProcess.p50Ms)} / ${ms(node.stateless.inProcess.p99Ms)}`,
+        browser: `≤${ms(chromium.stateless.p99Ms)}`,
+        unit: "ms",
+        ref: 4,
+      },
+      {
+        label: "Stateless request p50 / p99, loopback HTTP",
+        node: `${ms(node.stateless.http.p50Ms)} / ${ms(node.stateless.http.p99Ms)}`,
+        browser: "—",
+        unit: "ms",
+      },
+      {
+        label: "Stateless throughput / thread, in process",
+        node: k(node.stateless.inProcess.rps),
+        browser: k(chromium.stateless.rps),
+        unit: "req/s",
+      },
+      {
+        label: "Stateless throughput, loopback HTTP",
+        node: k(node.stateless.http.rps),
+        browser: "—",
+        unit: "req/s",
+      },
+      {
+        label: "Wake a hibernated cell",
+        node: `~${ms(node.wake.databaseOpen.p50Ms)}`,
+        browser: `~${ms(chromium.wake.p50Ms)}`,
+        unit: "ms",
+      },
+      {
+        label: "Wake a cell whose database was closed",
+        node: `~${ms(node.wake.databaseClosed.p50Ms)}`,
+        browser: "—",
+        unit: "ms",
+      },
+      {
+        label: "Activate an inactive cell from the bucket",
+        node: `~${ms(node.wake.inactiveFromBucket.p50Ms)}`,
+        browser: "—",
+        unit: "ms",
+        ref: 2,
+      },
+    ],
+  },
+  {
+    title: "Density & cost",
+    rows: [
+      {
+        label: "RAM per resident cell",
+        node: node.memory.rssPerCellMB.toFixed(2),
+        browser: chromium.memory.sqliteWasmPerCellMB.toFixed(2),
+        unit: "MB",
+        ref: 5,
+      },
+      {
+        label: "Resident cells / 8 GB node",
+        node: thousands(node.memory.residentCellsPer8GB),
+        browser: "—",
+        unit: "cells",
+      },
+      { label: "Inactive cell cost", node: "~0", browser: "~0", unit: "bucket ops" },
+      {
+        label: "Server $ / resident cell-month",
+        node: `~$${(nodeMonth / node.memory.residentCellsPer8GB).toFixed(3)}`,
+        browser: "$0",
+        unit: "",
+        ref: 6,
+      },
+    ],
+  },
+];
+---
+
+<div class="overflow-x-auto rounded-xl border bg-card">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b bg-muted/40 text-left">
+        <th class="px-3 py-3 font-medium sm:px-4"></th>
+        <th class="px-3 py-3 text-right font-mono font-medium text-primary sm:px-4">Node</th>
+        <th class="px-3 py-3 text-right font-mono font-medium text-primary sm:px-4">Chromium</th>
+        <th class="hidden w-28 px-4 py-3 sm:table-cell"></th>
+      </tr>
+    </thead>
+    {groups.map((g) => (
+      <tbody>
+        <tr class="border-b">
+          <th colspan="4" class="px-3 pt-6 pb-2 text-left font-medium text-muted-foreground sm:px-4">
+            {g.title}
+            {g.title !== "Durability" && <sup class="ml-0.5 font-mono text-[10px]">1</sup>}
+          </th>
+        </tr>
+        {g.rows.map((r) => (
+          <tr class="border-b last:border-0">
+            <td class="px-3 py-3 sm:px-4">
+              {r.label}
+              {r.ref && <sup class="ml-0.5 font-mono text-[10px] text-muted-foreground">{r.ref}</sup>}
+            </td>
+            <td class:list={["px-3 py-3 text-right font-mono tabular-nums sm:px-4", r.node === "—" ? "text-muted-foreground" : "font-semibold"]}>
+              {r.node}
+              {r.unit && r.node !== "—" && <span class="block text-[11px] font-normal text-muted-foreground sm:hidden">{r.unit}</span>}
+            </td>
+            <td class:list={["px-3 py-3 text-right font-mono tabular-nums sm:px-4", r.browser === "—" ? "text-muted-foreground" : "font-semibold"]}>
+              {r.browser}
+              {r.unit && r.browser !== "—" && <span class="block text-[11px] font-normal text-muted-foreground sm:hidden">{r.unit}</span>}
+            </td>
+            <td class="hidden px-4 py-3 text-muted-foreground sm:table-cell">{r.unit}</td>
+          </tr>
+        ))}
+      </tbody>
+    ))}
+  </table>
+</div>
+
+<ol class="mt-6 list-decimal space-y-1.5 pl-5 text-xs leading-5 text-muted-foreground">
+  <li>
+    One machine, trivial cells (a table and a row each): a {node.machine.cpus}-vCPU {node.machine.cpu} VM
+    with {node.machine.memoryGB} GB, Node {node.machine.node}, headless Chromium; measured {node.date}.
+    These are cellb's own costs, not a fleet's. They are not a comparison with celld's numbers,
+    which come from other hardware.
+  </li>
+  <li>The bucket is simulated: every store operation waits a fixed 0 or 90 ms. A real S3 bucket adds its own tail latency.</li>
+  <li>A second node may take a cell only after the first node's lease expires (10 s by default). The failover is that wait plus the restore.</li>
+  <li>A Dedicated Worker's clock has about 0.1 ms resolution, so sub-millisecond browser rows show an upper bound.</li>
+  <li>Node: process RSS growth per cell, after GC. Chromium: SQLite WASM heap growth per cell (the JS heap is not counted).</li>
+  <li>At about $50 a month for an 8 GB node, as celld's docs price one. In a browser, the cell runs on the user's own device.</li>
+</ol>
+<a
+  href={repoFile("packages/cellb/bench/README.md")}
+  class="mt-4 inline-block text-sm text-primary hover:underline"
+>
+  Reproduce: <code class="font-mono whitespace-nowrap">pnpm bench</code> and
+  <code class="font-mono whitespace-nowrap">pnpm bench:browser</code>
+  <Icon name="externalLink" class="ml-1 inline size-3 align-[-1px]" />
+</a>
