@@ -16,6 +16,12 @@ and WebKit.
   while opening a database is not. `sahpoolOpener` gives the runtime `room(cellKey)`: a cell's first
   event waits for room (about three files per cell: the database and its journal), and the pool
   grows in the background whenever less than half of it is free.
+- **One worker's cells share one SQLite heap of at most 2 GiB, which never shrinks.** Each open
+  cell takes about 120 KiB of it (a connection without lookaside, 4 KiB pages for a new
+  database), so about 16,000 small cells can be open in one worker. Memory of a closed database
+  is reused by the next one opened (`closeDatabaseAfterMs` closes idle cells' databases), so the
+  cells a worker keeps on disk are not limited by the heap. A worker that ends gives its heap
+  back.
 - **One worker is one thread.** Its cells interleave; their SQLite I/O runs on that thread. For
   parallel work, spread the project over several workers (next section).
 - **Journals stay in the pool.** `sahpoolOpener` opens databases with `journal_mode=PERSIST`: the
