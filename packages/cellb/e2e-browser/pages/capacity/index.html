@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>cellb — how many cells fit in a tab</title>
+<body>
+  <script type="module">
+    // One worker that keeps its runtime between calls; the probe grows it step by step.
+    const w = new Worker(new URL("./capacity-worker.ts", import.meta.url), { type: "module" });
+    window.__capacity = (msg) =>
+      new Promise((resolve, reject) => {
+        const { port1, port2 } = new MessageChannel();
+        port1.onmessage = (e) => (e.data.ok ? resolve(e.data.v) : reject(new Error(e.data.error)));
+        w.postMessage(msg, [port2]);
+      });
+    document.body.dataset.ready = "true";
+  </script>
+</body>
