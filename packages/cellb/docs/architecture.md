@@ -140,11 +140,10 @@ The three entry points select by platform: `src/index.ts` (isomorphic), `src/nod
 
 ## What breaks
 
-- **A stub call with a class instance that extends `RpcTarget` fails** with `RPC stubs cannot cross
-  isolate boundaries yet.` Functions pass by reference inside one runtime; `RpcTarget` does not. This
-  matches celld. See [gaps.md](gaps.md).
-- **A loaded Worker gets a function or stub as an RPC argument and throws `DataCloneError`.** Across
-  an isolate, only `env` entries become stubs; arguments, results and `props` are structured-cloned.
+- **A function, `RpcTarget` or stub sent to an object on another node is refused** with
+  `DataCloneError: Functions, RpcTargets and stubs cannot be sent to another node: …`. Within one
+  runtime, and into or out of a loaded Worker's isolate, they pass by reference, as on workerd
+  (celld refuses them). See [gaps.md](gaps.md#stubs-pass-by-reference-as-on-workerd-except-between-nodes).
 - **The project's own Worker sees the host's globals.** Only loaded Workers are isolated; code that
   writes to `globalThis` in the main Worker affects the whole runtime.
 - **A public endpoint mounted on `cellsHttpHandler` lets clients address any object directly** with

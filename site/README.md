@@ -42,7 +42,8 @@ The copy is drawn from this repository: the root README, `packages/cellb/README.
 
 Docs: `/docs` (getting started: install, entry points, Node, browser, fleet) and
 `/docs/how-it-works` (ports, request path, gates, ownership, durability, loaded Workers) are
-written for the site. The reference docs and the examples' READMEs are the repository's own
+written for the site. The reference docs, the service pages (`packages/cellb/docs/services/`) and
+the examples' READMEs are the repository's own
 Markdown, rendered at build time: `src/lib/docs.ts` lists each file and its page
 (`packages/cellb/docs/gaps.md` → `/docs/gaps`), and `src/content.config.ts` loads them as the
 `repo` collection. One file, two readers: the same Markdown reads on GitHub and on the site, so

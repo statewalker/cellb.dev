@@ -1,5 +1,5 @@
 ---
-import { examplePages, pageHref, type RepoPage, referencePages } from "@/lib/docs";
+import { examplePages, pageHref, type RepoPage, referencePages, servicePages } from "@/lib/docs";
 import Base from "./Base.astro";
 
 interface Props {
@@ -20,6 +20,7 @@ const sections = [
       { href: "/docs/how-it-works", label: "How it works" },
     ],
   },
+  { heading: "Services", items: servicePages.map(navItem) },
   { heading: "Reference", items: referencePages.map(navItem) },
   { heading: "Examples", items: examplePages.map(navItem) },
 ];
