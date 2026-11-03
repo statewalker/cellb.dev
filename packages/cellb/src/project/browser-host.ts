@@ -1,6 +1,11 @@
 import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
 import { installLtxVfs } from "../adapters/ltx-vfs.js";
-import { sahpoolOpener, WasmSqliteDriver, wasmMemoryOpener } from "../adapters/wasm-sqlite.js";
+import {
+  sahpoolOpener,
+  tuneCellConnection,
+  WasmSqliteDriver,
+  wasmMemoryOpener,
+} from "../adapters/wasm-sqlite.js";
 import type { AssetFiles } from "../bindings/assets.js";
 import type { WorkersAiOptions } from "../bindings/workers-ai.js";
 import { celldBucket } from "../bucket/celld-cells.js";
@@ -145,6 +150,7 @@ async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number, f
   const s3 = sqlite3 as { oo1: { DB: new (o: Record<string, unknown>) => any } };
   const open = (cellKey: string) => {
     const db = new s3.oo1.DB({ filename: cellKey, vfs: name, flags: "c" });
+    tuneCellConnection(sqlite3, db);
     db.exec("PRAGMA journal_mode=MEMORY; PRAGMA synchronous=FULL;");
     // SQLite's C API for inTransaction() only (no page hook or session capture on this VFS).
     return new WasmSqliteDriver(db, undefined, undefined, (sqlite3 as { capi: never }).capi);

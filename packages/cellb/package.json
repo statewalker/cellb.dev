@@ -55,6 +55,8 @@
     "build": "node scripts/build.mjs",
     "prepack": "node scripts/build.mjs",
     "test": "vitest run",
+    "bench": "node scripts/build.mjs && node --expose-gc bench/node-bench.mjs",
+    "bench:browser": "PW_CHROMIUM=\"${PW_CHROMIUM:-$(node scripts/npm-chromium.mjs)}\" playwright test --config playwright.probes.config.ts --reporter=line bench",
     "test:unit": "vitest run test/",
     "test:e2e": "vitest run e2e/",
     "typecheck": "tsc --noEmit && tsc --noEmit -p e2e-browser/pages/tsconfig.json",
