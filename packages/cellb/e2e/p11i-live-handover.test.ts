@@ -160,7 +160,10 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
   }, 120_000);
 });
 
-describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", { concurrent: true }, () => {
+// Not concurrent with the hand-over tests above: it runs a cellb runtime and celld on one SQLite
+// bucket, and while celld tries to claim the cell, the runtime's synchronous SQLite calls wait on
+// celld's writes and hold up this worker's event loop, where the tests above keep 3 s leases.
+describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", () => {
   it("both refuse a cell whose own.json is gone while its LTX remains; the released-record repair restores it", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "lost-")), "counter");
     cpSync(counter, dir, { recursive: true });
