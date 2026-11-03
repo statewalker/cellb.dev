@@ -92,7 +92,9 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
         20_000,
       ),
     ).toEqual({ n: 3 });
-    const c2 = await celldDev(dir);
+    // cellb owns the cell, so this celld refuses it and never logs "ready": waiting for that would
+    // run into its own 30 s readiness deadline, where it exits and the next request is refused.
+    const c2 = await celldDev(dir, "celld listening on");
     try {
       const refused = await inc((u) => fetch(c2.base + u)); // cellb is live: celld refuses
       expect(refused, JSON.stringify(refused)).toEqual({
