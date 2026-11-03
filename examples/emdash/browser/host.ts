@@ -7,11 +7,10 @@ const status = document.getElementById("status")!;
 const say = (text: string) => (status.textContent = text);
 
 async function serviceWorker(): Promise<ServiceWorker> {
-  // In the static build the ServiceWorker is one file at the origin's root, so any file server
-  // will do (a script under /__cellb/ may only control the whole origin with a
-  // Service-Worker-Allowed header); under the dev server it is the module beside this one.
-  const script = import.meta.env.DEV ? `${import.meta.env.BASE_URL}sw.ts` : "/cellb-sw.js";
-  await navigator.serviceWorker.register(script, { type: "module", scope: "/" });
+  // One self-contained file at the origin's root (browser/vite.sw.config.ts), in the static build
+  // and under the dev server alike: a module ServiceWorker cannot run Vite's dev modules (they use
+  // dynamic import()), and at the root it controls the whole origin from any file server.
+  await navigator.serviceWorker.register("/cellb-sw.js", { type: "module", scope: "/" });
   const reg = await navigator.serviceWorker.ready;
   if (!navigator.serviceWorker.controller)
     await new Promise((r) =>
@@ -27,7 +26,12 @@ async function start() {
   say("Registering the ServiceWorker…");
   await serviceWorker();
   say("Loading the app…");
-  const app = (p: string) => fetch(`${import.meta.env.BASE_URL}app/${p}`);
+  // The dev server answers a missing build with 404 and what to run; show that, not a parse error.
+  const app = async (p: string) => {
+    const r = await fetch(`${import.meta.env.BASE_URL}app/${p}`);
+    if (!r.ok) throw new Error(`${p}: ${r.status} ${await r.text()}`);
+    return r;
+  };
   const config: WranglerConfig = await (await app("config.json")).json();
   // EmDash's canonical URL: on Cloudflare it reads EMDASH_SITE_URL from process.env, which
   // nodejs_compat fills with the text vars (cellb does too); here, this origin.
