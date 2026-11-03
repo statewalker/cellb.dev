@@ -27,6 +27,10 @@ updates:
       # processed"), so cellb's sqlite_vec e2e project (celld-projects vectordb) cannot start.
       - dependency-name: sqlite-vec-wasm-demo
         versions: ["0.1.7", "0.1.8", "0.1.9"]
+      # zod is here for scripts/vendor-miniflare.mjs only: it bundles the zod Miniflare's
+      # simulators are written for, which is zod 3 (miniflare 4: "zod": "^3.25.76").
+      - dependency-name: zod
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /examples
