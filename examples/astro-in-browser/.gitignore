@@ -7,3 +7,4 @@ traces/*/*.json
 traces/*.db*
 traces/*.lock.json
 traces/emdash-node/
+dist

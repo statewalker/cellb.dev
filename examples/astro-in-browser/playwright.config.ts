@@ -14,13 +14,17 @@ async function chromeBinary(): Promise<string | undefined> {
 const executablePath = await chromeBinary();
 
 const port = Number(process.env.PORT ?? 5199);
+// STATIC=1: the static build (`pnpm build:static`, dist/static) behind a plain file server, as it
+// is published; otherwise the host page under Vite's dev server (it serves the app's sources).
+const base = process.env.STATIC ? `http://127.0.0.1:${port}` : `http://localhost:${port}`;
 
-// The host page under Vite's dev server (it serves the builder and the app's sources).
 export default defineConfig({
-  use: { baseURL: `http://localhost:${port}` },
+  use: { baseURL: base },
   webServer: {
-    command: `node node_modules/vite/bin/vite.js browser --config browser/vite.config.ts --port ${port} --strictPort`,
-    url: `http://localhost:${port}/__cellb/`,
+    command: process.env.STATIC
+      ? `python3 -m http.server ${port} --bind 127.0.0.1 --directory dist/static`
+      : `node node_modules/vite/bin/vite.js browser --config browser/vite.config.ts --port ${port} --strictPort`,
+    url: `${base}/__cellb/`,
     reuseExistingServer: true,
     timeout: 120_000,
   },

@@ -54,7 +54,16 @@ cd - && pnpm --dir .. install  # the examples' workspace (examples/; cellb from 
 pnpm dev:browser              # Vite; open http://localhost:<port>/__cellb/emdash.html (or /__cellb/)
 pnpm test                     # the builder on Node: the small app, EmDash's config and build
 pnpm test:browser             # every Playwright spec in test/browser (long; see below)
+pnpm build:static             # the host pages as static files, in dist/static
+pnpm serve:static             # python3 -m http.server on 127.0.0.1:8080
+STATIC=1 pnpm exec playwright test test/browser/build-in-browser.spec.ts   # a spec on dist/static
 ```
+
+The static build is what https://cellb-astro.httpeers.net serves: `/` links to the two host pages
+(`/__cellb/` for the small app, `/__cellb/emdash.html` for EmDash), each app's sources are files
+under `/__cellb/<app>-src/`, and the ServiceWorker is one file, `/cellb-sw.js`
+(`browser/vite.sw.config.ts`). Both apps run at the origin's root, so building one replaces the
+other.
 
 `?memory` on the page keeps packages in memory; `?pools` puts the site's cells in CellB's OPFS
 pools instead of the LTX storage. Network access to registry.npmjs.org is needed.
@@ -93,6 +102,13 @@ crashes at 2.5 GB.
 - **The first build in a fresh browser is the slow one**: every package is downloaded and stored.
   Clearing the site's storage clears the package store too.
 - **Sandboxed plugins are off**, as in the template (`worker_loaders` is commented out).
+- **`Set siteUrl or EMDASH_SITE_URL before running production setup`** from EmDash's setup, on
+  the static build only, means the built Worker saw no `vars` in `process.env`. A Vite production
+  build rewrites `globalThis.process.env` to `{}`, which empties CellB's
+  `Object.assign(globalThis.process.env, vars)` in the shard worker; `browser/vite.config.ts`
+  defines it back to itself.
+- **`Could not resolve "…": Failed to fetch`** in a cold build is a download from the npm
+  registry that failed. Building again downloads only the packages still missing.
 
 ## License
 

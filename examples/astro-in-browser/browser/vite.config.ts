@@ -27,19 +27,38 @@ const walk = (d: string): string[] =>
         : [join(d, n)],
   );
 
-/** The app's SOURCES as plain files (the browser builds them): list.json and files/<path>. */
+const listOf = (app: string) => walk(app).map((f) => `/${relative(app, f).split("\\").join("/")}`);
+
+/**
+ * The app's SOURCES as plain files (the browser builds them): list.json and files/<path>, served
+ * by the dev server and written into the static build.
+ */
 function appSources(): Plugin {
   return {
     name: "app-sources",
+    generateBundle() {
+      for (const [name, app] of Object.entries(apps)) {
+        const list = listOf(app);
+        this.emitFile({
+          type: "asset",
+          fileName: `${name}-src/list.json`,
+          source: JSON.stringify(list),
+        });
+        for (const p of list)
+          this.emitFile({
+            type: "asset",
+            fileName: `${name}-src/files${p}`,
+            source: readFileSync(join(app, p)),
+          });
+      }
+    },
     configureServer(server) {
       for (const [name, app] of Object.entries(apps))
         server.middlewares.use(`/__cellb/${name}-src/`, (req, res, next) => {
           const path = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname);
           if (path === "/list.json") {
             res.setHeader("content-type", "application/json");
-            return res.end(
-              JSON.stringify(walk(app).map((f) => `/${relative(app, f).split("\\").join("/")}`)),
-            );
+            return res.end(JSON.stringify(listOf(app)));
           }
           const file = join(app, path.replace(/^\/files/, ""));
           if (path.startsWith("/files/") && file.startsWith(app) && existsSync(file)) {
@@ -71,6 +90,22 @@ export default defineConfig({
     ],
   },
   worker: { format: "es" },
+  // A production build replaces `globalThis.process.env` with `{}`, which makes cellb's
+  // `Object.assign(globalThis.process.env, vars)` in the shard worker a no-op: the built Worker
+  // then reads no `vars` from process.env (EmDash: "Set siteUrl or EMDASH_SITE_URL").
+  define: { "globalThis.process.env": "globalThis.process.env" },
+  // `vite build`: the two host pages, their workers and the apps' sources under
+  // dist/static/__cellb/ (the base); scripts/build-static.mjs adds the ServiceWorker.
+  build: {
+    outDir: resolve(import.meta.dirname, "../dist/static/__cellb"),
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        index: resolve(import.meta.dirname, "index.html"),
+        emdash: resolve(import.meta.dirname, "emdash.html"),
+      },
+    },
+  },
   server: {
     strictPort: true,
     headers: { "Service-Worker-Allowed": "/" },

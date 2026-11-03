@@ -9,6 +9,8 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "dev:browser": "vite browser --config browser/vite.config.ts",
+    "build:static": "node scripts/build-static.mjs",
+    "serve:static": "python3 -m http.server 8080 --bind 127.0.0.1 --directory dist/static",
     "trace": "tsx scripts/trace-build.mts"
   },
   "dependencies": {
