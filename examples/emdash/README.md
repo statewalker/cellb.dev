@@ -24,12 +24,19 @@ pnpm test                 # astro build, then vitest (Node)
 pnpm build:static         # astro build, the browser bundle, the static site in dist/static
 pnpm serve:static         # python3 -m http.server on 127.0.0.1:8080
 pnpm test:browser         # build:static, then Playwright in Chromium against a file server
-pnpm dev:browser          # the same host page under Vite, from the sources
+pnpm dev:browser          # builds the app and its ServiceWorker, then the host page under Vite
 ```
 
-Astro needs Node.js ≥ 22.23.4. Open `http://127.0.0.1:8080/`: the first visit loads the host page
-(`/__cellb/`), which starts the site; every other path of the origin is then the EmDash site, and
-`/_emdash/admin` its setup wizard. Keep the host tab open while you use the site.
+Astro needs Node.js ≥ 22.23.4. Open `http://127.0.0.1:8080/` (`serve:static`) or the URL Vite
+prints (`dev:browser`, `http://localhost:5173/__cellb/` by default): the first visit loads the host
+page (`/__cellb/`), which starts the site; every other path of the origin is then the EmDash site,
+and `/_emdash/admin` its setup wizard. Keep the host tab open while you use the site.
+
+Under `dev:browser` only the host page and its shard worker come from Vite's sources. The app
+(`dist/server`, `dist/browser`, `dist/client`) and the ServiceWorker (`dist/static/cellb-sw.js`)
+are built once when it starts, so a change to them needs a restart. The ServiceWorker is always
+the bundled file at `/cellb-sw.js`: a module ServiceWorker cannot run Vite's dev modules, which use
+dynamic `import()`, and fails with `ServiceWorker cannot be started`.
 
 ## Examples
 

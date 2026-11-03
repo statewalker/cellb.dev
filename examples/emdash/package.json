@@ -8,7 +8,7 @@
   "scripts": {
     "build": "astro build && node scripts/apply-assetsignore.mjs",
     "build:browser": "pnpm run build && tsx scripts/bundle-browser.ts",
-    "dev:browser": "vite browser --config browser/vite.config.ts",
+    "dev:browser": "pnpm run build:browser && vite build --config browser/vite.sw.config.ts && vite browser --config browser/vite.config.ts",
     "test": "pnpm run build && vitest run",
     "test:browser": "pnpm run build:static && playwright test --config playwright.static.config.ts",
     "build:static": "pnpm run build:browser && node scripts/build-static.mjs",
