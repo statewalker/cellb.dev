@@ -1,6 +1,6 @@
 ---
 import { docHref } from "@/lib/docs";
-// cellb's numbers, in the shape celld.dev reports celld's. They are read from the last recorded
+// CellB's numbers, in the shape celld.dev reports celld's. They are read from the last recorded
 // runs of packages/cellb/bench (`pnpm bench`, `pnpm bench:browser`), so the page shows exactly
 // what the benchmark printed.
 import chromium from "../../../packages/cellb/bench/results/chromium.json";
@@ -36,7 +36,7 @@ const groups: { title: string; rows: Row[] }[] = [
         ref: 2,
       },
       {
-        label: "cellb's own cost per durable write",
+        label: "CellB's own cost per durable write",
         node: ms(node.durable.bucketRtt0ms.p50Ms),
         browser: "—",
         unit: "ms",
@@ -179,7 +179,7 @@ const groups: { title: string; rows: Row[] }[] = [
   <li>
     One machine, trivial cells (a table and a row each): a {node.machine.cpus}-vCPU {node.machine.cpu} VM
     with {node.machine.memoryGB} GB, Node {node.machine.node}, headless Chromium; measured {node.date}.
-    These are cellb's own costs, not a fleet's. They are not a comparison with celld's numbers,
+    These are CellB's own costs, not a fleet's. They are not a comparison with celld's numbers,
     which come from other hardware.
   </li>
   <li>The bucket is simulated: every store operation waits a fixed 0 or 90 ms. A real S3 bucket adds its own tail latency.</li>

@@ -1,12 +1,12 @@
 # @statewalker/astro-in-browser-example
 
-An Astro SSR app built from its sources **inside a browser tab** and run there on cellb: Astro's
-compiler and esbuild as WebAssembly, packages from the npm registry, the built Worker in cellb's
-shards with its Durable Objects on cellb's LTX storage. Two apps are built this way: a small Astro
+An Astro SSR app built from its sources **inside a browser tab** and run there on CellB: Astro's
+compiler and esbuild as WebAssembly, packages from the npm registry, the built Worker in CellB's
+shards with its Durable Objects on CellB's LTX storage. Two apps are built this way: a small Astro
 app (`app/`) and [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare` template
 (`../emdash`), which brings `astro.config.mjs`, its integrations, 225 routes, React islands, D1,
-R2, KV and a cron trigger. The same builder runs on Node, and its output runs on cellb in Node too.
-The package is private: it is a test of cellb and of webrun-bundler, not a library.
+R2, KV and a cron trigger. The same builder runs on Node, and its output runs on CellB in Node too.
+The package is private: it is a test of CellB and of webrun-bundler, not a library.
 
 ## How it fits together
 
@@ -39,7 +39,7 @@ host tab (browser/host.ts, emdash.html or index.html)
   output source map, webrun-bundler does not inline the packages' own maps (EmDash's server bundle:
   58.9 → 27.0 MB of input). The server bundle is minified, names kept.
 - **Cells on LTX files.** Each Durable Object is SQLite read page by page from its LTX files in
-  OPFS through a store worker (cellb's `bucket: { ltx }`, see
+  OPFS through a store worker (CellB's `bucket: { ltx }`, see
   `packages/cellb/docs/browser-host.md`).
 
 ## How to use it
@@ -56,19 +56,19 @@ pnpm test                     # the builder on Node: the small app, EmDash's con
 pnpm test:browser             # every Playwright spec in test/browser (long; see below)
 ```
 
-`?memory` on the page keeps packages in memory; `?pools` puts the site's cells in cellb's OPFS
+`?memory` on the page keeps packages in memory; `?pools` puts the site's cells in CellB's OPFS
 pools instead of the LTX storage. Network access to registry.npmjs.org is needed.
 
 | Spec (`test/browser/`) | What it proves |
 |---|---|
-| `build-in-browser.spec.ts` | the small app is built in the tab (about 5 s) and served by cellb |
+| `build-in-browser.spec.ts` | the small app is built in the tab (about 5 s) and served by CellB |
 | `emdash-in-browser.spec.ts` | EmDash built in the tab through the package store (cold: ~320 downloads; then a reload, warm: 0), run on the LTX storage, seeded, its pages and hydrated admin rendered, exported as a ZIP and served from disk. `EMDASH_STORE=0`: packages in memory. `EMDASH_HEAP=1`: memory of every realm. Fails on skipped component scripts, unsupported configuration and LTX store failures |
 | `emdash-admin-in-browser.spec.ts` | on the build made in the tab: EmDash's setup wizard, a passkey account, a post with a featured image in R2, published; the post after a reload of the host tab (a new build); a second host tab taking the shard over when the first closes |
 | `pkgstore-probe.spec.ts` | the package store alone, then under concurrent 5–20 MB PUTs, ranged GETs and compaction, with an integrity pass (`PKGSTORE_PACKS=80 PKGSTORE_CONCURRENCY=8` runs past the context's storage: only PUTs may fail) |
-| `cells-lab`, `*-probe` | a lab of the storage choices for shards, and probes (see each file's header). The labs of cellb's storage internals (`ltx-lab`, `sqlite-lab`) are in cellb: `packages/cellb/e2e-browser/probes` |
+| `cells-lab`, `*-probe` | a lab of the storage choices for shards, and probes (see each file's header). The labs of CellB's storage internals (`ltx-lab`, `sqlite-lab`) are in CellB: `packages/cellb/e2e-browser/probes` |
 
 On Node: `npx tsx scripts/trace-build.mts emdash` builds EmDash with the builder and writes a trace
-(`traces/emdash/`); `npx tsx scripts/run-node.mts` then runs that bundle on cellb in Node with D1,
+(`traces/emdash/`); `npx tsx scripts/run-node.mts` then runs that bundle on CellB in Node with D1,
 R2 and KV, and checks that its cron trigger runs `scheduled()`.
 
 ## Measurements

@@ -1,14 +1,14 @@
 ---
 // One fleet, three kinds of node, one bucket. The highlighted cell is the
-// same Durable Object as it moves: celld → cellb in Node → cellb in a tab.
+// same Durable Object as it moves: celld → CellB in Node → CellB in a tab.
 const hosts = [
   {
     name: "browser tab",
-    engine: "cellb · SQLite WASM on OPFS",
+    engine: "CellB · SQLite WASM on OPFS",
     cells: ["doc:spec", "agent:review"],
     active: 1,
   },
-  { name: "node-a", engine: "cellb · node:sqlite", cells: ["room:lobby", "user:ada"], active: -1 },
+  { name: "node-a", engine: "CellB · node:sqlite", cells: ["room:lobby", "user:ada"], active: -1 },
   { name: "edge-1", engine: "celld · V8", cells: ["queue:jobs", "kv:sessions"], active: -1 },
 ];
 ---

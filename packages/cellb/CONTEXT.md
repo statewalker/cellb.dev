@@ -1,6 +1,6 @@
-# cellb
+# CellB
 
-cellb runs Workers and their Durable Objects, as Cloudflare and celld define them, in a browser and
+CellB runs Workers and their Durable Objects, as Cloudflare and celld define them, in a browser and
 in Node. This glossary fixes what each word means here, where the same word means different things
 elsewhere.
 
@@ -74,7 +74,7 @@ The string an object id is derived from: script name and class for Durable Objec
 for KV, D1 and Queues. Changing it changes every id.
 
 **Cell key**:
-The name a cell is known by inside cellb: its class and its object id.
+The name a cell is known by inside CellB: its class and its object id.
 _Avoid_: scope, cell name
 
 **Scope**:
@@ -97,7 +97,7 @@ A runtime that is a member of a fleet, under a name recorded in the fleet bucket
 _Avoid_: node for Node.js (write "Node.js") or for the Node SQLite driver (write "node:sqlite")
 
 **Fleet**:
-The nodes, celld and cellb alike, that share one fleet bucket.
+The nodes, celld and CellB alike, that share one fleet bucket.
 _Avoid_: cluster
 
 **Fleet bucket**:

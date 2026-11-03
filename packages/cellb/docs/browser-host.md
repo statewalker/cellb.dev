@@ -1,7 +1,7 @@
 # Running cells in a browser
 
 A browser has no server process, no `node:sqlite` and no way for a ServiceWorker to accept a
-WebSocket. cellb still runs a project's Workers and Durable Objects there: SQLite WASM on OPFS in a
+WebSocket. CellB still runs a project's Workers and Durable Objects there: SQLite WASM on OPFS in a
 Dedicated Worker, requests through a ServiceWorker, WebSockets over MessagePorts. This page covers
 the four ways to wire it, the S3 setup for a fleet bucket, what fails, and what differs in Firefox
 and WebKit.
@@ -375,7 +375,7 @@ tabs or workers with no server. Its conditional writes are atomic only within on
   URL, every one is stored with `Path=/`. A `Response` built outside Worker code (`fetch()`'s, or
   the platform's) still drops `Set-Cookie`.
 - **A `Request` arrives without `Upgrade` or `Sec-WebSocket-Protocol`.** Browsers drop forbidden
-  headers from every `new Request()`. cellb carries them as own properties and `x-cellb-*` headers,
+  headers from every `new Request()`. CellB carries them as own properties and `x-cellb-*` headers,
   and the `Request` global of Worker code carries them into its copies (`new Request(req)`, as
   partyserver makes); a copy made with the host's own `Request` (code outside the Worker bundle)
   loses them.
@@ -402,10 +402,10 @@ Firefox 157 runs module ServiceWorkers, module Dedicated Workers, OPFS synchrono
   `await request.arrayBuffer()`, or the request itself. The getter sits on a prototype below
   `Request.prototype`, not on it: `@statewalker/webrun-http-streams` asks whether
   `Request.prototype` owns `body` to decide whether it may build requests with stream bodies, and
-  must keep hearing no. Where cellb rebuilds a request itself (a scheme restored on a node's link, a
+  must keep hearing no. Where CellB rebuilds a request itself (a scheme restored on a node's link, a
   URL given back on an isolate's port) it reads the body whole there (spec: `peer-routing`).
 - **Storage refusals are worded as V8 words them.** `storage.put` of a value structured clone
-  refuses throws cellb's own `TypeError`, with the message of cellb's V8 serializer
+  refuses throws CellB's own `TypeError`, with the message of CellB's V8 serializer
   (`() => 1 could not be cloned.`), not SpiderMonkey's (`Function object could not be cloned.`), so
   it reads as on workerd and celld (spec: `storage-details`).
 - **Under Playwright's Firefox, a navigation the ServiceWorker lets through to the network leaves
