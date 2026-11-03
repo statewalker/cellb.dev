@@ -41,17 +41,26 @@ const runtime = (dir: string, closeGraceMs?: number) =>
     worker: {
       Slow,
       default: {
-        // A Worker-level long poll: ends when its request's signal aborts.
-        fetch: (req: Request) =>
-          new Promise<Response>((resolve) =>
-            req.signal.addEventListener(
-              "abort",
-              () => resolve(new Response(null, { status: 499 })),
-              {
-                once: true,
-              },
-            ),
-          ),
+        // /later: answers at once and writes to an object afterwards (ctx.waitUntil), as a
+        // queue's delivery does. Otherwise a Worker-level long poll: ends when its request's
+        // signal aborts.
+        fetch: (req: Request, env: any, ctx: any) =>
+          new URL(req.url).pathname === "/later"
+            ? (ctx.waitUntil(
+                new Promise((r) => setTimeout(r, 50)).then(() =>
+                  env.SLOW.getByName("later").write("from waitUntil"),
+                ),
+              ),
+              new Response("accepted"))
+            : new Promise<Response>((resolve) =>
+                req.signal.addEventListener(
+                  "abort",
+                  () => resolve(new Response(null, { status: 499 })),
+                  {
+                    once: true,
+                  },
+                ),
+              ),
       },
     } as never,
     durableObjects: { SLOW: { className: "Slow" } },
@@ -130,5 +139,16 @@ describe("P34 close() with events in flight", () => {
     expect((await polled).status).toBe(499);
     // and a request after close is refused without running the Worker
     expect((await rt.fetch(new Request("http://x/poll"))).status).toBe(503);
+  });
+
+  it("lets work in flight reach other objects during the grace period", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "p34-"));
+    const rt = runtime(dir);
+    gate = Promise.resolve();
+    expect(await (await rt.fetch(new Request("http://x/later"))).text()).toBe("accepted");
+    await rt.close(); // the write is still to come: it opens a cell during the grace period
+    const again = runtime(dir);
+    expect(await (again.env.SLOW as any).getByName("later").rows()).toEqual(["from waitUntil"]);
+    await again.close();
   });
 });
