@@ -1,22 +1,22 @@
 ---
-import { repoFile } from "@/lib/site";
+import { docHref } from "@/lib/docs";
 import Icon from "./Icon.astro";
 import Card from "./ui/Card.astro";
 
 const apps = [
   {
     image: "/showcase/emdash-admin-in-tab.png",
-    alt: "EmDash's post editor, running in a browser tab on cellb, after publishing a post with a featured image",
+    alt: "EmDash's post editor, running in a browser tab on CellB, after publishing a post with a featured image",
     title: "A CMS in a tab, from static files",
     body: "EmDash, the Astro CMS, runs unchanged from its Cloudflare build: D1, KV sessions, R2 media, a cron trigger, passkeys. A plain file server hands the browser the files and is then stopped. The setup wizard, sign-in, editor and media library all keep working, and the post is still there after the tab is reopened.",
-    href: repoFile("examples/emdash/README.md"),
+    href: docHref("examples/emdash/README.md"),
   },
   {
     image: "/showcase/emdash-built-in-tab.png",
     alt: "The host tab's build log: EmDash's 225 routes built in the browser in about 73 seconds",
     title: "Built from source, in the same tab",
-    body: "Astro's compiler and esbuild run as WebAssembly in workers, with packages from the npm registry kept in a package store that is itself a Durable Object. EmDash's 225 routes build in about 65–115 s on 4 CPUs and run on cellb at once, with their cells on LTX files in OPFS.",
-    href: repoFile("examples/astro-in-browser/README.md"),
+    body: "Astro's compiler and esbuild run as WebAssembly in workers, with packages from the npm registry kept in a package store that is itself a Durable Object. EmDash's 225 routes build in about 65–115 s on 4 CPUs and run on CellB at once, with their cells on LTX files in OPFS.",
+    href: docHref("examples/astro-in-browser/README.md"),
   },
 ] as const;
 
@@ -59,7 +59,7 @@ const more = [
 </div>
 <div class="mt-6 grid gap-4 sm:grid-cols-2">
   {more.map(([name, body, path]) => (
-    <a href={repoFile(path)} class="group rounded-xl border bg-card p-5 transition-colors hover:border-primary/40">
+    <a href={docHref(path)} class="group rounded-xl border bg-card p-5 transition-colors hover:border-primary/40">
       <p class="font-mono text-sm font-medium group-hover:text-primary">{name}</p>
       <p class="mt-1 text-sm text-muted-foreground">{body}</p>
     </a>

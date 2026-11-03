@@ -1,6 +1,6 @@
 # Benchmarks
 
-cellb's numbers, measured the way [celld.dev](https://celld.dev) reports celld's: durability,
+CellB's numbers, measured the way [celld.dev](https://celld.dev) reports celld's: durability,
 speed and density. Each scenario runs in a child process of its own and imports the built
 package (`dist/`), as a user of the published package would. The browser half runs the same
 Worker in a Dedicated Worker in Chromium.
@@ -28,10 +28,10 @@ BENCH_JSON=bench/results/chromium.json pnpm bench:browser   # Chromium (BENCH_CE
 ## Reading the numbers
 
 - **One machine, trivial cells.** The recorded runs come from one 4-vCPU Linux VM
-  (`results/*.json` names it). They show cellb's own costs, not a fleet's.
+  (`results/*.json` names it). They show CellB's own costs, not a fleet's.
 - **The bucket is simulated.** `durable` adds a fixed delay per store operation; a real S3
   bucket adds its own tail latency. Point the scenario at `s3ObjectStore` to measure one.
-- **HTTP is Node's `node:http` bridge.** cellb's runtime is a `(Request) ⇒ Response` handler;
+- **HTTP is Node's `node:http` bridge.** CellB's runtime is a `(Request) ⇒ Response` handler;
   the HTTP row includes converting Node's request and response to Fetch objects.
 - **Failover is the node lease.** A second node may take a cell only after the first one's lease
   expires (10 s by default, `leaseTtlMs`); the measured failover is that wait plus the restore.

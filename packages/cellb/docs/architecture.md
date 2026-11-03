@@ -1,6 +1,6 @@
 # Architecture
 
-cellb is one runtime core that does not know where it runs, plus adapters for each platform. This
+CellB is one runtime core that does not know where it runs, plus adapters for each platform. This
 page shows the layers, the path of a request, and where each `src` directory sits. Words such as
 *cell*, *owner* and *epoch* are defined in [CONTEXT.md](../CONTEXT.md).
 

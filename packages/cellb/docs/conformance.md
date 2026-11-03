@@ -1,7 +1,7 @@
 # Conformance: celld is the judge, workerd for stubs
 
-cellb is not tested against expectations written here alone. Each Workers or Durable Objects
-behaviour that celld also has is run on the real celld, recorded, and replayed against cellb in Node
+CellB is not tested against expectations written here alone. Each Workers or Durable Objects
+behaviour that celld also has is run on the real celld, recorded, and replayed against CellB in Node
 and in Chromium; the two must answer the same. This page explains the corpus, the judges, and how a
 difference is either fixed or pinned.
 
@@ -17,11 +17,11 @@ celld publishes no tests of its own, so its examples, its documentation and work
 executable specification. [ADR 0003](adr/0003-celld-as-conformance-oracle.md) records why celld,
 not workerd, is the judge.
 
-## Where cellb follows workerd instead
+## Where CellB follows workerd instead
 
 celld refuses stubs, functions and `RpcTarget`s across a stub or into a loaded Worker
 (`function () {} could not be cloned.`, `RPC stubs cannot cross isolate boundaries yet.`); workerd
-passes them by reference, and so does cellb. A scenario with `judge: "workerd"` is compared with
+passes them by reference, and so does CellB. A scenario with `judge: "workerd"` is compared with
 `conformance/golden-workerd/<name>.json` instead of celld's golden, in Node and in Chromium. Its
 celld transcript is recorded too, so the difference stays on file, and it carries a
 `workerdDiffers` line. The judged-by-workerd scenarios:
@@ -67,8 +67,8 @@ differently. The workerd test configuration (`.wd-test`) is translated by hand i
 
 ## Known gaps and celld's deviations are pinned, not hidden
 
-- **`knownGap`** marks a recorded celld behaviour cellb does not reproduce yet. In Node the scenario
-  is expected to fail (`it.fails`): if cellb starts to match, the test turns red and the marker must
+- **`knownGap`** marks a recorded celld behaviour CellB does not reproduce yet. In Node the scenario
+  is expected to fail (`it.fails`): if CellB starts to match, the test turns red and the marker must
   go. Chromium skips it. The current list is in [gaps.md](gaps.md).
 - **`workerdDiffers`** marks a project where workerd answers differently from celld.
   `conformance/record-workerd.ts` runs the scenarios that use only Durable Objects, `vars` and
@@ -79,7 +79,7 @@ differently. The workerd test configuration (`.wd-test`) is translated by hand i
 ## WebSockets are compared with the platform's own
 
 A shared case module encodes 20 WHATWG WebSocket behaviours with no Node- or DOM-only imports.
-They run against cellb's sockets (in-process, across worker-thread shards, through a ServiceWorker
+They run against CellB's sockets (in-process, across worker-thread shards, through a ServiceWorker
 router to shard workers) and against the platform's native `WebSocket` talking to a real `ws`
 server that speaks the same protocol as the test `Room` object. Chrome's native WebSocket is the
 reference. Node's native WebSocket deviates on some cases depending on the Node version; the test
@@ -96,8 +96,8 @@ setup. `MUTANTS=0,3` runs a subset.
 ## What breaks
 
 - **A scenario fails with a bundler error at once** (an unresolved `workerd:*` import, or another
-  module cellb does not provide). The project cannot load in cellb; nothing times out.
-- **A `knownGap` scenario turns red in Node with "Expect test to fail"**. cellb now matches celld:
+  module CellB does not provide). The project cannot load in CellB; nothing times out.
+- **A `knownGap` scenario turns red in Node with "Expect test to fail"**. CellB now matches celld:
   remove the `knownGap` entry and record the change in [gaps.md](gaps.md).
 - **`record-workerd.ts` prints `agrees with celld, but workerdDiffers is set (stale)`** and fails.
   Remove the `workerdDiffers` line.

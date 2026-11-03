@@ -10,7 +10,8 @@ import Button from "@/components/ui/Button.astro";
 import Card from "@/components/ui/Card.astro";
 import Tabs from "@/components/ui/Tabs.astro";
 import Base from "@/layouts/Base.astro";
-import { REPO, repoDoc } from "@/lib/site";
+import { docHref } from "@/lib/docs";
+import { REPO } from "@/lib/site";
 
 // --- Code samples (from packages/cellb/README.md) -------------------------
 
@@ -87,7 +88,7 @@ const pillars = [
   {
     icon: "refresh",
     title: "Movable",
-    body: "cellb stores cells exactly as celld does. One cell can be served by celld, then by cellb in Node, then by a browser, through one shared bucket and with no conversion.",
+    body: "CellB stores cells exactly as celld does. One cell can be served by celld, then by CellB in Node, then by a browser, through one shared bucket and with no conversion.",
   },
 ] as const;
 
@@ -119,10 +120,10 @@ const hosts = [
     title: "In the cloud, with celld",
     tag: "celldBucket(…)",
     points: [
-      "One S3, GCS or Azure bucket shared by celld nodes, cellb nodes and browsers",
+      "One S3, GCS or Azure bucket shared by celld nodes, CellB nodes and browsers",
       "celld's ownership records, node leases, epochs and wake index",
       "Exactly one owner per cell, with self-fencing on a lapsed lease",
-      "A cell that cellb wrote, celld continues, and back",
+      "A cell that CellB wrote, celld continues, and back",
     ],
   },
 ] as const;
@@ -150,7 +151,7 @@ const rows: Row[] = [
     celld: "supported",
     node: "yes, same storage format",
     browser: "yes, same storage format",
-    check: "counter, rpc, alarm, workerd's tests; cells cross celld ↔ cellb",
+    check: "counter, rpc, alarm, workerd's tests; cells cross celld ↔ CellB",
   },
   {
     feature: "Durable Object facets",
@@ -214,7 +215,7 @@ const rows: Row[] = [
     celld: "supported",
     node: "yes",
     browser: "yes, over MessagePorts",
-    check: "wsecho, wsclient, wd-websocket-* (cellb passes wd-websocket-hibernation)",
+    check: "wsecho, wsclient, wd-websocket-* (CellB passes wd-websocket-hibernation)",
   },
   {
     feature: "Vectorize-style search",
@@ -263,12 +264,12 @@ const useCases = [
   {
     icon: "layers",
     title: "IDE-class applications",
-    body: "Editors like VS Code and Theia split into a UI, workspace services and extension hosts that run locally or remotely behind one API. With cellb each of those parts is a cell: documents, workspaces, language services. Plugins run as loaded Workers in a realm of their own. The same plugin runs beside the UI in a tab or on a server, and the code stays the same.",
+    body: "Editors like VS Code and Theia split into a UI, workspace services and extension hosts that run locally or remotely behind one API. With CellB each of those parts is a cell: documents, workspaces, language services. Plugins run as loaded Workers in a realm of their own. The same plugin runs beside the UI in a tab or on a server, and the code stays the same.",
   },
   {
     icon: "cpu",
     title: "AI agents as Durable Objects",
-    body: "An agent or conversation is a cell whose transcript lives in its own SQLite. Alarms drive long runs, SSE and WebSockets stream replies, and env.AI reaches any OpenAI-compatible model: llama.cpp, Ollama or a hosted API. Flue, pi and opencode already run on cellb. If a node stops during a model call, another node on the same bucket takes the cell and finishes the submission.",
+    body: "An agent or conversation is a cell whose transcript lives in its own SQLite. Alarms drive long runs, SSE and WebSockets stream replies, and env.AI reaches any OpenAI-compatible model: llama.cpp, Ollama or a hosted API. Flue, pi and opencode already run on CellB. If a node stops during a model call, another node on the same bucket takes the cell and finishes the submission.",
   },
   {
     icon: "lock",
@@ -330,7 +331,7 @@ const lifecycle = [
           <span class="text-brand-gradient">Browser, server, cloud.</span>
         </h1>
         <p class="max-w-xl text-lg text-muted-foreground text-pretty">
-          cellb runs Workers and Durable Objects unchanged in a browser tab, in Node, and
+          CellB runs Workers and Durable Objects unchanged in a browser tab, in Node, and
           alongside celld on one shared bucket. It is an architecture for rich, isomorphic
           applications built for people and for AI agents.
         </p>
@@ -435,11 +436,11 @@ const lifecycle = [
       <div class="max-w-3xl space-y-3">
         <p class="font-mono text-sm text-primary">// real apps</p>
         <h2 class="text-3xl font-semibold tracking-tight text-balance">
-          Large Cloudflare apps that cellb did not write, running in a tab.
+          Large Cloudflare apps that CellB did not write, running in a tab.
         </h2>
         <p class="text-muted-foreground">
-          The examples use cellb as its users do, from npm, and a nightly CI run checks them on
-          cellb as the next release would publish it. Running them found gaps in cellb, which are
+          The examples use CellB as its users do, from npm, and a nightly CI run checks them on
+          CellB as the next release would publish it. Running them found gaps in CellB, which are
           now closed.
         </p>
       </div>
@@ -460,7 +461,7 @@ const lifecycle = [
             A runtime is a plain <code class="font-mono text-sm">(Request) ⇒ Response</code>
             handler. Mount it on <code class="font-mono text-sm">node:http</code>, a ServiceWorker
             or a test. Wrangler projects load from the configuration celld deploys, and anything
-            cellb does not support is listed in <code class="font-mono text-sm">unsupported</code>
+            CellB does not support is listed in <code class="font-mono text-sm">unsupported</code>
             instead of being silently ignored.
           </p>
           <ul class="space-y-2 pt-2 text-sm text-muted-foreground">
@@ -485,8 +486,8 @@ const lifecycle = [
       <p class="font-mono text-sm text-primary">// next to celld</p>
       <h2 class="text-3xl font-semibold tracking-tight">celld is the judge.</h2>
       <p class="text-muted-foreground">
-        celld's examples, cellb's own probe projects and workerd's Durable Object tests run on the
-        real celld and are recorded. The recordings are then replayed against cellb in Node and in
+        celld's examples, CellB's own probe projects and workerd's Durable Object tests run on the
+        real celld and are recorded. The recordings are then replayed against CellB in Node and in
         Chromium on every pull request. That is 70 scenarios: 5 are judged by workerd instead,
         and 6 are known differences.
       </p>
@@ -512,9 +513,9 @@ const lifecycle = [
           <tr class="border-b bg-muted/40 text-left">
             <th class="px-4 py-3 font-medium">Feature</th>
             <th class="px-4 py-3 font-mono font-medium">celld 0.6.3</th>
-            <th class="px-4 py-3 font-mono font-medium text-primary">cellb · Node</th>
-            <th class="px-4 py-3 font-mono font-medium text-primary">cellb · browsers</th>
-            <th class="px-4 py-3 font-medium text-muted-foreground">How cellb is checked</th>
+            <th class="px-4 py-3 font-mono font-medium text-primary">CellB · Node</th>
+            <th class="px-4 py-3 font-mono font-medium text-primary">CellB · browsers</th>
+            <th class="px-4 py-3 font-medium text-muted-foreground">How CellB is checked</th>
           </tr>
         </thead>
         <tbody>
@@ -539,8 +540,8 @@ const lifecycle = [
       <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-primary"></span>supported</span>
       <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-amber-500"></span>partial, example or different</span>
       <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-muted-foreground/40"></span>not supported</span>
-      <a href={repoDoc("celld-compatibility.md")} class="ml-auto inline-flex items-center gap-1 text-primary hover:underline">
-        Where cellb follows Cloudflare instead of celld <Icon name="externalLink" class="size-3" />
+      <a href={docHref("packages/cellb/docs/celld-compatibility.md")} class="ml-auto inline-flex items-center gap-1 text-primary hover:underline">
+        Where CellB follows Cloudflare instead of celld <Icon name="externalLink" class="size-3" />
       </a>
     </div>
    </div>
@@ -554,7 +555,7 @@ const lifecycle = [
         <h2 class="text-3xl font-semibold tracking-tight">One writer, and no lost writes.</h2>
         <p class="text-muted-foreground">
           A cell is safe when only one runtime writes it at a time and every acknowledged write
-          can be restored somewhere else. On a fleet bucket, cellb uses celld's own ownership
+          can be restored somewhere else. On a fleet bucket, CellB uses celld's own ownership
           protocol to guarantee both.
         </p>
       </div>
@@ -577,7 +578,7 @@ const lifecycle = [
       <p class="font-mono text-sm text-primary">// by the numbers</p>
       <h2 class="text-3xl font-semibold tracking-tight">Measured, and reproducible.</h2>
       <p class="text-muted-foreground">
-        The rows celld.dev reports, measured for cellb on Node and in Chromium by the benchmark in
+        The rows celld.dev reports, measured for CellB on Node and in Chromium by the benchmark in
         the repository. The page reads its last recorded run.
       </p>
     </div>
@@ -594,11 +595,11 @@ const lifecycle = [
         <p class="font-mono text-sm text-primary">// try it</p>
         <h2 class="text-3xl font-semibold tracking-tight">Tabs share one origin's cells.</h2>
         <p class="text-muted-foreground">
-          In a browser, cellb places cells in shards, and each shard is owned through one Web Lock.
+          In a browser, CellB places cells in shards, and each shard is owned through one Web Lock.
           This small demo uses the same primitive. Open the page in a second tab, press increment
           in both, then close the owner tab and watch the other one take over.
         </p>
-        <a href={repoDoc("browser-host.md")} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+        <a href={docHref("packages/cellb/docs/browser-host.md")} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
           The four browser topologies <Icon name="externalLink" class="size-3" />
         </a>
       </div>

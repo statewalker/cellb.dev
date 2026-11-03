@@ -2,7 +2,7 @@
 
 This page records what limits the number of cells one browser tab can run, measured in Chromium,
 and what each limit costs in memory. It covers one worker, many workers, and what changed when
-cellb stopped using SQLite WASM's defaults for cell connections. Words such as *cell* and *shard*
+CellB stopped using SQLite WASM's defaults for cell connections. Words such as *cell* and *shard*
 are defined in [CONTEXT.md](../CONTEXT.md); how a browser runs cells is in
 [browser-host.md](browser-host.md).
 
@@ -33,7 +33,7 @@ They were measured on one 4-vCPU Linux VM with 16 GB of memory, in headless Chro
 
 ## What one cell costs
 
-| | SQLite WASM defaults | cellb's connections (lookaside off, 4 KiB pages) |
+| | SQLite WASM defaults | CellB's connections (lookaside off, 4 KiB pages) |
 |---|---|---|
 | SQLite WASM heap | 240 KB | 101 KB |
 | Renderer process (PSS) | 206 KB | 155 KB |
@@ -54,7 +54,7 @@ They were measured on one 4-vCPU Linux VM with 16 GB of memory, in headless Chro
   | lookaside off | 213 KB |
   | `cache_size=16` or `cache_size=2` | 258 KB |
   | 4 KiB pages | 176 KB |
-  | 4 KiB pages, lookaside off (cellb now) | 120 KB |
+  | 4 KiB pages, lookaside off (CellB now) | 120 KB |
   | 1 KiB pages, lookaside off | 27 KB |
 
   `tuneCellConnection` (`src/adapters/wasm-sqlite.ts`) turns lookaside off and gives a new
@@ -137,7 +137,7 @@ where OPFS keeps its files.
 
 ## What follows for an application
 
-- **Open cells:** about 20,000 small cells per worker with cellb's connections (8,000 with SQLite
+- **Open cells:** about 20,000 small cells per worker with CellB's connections (8,000 with SQLite
   WASM's defaults); more for cells with smaller pages, fewer for cells that read more pages.
 - **Cells on disk:** not limited by memory. Close idle databases (`closeDatabaseAfterMs`), and a
   worker keeps as many cells as OPFS holds, at about 26 KB each for a small cell.

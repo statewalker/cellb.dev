@@ -1,0 +1,18 @@
+---
+import { getEntry, render } from "astro:content";
+import Docs from "@/layouts/Docs.astro";
+import { type RepoPage, repoPages } from "@/lib/docs";
+
+export function getStaticPaths() {
+  return repoPages.map((page) => ({ params: { slug: page.slug }, props: { page } }));
+}
+
+const { page } = Astro.props as { page: RepoPage };
+const entry = await getEntry("repo", page.file);
+if (!entry) throw new Error(`${page.file} is not in the "repo" collection`);
+const { Content } = await render(entry);
+---
+
+<Docs title={page.label}>
+  <Content />
+</Docs>

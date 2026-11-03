@@ -1,13 +1,13 @@
 ---
 import CodeBlock from "@/components/CodeBlock.astro";
 import Docs from "@/layouts/Docs.astro";
-import { repoDoc } from "@/lib/site";
+import { docHref } from "@/lib/docs";
 ---
 
-<Docs title="How it works" description="cellb's core, its ports, ownership and durability.">
+<Docs title="How it works" description="CellB's core, its ports, ownership and durability.">
   <h1>How it works</h1>
   <p>
-    cellb has one runtime core that does not know where it runs, plus an adapter for each
+    CellB has one runtime core that does not know where it runs, plus an adapter for each
     platform. The same core runs a cell in a tab, in a Node process, or as one node of a celld
     fleet.
   </p>
@@ -56,7 +56,7 @@ import { repoDoc } from "@/lib/site";
     <tbody>
       <tr><td>One process</td><td>nothing to share</td><td>none needed</td></tr>
       <tr><td>A browser origin, sharded</td><td>a shard</td><td>one Web Lock per shard, held by one shard worker</td></tr>
-      <tr><td>A fleet bucket (celld, cellb, browsers)</td><td>a cell</td><td>celld's <code>own.json</code> per cell, a node lease per node, epochs and self-fencing</td></tr>
+      <tr><td>A fleet bucket (celld, CellB, browsers)</td><td>a cell</td><td>celld's <code>own.json</code> per cell, a node lease per node, epochs and self-fencing</td></tr>
     </tbody>
   </table>
 
@@ -90,8 +90,8 @@ import { repoDoc } from "@/lib/site";
 
   <h2>Read more</h2>
   <ul>
-    <li><a href={repoDoc("architecture.md")}>Architecture</a></li>
-    <li><a href={repoDoc("ownership-and-durability.md")}>Ownership and durability</a></li>
-    <li><a href={repoDoc("celld-compatibility.md")}>celld compatibility</a></li>
+    <li><a href={docHref("packages/cellb/docs/architecture.md")}>Architecture</a></li>
+    <li><a href={docHref("packages/cellb/docs/ownership-and-durability.md")}>Ownership and durability</a></li>
+    <li><a href={docHref("packages/cellb/docs/celld-compatibility.md")}>celld compatibility</a></li>
   </ul>
 </Docs>

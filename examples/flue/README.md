@@ -1,16 +1,16 @@
 # @statewalker/flue-example
 
 A [Flue](https://flueframework.com/) agent app, built with Flue's own Cloudflare build and run on
-cellb instead of Cloudflare. One agent, `Assistant`, has one tool; its model is a fake
+CellB instead of Cloudflare. One agent, `Assistant`, has one tool; its model is a fake
 OpenAI-compatible endpoint, so the whole thing runs offline once the packages are installed. The
-package is private: it is a test of cellb, not a library.
+package is private: it is a test of CellB, not a library.
 
 ## Why it exists
 
 Flue builds each agent as a Durable Object on Cloudflare's Agents SDK. That is a large, real Worker
-that cellb did not write: it reads `env` from `cloudflare:workers` while its module is evaluated,
+that CellB did not write: it reads `env` from `cloudflare:workers` while its module is evaluated,
 imports `cloudflare:email` and bare Node.js built-in names, writes SQL with internal names in string
-literals, and commits several times within one event. cellb's own tests check each of these alone
+literals, and commits several times within one event. CellB's own tests check each of these alone
 (`packages/cellb/test/p13-agents-sdk-host.test.ts`); this app checks them together, as a real
 Agents SDK app uses them.
 
@@ -37,7 +37,7 @@ What `test/flue-on-cellb.test.ts` proves:
 3. A node stops in the middle of a model call. A second node on the same fleet bucket, with no local
    state, takes the cell over, and Flue's recovery finishes the submission there.
 4. The `cloud` agent (model `cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast`) answers
-   through Flue's `cloudflare` provider: both model turns go through `env.AI.run()`, which cellb
+   through Flue's `cloudflare` provider: both model turns go through `env.AI.run()`, which CellB
    sends to the `ai` endpoint, with the Workers AI id mapped to the endpoint's model.
 
 What `test/agents-websocket.test.ts` proves with a plain Agents SDK app (`test/agents/`, bundled as
@@ -61,11 +61,11 @@ module, and a Dedicated Worker (`browser/flue-worker.ts`) hosts it with `browser
    and after an `await`; the Node suite checks the same with the real `node:async_hooks`.
 7. Four messages sent to one conversation at once all settle, none is lost.
 
-8. 32 conversations run over 1 and over 4 workers with cellb's `startProjectShards`
+8. 32 conversations run over 1 and over 4 workers with CellB's `startProjectShards`
    (`browser/flue-shard-worker.ts` is the worker): each worker hosts the app with its own OPFS
    pool and owns its share of the conversations, and requests enter through every worker.
 
-9. Two tabs share the app (`browser/tabs.html`: cellb's `joinProjectShards` and a ServiceWorker
+9. Two tabs share the app (`browser/tabs.html`: CellB's `joinProjectShards` and a ServiceWorker
    running `installProjectRouter`): its 4 shards split 2 / 2, both tabs converse through the
    ServiceWorker at once, and when one tab closes the other takes its shards and the
    conversations stored in them. The app mounts its routes under `BASE_PATH` (`/app/<name>`),
@@ -111,10 +111,10 @@ CORS preflights, since the worker's origin is the Vite server's) and a fresh OPF
 
 - **Two providers.** The app registers its own OpenAI-compatible provider (`local`, `src/app.ts`);
   `flue({ providers: ["cloudflare"] })` adds Flue's `cloudflare` provider, which calls the Workers
-  AI binding (`ai` in `wrangler.jsonc`, migration `v2` for the `cloud` agent). On cellb that
+  AI binding (`ai` in `wrangler.jsonc`, migration `v2` for the `cloud` agent). On CellB that
   binding is served by the host's `ai` endpoint; the tests point both at the fake model.
 - **The model URL comes from `env`, read at module evaluation.** That is how Flue apps configure
-  providers, and it is the path cellb's per-project `cloudflare:workers` `env` exists for.
+  providers, and it is the path CellB's per-project `cloudflare:workers` `env` exists for.
 - **`vite.config.ts` is for the build only; `vitest.config.ts` is separate.** With the Cloudflare
   plugin loaded, vitest tries to run the tests in workerd.
 - **`src/cloudflare-workers.d.ts` types only `env`.** It is the one part of `cloudflare:workers` the
@@ -128,7 +128,7 @@ CORS preflights, since the worker's origin is the Vite server's) and a fresh OPF
 - **`run vite build first (pnpm test does)`** is what `vitest run` alone says without `dist/`.
 - **The browser test's Chromium** is `PW_CHROMIUM`, else Playwright's own, else the one
   `@sparticuz/chromium` unpacks (as in `packages/cellb`).
-- What cellb still lacks for Agents SDK apps is in `../../packages/cellb/docs/gaps.md`.
+- What CellB still lacks for Agents SDK apps is in `../../packages/cellb/docs/gaps.md`.
 
 ### Dependencies
 

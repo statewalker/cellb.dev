@@ -1,6 +1,6 @@
 # @statewalker/agent-examples
 
-Coding-agent frameworks running in Durable Objects on cellb, each against a fake OpenAI-compatible
+Coding-agent frameworks running in Durable Objects on CellB, each against a fake OpenAI-compatible
 model (`@statewalker/fake-openai`), so the whole thing runs offline once the packages are installed:
 
 | Example | Framework | What it shows |
@@ -9,14 +9,14 @@ model (`@statewalker/fake-openai`), so the whole thing runs offline once the pac
 | `opencode/` | opencode's workerd SDK (`@opencode-ai/sdk/workerd`) | celld's opencode example: the SDK boots on the object's SQLite, creates a session, and the model answers a prompt |
 | `../flue` | Flue (`@flue/runtime`) | a whole Flue app, built for Cloudflare, on Node and in browsers |
 
-The package is private: it is a test of cellb, not a library.
+The package is private: it is a test of CellB, not a library.
 
 ## Why it exists
 
 celld ships `pi` and `opencode` examples, but they need the network: `pi` depends on an unreleased
 preview build of the `agents` package and OpenRouter, `opencode` on a free model from opencode's own
 registry. These versions take the model from an endpoint named in the project's vars, which the
-tests point at the fake model, and they run on cellb as celld runs them.
+tests point at the fake model, and they run on CellB as celld runs them.
 
 ## How to use it
 
@@ -59,10 +59,10 @@ What the tests prove:
 
 ### What surprised us
 
-- **The opencode SDK builds a Response from another** (`new Response(body, response)`). cellb's
+- **The opencode SDK builds a Response from another** (`new Response(body, response)`). CellB's
   `Response` lost the headers of such an init, so the SDK's client saw no `content-type` and failed
   with `ClientError: UnsupportedContentType`; it now reads the init as Fetch does.
-- **Packages with only a `main` field did not resolve** in cellb's Node bundles (esbuild's neutral
+- **Packages with only a `main` field did not resolve** in CellB's Node bundles (esbuild's neutral
   platform has no main fields): opencode's dependencies (`@smithy/*`) failed to build. Node bundles
   now resolve as `celld deploy` does: conditions `workerd`, `worker`, `browser`, then `module` and
   `main`.

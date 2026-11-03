@@ -1,21 +1,21 @@
 # Gaps
 
-This is the list of what cellb does not do yet, or does differently from celld, as of the current
+This is the list of what CellB does not do yet, or does differently from celld, as of the current
 code. Each entry says what you see. When a gap closes, its entry goes, in the same commit.
 
-## Recorded celld behaviours cellb does not reproduce
+## Recorded celld behaviours CellB does not reproduce
 
 Each is a `knownGap` scenario in `conformance/scenarios.ts`: the Node suite expects it to differ
 from the celld golden, and turns red when it stops differing ([conformance.md](conformance.md)).
 
 | Scenario | What differs |
 |---|---|
-| `wd-sql-default` | cellb and celld stop at the same assertion, `sql.ingest()`'s syntax error, which cellb words as celld does (`sql-ingest` agrees), but celld's report of it carries celld's own stack frames. |
+| `wd-sql-default` | CellB and celld stop at the same assertion, `sql.ingest()`'s syntax error, which CellB words as celld does (`sql-ingest` agrees), but celld's report of it carries celld's own stack frames. |
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
-| `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
+| `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); CellB passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
 | `wd-worker-loader-gaps` | `WorkerCode.compatibilityFlags`; `abortIsolateDynamic*` do not build; `getDurableObjectClass(name, { props })` ignores its props; `facetUafRegression` needs `gc()`. celld refuses `allowExperimental`, so most of these exports fail on celld as well. |
-| `miniflare2-details-relative-url` | A stub's `fetch()` of a relative URL: celld passes it to the object, which fails on `new URL()`; cellb rejects at the stub, as workerd does. |
+| `miniflare2-details-relative-url` | A stub's `fetch()` of a relative URL: celld passes it to the object, which fails on `new URL()`; CellB rejects at the stub, as workerd does. |
 
 ## Stubs pass by reference, as on workerd, except between nodes
 
@@ -51,7 +51,7 @@ Module ServiceWorkers, OPFS synchronous access handles (the sahpool VFS), Web Lo
 Dedicated Workers all work in Firefox 157, and the whole suite passes there. What differs
 ([browser-host.md](browser-host.md#firefox-and-webkit)):
 
-- **Firefox has no `Request.body`; cellb gives it one, read whole.** `createCellRuntime` installs a
+- **Firefox has no `Request.body`; CellB gives it one, read whole.** `createCellRuntime` installs a
   `request.body` that reads the body with `arrayBuffer()` on its first read, so Worker code gets a
   `ReadableStream`, but the whole body is in memory before the first chunk. Firefox stores a
   `ReadableStream` given as a request body as the text `[object ReadableStream]`, so Worker code
@@ -62,7 +62,7 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 
 ## Other gaps
 
-- **Configuration cellb does not support** is reported in `createProjectRuntime(...).unsupported`,
+- **Configuration CellB does not support** is reported in `createProjectRuntime(...).unsupported`,
   not silently ignored: `migrations.renamed_classes`, `durable_objects.bindings[].script_name`,
   service bindings to other scripts, the Workers AI binding (`ai`) when the host names no
   OpenAI-compatible endpoint for it, cron triggers without a `scheduled()` handler, and
@@ -75,7 +75,7 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   tied to the event that called it (nothing cancels an event's work after its response here).
 - **`node:crypto` in a browser has no signature checks.** `createPublicKey` returns a `KeyObject`
   (type and DER/PEM export) and `verify`/`createVerify` throw: a synchronous check needs a
-  pure-JS implementation. `node:module`'s `require` serves only the built-ins cellb polyfills.
+  pure-JS implementation. `node:module`'s `require` serves only the built-ins CellB polyfills.
 - **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
   embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
   image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.
@@ -89,7 +89,7 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   project's.
 - **`cloudflare:email` only loads.** It exists so code that imports it at top level (the Agents SDK)
   starts, on Node and in browser bundles; building an `EmailMessage` throws `cloudflare:email is not
-  supported by cellb`. An in-browser site provides it too.
+  supported by CellB`. An in-browser site provides it too.
 - **`node:fs` and `node:os` in a browser have no host behind them.** With nodejs_compat a browser
   bundle gets `node:fs` whose calls fail with `ENOENT` (`existsSync` is false) and `node:os` with
   fixed answers (`EOL` is `"\n"`, no CPUs, no memory); they let libraries that probe for files load.
@@ -111,10 +111,10 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   `onmessage`) do not carry stores, on Node either.
 - **An object's events start in the async context the runtime was made in.** A call to an object
   is a new event, as on Cloudflare: the callee (and its constructor) does not see the caller's
-  `AsyncLocalStorage` stores. Where Cloudflare has none, cellb has the stores that were current
+  `AsyncLocalStorage` stores. Where Cloudflare has none, CellB has the stores that were current
   when `createCellRuntime` ran, so a host can scope a whole runtime (test/p09 attributes each
   scenario's logs this way). On Node this needs `process.getBuiltinModule` (Node 22.3 and later);
-  in a browser it goes through cellb's `node:async_hooks` polyfill.
+  in a browser it goes through CellB's `node:async_hooks` polyfill.
 - **A browser runtime is one thread, and OPFS writes are its cost.** Its cells interleave, and
   each commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool
   call, two model turns) makes 21 commits (155 when commits ended with each microtask); in this
@@ -138,18 +138,18 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   it, in the host's realm and in an isolate, where the request crosses back to the host), matches
   celld in the `runtime-api` project, and passes `overrideGlobalOutbound` in `wd-worker-loader`.
   `inheritGlobalOutbound` stays out for good: it needs the test Worker's own `globalOutbound`, a
-  `.wd-test` setting with no wrangler equivalent, so on celld and cellb it would fetch
+  `.wd-test` setting with no wrangler equivalent, so on celld and CellB it would fetch
   `https://example.com` for real.
 - **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked, then
   written; two tabs using it at once can both win.
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.
 - **The input gate does not hold timers, as on celld.** A timer set before
   `blockConcurrencyWhile()` fires while its callback runs; workerd holds it until the callback
-  ends. `wd-actor-block-concurrency-timer` records celld doing the same as cellb, and celld is the
+  ends. `wd-actor-block-concurrency-timer` records celld doing the same as CellB, and celld is the
   judge, so this stays (following workerd would need a `judge: "workerd"` reason of the stub kind).
-  workerd's input gate also defers outbound `fetch` completions while storage is in flight; cellb
+  workerd's input gate also defers outbound `fetch` completions while storage is in flight; CellB
   does not, and what celld does there is not recorded.
-- **celld examples not run:** `python` (Pyodide Python Workers: cellb runs no Python), `wasm`
+- **celld examples not run:** `python` (Pyodide Python Workers: CellB runs no Python), `wasm`
   (needs the Rust toolchain to build), `container` and `sandbox` (Docker or Podman; a `containers`
   config is reported in `unsupported`). `pi` and `opencode` need a model on the network as celld
   ships them; `examples/agents` runs both, adapted to take their model from an endpoint in
@@ -161,7 +161,7 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **The LTX log of fleet buckets keeps each cell's pages in memory.** `ltxLog`
   (`src/bucket/ltx-log.ts`, behind `celldBucket` and `filesApiLtxLog`) holds the pages it last
   wrote per cell; `bucket: { ltx }` reads a cell page by page instead.
-- **The workspace runs cellb from its TypeScript sources**, the published package from `dist/`
+- **The workspace runs CellB from its TypeScript sources**, the published package from `dist/`
   (`publishConfig.exports`). `scripts/pack-check.mjs`, in CI, checks the built package; a change
   that only breaks the build shows there, not in the workspace's tests.
 
@@ -170,6 +170,6 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **Limits per object** (CPU time, memory, storage size).
 - **Opaque-origin iframes for untrusted code.** A loaded Worker is isolated from the project's realm,
   not from the origin.
-- **celld's log tier and capacity hand-off (`/peer/handoff`).** A cellb node acknowledges a write
+- **celld's log tier and capacity hand-off (`/peer/handoff`).** A CellB node acknowledges a write
   only once it is in the bucket and never accepts cells it was not asked for.
 - **Python Workers.**

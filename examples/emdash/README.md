@@ -1,15 +1,15 @@
 # @statewalker/emdash-example
 
 [EmDash](https://github.com/emdash-cms/emdash), the Astro CMS, as its `blog-cloudflare` template
-builds it for Cloudflare, run unchanged on cellb: in Node, and entirely in a browser tab served by
-any static file server. The package is private: it is a test of cellb, not a library.
+builds it for Cloudflare, run unchanged on CellB: in Node, and entirely in a browser tab served by
+any static file server. The package is private: it is a test of CellB, not a library.
 
 ## Why it exists
 
-EmDash is a large, real Cloudflare app that cellb did not write: Astro's Cloudflare adapter output
+EmDash is a large, real Cloudflare app that CellB did not write: Astro's Cloudflare adapter output
 with D1 (Kysely, multi-statement triggers), KV sessions, R2 media, a cron trigger, static assets,
 cookies and passkeys, `waitUntil` from `cloudflare:workers`, a top-level `await`, and
-`node:module`/`node:crypto` in its dependencies. Running it found and closed those gaps in cellb.
+`node:module`/`node:crypto` in its dependencies. Running it found and closed those gaps in CellB.
 
 This example takes Astro's own build output. [`examples/astro-in-browser`](../astro-in-browser)
 builds the same template from these sources inside a browser tab instead, and its spec
@@ -75,7 +75,7 @@ SQLite WASM on OPFS.
   fonts entry of `astro.config.mjs` and the `<Font>` tags are replaced by system font stacks
   (`src/styles/theme.css`).
 - **`.assetsignore` is applied after the build** (`scripts/apply-assetsignore.mjs`), as
-  `wrangler deploy` applies it: cellb refuses the file, as celld does.
+  `wrangler deploy` applies it: CellB refuses the file, as celld does.
 - **`EMDASH_SITE_URL`** is EmDash's canonical URL. On Cloudflare it reads it from `process.env`;
   the host page sets it to its origin in the project's `vars`; the Node test sets it in
   `process.env`.

@@ -1,7 +1,7 @@
 # Ownership and durability
 
 A cell is safe when two things hold: only one runtime writes it at a time, and every write it
-acknowledged can be restored somewhere else. This page explains how cellb gets each, on each
+acknowledged can be restored somewhere else. This page explains how CellB gets each, on each
 deployment, and what you see when it does not. Terms are defined in [CONTEXT.md](../CONTEXT.md).
 
 ## Inside one cell: gates and the implicit transaction
@@ -33,7 +33,7 @@ closure ([ADR 0004](adr/0004-gates-without-asynclocalstorage.md)).
 |---|---|---|---|
 | One process, no shared storage | nothing to share | none needed | none |
 | A browser origin, sharded | a shard (a fixed set of cells) | a Web Lock per shard, held by one shard worker | the lock itself: OPFS pools are exclusive per worker |
-| A fleet bucket (celld nodes, cellb nodes, browsers) | a cell | celld's ownership records: `own.json` per cell, a node lease per node | the epoch in every log key, and self-fencing |
+| A fleet bucket (celld nodes, CellB nodes, browsers) | a cell | celld's ownership records: `own.json` per cell, a node lease per node | the epoch in every log key, and self-fencing |
 
 [ADR 0009](adr/0009-leases-chosen-by-deployment.md) records why there is no single lease for all
 three. The `Lease` port (`tryAcquire(cellKey) → { epoch, lost, release }`) is per cell; its
@@ -78,7 +78,7 @@ r2/<bucket>/<key>                        R2 objects (owned by no cell)
   node that does not speak celld's peer protocol (a browser) gets `<node>.cellb.invalid:9`, so celld
   routes to it, fails and refuses, instead of treating the live owner as dead.
 - **A lost record.** A missing `own.json` next to existing LTX means the record was lost. Both
-  celld (from 0.6.3) and cellb refuse the cell for 10 s instead of restarting it empty; the repair is
+  celld (from 0.6.3) and CellB refuse the cell for 10 s instead of restarting it empty; the repair is
   a released record `{"node": "", "epoch": <newest LTX epoch>}`.
 
 ### A browser origin: one shard per Web Lock
@@ -106,7 +106,7 @@ closes. Details are in [browser-host.md](browser-host.md).
   at commit time, not when the log gets to it: by then the next event may have opened a
   transaction, inside which SQLite cannot copy the database (`cannot VACUUM from within a
   transaction`, and the object would break).
-- **The changeset log** records row changes through SQLite's session extension. It is cellb's own
+- **The changeset log** records row changes through SQLite's session extension. It is CellB's own
   format and celld cannot read it; use it only where the LTX log does not fit.
 - **Backups** save an image when a cell changed since the last successful save; `close()` takes a
   final one, `evictAll()` does not (it models a crash).
@@ -140,7 +140,7 @@ have expired. A wake entry is only a hint: the stored alarm decides whether anyt
   the process stalled. Restarting the node takes the cell again under a new epoch.
 - **`ownership record lost: cells/<scope>/own.json is missing, but the bucket holds LTX …`**. A
   lifecycle rule or an operator removed `own.json`. Write the released record named in the message;
-  neither celld nor cellb will guess the epoch.
+  neither celld nor CellB will guess the epoch.
 - **Data written after the last backup is gone after a crash.** That is the backup's RPO, not
   corruption. Use a log for RPO 0.
 - **Two browser tabs on one OPFS fleet bucket overwrite each other.** A FilesApi store checks
@@ -149,6 +149,6 @@ have expired. A wake entry is only a hint: the stored alarm decides whether anyt
 - **A shard worker that died leaves requests failing with `ShardOwnerLostError`** ("the request may
   or may not have been applied"), about 30–50 ms after the tab closed. The router does not retry:
   requests are not idempotent in general.
-- **A cell restored from celld's files is in WAL mode.** cellb's Node driver checkpoints before
+- **A cell restored from celld's files is in WAL mode.** CellB's Node driver checkpoints before
   reading pages, and the WASM driver switches the file to rollback-journal mode on restore, because
   memdb and opfs-sahpool cannot open WAL files. A store that skips this logs stale pages.
