@@ -1,7 +1,7 @@
 ---
 import CodeBlock from "@/components/CodeBlock.astro";
 import Docs from "@/layouts/Docs.astro";
-import { repoDoc } from "@/lib/site";
+import { docHref } from "@/lib/docs";
 ---
 
 <Docs title="How it works" description="cellb's core, its ports, ownership and durability.">
@@ -90,8 +90,8 @@ import { repoDoc } from "@/lib/site";
 
   <h2>Read more</h2>
   <ul>
-    <li><a href={repoDoc("architecture.md")}>Architecture</a></li>
-    <li><a href={repoDoc("ownership-and-durability.md")}>Ownership and durability</a></li>
-    <li><a href={repoDoc("celld-compatibility.md")}>celld compatibility</a></li>
+    <li><a href={docHref("packages/cellb/docs/architecture.md")}>Architecture</a></li>
+    <li><a href={docHref("packages/cellb/docs/ownership-and-durability.md")}>Ownership and durability</a></li>
+    <li><a href={docHref("packages/cellb/docs/celld-compatibility.md")}>celld compatibility</a></li>
   </ul>
 </Docs>

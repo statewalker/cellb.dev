@@ -2,7 +2,8 @@
 import CodeBlock from "@/components/CodeBlock.astro";
 import Badge from "@/components/ui/Badge.astro";
 import Docs from "@/layouts/Docs.astro";
-import { REPO, repoDoc } from "@/lib/site";
+import { docHref } from "@/lib/docs";
+import { REPO } from "@/lib/site";
 ---
 
 <Docs title="Getting started" description="Run a Worker and its Durable Objects with cellb in Node and in a browser.">
@@ -128,7 +129,7 @@ console.log(unsupported); // configuration cellb does not support, e.g. []`}
   <h2>Next steps</h2>
   <ul>
     <li><a href="/docs/how-it-works">How it works</a>: the core, the ports, ownership and durability.</li>
-    <li><a href={repoDoc("browser-host.md")}>Running in a browser</a>: the four topologies, from one worker to shards shared by tabs.</li>
-    <li><a href={repoDoc("gaps.md")}>Gaps</a>: what cellb does not do yet.</li>
+    <li><a href={docHref("packages/cellb/docs/browser-host.md")}>Running in a browser</a>: the four topologies, from one worker to shards shared by tabs.</li>
+    <li><a href={docHref("packages/cellb/docs/gaps.md")}>Gaps</a>: what cellb does not do yet.</li>
   </ul>
 </Docs>

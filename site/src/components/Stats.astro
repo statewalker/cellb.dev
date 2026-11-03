@@ -1,5 +1,5 @@
 ---
-import { repoFile } from "@/lib/site";
+import { docHref } from "@/lib/docs";
 // cellb's numbers, in the shape celld.dev reports celld's. They are read from the last recorded
 // runs of packages/cellb/bench (`pnpm bench`, `pnpm bench:browser`), so the page shows exactly
 // what the benchmark printed.
@@ -189,7 +189,7 @@ const groups: { title: string; rows: Row[] }[] = [
   <li>At about $50 a month for an 8 GB node, as celld's docs price one. In a browser, the cell runs on the user's own device.</li>
 </ol>
 <a
-  href={repoFile("packages/cellb/bench/README.md")}
+  href={docHref("packages/cellb/bench/README.md")}
   class="mt-4 inline-block text-sm text-primary hover:underline"
 >
   Reproduce: <code class="font-mono whitespace-nowrap">pnpm bench</code> and

@@ -1,5 +1,5 @@
 ---
-import { repoDoc, repoFile } from "@/lib/site";
+import { examplePages, pageHref, type RepoPage, referencePages } from "@/lib/docs";
 import Base from "./Base.astro";
 
 interface Props {
@@ -10,6 +10,8 @@ interface Props {
 const { title, description } = Astro.props;
 const path = Astro.url.pathname.replace(/\/$/, "");
 
+const navItem = (page: RepoPage) => ({ href: pageHref(page), label: page.label });
+
 const sections = [
   {
     heading: "Start",
@@ -18,27 +20,8 @@ const sections = [
       { href: "/docs/how-it-works", label: "How it works" },
     ],
   },
-  {
-    heading: "Reference",
-    items: [
-      { href: repoDoc("architecture.md"), label: "Architecture" },
-      { href: repoDoc("ownership-and-durability.md"), label: "Ownership & durability" },
-      { href: repoDoc("browser-host.md"), label: "Running in a browser" },
-      { href: repoDoc("celld-compatibility.md"), label: "celld compatibility" },
-      { href: repoDoc("gaps.md"), label: "Gaps" },
-      { href: repoFile("packages/cellb/CONTEXT.md"), label: "Glossary" },
-      { href: repoFile("packages/cellb/bench/README.md"), label: "Benchmarks" },
-    ],
-  },
-  {
-    heading: "Examples",
-    items: [
-      { href: repoFile("examples/flue/README.md"), label: "Flue agent app" },
-      { href: repoFile("examples/agents/README.md"), label: "pi and opencode" },
-      { href: repoFile("examples/emdash/README.md"), label: "EmDash (Astro CMS)" },
-      { href: repoFile("examples/astro-in-browser/README.md"), label: "Astro built in a tab" },
-    ],
-  },
+  { heading: "Reference", items: referencePages.map(navItem) },
+  { heading: "Examples", items: examplePages.map(navItem) },
 ];
 ---
 

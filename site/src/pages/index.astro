@@ -10,7 +10,8 @@ import Button from "@/components/ui/Button.astro";
 import Card from "@/components/ui/Card.astro";
 import Tabs from "@/components/ui/Tabs.astro";
 import Base from "@/layouts/Base.astro";
-import { REPO, repoDoc } from "@/lib/site";
+import { docHref } from "@/lib/docs";
+import { REPO } from "@/lib/site";
 
 // --- Code samples (from packages/cellb/README.md) -------------------------
 
@@ -539,7 +540,7 @@ const lifecycle = [
       <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-primary"></span>supported</span>
       <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-amber-500"></span>partial, example or different</span>
       <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-muted-foreground/40"></span>not supported</span>
-      <a href={repoDoc("celld-compatibility.md")} class="ml-auto inline-flex items-center gap-1 text-primary hover:underline">
+      <a href={docHref("packages/cellb/docs/celld-compatibility.md")} class="ml-auto inline-flex items-center gap-1 text-primary hover:underline">
         Where cellb follows Cloudflare instead of celld <Icon name="externalLink" class="size-3" />
       </a>
     </div>
@@ -598,7 +599,7 @@ const lifecycle = [
           This small demo uses the same primitive. Open the page in a second tab, press increment
           in both, then close the owner tab and watch the other one take over.
         </p>
-        <a href={repoDoc("browser-host.md")} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+        <a href={docHref("packages/cellb/docs/browser-host.md")} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
           The four browser topologies <Icon name="externalLink" class="size-3" />
         </a>
       </div>

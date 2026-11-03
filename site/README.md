@@ -17,7 +17,8 @@ pnpm --filter @statewalker/cellb-site build    # static output in site/dist/
 | `src/components/ui/` | shadcn-style primitives as Astro components: Button, Badge, Card |
 | `src/components/` | Header, Footer, Logo, ThemeToggle, CodeBlock (Shiki + copy), HeroVisual, LiveDemo, Showcase, Stats |
 | `src/layouts/` | `Base` (theme bootstrap, header/footer) and `Docs` (sidebar) |
-| `src/pages/` | Home, `/docs` (getting started), `/docs/how-it-works` |
+| `src/pages/` | Home, `/docs` (getting started), `/docs/how-it-works`, `/docs/[...slug]` (the repository's Markdown) |
+| `src/lib/docs.ts` | Which repository Markdown files become which `/docs/…` pages; the sidebar and `docHref` read it |
 | `public/showcase/` | Screenshots from the examples' own test runs (`examples/emdash`, `examples/astro-in-browser`) |
 | `components.json` | shadcn CLI config, so React shadcn components can be added later (`@astrojs/react` + `npx shadcn add …`) |
 
@@ -40,8 +41,21 @@ The copy is drawn from this repository: the root README, `packages/cellb/README.
 | Demo | Web Lock ownership across tabs (the primitive behind browser shards) | browser-host.md |
 
 Docs: `/docs` (getting started: install, entry points, Node, browser, fleet) and
-`/docs/how-it-works` (ports, request path, gates, ownership, durability, loaded Workers). The
-sidebar links to the repository's reference docs and examples (`src/lib/site.ts` holds the URLs).
+`/docs/how-it-works` (ports, request path, gates, ownership, durability, loaded Workers) are
+written for the site. The reference docs and the examples' READMEs are the repository's own
+Markdown, rendered at build time: `src/lib/docs.ts` lists each file and its page
+(`packages/cellb/docs/gaps.md` → `/docs/gaps`), and `src/content.config.ts` loads them as the
+`repo` collection. One file, two readers: the same Markdown reads on GitHub and on the site, so
+nothing is copied and nothing drifts.
+
+Relative links in that Markdown are written for GitHub (`gaps.md`, `../astro-in-browser`).
+`src/lib/rehype-repo-links.ts` rewrites them at build time: a link to a rendered file, or to a
+directory whose `README.md` is rendered, goes to its page; any other file (the decision records in
+`docs/adr/`, source files) goes to GitHub. Link to docs from `.astro` pages with
+`docHref("packages/cellb/docs/gaps.md")`, which makes the same choice. To publish another file,
+add it to `src/lib/docs.ts`, and add its path to the `paths` filters of
+`.github/workflows/site.yml` if it is outside the ones listed there, or an edit to it will not
+republish the site.
 
 ## Style
 
