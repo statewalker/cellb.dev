@@ -31,9 +31,58 @@ export const referencePages: RepoPage[] = [
     label: "celld compatibility",
   },
   { file: "packages/cellb/docs/conformance.md", slug: "conformance", label: "Conformance" },
+  { file: "packages/cellb/docs/security.md", slug: "security", label: "Security & isolation" },
   { file: "packages/cellb/docs/gaps.md", slug: "gaps", label: "Gaps" },
   { file: "packages/cellb/CONTEXT.md", slug: "glossary", label: "Glossary" },
   { file: "packages/cellb/bench/README.md", slug: "benchmarks", label: "Benchmarks" },
+];
+
+export const servicePages: RepoPage[] = [
+  { file: "packages/cellb/docs/services/workers.md", slug: "services/workers", label: "Workers" },
+  {
+    file: "packages/cellb/docs/services/durable-objects.md",
+    slug: "services/durable-objects",
+    label: "Durable Objects",
+  },
+  {
+    file: "packages/cellb/docs/services/durable-object-facets.md",
+    slug: "services/durable-object-facets",
+    label: "Durable Object facets",
+  },
+  { file: "packages/cellb/docs/services/kv.md", slug: "services/kv", label: "KV" },
+  { file: "packages/cellb/docs/services/d1.md", slug: "services/d1", label: "D1" },
+  { file: "packages/cellb/docs/services/r2.md", slug: "services/r2", label: "R2" },
+  { file: "packages/cellb/docs/services/queues.md", slug: "services/queues", label: "Queues" },
+  {
+    file: "packages/cellb/docs/services/workflows.md",
+    slug: "services/workflows",
+    label: "Workflows",
+  },
+  {
+    file: "packages/cellb/docs/services/cron-triggers.md",
+    slug: "services/cron-triggers",
+    label: "Cron Triggers",
+  },
+  {
+    file: "packages/cellb/docs/services/static-assets.md",
+    slug: "services/static-assets",
+    label: "Static assets",
+  },
+  {
+    file: "packages/cellb/docs/services/dynamic-workers.md",
+    slug: "services/dynamic-workers",
+    label: "Dynamic Workers",
+  },
+  {
+    file: "packages/cellb/docs/services/websockets.md",
+    slug: "services/websockets",
+    label: "WebSockets",
+  },
+  {
+    file: "packages/cellb/docs/services/workers-ai.md",
+    slug: "services/workers-ai",
+    label: "Workers AI",
+  },
 ];
 
 export const examplePages: RepoPage[] = [
@@ -47,7 +96,7 @@ export const examplePages: RepoPage[] = [
   },
 ];
 
-export const repoPages = [...referencePages, ...examplePages];
+export const repoPages = [...referencePages, ...servicePages, ...examplePages];
 
 export const pageHref = (page: RepoPage) => `/docs/${page.slug}`;
 

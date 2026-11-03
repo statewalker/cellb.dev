@@ -244,8 +244,9 @@ docs/               topic pages
   stays open until they are.
 
 What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches celld is in
-[docs/celld-compatibility.md](docs/celld-compatibility.md). The vocabulary is in
-[CONTEXT.md](CONTEXT.md).
+[docs/celld-compatibility.md](docs/celld-compatibility.md), and service by service (KV, D1, R2,
+Queues, Workflows, …) in [docs/services/](docs/services/). What is isolated, and what is not, is in
+[docs/security.md](docs/security.md). The vocabulary is in [CONTEXT.md](CONTEXT.md).
 
 ### Dependencies, and why
 

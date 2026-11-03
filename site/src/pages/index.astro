@@ -273,8 +273,8 @@ const useCases = [
   },
   {
     icon: "lock",
-    title: "Sandboxed code that agents write",
-    body: "Worker Loader bindings run code handed over at run time, each in its own Dedicated Worker or worker thread. The loaded code gets its own globals and env. Set globalOutbound: null to cut off its network access, or route its fetches through a Fetcher you control.",
+    title: "Isolated code that agents write",
+    body: "Worker Loader bindings run code handed over at run time, each in its own worker thread, or in a browser its own Dedicated Worker. The loaded code gets its own globals and only the env you give it. Set globalOutbound: null to block its fetch(), or route its fetches through a Fetcher you control. It is not a sandbox for hostile code: see Security & isolation.",
   },
   {
     icon: "wifiOff",
