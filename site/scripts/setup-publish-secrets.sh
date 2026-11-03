@@ -61,6 +61,8 @@ cat >"$tmp/policy.json" <<JSON
   ]
 }
 JSON
+# The container runs as its own user; mktemp made both readable only by us. The policy is not secret.
+chmod a+rx "$tmp"; chmod a+r "$tmp/policy.json"
 
 rc() { # rc in a container; keys come from the environment, so none reaches this host's argv.
   docker run --rm -i -v "$tmp:/w:ro" -e ROOT_AK -e ROOT_SK -e SITE_USER -e SITE_SK -e ENDPOINT \
