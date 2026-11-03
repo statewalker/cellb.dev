@@ -1,7 +1,7 @@
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
 import { cross, rpcCall, STUB } from "./handles.js";
 import { type DurableObjectId, idFromName, newUniqueId, validateId } from "./id.js";
-import type { ObjectHost } from "./object-host.js";
+import { closingWith, type ObjectHost } from "./object-host.js";
 import type { DurableObjectState } from "./state.js";
 
 /** What a stub talks to: a local ObjectHost or a remote cell host behind a port. */
@@ -49,7 +49,7 @@ function endpointOf(h: ObjectHost): ObjectEndpoint {
           throw new Error("Handler does not export a fetch() function.");
         let res: Response;
         try {
-          const r = await obj.fetch(req);
+          const r = await obj.fetch(closingWith(req, h.closing));
           res = r instanceof Response ? r : new Response(String(r)); // a non-Response is sent as text (celld)
         } catch (e) {
           // celld: the stub's fetch() rejects with "rejected: <name>: <message> [at …]".

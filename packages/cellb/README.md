@@ -46,8 +46,12 @@ Node 22.13 or later is needed for `node:sqlite`. `loadNodeProject` bundles a pro
 `esbuild`, which the embedder must install.
 
 A runtime is a `(Request) ⇒ Response` handler: mount `runtime.fetch` on `node:http`, a
-ServiceWorker or a test, and call `runtime.close()` when done. `close()` takes final backups,
-closes every database, then closes the storage.
+ServiceWorker or a test, and call `runtime.close()` when done. `close()` aborts the signal of the
+requests in flight (the Worker's and its objects', as when a client goes away on Cloudflare: a long
+poll or an SSE stream ends), gives events still running and `waitUntil` work `closeGraceMs` (2 s) to
+finish, takes final backups, closes every database, then closes the storage. After that, the
+runtime answers requests with 503, and an object's code still running fails with
+`ObjectClosedError` when it uses its storage or another object.
 
 ## Examples
 
