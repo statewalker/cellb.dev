@@ -113,7 +113,7 @@
     "esbuild": "^0.28.0",
     "html-rewriter-wasm": "^0.4.1",
     "miniflare": "4.20260730.0",
-    "sqlite-vec-wasm-demo": "0.1.9",
+    "sqlite-vec-wasm-demo": "0.1.6",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",

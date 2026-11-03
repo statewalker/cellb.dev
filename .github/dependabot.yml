@@ -21,6 +21,12 @@ updates:
         patterns: ["*"]
         exclude-patterns: ["@statewalker/*"]
         update-types: [minor, patch]
+    ignore:
+      # 0.1.7 to 0.1.9 fail to load in a browser: their own post-js sets Module.postRun after
+      # Emscripten has run it ("Attempt to set `Module.postRun` after it has already been
+      # processed"), so cellb's sqlite_vec e2e project (celld-projects vectordb) cannot start.
+      - dependency-name: sqlite-vec-wasm-demo
+        versions: ["0.1.7", "0.1.8", "0.1.9"]
 
   - package-ecosystem: npm
     directory: /examples
