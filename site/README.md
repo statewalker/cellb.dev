@@ -72,6 +72,13 @@ pair is RustFS's own and is kept in that one file (statewalker/httpeers
 whose policy allows `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:ListBucket` on
 `sites/cellb.httpeers.net/*` and `sites/cellb.dev/*` only is what this workflow needs.
 
+`site/scripts/setup-publish-secrets.sh` does all of it: it reads the root pair over ssh
+(`kotelnikov@163.172.46.87`, `HTTPEERS_SSH` to change), creates or re-keys that user (`cellb-site`)
+with `mc admin` in a `minio/mc` container, checks the new pair can write and delete under
+`sites/<domain>/.site/`, and sets the two secrets and `SITE_DOMAIN` with `gh`. Running it again
+rotates the key. If it stops at `mc admin`, RustFS refused the admin call; nothing was set on
+GitHub.
+
 Without the secrets the workflow builds the site and notes that it did not publish. Run it by hand
 with "Run workflow" (`workflow_dispatch`).
 
