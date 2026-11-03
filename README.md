@@ -50,8 +50,8 @@ examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples 
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
 .github/workflows/     cellb (lint, typecheck, unit tests, the packed package) and interop against the real
-                       celld and RustFS, on every pull request; examples (on released cellb, when examples/
-                       change) and its nightly canary (on cellb as main would publish it)
+                       celld and RustFS, on every pull request; examples (run by hand, on released cellb or
+                       on cellb as this checkout would publish it)
 .github/dependabot.yml weekly dependency updates, for both workspaces
 .changeset/            changesets for the published package (@statewalker/cellb)
 ```
@@ -95,7 +95,7 @@ The examples, in `examples/` (`pnpm install` there: they have their own lockfile
 To try the examples on cellb as it is in this checkout, before a release: pack it
 (`pnpm --dir packages/cellb pack`) and add to `examples/pnpm-workspace.yaml`
 `overrides: { "@statewalker/cellb": "file:<the .tgz>" }`, then `pnpm install --no-frozen-lockfile`
-in `examples/` (what the nightly canary does; do not commit it).
+in `examples/` (what the examples workflow does with `cellb: packed`; do not commit it).
 
 ## Why it is the way it is
 
@@ -107,9 +107,12 @@ in `examples/` (what the nightly canary does; do not commit it).
   there too.
 - **Examples pin a released cellb.** They show cellb as its users get it, so they run on npm's
   `@statewalker/cellb`, not on this repository's sources: a cellb pull request does not wait on
-  them, and an example breaks only by a release it moves to. `examples.yml` runs them when they
-  change; `examples-canary.yml` runs them nightly on cellb as main would publish it, so a change
-  that would break one is known before the release.
+  them, and an example breaks only by a release it moves to.
+- **Examples run by hand, not on every change.** They are whole applications (EmDash built in a
+  tab, Flue, pi, opencode) whose jobs take up to 45 minutes, so no push or pull request runs them.
+  `examples.yml` runs them on request ("Run workflow", or `gh workflow run examples.yml`), on
+  released cellb, or with `-f cellb=packed` on cellb as the chosen branch would publish it; run it
+  before a release and after changing an example.
 - **Examples run offline.** Agent frameworks need a model; the examples point theirs at
   `@statewalker/fake-openai`, so CI needs no key and no network beyond the package registry.
 

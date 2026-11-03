@@ -1,22 +1,17 @@
 name: examples
 
 # The examples (examples/: their own pnpm workspace and lockfile) as cellb's users run them:
-# on @statewalker/cellb from npm, at the range they pin. A change to cellb reaches them through a
-# release (Dependabot raises the range), not through this repository's sources, so a cellb pull
-# request does not run them; a change to the examples does.
+# on @statewalker/cellb from npm, at the range they pin.
 #
-# With `cellb: packed` (examples-canary.yml, nightly) the examples run instead on cellb as this
+# Run by hand only ("Run workflow", or `gh workflow run examples.yml`): they are whole
+# applications (EmDash built in a tab, Flue, pi, opencode) taking up to 45 minutes per job, so no
+# push or pull request waits on them. With `cellb: packed` they run instead on cellb as this
 # checkout would publish it: packages/cellb packed, and the tarball installed in place of the
-# release. The canary says early whether the next release breaks an example.
+# release, which says whether the next release breaks an example.
 #
 # examples/astro-in-browser links @statewalker/webrun-bundler from a sibling checkout of
 # webrun-sites: both repositories are checked out side by side.
 on:
-  push:
-    branches: [main]
-    paths: ["examples/**", ".github/workflows/examples.yml"]
-  pull_request:
-    paths: ["examples/**", ".github/workflows/examples.yml"]
   workflow_dispatch:
     inputs:
       cellb:
@@ -24,14 +19,6 @@ on:
         default: released
       webrun-sites-ref:
         description: webrun-sites branch, tag or commit
-        default: main
-  workflow_call:
-    inputs:
-      cellb:
-        type: string
-        default: released
-      webrun-sites-ref:
-        type: string
         default: main
 
 concurrency:
