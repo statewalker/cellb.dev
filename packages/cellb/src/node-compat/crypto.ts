@@ -2,9 +2,9 @@
  * `node:crypto` subset for browsers (nodejs_compat): hashes, HMAC, random, timingSafeEqual, and
  * public `KeyObject`s (`createPublicKey`) without signature checks.
  */
-import { hmac } from "@noble/hashes/hmac";
-import { md5, sha1 } from "@noble/hashes/legacy";
-import { sha256, sha384, sha512 } from "@noble/hashes/sha2";
+import { hmac } from "@noble/hashes/hmac.js";
+import { md5, sha1 } from "@noble/hashes/legacy.js";
+import { sha256, sha384, sha512 } from "@noble/hashes/sha2.js";
 import { Buffer } from "buffer";
 
 const HASHES = { md5, sha1, sha256, sha384, sha512 } as const;

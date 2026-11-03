@@ -1,4 +1,4 @@
-import { bytesToHex } from "@noble/hashes/utils";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import type { ObjectStore } from "./object-store.js";
 import { type ObjectAttributes, PreconditionFailedError } from "./object-store.js";
 
