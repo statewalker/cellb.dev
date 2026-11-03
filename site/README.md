@@ -74,9 +74,9 @@ whose policy allows `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:Li
 
 `site/scripts/setup-publish-secrets.sh` does all of it: it reads the root pair over ssh
 (`kotelnikov@163.172.46.87`, `HTTPEERS_SSH` to change), creates or re-keys that user (`cellb-site`)
-with `mc admin` in a `minio/mc` container, checks the new pair can write and delete under
-`sites/<domain>/.site/`, and sets the two secrets and `SITE_DOMAIN` with `gh`. Running it again
-rotates the key. If it stops at `mc admin`, RustFS refused the admin call; nothing was set on
+with RustFS's own client (`rc admin`, in a `rustfs/rc` container), checks the new pair can write
+and delete under `sites/<domain>/.site/`, and sets the two secrets and `SITE_DOMAIN` with `gh`.
+Running it again rotates the key. If it stops at `rc admin`, RustFS refused the admin call; nothing was set on
 GitHub.
 
 Without the secrets the workflow builds the site and notes that it did not publish. Run it by hand

@@ -3,7 +3,7 @@
 #
 #   1. reads RustFS's own key pair from /opt/httpeers/.env on the httpeers server (over ssh; it is
 #      kept nowhere else and this script writes it nowhere);
-#   2. with it, creates (or re-keys) a RustFS user whose policy reaches only the site's prefixes
+#   2. with it, using RustFS's own client `rc` (rustfs/cli), creates (or re-keys) a RustFS user whose policy reaches only the site's prefixes
 #      of the `sites` bucket — the root pair could rewrite or delete every site;
 #   3. checks the new pair can write and delete under sites/<domain>/.site/ (never served);
 #   4. stores the new pair as the repository's HTTPEERS_S3_* secrets and sets SITE_DOMAIN.
@@ -11,7 +11,7 @@
 # Secrets go through stdin and environment variables, never argv or the terminal. Re-running it
 # rotates the user's secret key and the GitHub secrets together.
 #
-# Needs: ssh access to the server, docker (runs minio/mc), openssl, gh logged in with admin on
+# Needs: ssh access to the server, docker (runs rustfs/rc), openssl, gh logged in with admin on
 # the repository.
 #
 # Usage: site/scripts/setup-publish-secrets.sh
@@ -28,7 +28,7 @@ SITE_DOMAIN=${SITE_DOMAIN:-cellb.httpeers.net}
 SITE_DOMAINS=${SITE_DOMAINS:-cellb.httpeers.net cellb.dev}
 SITE_USER=${SITE_USER:-cellb-site}
 ENDPOINT=https://s3.httpeers.net
-MC_IMAGE=minio/mc
+RC_IMAGE=rustfs/rc:v0.1.37  # RustFS's own client; MinIO no longer publishes mc images
 
 case " $SITE_DOMAINS " in *" $SITE_DOMAIN "*) ;; *)
   echo "SITE_DOMAIN '$SITE_DOMAIN' is not among SITE_DOMAINS '$SITE_DOMAINS'." >&2; exit 1 ;;
@@ -62,29 +62,28 @@ cat >"$tmp/policy.json" <<JSON
 }
 JSON
 
-mc() { # mc in a container; aliases come from the environment, so no key reaches argv.
+rc() { # rc in a container; keys come from the environment, so none reaches this host's argv.
   docker run --rm -i -v "$tmp:/w:ro" -e ROOT_AK -e ROOT_SK -e SITE_USER -e SITE_SK -e ENDPOINT \
-    --entrypoint sh "$MC_IMAGE" -c "$1"
+    --entrypoint sh "$RC_IMAGE" -c "$1"
 }
 export ROOT_AK ROOT_SK SITE_USER SITE_SK ENDPOINT
 
 echo "Creating RustFS user '$SITE_USER' with policy '$SITE_USER' on: $SITE_DOMAINS"
 # shellcheck disable=SC2016  # expanded inside the container
-mc '
+rc '
   set -e
-  mc alias set root "$ENDPOINT" "$ROOT_AK" "$ROOT_SK" >/dev/null
-  mc admin policy create root "$SITE_USER" /w/policy.json
-  mc admin user add root "$SITE_USER" "$SITE_SK"
-  mc admin policy attach root "$SITE_USER" --user "$SITE_USER" 2>&1 \
-    | grep -v -i "already" || true
+  rc alias set root "$ENDPOINT" "$ROOT_AK" "$ROOT_SK" >/dev/null
+  rc admin policy create root "$SITE_USER" /w/policy.json
+  rc admin user add root "$SITE_USER" "$SITE_SK"
+  rc admin policy attach root "$SITE_USER" --user "$SITE_USER"
 '
 
 echo "Checking the new pair can write sites/$SITE_DOMAIN/.site/ (never served)"
-mc "
+rc "
   set -e
-  mc alias set site \"\$ENDPOINT\" \"\$SITE_USER\" \"\$SITE_SK\" >/dev/null
-  echo probe | mc pipe site/sites/$SITE_DOMAIN/.site/publish-probe >/dev/null
-  mc rm site/sites/$SITE_DOMAIN/.site/publish-probe >/dev/null
+  rc alias set site \"\$ENDPOINT\" \"\$SITE_USER\" \"\$SITE_SK\" >/dev/null
+  echo probe | rc pipe site/sites/$SITE_DOMAIN/.site/publish-probe >/dev/null
+  rc object remove site/sites/$SITE_DOMAIN/.site/publish-probe >/dev/null
 "
 
 echo "Setting secrets and SITE_DOMAIN on $REPO"
