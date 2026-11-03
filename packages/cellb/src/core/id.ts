@@ -1,6 +1,6 @@
-import { hmac } from "@noble/hashes/hmac";
-import { sha256 } from "@noble/hashes/sha256";
-import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+import { hmac } from "@noble/hashes/hmac.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 
 /** 64-hex-char object id. idFromName is SYNCHRONOUS (as on CF), hence noble instead of crypto.subtle. */
 export class DurableObjectId {

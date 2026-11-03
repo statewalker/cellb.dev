@@ -46,8 +46,12 @@ Node 22.13 or later is needed for `node:sqlite`. `loadNodeProject` bundles a pro
 `esbuild`, which the embedder must install.
 
 A runtime is a `(Request) ⇒ Response` handler: mount `runtime.fetch` on `node:http`, a
-ServiceWorker or a test, and call `runtime.close()` when done. `close()` takes final backups,
-closes every database, then closes the storage.
+ServiceWorker or a test, and call `runtime.close()` when done. `close()` aborts the signal of the
+requests in flight (the Worker's and its objects', as when a client goes away on Cloudflare: a long
+poll or an SSE stream ends), gives events still running and `waitUntil` work `closeGraceMs` (2 s) to
+finish, takes final backups, closes every database, then closes the storage. After that, the
+runtime answers requests with 503, and an object's code still running fails with
+`ObjectClosedError` when it uses its storage or another object.
 
 ## Examples
 
@@ -301,6 +305,7 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 | `pnpm interop` | `e2e/` and the celld conformance in Node: `scripts/interop-env.sh` downloads the pinned celld and RustFS into `~/.cache/cellb-interop`, starts a shared RustFS on `127.0.0.1:9200` (`RUSTFS_PORT`), and sets `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` |
 | `pnpm interop:browser` | the same for Chromium |
 | `pnpm probes:browser` | the exploratory probes in Chromium (`e2e-browser/probes`), measurements printed, not part of `pnpm e2e`; among them the storage labs: `ltx-lab` (SQLite over a cell's LTX files; `LTX_STORE=worker`, `LTX_SYNC=1`) and `sqlite-lab` (SQLite in N workers, six storage modes). Add a spec name to run one |
+| `pnpm bench`, `pnpm bench:browser` | the numbers celld.dev reports, measured for cellb: durability (one writer, acknowledged writes after a `SIGKILL`, durable write latency, failover), speed (stateless requests, waking a hibernated cell) and density (memory per resident cell), on Node and in Chromium. See [bench/README.md](bench/README.md); `bench/results/` holds the last recorded runs |
 | `pnpm mutate`, `pnpm mutate:browser` | mutation harnesses in a throw-away copy, after a baseline run; `MUTANTS=0,3` runs a subset |
 | `pnpm browser:dev` | the demo pages in `e2e-browser/pages`: `/` (one cell worker), `/sharded/`, `/backup/`, and `/host/`, the host app that runs a project folder |
 

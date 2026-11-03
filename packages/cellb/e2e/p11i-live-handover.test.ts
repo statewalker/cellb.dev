@@ -21,7 +21,9 @@ import { freePort } from "../test/free-port.js";
 const CELLD = process.env.CELLD_BIN;
 const counter = join(__dirname, "../conformance/celld-examples/counter");
 
-async function celldDev(dir: string) {
+// `until`: the log line to wait for. A node that never becomes ready (it refuses a cell) exits
+// at its own 30 s readiness deadline: wait for it to listen instead.
+async function celldDev(dir: string, until = "ready") {
   const port = await freePort();
   const p = spawn(CELLD!, ["dev", ".", "--port", String(port), "--logs"], {
     cwd: dir,
@@ -31,7 +33,7 @@ async function celldDev(dir: string) {
   let log = "";
   p.stdout!.on("data", (d) => (log += d));
   p.stderr!.on("data", (d) => (log += d));
-  for (let i = 0; i < 150 && !log.includes("ready"); i++)
+  for (let i = 0; i < 150 && !log.includes(until); i++)
     await new Promise((r) => setTimeout(r, 200));
   return { p, base: `http://127.0.0.1:${port}`, log: () => log };
 }
@@ -158,7 +160,10 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
   }, 120_000);
 });
 
-describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", { concurrent: true }, () => {
+// Not concurrent with the hand-over tests above: it runs a cellb runtime and celld on one SQLite
+// bucket, and while celld tries to claim the cell, the runtime's synchronous SQLite calls wait on
+// celld's writes and hold up this worker's event loop, where the tests above keep 3 s leases.
+describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", () => {
   it("both refuse a cell whose own.json is gone while its LTX remains; the released-record repair restores it", async () => {
     const dir = join(mkdtempSync(join(tmpdir(), "lost-")), "counter");
     cpSync(counter, dir, { recursive: true });
@@ -177,15 +182,20 @@ describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", { concurren
       expect(await w.inc()).toEqual({ refused: expect.stringContaining("ownership record lost") });
       // … and celld itself: `celld dev` reports the lost record (and, the cell refused, does
       // not become ready)
-      const c2 = await celldDev(dir);
-      const asked = await inc((u) =>
-        fetch(c2.base + u, { signal: AbortSignal.timeout(8_000) }).catch(
-          (e) => new Response(String(e)),
-        ),
-      );
-      expect(asked).toEqual({ refused: expect.any(String) });
-      for (let i = 0; i < 100 && !/celld ownership record lost/.test(c2.log()); i++)
+      // Asked while it listens, well before its readiness deadline (30 s), when it exits: a
+      // request after that reaches no cell, and nothing logs the lost record.
+      const c2 = await celldDev(dir, "celld listening on");
+      const ask = () =>
+        inc((u) =>
+          fetch(c2.base + u, { signal: AbortSignal.timeout(8_000) }).catch(
+            (e) => new Response(String(e)),
+          ),
+        );
+      expect(await ask()).toEqual({ refused: expect.any(String) });
+      for (let i = 0; i < 100 && !/celld ownership record lost/.test(c2.log()); i++) {
         await new Promise((r) => setTimeout(r, 200));
+        if (i % 10 === 9) await ask(); // and again, should the first not have reached the cell
+      }
       expect(c2.log()).toMatch(/celld ownership record lost/);
       await stop(c2.p);
       // the repair in celld's guarantees.md: a released record at the newest epoch
