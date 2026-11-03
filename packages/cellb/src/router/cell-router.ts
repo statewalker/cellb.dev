@@ -192,7 +192,7 @@ export class CellRouter {
         link.send(new Request(req, { signal, duplex: "half" } as RequestInit)),
         lost,
       ]);
-      if (!res.body) return done(), res;
+      if (!res.body) return (done(), res);
       const { readable, writable } = new TransformStream();
       res.body.pipeTo(writable, { signal: ac.signal }).then(done, done);
       return new Response(readable, res);
