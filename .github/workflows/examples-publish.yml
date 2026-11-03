@@ -47,11 +47,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
-      - name: webrun-bundler (its package exports dist/)
+      - name: webrun-bundler and the workspace packages it imports (their packages export dist/)
         working-directory: webrun-sites
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter @statewalker/webrun-bundler build
+          pnpm --filter "@statewalker/webrun-bundler..." build
       - run: pnpm install --frozen-lockfile
       - name: Chromium
         run: pnpm --dir emdash exec playwright install --with-deps chromium
