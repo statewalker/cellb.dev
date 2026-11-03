@@ -49,7 +49,7 @@ host tab (browser/host.ts, emdash.html or index.html)
 `dist/` must be built:
 
 ```
-cd ../../../webrun-sites && pnpm install && pnpm --filter @statewalker/webrun-bundler build
+cd ../../../webrun-sites && pnpm install && pnpm --filter "@statewalker/webrun-bundler..." build
 cd - && pnpm --dir .. install  # the examples' workspace (examples/; cellb from npm)
 pnpm dev:browser              # Vite; open http://localhost:<port>/__cellb/emdash.html (or /__cellb/)
 pnpm test                     # the builder on Node: the small app, EmDash's config and build
