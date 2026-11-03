@@ -1,0 +1,120 @@
+{
+  "date": "2026-11-02",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8078.4 Safari/537.36",
+  "step": 2000,
+  "rolling": false,
+  "stopped": "page.evaluate: Error: SQLite3Error: SQLITE_NOMEM: sqlite3 result code 7: out of memory",
+  "base": {
+    "cells": 0,
+    "sqliteWasmMB": 8,
+    "opfsMB": 0.1,
+    "chromiumPssMB": 440,
+    "rendererPssMB": 117
+  },
+  "resident": {
+    "cells": 20000,
+    "perCellChromiumKB": 239,
+    "perCellRendererKB": 155,
+    "perCellSqliteWasmKB": 101,
+    "perCellOpfsKB": 26
+  },
+  "asleep": {
+    "cells": 20000,
+    "sqliteWasmMB": 2048,
+    "opfsMB": 514.9,
+    "chromiumPssMB": 5288,
+    "rendererPssMB": 3281
+  },
+  "woken": {
+    "cells": 20000,
+    "sqliteWasmMB": 2048,
+    "opfsMB": 519,
+    "chromiumPssMB": 5296,
+    "rendererPssMB": 3283,
+    "ok": 500,
+    "of": 500,
+    "perCellMs": 12
+  },
+  "steps": [
+    {
+      "cells": 2000,
+      "sqliteWasmMB": 216.3,
+      "opfsMB": 40.1,
+      "chromiumPssMB": 833,
+      "rendererPssMB": 398,
+      "stepMs": 31894
+    },
+    {
+      "cells": 4000,
+      "sqliteWasmMB": 448.5,
+      "opfsMB": 80.2,
+      "chromiumPssMB": 1209,
+      "rendererPssMB": 666,
+      "stepMs": 34758
+    },
+    {
+      "cells": 6000,
+      "sqliteWasmMB": 634.3,
+      "opfsMB": 136.9,
+      "chromiumPssMB": 1739,
+      "rendererPssMB": 993,
+      "stepMs": 52195
+    },
+    {
+      "cells": 8000,
+      "sqliteWasmMB": 826.4,
+      "opfsMB": 160.4,
+      "chromiumPssMB": 2011,
+      "rendererPssMB": 1227,
+      "stepMs": 23449
+    },
+    {
+      "cells": 10000,
+      "sqliteWasmMB": 1018.6,
+      "opfsMB": 250.4,
+      "chromiumPssMB": 2773,
+      "rendererPssMB": 1630,
+      "stepMs": 89451
+    },
+    {
+      "cells": 12000,
+      "sqliteWasmMB": 1210.7,
+      "opfsMB": 273.9,
+      "chromiumPssMB": 3056,
+      "rendererPssMB": 1870,
+      "stepMs": 27039
+    },
+    {
+      "cells": 14000,
+      "sqliteWasmMB": 1402.8,
+      "opfsMB": 297.3,
+      "chromiumPssMB": 3348,
+      "rendererPssMB": 2122,
+      "stepMs": 26325
+    },
+    {
+      "cells": 16000,
+      "sqliteWasmMB": 1594.9,
+      "opfsMB": 320.8,
+      "chromiumPssMB": 3610,
+      "rendererPssMB": 2343,
+      "stepMs": 26192
+    },
+    {
+      "cells": 18000,
+      "sqliteWasmMB": 1787.1,
+      "opfsMB": 477.4,
+      "chromiumPssMB": 4853,
+      "rendererPssMB": 2914,
+      "stepMs": 167740
+    },
+    {
+      "cells": 20000,
+      "sqliteWasmMB": 1979.2,
+      "opfsMB": 500.9,
+      "chromiumPssMB": 5111,
+      "rendererPssMB": 3137,
+      "stepMs": 36973
+    }
+  ]
+}

@@ -69,6 +69,17 @@ import { repoDoc } from "@/lib/site";
     interval of writes.
   </p>
 
+  <h2>Cells on LTX files in a browser</h2>
+  <p>
+    With <code>{"bucket: { ltx, node }"}</code>, a browser shard keeps each cell exactly as celld
+    keeps it: a snapshot and one LTX file per commit, in an OPFS directory. SQLite never holds the
+    database. It reads pages through a VFS from a store worker, with an LRU page cache and
+    read-ahead, so a cell's memory is its page cache, whatever its size. Each commit becomes one
+    LTX file, written under a temporary name and moved into place. The store compacts a cell into a
+    new snapshot when its files grow, and holds a Web Lock per cell, so only one tab or worker
+    writes a cell at a time.
+  </p>
+
   <h2>Loaded Workers get a realm of their own</h2>
   <p>
     A Worker Loader binding runs each loaded Worker in its own isolate: a worker thread in Node, a

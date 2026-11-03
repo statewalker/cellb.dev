@@ -204,17 +204,36 @@ export function memoryImageHooks(sqlite3: any): WasmImageHooks {
   };
 }
 
+/**
+ * Sets up a new SQLite WASM connection for a cell. One worker holds many small cells, and SQLite
+ * WASM's heap is capped at 2 GiB and never shrinks, so each connection's fixed memory decides how
+ * many cells can be open at once:
+ * - no lookaside: SQLite's per-connection allocator of small blocks, about 45 KiB each;
+ * - 4 KiB pages for a database that is still empty (celld's page size: SQLite's native default;
+ *   the WASM build's is 8 KiB). The page cache starts with a block of pages, so the page size
+ *   sets most of a connection's memory. A database that already holds data keeps its page size.
+ * Together they bring a connection with one small table from about 258 KiB to about 120 KiB.
+ */
+export function tuneCellConnection(sqlite3: unknown, db: Oo1Db): void {
+  const capi = (sqlite3 as { capi?: Record<string, any> }).capi;
+  const pointer = (db as unknown as { pointer?: number }).pointer;
+  // Before the connection runs any statement: SQLite refuses (SQLITE_BUSY) while lookaside is used.
+  if (capi?.sqlite3_db_config && pointer) {
+    capi.sqlite3_db_config(pointer, capi.SQLITE_DBCONFIG_LOOKASIDE, 0, 0, 0);
+  }
+  db.exec("PRAGMA page_size=4096");
+}
+
 let memdbCounter = 0;
 export function wasmMemoryOpener(sqlite3: {
   oo1: { DB: new (path: string, mode?: string) => Oo1Db };
 }): OpenCellSql {
-  return () =>
-    new WasmSqliteDriver(
-      // memdb (not ":memory:"): an in-memory database that IS a VFS file, so the page hook works.
-      new sqlite3.oo1.DB(`file:/cells-mem-${++memdbCounter}?vfs=memdb`, "c"),
-      memoryImageHooks(sqlite3),
-      sqlite3 as never,
-    );
+  return () => {
+    // memdb (not ":memory:"): an in-memory database that IS a VFS file, so the page hook works.
+    const db = new sqlite3.oo1.DB(`file:/cells-mem-${++memdbCounter}?vfs=memdb`, "c");
+    tuneCellConnection(sqlite3, db);
+    return new WasmSqliteDriver(db, memoryImageHooks(sqlite3), sqlite3 as never);
+  };
 }
 
 /**
@@ -282,6 +301,7 @@ export async function sahpoolOpener(
   // database file is the same in both modes (only WAL marks it).
   const openDb = (path: string) => {
     const db = new pool.OpfsSAHPoolDb(path);
+    tuneCellConnection(sqlite3, db);
     db.exec("PRAGMA journal_mode=PERSIST");
     return db;
   };
