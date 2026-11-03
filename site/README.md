@@ -50,6 +50,42 @@ sidebar links to the repository's reference docs and examples (`src/lib/site.ts`
 - Different: violet (hue ≈ 292) with a magenta secondary. Edit `:root` / `.dark` in
   `src/styles/global.css` to re-skin.
 
+## Publishing
+
+`.github/workflows/site.yml` builds the site on every pull request that touches it and publishes
+it from `main` to the httpeers static-site host, as
+[statewalker/httpeers](https://github.com/statewalker/httpeers) publishes its own sites. A site
+there is a first-level prefix of the `sites` bucket on `https://s3.httpeers.net`, named after its
+domain; the workflow runs `rclone sync site/dist httpeers:sites/<domain>`, inside that prefix
+only, and the host serves it at once (old files for up to 60 s).
+
+Setup, once (repository → Settings → Secrets and variables → Actions):
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| secret | `HTTPEERS_S3_ACCESS_KEY_ID`, `HTTPEERS_S3_SECRET_ACCESS_KEY` | credentials that can write the site's prefix in the `sites` bucket |
+| variable | `SITE_DOMAIN` | optional; `cellb.httpeers.net` when unset |
+
+Use credentials of their own, not the pair in `/opt/httpeers/.env` on the httpeers server: that
+pair is RustFS's own and is kept in that one file (statewalker/httpeers
+`tools/publish/README.md`), and it can rewrite or delete every site in the bucket. A RustFS user
+whose policy allows `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:ListBucket` on
+`sites/cellb.httpeers.net/*` and `sites/cellb.dev/*` only is what this workflow needs.
+
+Without the secrets the workflow builds the site and notes that it did not publish. Run it by hand
+with "Run workflow" (`workflow_dispatch`).
+
+`cellb.httpeers.net` needs nothing else: the zone has a wildcard DNS record and Caddy a wildcard
+certificate. To move the site to `cellb.dev`:
+
+1. In statewalker/httpeers, add a site block to `deploy/Caddyfile` that sends the name to the
+   same host as the wildcard, and deploy it: `cellb.dev { reverse_proxy sites:3000 }` (Caddy gets
+   its certificate over HTTP-01, as the name is not a wildcard).
+2. Point `cellb.dev` at the httpeers server (an A record, and AAAA if the server has IPv6). `.dev` is HTTPS-only in every
+   browser, so the site loads once Caddy has the certificate.
+3. Set the variable `SITE_DOMAIN` to `cellb.dev` and run the workflow. The old prefix,
+   `cellb.httpeers.net/`, stays served until it is removed (`httpeers-publish --delete-site`).
+
 ## Updating the numbers
 
 The "By the numbers" table reads `packages/cellb/bench/results/node.json` and `chromium.json`
