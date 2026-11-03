@@ -85,7 +85,9 @@ Use credentials of their own, not the pair in `/opt/httpeers/.env` on the httpee
 pair is RustFS's own and is kept in that one file (statewalker/httpeers
 `tools/publish/README.md`), and it can rewrite or delete every site in the bucket. A RustFS user
 whose policy allows `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:ListBucket` on
-`sites/cellb.httpeers.net/*` and `sites/cellb.dev/*` only is what this workflow needs.
+`sites/cellb.httpeers.net/*` and `sites/cellb.dev/*` only is what this workflow needs; the same
+key also publishes the browser examples (`.github/workflows/examples-publish.yml`), so the policy
+adds `cellb-examples.httpeers.net`, `cellb-emdash.httpeers.net` and `cellb-astro.httpeers.net`.
 
 `site/scripts/setup-publish-secrets.sh` does all of it: it reads the root pair over ssh
 (`kotelnikov@163.172.46.87`, `HTTPEERS_SSH` to change), creates or re-keys that user (`cellb-site`)

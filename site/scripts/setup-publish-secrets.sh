@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gives .github/workflows/site.yml what it needs to publish, once:
+# Gives .github/workflows/site.yml and examples-publish.yml what they need to publish, once:
 #
 #   1. reads RustFS's own key pair from /opt/httpeers/.env on the httpeers server (over ssh; it is
 #      kept nowhere else and this script writes it nowhere);
@@ -18,14 +18,15 @@
 #   HTTPEERS_SSH   default kotelnikov@163.172.46.87
 #   REPO           default statewalker/cellb.dev
 #   SITE_DOMAIN    default cellb.httpeers.net   (where the workflow publishes)
-#   SITE_DOMAINS   default "cellb.httpeers.net cellb.dev"   (prefixes the user may write)
+#   SITE_DOMAINS   default: cellb.httpeers.net cellb.dev and the examples' three hosts
+#                  (prefixes the user may write)
 #   SITE_USER      default cellb-site            (the RustFS user's access key)
 set -euo pipefail
 
 HTTPEERS_SSH=${HTTPEERS_SSH:-kotelnikov@163.172.46.87}
 REPO=${REPO:-statewalker/cellb.dev}
 SITE_DOMAIN=${SITE_DOMAIN:-cellb.httpeers.net}
-SITE_DOMAINS=${SITE_DOMAINS:-cellb.httpeers.net cellb.dev}
+SITE_DOMAINS=${SITE_DOMAINS:-cellb.httpeers.net cellb.dev cellb-examples.httpeers.net cellb-emdash.httpeers.net cellb-astro.httpeers.net}
 SITE_USER=${SITE_USER:-cellb-site}
 ENDPOINT=https://s3.httpeers.net
 RC_IMAGE=rustfs/rc:v0.1.37  # RustFS's own client; MinIO no longer publishes mc images

@@ -47,11 +47,13 @@ examples/agents/       pi and opencode in Durable Objects on cellb, against the 
 examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
 examples/astro-in-browser/  Astro apps, EmDash included, built from their sources in a browser tab and run there on cellb
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
+examples/landing/      the page of https://cellb-examples.httpeers.net, which links to the published examples
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
 .github/workflows/     cellb (lint, typecheck, unit tests, the packed package) and interop against the real
                        celld and RustFS, on every pull request; examples (run by hand, on released cellb or
-                       on cellb as this checkout would publish it)
+                       on cellb as this checkout would publish it); examples-publish (run by hand: the
+                       browser examples' static builds, tested, then published)
 .github/dependabot.yml weekly dependency updates, for both workspaces
 .changeset/            changesets for the published package (@statewalker/cellb)
 ```
@@ -113,6 +115,11 @@ in `examples/` (what the examples workflow does with `cellb: packed`; do not com
   `examples.yml` runs them on request ("Run workflow", or `gh workflow run examples.yml`), on
   released cellb, or with `-f cellb=packed` on cellb as the chosen branch would publish it; run it
   before a release and after changing an example.
+- **Each published example has a host of its own.** `examples-publish.yml` publishes EmDash's
+  static build to https://cellb-emdash.httpeers.net and the in-browser builder to
+  https://cellb-astro.httpeers.net, with https://cellb-examples.httpeers.net linking to both. Each
+  one's ServiceWorker takes its whole origin (EmDash uses absolute `/_emdash/…` paths), so two on
+  one host would replace each other.
 - **Examples run offline.** Agent frameworks need a model; the examples point theirs at
   `@statewalker/fake-openai`, so CI needs no key and no network beyond the package registry.
 

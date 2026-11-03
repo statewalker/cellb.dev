@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CellB examples</title>
+<style>
+  body { font: 16px/1.55 system-ui, sans-serif; max-width: 46rem; margin: 3rem auto; padding: 0 1rem; color: #1b1b1f; }
+  h1 { font-size: 1.8rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .25rem; }
+  p.lead { color: #555; margin-top: 0; }
+  a { color: #0b5cad; }
+  code { font-size: .9em; }
+  footer { margin-top: 3rem; color: #777; font-size: .9rem; }
+</style>
+</head>
+<body>
+<h1>CellB examples</h1>
+<p class="lead">Cloudflare Workers apps run on <a href="https://cellb.httpeers.net/">CellB</a> entirely
+in a browser tab: a static file server sends the files, and the tab runs the Worker, its Durable
+Objects, D1, KV and R2 (SQLite as WebAssembly, on OPFS). Keep the host tab open while you use a site.</p>
+
+<h2><a href="https://cellb-emdash.httpeers.net/">EmDash, served from a tab</a></h2>
+<p>EmDash, the Astro CMS, as Astro builds its <code>blog-cloudflare</code> template for Cloudflare,
+unchanged. Run the setup wizard at <code>/_emdash/admin</code>, create an account with a passkey,
+write and publish posts; they stay in this browser.</p>
+
+<h2><a href="https://cellb-astro.httpeers.net/">Astro, built in the tab</a></h2>
+<p>The app's sources are built in the tab (esbuild and Astro's compiler as WebAssembly, packages
+from the npm registry), then run there on CellB: a small Astro app in a few seconds, or EmDash in
+about two minutes the first time. One app at a time per origin: building the other replaces it.</p>
+
+<footer>Each example has its own host: its ServiceWorker takes the whole origin. Sources:
+<a href="https://github.com/statewalker/cellb.dev/tree/main/examples">examples/</a>.</footer>
+</body>
+</html>
