@@ -381,6 +381,10 @@ export class ObjectHost {
    * event: its handler has returned). The runtime waits for it, within a grace period, before
    * it closes the database on shutdown.
    */
+  /** No event in flight or queued. */
+  get idle(): boolean {
+    return !this.#active && !this.#queue.length;
+  }
   settled(): Promise<void> {
     if (!this.#active && !this.#queue.length) return Promise.resolve();
     return new Promise((resolve) => this.#idleWaiters.push(resolve));

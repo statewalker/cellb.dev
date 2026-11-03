@@ -251,8 +251,9 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       throw new Error(`Durable Object class "${className}" is not exported by the worker`);
     const hostFor = (id: DurableObjectId): ObjectHost => {
       const cellKey = `${className}/${id.toString()}`;
-      // A closed runtime opens no cell again: its storage is closed or handed to the next one.
-      if (closed) throw new ObjectClosedError(cellKey);
+      // Once close() has closed the cells, none opens again: its storage is closed or handed to
+      // the next runtime. Until then (the grace period), work in flight still reaches objects.
+      if (cellsClosed) throw new ObjectClosedError(cellKey);
       let h = hosts.get(cellKey);
       if (!h || h.broken) {
         h?.close();
@@ -392,6 +393,8 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     );
   let timer: unknown;
   let closed = false;
+  /** Set by close() after its grace period: no cell opens or takes an event any more. */
+  let cellsClosed = false;
   /** Aborts when close() starts: the signal of the Worker's requests in flight. */
   const closing = new AbortController();
   const schedule = () => {
@@ -456,14 +459,30 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       // Requests in flight, the Worker's and its objects', see their signal abort.
       closing.abort(new Error("the runtime is closing"));
       for (const h of hosts.values()) h.shutdown();
-      if (grace > 0) {
+      // Work in flight may start more (a queue's delivery calls the consumer, which writes to
+      // another object): wait until nothing runs, nor started while waiting, or the grace ends.
+      const end = Date.now() + grace;
+      for (let left = grace; left > 0; left = end - Date.now()) {
+        const cells = hosts.size;
         let t: ReturnType<typeof setTimeout> | undefined;
-        await Promise.race([
-          Promise.all([...[...hosts.values()].map((h) => h.settled()), ...[...background]]),
-          new Promise((r) => (t = setTimeout(r, grace))),
+        const idle = await Promise.race([
+          Promise.all([...[...hosts.values()].map((h) => h.settled()), ...[...background]]).then(
+            () => true,
+          ),
+          new Promise<false>((r) => (t = setTimeout(() => r(false), left))),
         ]);
         clearTimeout(t);
+        if (!idle) break;
+        // One more turn: what finished may have queued more work.
+        await new Promise((r) => setTimeout(r, 0));
+        if (
+          hosts.size === cells &&
+          background.size === 0 &&
+          [...hosts.values()].every((h) => h.idle)
+        )
+          break;
       }
+      cellsClosed = true;
       await backupAll("close");
       // The releases reach the store before it closes.
       await Promise.all([...hosts.values()].map((h) => h.close()));
