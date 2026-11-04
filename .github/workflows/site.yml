@@ -19,6 +19,9 @@ on:
       - "site/**"
       # The "By the numbers" section reads the recorded benchmark runs at build time.
       - "packages/cellb/bench/results/**"
+      # The demo runs cellb from source on celld's counter example.
+      - "packages/cellb/src/**"
+      - "packages/cellb/conformance/celld-examples/counter/**"
       # Rendered as /docs/… pages (site/src/lib/docs.ts).
       - "packages/cellb/docs/**/*.md"
       - "packages/cellb/CONTEXT.md"
@@ -32,6 +35,8 @@ on:
     paths:
       - "site/**"
       - "packages/cellb/bench/results/**"
+      - "packages/cellb/src/**"
+      - "packages/cellb/conformance/celld-examples/counter/**"
       - "packages/cellb/docs/**/*.md"
       - "packages/cellb/CONTEXT.md"
       - "packages/cellb/bench/README.md"

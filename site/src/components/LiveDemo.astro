@@ -3,116 +3,165 @@ import Icon from "./Icon.astro";
 import Badge from "./ui/Badge.astro";
 import Button from "./ui/Button.astro";
 import Card from "./ui/Card.astro";
+
+// celld's `counter` example, run unchanged on cellb in this page (src/demo/celld-counter-worker.ts).
+const names = ["default", "alice", "bob"];
 ---
 
-<!--
-  A miniature of the CellB ownership model using only browser primitives:
-  the Web Locks API elects one owner tab for the cell, BroadcastChannel carries
-  requests from other tabs to the owner, and localStorage stands in for OPFS.
--->
-<Card class="overflow-hidden">
+<Card class="overflow-hidden" data-demo>
   <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
     <div class="flex items-center gap-2 font-mono text-sm">
       <span class="size-2 rounded-sm bg-primary"></span>
-      counter:<span class="text-primary">demo</span>
+      <span>celld/examples/<span class="text-primary">counter</span></span>
     </div>
-    <Badge variant="outline" class="font-mono" data-demo-role>connecting…</Badge>
+    <Badge variant="outline" class="font-mono" data-demo-role>not started</Badge>
   </div>
-  <div class="grid gap-6 p-5 sm:grid-cols-[auto_1fr] sm:items-center">
-    <div class="text-center sm:text-left">
-      <p class="text-xs uppercase tracking-wider text-muted-foreground">value</p>
-      <p class="font-mono text-6xl font-semibold tabular-nums tracking-tight" data-demo-value>0</p>
+
+  <div class="space-y-4 p-5">
+    <div class="grid grid-cols-3 gap-3" data-demo-cells>
+      {names.map((name) => (
+        <button
+          type="button"
+          data-demo-send={name}
+          class="group rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-60"
+        >
+          <span class="block font-mono text-[11px] text-muted-foreground">idFromName</span>
+          <span class="block truncate font-mono text-xs">"{name}"</span>
+          <span class="mt-1 block font-mono text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl" data-demo-n={name}>–</span>
+          <span class="mt-1 inline-flex items-center gap-1 text-xs text-primary">
+            <Icon name="plus" class="size-3" /> fetch
+          </span>
+        </button>
+      ))}
     </div>
-    <div class="space-y-3">
-      <div class="flex flex-wrap gap-2">
-        <Button data-demo-inc><Icon name="plus" /> Increment</Button>
-        <Button variant="outline" href="/#demo" target="_blank" rel="noopener">
-          Open another tab <Icon name="externalLink" />
-        </Button>
+
+    <form class="flex gap-2" data-demo-form>
+      <label class="sr-only" for="demo-name">Durable Object name</label>
+      <div class="flex h-9 min-w-0 flex-1 items-center rounded-md border bg-background px-3 font-mono text-sm focus-within:ring-2 focus-within:ring-ring/40">
+        <span class="text-muted-foreground">/?name=</span>
+        <input
+          id="demo-name"
+          name="name"
+          value="carol"
+          maxlength="40"
+          autocomplete="off"
+          spellcheck="false"
+          class="min-w-0 flex-1 bg-transparent outline-none"
+        />
       </div>
-      <p class="text-sm text-muted-foreground">
-        Every tab can increment. Only the <span class="text-foreground">owner</span> tab writes; the
-        others forward a request to it. Close the owner tab and another tab takes the lock and
-        continues from the stored value.
-      </p>
-    </div>
+      <Button type="submit" variant="outline" data-demo-submit>GET</Button>
+    </form>
+
+    <p class="text-sm text-muted-foreground">
+      Each name is its own Durable Object, with its own SQLite database in this origin's OPFS.
+      Reload the page: the counts are still there. Open a{" "}
+      <a href="/#demo" target="_blank" rel="noopener" class="text-primary hover:underline">second tab</a>:
+      it waits, then takes the cells over from the same files when this tab closes.
+    </p>
   </div>
+
   <div class="border-t bg-muted/40 px-5 py-3">
-    <ol class="max-h-28 space-y-1 overflow-y-auto font-mono text-[11px] text-muted-foreground" data-demo-log></ol>
+    <ol class="h-28 space-y-1 overflow-y-auto font-mono [overflow-wrap:anywhere] text-[11px] text-muted-foreground" data-demo-log>
+      <li>The worker starts when this section scrolls into view.</li>
+    </ol>
   </div>
 </Card>
 
 <script>
-  const KEY = "cellb-demo:counter";
-  const roleEl = document.querySelector<HTMLElement>("[data-demo-role]")!;
-  const valueEl = document.querySelector<HTMLElement>("[data-demo-value]")!;
-  const logEl = document.querySelector<HTMLElement>("[data-demo-log]")!;
-  const incBtn = document.querySelector<HTMLButtonElement>("[data-demo-inc]")!;
-  const tabId = Math.random().toString(36).slice(2, 6);
+  import type { DemoEvent } from "../demo/counter/worker";
 
-  const read = () => {
-    try {
-      return Number(localStorage.getItem(KEY) ?? 0);
-    } catch {
-      return 0;
-    }
-  };
-  const write = (n: number) => {
-    try {
-      localStorage.setItem(KEY, String(n));
-    } catch {}
-  };
-  const log = (msg: string) => {
+  const root = document.querySelector<HTMLElement>("[data-demo]")!;
+  const roleEl = root.querySelector<HTMLElement>("[data-demo-role]")!;
+  const logEl = root.querySelector<HTMLElement>("[data-demo-log]")!;
+  const form = root.querySelector<HTMLFormElement>("[data-demo-form]")!;
+  const input = form.querySelector<HTMLInputElement>("input")!;
+
+  const log = (msg: string, strong = false) => {
     const li = document.createElement("li");
-    li.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
+    li.textContent = msg;
+    if (strong) li.className = "text-foreground";
     logEl.prepend(li);
   };
+  const role = (text: string) => (roleEl.textContent = text);
 
-  let owner = false;
-  valueEl.textContent = String(read());
-
-  if (!("locks" in navigator) || !("BroadcastChannel" in window)) {
-    roleEl.textContent = "unsupported browser";
-    incBtn.disabled = true;
+  if (!("locks" in navigator) || !navigator.storage?.getDirectory || !("Worker" in window)) {
+    role("unsupported browser");
+    logEl.replaceChildren();
+    log("This browser lacks OPFS or Web Locks in workers, which cellb's browser host needs.");
   } else {
-    const channel = new BroadcastChannel("cellb-demo");
+    let worker: Worker | undefined;
+    let nextId = 1;
+    const pending = new Map<number, string>();
 
-    const apply = () => {
-      const next = read() + 1;
-      write(next);
-      valueEl.textContent = String(next);
-      channel.postMessage({ type: "value", value: next });
-      return next;
+    const start = () => {
+      if (worker) return;
+      logEl.replaceChildren();
+      worker = new Worker(new URL("../demo/counter/worker.ts", import.meta.url), {
+        type: "module",
+      });
+      worker.onerror = (e) => {
+        role("failed");
+        log(`worker error: ${e.message}`, true);
+      };
+      worker.onmessage = (e: MessageEvent<DemoEvent>) => {
+        const ev = e.data;
+        if (ev.type === "waiting") role("waiting for the cells");
+        else if (ev.type === "starting") {
+          role("starting…");
+          log("this tab holds the lock: loading SQLite WASM and the project");
+        } else if (ev.type === "ready") {
+          role("cells run in this tab");
+          log(`cellb runtime ready in ${Math.round(ev.startMs)} ms (wrangler.jsonc, index.js as celld ships them)`);
+        } else if (ev.type === "failed") {
+          role("failed");
+          log(ev.error, true);
+        } else if (ev.type === "reply") {
+          const name = pending.get(ev.id) ?? "?";
+          pending.delete(ev.id);
+          let shown = ev.body;
+          try {
+            const json = JSON.parse(ev.body) as { n: number };
+            shown = JSON.stringify(json);
+            const el = root.querySelector<HTMLElement>(`[data-demo-n="${CSS.escape(name)}"]`);
+            if (el) {
+              el.textContent = String(json.n);
+              el.animate([{ color: "var(--primary)" }, { color: "inherit" }], { duration: 600 });
+            }
+          } catch {}
+          log(`GET /?name=${name} → ${ev.status} ${shown}  ${ev.ms.toFixed(1)} ms`);
+        }
+      };
+      // A second tab does not get the lock until this one closes; say so if it takes a moment.
+      setTimeout(() => {
+        if (roleEl.textContent === "waiting for the cells")
+          log("another tab runs these cells; this one takes over when it closes", true);
+      }, 1500);
     };
 
-    channel.onmessage = ({ data }) => {
-      if (data.type === "inc" && owner) {
-        const v = apply();
-        log(`owner applied increment from tab ${data.from} → ${v}`);
-      } else if (data.type === "value") {
-        valueEl.textContent = String(data.value);
-      }
+    const send = (name: string) => {
+      start();
+      const id = nextId++;
+      pending.set(id, name);
+      worker!.postMessage({ id, path: `/?name=${encodeURIComponent(name)}` });
     };
 
-    incBtn.addEventListener("click", () => {
-      if (owner) {
-        log(`local write → ${apply()}`);
-      } else {
-        channel.postMessage({ type: "inc", from: tabId });
-        log("forwarded increment to owner");
-      }
+    root.querySelectorAll<HTMLButtonElement>("[data-demo-send]").forEach((b) => {
+      b.addEventListener("click", () => send(b.dataset.demoSend!));
+    });
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = input.value.trim();
+      if (name) send(name);
     });
 
-    roleEl.textContent = `tab ${tabId} · follower`;
-    log(`tab ${tabId} waiting for cell lock`);
-    navigator.locks.request("cellb-demo:counter", () => {
-      owner = true;
-      valueEl.textContent = String(read());
-      roleEl.textContent = `tab ${tabId} · owner`;
-      roleEl.classList.add("border-primary/40", "text-primary");
-      log(`tab ${tabId} acquired lock, restored value ${read()}`);
-      // Hold the lock for the lifetime of the tab.
-      return new Promise(() => {});
-    });
+    new IntersectionObserver(
+      (entries, obs) => {
+        if (entries.some((x) => x.isIntersecting)) {
+          obs.disconnect();
+          start();
+        }
+      },
+      { rootMargin: "300px" },
+    ).observe(root);
   }
 </script>

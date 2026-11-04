@@ -38,7 +38,7 @@ The copy is drawn from this repository: the root README, `packages/cellb/README.
 | Comparison | The full celld 0.6.3 / cellb Node / cellb browsers table, with 70/5/6 scenario counts | root README |
 | Life of a cell | Take → run → log → move | ownership-and-durability.md |
 | By the numbers | celld.dev's rows (durability, speed, density and cost) for cellb on Node and Chromium, with footnotes | `packages/cellb/bench/results/*.json`, imported at build time |
-| Demo | Web Lock ownership across tabs (the primitive behind browser shards) | browser-host.md |
+| Demo | celld's `counter` example, unchanged, on cellb in a Dedicated Worker (SQLite WASM on OPFS; one tab runs the cells, another takes over through a Web Lock): `src/demo/counter/` (its wrangler.jsonc and worker.ts, shown in tabs beside it) | browser-host.md, conformance/celld-examples/counter |
 
 Docs: `/docs` (getting started: install, entry points, Node, browser, fleet) and
 `/docs/how-it-works` (ports, request path, gates, ownership, durability, loaded Workers) are
