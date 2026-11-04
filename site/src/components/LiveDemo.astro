@@ -90,6 +90,25 @@ const names = ["default", "alice", "bob"];
     el.animate([{ color: "var(--primary)" }, { color: "inherit" }], { duration: 600 });
   };
 
+  // celld's counter has one operation, and it adds one: a tab cannot read a count without
+  // changing it. Every change is an answer that some tab of this site receives, so the tabs keep
+  // the last answer for each name here, show it on load, and see each other's ("storage" event).
+  const KEY = "cellb.dev:demo:counter:";
+  const remember = (name: string, n: number) => {
+    try {
+      localStorage.setItem(KEY + name, String(n));
+    } catch {}
+  };
+  try {
+    for (const el of root.querySelectorAll<HTMLElement>("[data-demo-n]")) {
+      const n = localStorage.getItem(KEY + el.dataset.demoN);
+      if (n !== null) el.textContent = n;
+    }
+    addEventListener("storage", (e) => {
+      if (e.key?.startsWith(KEY) && e.newValue) show(e.key.slice(KEY.length), Number(e.newValue));
+    });
+  } catch {}
+
   if (!("locks" in navigator) || !navigator.storage?.getDirectory || !("serviceWorker" in navigator)) {
     roleEl.textContent = "unsupported browser";
     logEl.replaceChildren();
@@ -151,6 +170,7 @@ const names = ["default", "alice", "bob"];
         const n = (JSON.parse(body) as { n?: number }).n;
         if (typeof n === "number") {
           show(name, n);
+          remember(name, n);
           peers.postMessage({ name, n, line });
         }
       } catch (err) {
