@@ -6,8 +6,8 @@
   "compatibility_date": "2026-01-01",
   "durable_objects": {
     // env.COUNTER: one Counter object per name (idFromName)
-    "bindings": [{ "name": "COUNTER", "class_name": "Counter" }],
+    "bindings": [{ "name": "COUNTER", "class_name": "Counter" }]
   },
   // SQLite-backed: in a browser, one database per object in OPFS
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Counter"] }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Counter"] }]
 }
