@@ -13,7 +13,7 @@ import Base from "@/layouts/Base.astro";
 import { docHref } from "@/lib/docs";
 import { REPO } from "@/lib/site";
 import counterCode from "../../../packages/cellb/conformance/celld-examples/counter/index.js?raw";
-import counterWorker from "../demo/counter/worker.ts?raw";
+import counterTabs from "../demo/counter/tabs.ts?raw";
 import counterWrangler from "../demo/counter/wrangler.jsonc?raw";
 
 // --- Code samples (from packages/cellb/README.md) -------------------------
@@ -595,21 +595,22 @@ const lifecycle = [
   <section id="demo" class="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6">
     <div class="max-w-3xl space-y-3">
       <p class="font-mono text-sm text-primary">// try it</p>
-      <h2 class="text-3xl font-semibold tracking-tight">celld's counter, running in this tab.</h2>
+      <h2 class="text-3xl font-semibold tracking-tight">celld's counter, running in your tabs.</h2>
       <p class="text-muted-foreground">
         The <code class="font-mono text-sm">index.js</code> below is celld's{" "}
         <code class="font-mono text-sm">counter</code> example, byte for byte. With its{" "}
-        <code class="font-mono text-sm">wrangler.jsonc</code>, cellb runs it in a Dedicated Worker
-        of this page, each Durable Object in SQLite WASM on OPFS. No server answers these requests.
+        <code class="font-mono text-sm">wrangler.jsonc</code>, cellb runs it in the browser, shared
+        by every tab of this site that has the page open: its shards run in Dedicated Workers of
+        those tabs, each Durable Object in SQLite WASM on OPFS. No server answers these requests.
       </p>
     </div>
     <div class="mt-10 grid gap-8 lg:grid-cols-[1.35fr_1fr] lg:items-start [&>*]:min-w-0">
       <div class="space-y-3">
-        <!-- One height for every tab (worker.ts scrolls), so switching tabs does not move the page. -->
-        <Tabs labels={["index.js", "wrangler.jsonc", "worker.ts"]}>
+        <!-- One height for every tab (tabs.ts scrolls), so switching tabs does not move the page. -->
+        <Tabs labels={["index.js", "wrangler.jsonc", "tabs.ts"]}>
           <CodeBlock slot="tab-0" title="celld/examples/counter/index.js" class="h-[32rem]" lang="js" code={counterCode} />
           <CodeBlock slot="tab-1" title="site/src/demo/counter/wrangler.jsonc" class="h-[32rem]" lang="jsonc" code={counterWrangler} />
-          <CodeBlock slot="tab-2" title="site/src/demo/counter/worker.ts" class="h-[32rem]" lang="ts" code={counterWorker} />
+          <CodeBlock slot="tab-2" title="site/src/demo/counter/tabs.ts" class="h-[32rem]" lang="ts" code={counterTabs} />
         </Tabs>
         <a href={docHref("packages/cellb/docs/browser-host.md")} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
           How a browser runs cells <Icon name="externalLink" class="size-3" />

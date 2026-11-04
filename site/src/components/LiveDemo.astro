@@ -53,10 +53,11 @@ const names = ["default", "alice", "bob"];
     </form>
 
     <p class="text-sm text-muted-foreground">
-      Each name is its own Durable Object, with its own SQLite database in this origin's OPFS.
-      Reload the page: the counts are still there. Open a{" "}
+      Each name is its own Durable Object with its own SQLite database in OPFS, in one of the
+      project's shards. Open a{" "}
       <a href="/#demo" target="_blank" rel="noopener" class="text-primary hover:underline">second tab</a>:
-      it waits, then takes the cells over from the same files when this tab closes.
+      the tabs split the shards, either tab reaches every cell, and both show each answer. Close
+      one, and the other takes its shards over from the same files.
     </p>
   </div>
 
@@ -68,7 +69,7 @@ const names = ["default", "alice", "bob"];
 </Card>
 
 <script>
-  import type { DemoEvent } from "../demo/counter/worker";
+  import { fetchCounter, joinCounter, SHARDS } from "../demo/counter/tabs";
 
   const root = document.querySelector<HTMLElement>("[data-demo]")!;
   const roleEl = root.querySelector<HTMLElement>("[data-demo-role]")!;
@@ -82,83 +83,95 @@ const names = ["default", "alice", "bob"];
     if (strong) li.className = "text-foreground";
     logEl.prepend(li);
   };
-  const role = (text: string) => (roleEl.textContent = text);
+  const show = (name: string, n: number) => {
+    const el = root.querySelector<HTMLElement>(`[data-demo-n="${CSS.escape(name)}"]`);
+    if (!el || el.textContent === String(n)) return;
+    el.textContent = String(n);
+    el.animate([{ color: "var(--primary)" }, { color: "inherit" }], { duration: 600 });
+  };
 
-  if (!("locks" in navigator) || !navigator.storage?.getDirectory || !("Worker" in window)) {
-    role("unsupported browser");
+  if (!("locks" in navigator) || !navigator.storage?.getDirectory || !("serviceWorker" in navigator)) {
+    roleEl.textContent = "unsupported browser";
     logEl.replaceChildren();
-    log("This browser lacks OPFS or Web Locks in workers, which cellb's browser host needs.");
+    log("This browser lacks OPFS, Web Locks or ServiceWorkers, which cellb's browser host needs.");
   } else {
-    let worker: Worker | undefined;
-    let nextId = 1;
-    const pending = new Map<number, string>();
-
-    const start = () => {
-      if (worker) return;
-      logEl.replaceChildren();
-      worker = new Worker(new URL("../demo/counter/worker.ts", import.meta.url), {
-        type: "module",
-      });
-      worker.onerror = (e) => {
-        role("failed");
-        log(`worker error: ${e.message}`, true);
-      };
-      worker.onmessage = (e: MessageEvent<DemoEvent>) => {
-        const ev = e.data;
-        if (ev.type === "waiting") role("waiting for the cells");
-        else if (ev.type === "starting") {
-          role("starting…");
-          log("this tab holds the lock: loading SQLite WASM and the project");
-        } else if (ev.type === "ready") {
-          role("cells run in this tab");
-          log(`cellb runtime ready in ${Math.round(ev.startMs)} ms (wrangler.jsonc, index.js as celld ships them)`);
-        } else if (ev.type === "failed") {
-          role("failed");
-          log(ev.error, true);
-        } else if (ev.type === "reply") {
-          const name = pending.get(ev.id) ?? "?";
-          pending.delete(ev.id);
-          let shown = ev.body;
-          try {
-            const json = JSON.parse(ev.body) as { n: number };
-            shown = JSON.stringify(json);
-            const el = root.querySelector<HTMLElement>(`[data-demo-n="${CSS.escape(name)}"]`);
-            if (el) {
-              el.textContent = String(json.n);
-              el.animate([{ color: "var(--primary)" }, { color: "inherit" }], { duration: 600 });
-            }
-          } catch {}
-          log(`GET /?name=${name} → ${ev.status} ${shown}  ${ev.ms.toFixed(1)} ms`);
-        }
-      };
-      // A second tab does not get the lock until this one closes; say so if it takes a moment.
-      setTimeout(() => {
-        if (roleEl.textContent === "waiting for the cells")
-          log("another tab runs these cells; this one takes over when it closes", true);
-      }, 1500);
+    // Every answer, from any tab, is shown in every tab.
+    const peers = new BroadcastChannel("cellb.dev:demo:counter");
+    peers.onmessage = (e: MessageEvent<{ name: string; n: number; line: string }>) => {
+      show(e.data.name, e.data.n);
+      log(`${e.data.line}  (another tab)`);
     };
 
-    const send = (name: string) => {
-      start();
-      const id = nextId++;
-      pending.set(id, name);
-      worker!.postMessage({ id, path: `/?name=${encodeURIComponent(name)}` });
+    let joined: ReturnType<typeof joinCounter> | undefined;
+    const join = () => {
+      if (joined) return joined;
+      logEl.replaceChildren();
+      roleEl.textContent = "joining…";
+      const t0 = performance.now();
+      let owned: number[] | undefined; // until the tabs have split the shards
+      const describe = async (tabs: Awaited<ReturnType<typeof joinCounter>>) => {
+        if (!owned) return;
+        const n = (await tabs.tabs()).length;
+        const runs = owned.length
+          ? `runs shard${owned.length > 1 ? "s" : ""} ${owned.join(", ")} of ${SHARDS}`
+          : `runs no shard`;
+        roleEl.textContent = `this tab ${runs} · ${n} tab${n > 1 ? "s" : ""}`;
+      };
+      joined = joinCounter((o) => {
+        owned = o;
+        log(`this tab now runs ${o.length ? `shard ${o.join(", ")}` : "no shard"} of ${SHARDS}`);
+        void joined?.then(describe);
+      });
+      joined.then(
+        (tabs) => {
+          log(`joined the project in ${Math.round(performance.now() - t0)} ms`);
+          // A tab that joins after every shard has its owner may get none, and no onChange.
+          setTimeout(() => {
+            owned ??= [];
+            void describe(tabs);
+          }, 1500);
+          setInterval(() => void describe(tabs), 2000); // tabs come and go
+        },
+        (err) => {
+          roleEl.textContent = "failed";
+          log(String(err?.message ?? err), true);
+        },
+      );
+      return joined;
+    };
+
+    const send = async (name: string) => {
+      await join();
+      const t = performance.now();
+      try {
+        const res = await fetchCounter(name);
+        const body = await res.text();
+        const line = `GET /?name=${name} → ${res.status} ${body}  ${(performance.now() - t).toFixed(1)} ms`;
+        log(line);
+        const n = (JSON.parse(body) as { n?: number }).n;
+        if (typeof n === "number") {
+          show(name, n);
+          peers.postMessage({ name, n, line });
+        }
+      } catch (err) {
+        log(`GET /?name=${name} failed: ${String(err)}`, true);
+      }
     };
 
     root.querySelectorAll<HTMLButtonElement>("[data-demo-send]").forEach((b) => {
-      b.addEventListener("click", () => send(b.dataset.demoSend!));
+      b.addEventListener("click", () => void send(b.dataset.demoSend!));
     });
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       const name = input.value.trim();
-      if (name) send(name);
+      if (name) void send(name);
     });
 
     new IntersectionObserver(
       (entries, obs) => {
         if (entries.some((x) => x.isIntersecting)) {
           obs.disconnect();
-          start();
+          void join();
         }
       },
       { rootMargin: "300px" },
