@@ -4,10 +4,12 @@ import { fileURLToPath } from "node:url";
 import { unified } from "@astrojs/markdown-remark";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
+import { demoServiceWorker } from "./integrations/demo-service-worker.mjs";
 import { rehypeRepoLinks } from "./src/lib/rehype-repo-links.ts";
 
 export default defineConfig({
   site: "https://cellb.dev",
+  integrations: [demoServiceWorker()],
   vite: {
     plugins: [tailwindcss()],
     // The homepage demo's worker runs cellb: SQLite WASM finds its .wasm next to its own module,
