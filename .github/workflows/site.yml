@@ -35,6 +35,8 @@ on:
     paths:
       - "site/**"
       - "packages/cellb/bench/results/**"
+      - "packages/cellb/src/**"
+      - "packages/cellb/conformance/celld-examples/counter/**"
       - "packages/cellb/docs/**/*.md"
       - "packages/cellb/CONTEXT.md"
       - "packages/cellb/bench/README.md"
