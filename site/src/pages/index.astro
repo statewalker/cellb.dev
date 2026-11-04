@@ -605,10 +605,11 @@ const lifecycle = [
     </div>
     <div class="mt-10 grid gap-8 lg:grid-cols-[1.35fr_1fr] lg:items-start [&>*]:min-w-0">
       <div class="space-y-3">
+        <!-- One height for every tab (worker.ts scrolls), so switching tabs does not move the page. -->
         <Tabs labels={["index.js", "wrangler.jsonc", "worker.ts"]}>
-          <CodeBlock slot="tab-0" title="celld/examples/counter/index.js" lang="js" code={counterCode} />
-          <CodeBlock slot="tab-1" title="site/src/demo/counter/wrangler.jsonc" lang="jsonc" code={counterWrangler} />
-          <CodeBlock slot="tab-2" title="site/src/demo/counter/worker.ts" lang="ts" code={counterWorker} />
+          <CodeBlock slot="tab-0" title="celld/examples/counter/index.js" class="h-[32rem]" lang="js" code={counterCode} />
+          <CodeBlock slot="tab-1" title="site/src/demo/counter/wrangler.jsonc" class="h-[32rem]" lang="jsonc" code={counterWrangler} />
+          <CodeBlock slot="tab-2" title="site/src/demo/counter/worker.ts" class="h-[32rem]" lang="ts" code={counterWorker} />
         </Tabs>
         <a href={docHref("packages/cellb/docs/browser-host.md")} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
           How a browser runs cells <Icon name="externalLink" class="size-3" />
