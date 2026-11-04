@@ -36,6 +36,7 @@ export {
 export { shardOf } from "./core/shard.js";
 export { DurableObjectState } from "./core/state.js";
 export * from "./ports.js";
+export { parseJsonc } from "./project/jsonc.js";
 export {
   createProjectRuntime,
   type ProjectHost,

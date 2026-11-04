@@ -68,7 +68,7 @@ const names = ["default", "alice", "bob"];
 </Card>
 
 <script>
-  import type { DemoEvent } from "../demo/celld-counter-worker";
+  import type { DemoEvent } from "../demo/counter/worker";
 
   const root = document.querySelector<HTMLElement>("[data-demo]")!;
   const roleEl = root.querySelector<HTMLElement>("[data-demo-role]")!;
@@ -96,7 +96,7 @@ const names = ["default", "alice", "bob"];
     const start = () => {
       if (worker) return;
       logEl.replaceChildren();
-      worker = new Worker(new URL("../demo/celld-counter-worker.ts", import.meta.url), {
+      worker = new Worker(new URL("../demo/counter/worker.ts", import.meta.url), {
         type: "module",
       });
       worker.onerror = (e) => {
