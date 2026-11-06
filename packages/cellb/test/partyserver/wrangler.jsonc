@@ -1,0 +1,19 @@
+// A host project built on partyserver (https://github.com/cloudflare/partykit): a party room,
+// partywhen's scheduler, and extensions loaded at run time whose partyserver Servers run as
+// facets of a host object. The extension's bundle arrives in `PLUGIN_CODE` (fixture.ts).
+{
+  "name": "partyserver-host",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  // partywhen's cron parser imports `fs`, as on Cloudflare.
+  "compatibility_flags": ["nodejs_compat"],
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "Room", "class_name": "Room" },
+      { "name": "EXT_HOST", "class_name": "ExtensionHost" },
+      { "name": "SCHEDULER", "class_name": "Scheduler" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "ExtensionHost", "Scheduler"] }]
+}

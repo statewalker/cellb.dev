@@ -132,6 +132,8 @@
     "esbuild": "^0.28.0",
     "html-rewriter-wasm": "^0.4.1",
     "miniflare": "4.20260730.0",
+    "partyserver": "0.5.10",
+    "partywhen": "0.1.5",
     "sqlite-vec-wasm-demo": "0.1.6",
     "typescript": "catalog:",
     "vite": "catalog:",
