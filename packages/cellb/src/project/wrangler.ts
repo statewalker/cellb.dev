@@ -241,12 +241,14 @@ export function createProjectRuntime(
   }
   // The isolates of loaded Workers end with the runtime (on Node, a worker thread's port would
   // keep the process alive; in a browser, a Dedicated Worker would outlive the runtime).
-  const isolated = host.isolatedModules as (ModuleLoader & { close?(): void }) | undefined;
+  const isolated = host.isolatedModules as
+    | (ModuleLoader & { close?(): void | Promise<void> })
+    | undefined;
   if (config.worker_loaders?.length && isolated?.close) {
     const close = runtime.close.bind(runtime);
     runtime.close = async () => {
       await close();
-      isolated.close?.();
+      await isolated.close?.();
     };
   }
   for (const l of config.worker_loaders ?? []) {

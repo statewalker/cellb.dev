@@ -24,7 +24,7 @@ export function isolatedModuleLoader(opts: {
   prepare(id: string, code: WorkerCode): Promise<{ source?: string; url?: string }>;
 }): IsolatedModuleLoader {
   // Every isolate this loader started: `close()` ends them (a project runtime's close does).
-  const isolates = new Set<{ terminate(): void; closeSockets?(): void }>();
+  const isolates = new Set<{ terminate(): void; goAway?(): Promise<unknown> }>();
   const load = async (id: string, code: WorkerCode, logs?: LogSink) => {
     // The env crosses as any call does: bindings and other stubs by reference.
     const env: Record<string, unknown> = { ...code.env };
@@ -33,11 +33,11 @@ export function isolatedModuleLoader(opts: {
     const outbound = code.globalOutbound === null ? "blocked" : fetcher ? "fetcher" : undefined;
     const where = await opts.prepare(id, code);
     const isolate = opts.spawn(id);
-    const running: { terminate(): void; closeSockets?(): void } = {
+    const running: { terminate(): void; goAway?(): Promise<unknown> } = {
       terminate: () => isolate.terminate(),
     };
     isolates.add(running);
-    const { call, fetch, closeSockets } = await hostPort(
+    const { call, fetch } = await hostPort(
       isolate.port,
       async (m) => {
         if (m.type === "durable") {
@@ -63,7 +63,9 @@ export function isolatedModuleLoader(opts: {
       },
       fetcher,
     );
-    running.closeSockets = closeSockets;
+    // Before it ends, the isolate tells its sockets' clients it is going away (1001): their
+    // frames go straight to the isolate (protocol.ts), so only it can.
+    running.goAway = () => call({ type: "goAway" });
     const exports = await call<Record<string, string>>({
       type: "load",
       ...where,
@@ -105,15 +107,22 @@ export function isolatedModuleLoader(opts: {
     return module as Record<string, unknown>;
   };
   return Object.assign(load, {
-    close() {
-      for (const isolate of isolates) {
-        isolate.closeSockets?.(); // its sockets' clients hear 1001 before the isolate ends
-        isolate.terminate();
-      }
+    close(): Promise<void> {
+      const ending = [...isolates];
       isolates.clear();
+      // Each isolate closes its sockets (1001), within a second; then it ends.
+      return Promise.all(
+        ending.map(async (isolate) => {
+          await Promise.race([
+            isolate.goAway?.().catch(() => {}),
+            new Promise((r) => setTimeout(r, 1_000)),
+          ]);
+          isolate.terminate();
+        }),
+      ).then(() => {});
     },
   });
 }
 
 /** A Worker Loader's module loader whose isolates end with `close()`. */
-export type IsolatedModuleLoader = ModuleLoader & { close(): void };
+export type IsolatedModuleLoader = ModuleLoader & { close(): Promise<void> };
