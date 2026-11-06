@@ -1,11 +1,4 @@
-import {
-  byteSize,
-  CellsCloseEvent,
-  checkClose,
-  DEFAULT_HEARTBEAT_MS,
-  type Frame,
-  toFrameData,
-} from "./frames.js";
+import { createWebSocketClass as createPortWebSocketClass } from "@statewalker/webrun-http-browser/sw";
 
 /** Opens the transport of a socket: resolves with the MessagePort once the server accepted (101). */
 export type WebSocketConnector = (
@@ -13,232 +6,68 @@ export type WebSocketConnector = (
   protocols: string[],
 ) => Promise<{ port: MessagePort; protocol?: string }>;
 
-type Handler = ((ev: any) => void) | null;
+type IntervalTimers = {
+  setInterval(fn: () => void, ms: number): unknown;
+  clearInterval(id: unknown): void;
+};
 
-/**
- * A WHATWG-WebSocket-compatible class whose transport is a MessagePort obtained
- * from `connect` (page → ServiceWorker → owning shard worker, or in-process).
- * Installed for user code through webrun-modules `~deps` (provided `WebSocket`),
- * so the real `globalThis.WebSocket` is left untouched.
- */
-/** RFC 7230 token (subprotocol names). */
-const TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+/** The longest period a timer takes (2³¹−1 ms, about 24.8 days): `heartbeatMs: 0` pings that rarely. */
+const LONGEST_PERIOD_MS = 2 ** 31 - 1;
 
 export interface CellsWebSocketOptions {
-  /** Liveness ping period (ms); 0 disables. The peer is declared dead after 2 missed periods. */
+  /**
+   * Liveness ping period (ms, default 10 s); 0 disables the heartbeat. The peer is declared dead
+   * after 2 periods without a pong.
+   */
   heartbeatMs?: number;
   /**
-   * Interval timers for the heartbeat. On a page's main thread pass worker-timers'
-   * `setInterval`/`clearInterval`: background-tab throttling of main-thread timers would
+   * Timers for the heartbeat (and, when given, the close handshake's timeout). On a page's main
+   * thread pass worker-timers' functions: background-tab throttling of main-thread timers would
    * otherwise delay pings and make the server drop a live socket. Workers and Node do not
    * throttle, so the built-in timers are the default.
    */
-  timers?: { setInterval(fn: () => void, ms: number): unknown; clearInterval(id: unknown): void };
+  timers?: IntervalTimers & {
+    setTimeout?(fn: () => void, ms: number): unknown;
+    clearTimeout?(id: unknown): void;
+  };
+  /** How long `close()` waits for the server's echo before closing with 1006 (default 5 s). */
+  closeTimeoutMs?: number;
 }
 
 /**
- * A WHATWG `WebSocket` class whose sockets reach a Worker through `connect`. Typed as the
- * platform's `WebSocket` (the class implements that interface; its own state is private).
+ * A WHATWG `WebSocket` class whose sockets reach a Worker through `connect` (page →
+ * ServiceWorker → the shard worker that owns the object, or in-process). It is
+ * `@statewalker/webrun-http-browser`'s client (`createWebSocketClass`): the socket's frames on its
+ * MessagePort are that package's (version `WS_PORT_PROTOCOL_VERSION`), which the server ends of
+ * cellb's WebSocketPairs speak. Installed for user code through webrun-modules `~deps` (provided
+ * `WebSocket`), so the real `globalThis.WebSocket` is left untouched. Typed as the platform's
+ * `WebSocket` (the class implements that interface).
  */
 export function createWebSocketClass(
   connect: WebSocketConnector,
   options: CellsWebSocketOptions = {},
 ): typeof WebSocket {
-  const heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
-  const timers = options.timers ?? {
-    setInterval: (fn: () => void, ms: number) => setInterval(fn, ms),
-    clearInterval: (id: unknown) => clearInterval(id as ReturnType<typeof setInterval>),
-  };
-  class CellsWebSocket extends EventTarget {
-    static readonly CONNECTING = 0;
-    static readonly OPEN = 1;
-    static readonly CLOSING = 2;
-    static readonly CLOSED = 3;
-    readonly CONNECTING = 0;
-    readonly OPEN = 1;
-    readonly CLOSING = 2;
-    readonly CLOSED = 3;
-
-    readonly url: string;
-    readyState = 0;
-    protocol = "";
-    extensions = "";
-    #buffered = 0;
-    /** Sizes of the messages posted and not acknowledged yet, in order (the port keeps it). */
-    #unacked: number[] = [];
-    /** Bytes sent and not yet received by the server end (it acknowledges each message). */
-    get bufferedAmount(): number {
-      return this.#buffered;
-    }
-    #binaryType: "blob" | "arraybuffer" = "blob";
-    get binaryType(): "blob" | "arraybuffer" {
-      return this.#binaryType;
-    }
-    /** Only "blob" and "arraybuffer" are taken; any other value is ignored (WHATWG). */
-    set binaryType(v: "blob" | "arraybuffer") {
-      if (v === "blob" || v === "arraybuffer") this.#binaryType = v;
-    }
-    onopen: Handler = null;
-    onmessage: Handler = null;
-    onclose: Handler = null;
-    onerror: Handler = null;
-    #port: MessagePort | undefined;
-    #pendingClose: { code?: number; reason?: string } | undefined;
-    #beat: unknown;
-    #lastPong = 0;
-
-    #startHeartbeat(): void {
-      if (!heartbeatMs) return;
-      this.#lastPong = Date.now();
-      this.#beat = timers.setInterval(() => {
-        if (this.readyState >= 3) return this.#stopHeartbeat();
-        if (Date.now() - this.#lastPong > 2 * heartbeatMs) return this.#fail(); // peer gone
-        this.#port?.postMessage({ t: "p", hb: heartbeatMs } satisfies Frame);
-      }, heartbeatMs);
-      this.#port?.postMessage({ t: "p", hb: heartbeatMs } satisfies Frame);
-    }
-    #stopHeartbeat(): void {
-      if (this.#beat !== undefined) timers.clearInterval(this.#beat);
-      this.#beat = undefined;
-    }
-
-    constructor(url: string | URL, protocols: string | string[] = []) {
-      super();
-      // WHATWG "new WebSocket(url, protocols)" validation, in spec order.
-      let u: URL;
-      try {
-        u = new URL(String(url), (globalThis as any).location?.href ?? "http://localhost/");
-      } catch {
-        throw new DOMException(`The URL '${String(url)}' is invalid.`, "SyntaxError");
-      }
-      if (u.protocol === "http:") u.protocol = "ws:";
-      if (u.protocol === "https:") u.protocol = "wss:";
-      if (u.protocol !== "ws:" && u.protocol !== "wss:")
-        throw new DOMException(`The URL's scheme must be either 'ws' or 'wss'.`, "SyntaxError");
-      if (u.hash || String(url).includes("#"))
-        throw new DOMException("The URL contains a fragment identifier.", "SyntaxError");
-      const list = typeof protocols === "string" ? [protocols] : [...protocols];
-      const seen = new Set<string>();
-      for (const p of list) {
-        if (!TOKEN.test(p))
-          throw new DOMException(`The subprotocol '${p}' is invalid.`, "SyntaxError");
-        if (seen.has(p.toLowerCase()))
-          throw new DOMException(`The subprotocol '${p}' is duplicated.`, "SyntaxError");
-        seen.add(p.toLowerCase());
-      }
-      this.url = u.toString();
-      connect(this.url, list).then(
-        ({ port, protocol }) => this.#opened(port, protocol ?? ""),
-        () => this.#fail(),
-      );
-    }
-
-    #emit(ev: Event, handler: Handler): void {
-      handler?.call(this, ev);
-      this.dispatchEvent(ev);
-    }
-
-    #opened(port: MessagePort, protocol: string): void {
-      if (this.readyState === 3) {
-        port.close();
-        return;
-      }
-      this.#port = port;
-      this.protocol = protocol;
-      port.onmessage = (e) => this.#frame(e.data as Frame);
-      port.start?.();
-      if (this.#pendingClose) {
-        // close() was called while connecting
-        this.readyState = 2;
-        port.postMessage({
-          t: "c",
-          code: this.#pendingClose.code ?? 1000,
-          reason: this.#pendingClose.reason ?? "",
-        } satisfies Frame);
-        return;
-      }
-      this.readyState = 1;
-      this.#startHeartbeat();
-      this.#emit(new Event("open"), this.onopen);
-    }
-
-    #fail(): void {
-      if (this.readyState === 3) return;
-      this.#stopHeartbeat();
-      this.#port?.close();
-      this.readyState = 3;
-      this.#emit(new Event("error"), this.onerror);
-      this.#emit(
-        new CellsCloseEvent("close", { code: 1006, reason: "", wasClean: false }),
-        this.onclose,
-      );
-    }
-
-    #frame(f: Frame): void {
-      if (f.t === "q") {
-        this.#lastPong = Date.now();
-        return;
-      }
-      if (f.t === "p") return;
-      if (f.t === "a") {
-        this.#buffered -= this.#unacked.shift() ?? 0;
-        return;
-      }
-      if (f.t === "m") {
-        if (this.readyState !== 1) return;
-        let data: unknown = f.d;
-        if (typeof data !== "string" && this.binaryType === "blob")
-          data = new Blob([data as ArrayBuffer]);
-        this.#emit(
-          new MessageEvent("message", { data, origin: new URL(this.url).origin }),
-          this.onmessage,
-        );
-      } else {
-        const echo = this.readyState === 1;
-        if (echo)
-          this.#port!.postMessage({ t: "c", code: f.code, reason: f.reason } satisfies Frame); // close handshake
-        this.readyState = 3;
-        this.#stopHeartbeat();
-        this.#port!.close();
-        this.#emit(
-          new CellsCloseEvent("close", { code: f.code, reason: f.reason, wasClean: true }),
-          this.onclose,
-        );
-      }
-    }
-
-    send(data: string | ArrayBuffer | ArrayBufferView | Blob): void {
-      if (this.readyState === 0)
-        throw new DOMException("Still in CONNECTING state.", "InvalidStateError");
-      if (this.readyState !== 1) return; // spec: silently discarded after closing
-      if (data instanceof Blob) {
-        this.#buffered += data.size;
-        void data.arrayBuffer().then((b) => this.readyState === 1 && this.#post(b));
-        return;
-      }
-      const d = toFrameData(data);
-      this.#buffered += byteSize(d);
-      this.#post(d);
-    }
-
-    #post(d: string | ArrayBuffer): void {
-      this.#unacked.push(byteSize(d));
-      this.#port!.postMessage({ t: "m", d } satisfies Frame, typeof d === "string" ? [] : [d]);
-    }
-
-    close(code?: number, reason?: string): void {
-      checkClose(code, reason);
-      if (this.readyState >= 2) return;
-      if (this.readyState === 0) {
-        this.#pendingClose = { code, reason };
-        this.readyState = 2;
-        return;
-      }
-      this.readyState = 2;
-      this.#port!.postMessage({ t: "c", code: code ?? 1005, reason: reason ?? "" } satisfies Frame);
-    }
-  }
-  return CellsWebSocket as unknown as typeof WebSocket;
+  const { timers } = options;
+  const setTimer = timers?.setTimeout?.bind(timers) ?? ((fn, ms) => setTimeout(fn, ms));
+  const clearTimer =
+    timers?.clearTimeout?.bind(timers) ??
+    ((id: unknown) => clearTimeout(id as ReturnType<typeof setTimeout>));
+  return createPortWebSocketClass(
+    async (url, protocols) => {
+      const { port, protocol } = await connect(url, protocols);
+      return { port, protocol: protocol ?? "" };
+    },
+    {
+      heartbeatMs: options.heartbeatMs === 0 ? LONGEST_PERIOD_MS : options.heartbeatMs,
+      closeTimeoutMs: options.closeTimeoutMs,
+      timers: timers && {
+        setInterval: (fn, ms) => timers.setInterval(fn, ms),
+        clearInterval: (id) => timers.clearInterval(id),
+        setTimeout: setTimer,
+        clearTimeout: clearTimer,
+      },
+    },
+  ) as unknown as typeof WebSocket;
 }
 
 export type CellsWebSocketClass = ReturnType<typeof createWebSocketClass>;

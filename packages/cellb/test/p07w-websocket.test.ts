@@ -261,6 +261,40 @@ describe("P07w heartbeat: MessagePorts never report a dead peer, so both ends pi
     expect([ev.code, ev.wasClean, server.readyState]).toEqual([1006, false, 3]);
   });
 
+  it("server: keeps the first period, so a closing tab's last ping does not delay noticing it", async () => {
+    const pair = new WebSocketPair();
+    const server = pair[1];
+    server.accept();
+    const port = takeClientPort(pair[0]);
+    port.start();
+    port.postMessage({ t: "p", hb: 20 });
+    await sleep(30);
+    // webrun-http-browser's client announces 70 s when its page turns hidden, which a closing
+    // tab does on its way out; then silence.
+    port.postMessage({ t: "p", hb: 70_000 });
+    const t0 = Date.now();
+    const ev = await new Promise<any>((r) => server.addEventListener("close", r, { once: true }));
+    expect([ev.code, ev.wasClean]).toEqual([1006, false]);
+    expect(Date.now() - t0).toBeLessThan(1_000);
+  });
+
+  it("server: acknowledges the bytes it dispatched (the client's bufferedAmount)", async () => {
+    const pair = new WebSocketPair();
+    const server = pair[1];
+    server.accept();
+    const port = takeClientPort(pair[0]);
+    const frames: unknown[] = [];
+    port.onmessage = (e) => frames.push(e.data);
+    port.postMessage({ t: "m", d: "héllo" }); // 6 UTF-8 bytes
+    port.postMessage({ t: "m", d: new ArrayBuffer(3) });
+    await sleep(20);
+    expect(frames).toEqual([
+      { t: "a", n: 6 },
+      { t: "a", n: 3 },
+    ]);
+    port.close();
+  });
+
   it("a live socket stays open across many heartbeat periods", async () => {
     const { WS: base } = setup();
     void base;

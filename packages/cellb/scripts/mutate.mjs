@@ -178,13 +178,6 @@ const mutants = [
     "p07",
   ],
   [
-    "ws: failed connect emits no error event",
-    "src/ws/client.ts",
-    '    this.#emit(new Event("error"), this.onerror);',
-    "",
-    "p07",
-  ],
-  [
     "ws routing: cross-shard port not forwarded",
     "src/router/cell-router.ts",
     'ctl.postMessage(m, m.t === "ws-accept" ? [m.port as unknown as Transferable] : []);',
@@ -199,31 +192,10 @@ const mutants = [
     "p07x",
   ],
   [
-    "ws heartbeat: client never pings",
-    "src/ws/client.ts",
-    "if (!heartbeatMs) return;",
-    "return;",
-    "p07",
-  ],
-  [
     "ws heartbeat: server never gives up",
     "src/ws/server.ts",
     "if (Date.now() - this.#lastPing > 3 * hb) this.#gone();",
     "",
-    "p07",
-  ],
-  [
-    "ws client: duplicate subprotocols accepted",
-    "src/ws/client.ts",
-    "if (seen.has(p.toLowerCase()))",
-    "if (false)",
-    "p07",
-  ],
-  [
-    "ws client: URL fragment accepted",
-    "src/ws/client.ts",
-    'if (u.hash || String(url).includes("#"))',
-    "if (false)",
     "p07",
   ],
   [
