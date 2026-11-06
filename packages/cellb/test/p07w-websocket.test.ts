@@ -368,6 +368,22 @@ describe("P07w the celld peer bridge's socket to a cell", () => {
     cell.close();
   });
 
+  it("parses the offered header as a client may ask for it: valid tokens, each once", async () => {
+    const { offeredProtocols } = await import("../src/peer/celld-peer.js");
+    expect(offeredProtocols(undefined)).toEqual([]);
+    expect(offeredProtocols(" v0 , ,v1,")).toEqual(["v0", "v1"]);
+    expect(offeredProtocols("v1, V1, v2")).toEqual(["v1", "v2"]);
+    expect(offeredProtocols('a b, ok, "q"')).toEqual(["ok"]);
+  });
+
+  it("a malformed offer from a client does not throw: the socket still opens", async () => {
+    const { cellSocket } = await import("../src/peer/celld-peer.js");
+    const cell = cellSocket(upgrade("v1"), "v1, V1, not valid");
+    await next(cell, "open");
+    expect(cell.protocol).toBe("v1");
+    cell.close();
+  });
+
   it("(why) a client that asked for none refuses the subprotocol the cell picked", async () => {
     const { cellSocket } = await import("../src/peer/celld-peer.js");
     const cell = cellSocket(upgrade("v1"), undefined);
