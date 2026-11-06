@@ -24,6 +24,10 @@ anything it has, and keeps the rest until the package can carry it (#18).
   link refused calls after 1024 of them; cellb drained both sides of every exchange itself. 0.7.1
   (with webrun-http-streams 0.3.1 and webrun-rpc 0.5.1, statewalker/webrun-wire#38) gives every
   exchange's port back however it ends, and `p31-port-leak.test.ts` pins it with `maxPorts` 16.
+  One bound comes with it: once a response is out, a request body the handler took and stopped
+  reading is abandoned after `requestIdleMs` (30 s) with no read pending, where cellb's own
+  draining waited for it forever. A handler that answers first and reads the upload afterwards
+  keeps it as long as it keeps reading.
 
 ## Still cellb's, and what would let the package take it
 

@@ -205,6 +205,30 @@ export interface CelldPeerServer {
  * Serves celld's peer tunnel for `runtime` on `host:port` (0: any free port). `node` is this
  * node's name in the fleet (the same as celldBucket's `node`).
  */
+/**
+ * The cell's side of a tunneled WebSocket: a client socket on the port of the 101's
+ * WebSocketPair end. It asks for the subprotocols the far client offered (`offered`, the
+ * `Sec-WebSocket-Protocol` header): a client refuses a subprotocol it did not ask for, and the
+ * cell picks one of those.
+ */
+export function cellSocket(
+  res: Response & { webSocket: CfWebSocket },
+  offered: string | undefined,
+): WebSocket {
+  const port = takeClientPort(res.webSocket);
+  const WS = createWebSocketClass(async () => ({
+    port,
+    protocol: res.headers.get("Sec-WebSocket-Protocol") ?? undefined,
+  }));
+  const protocols = (offered ?? "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const cell = new WS("ws://cell/", protocols) as WebSocket;
+  cell.binaryType = "arraybuffer";
+  return cell;
+}
+
 export async function startCelldPeerServer(opts: {
   runtime: CellRuntime;
   store: ObjectStore;
@@ -336,13 +360,7 @@ export async function startCelldPeerServer(opts: {
         : fail(500, String((e as Error)?.message ?? e));
     }
     if (res.status !== 101 || !res.webSocket) return fail(res.status, await res.text());
-    const port = takeClientPort(res.webSocket);
-    const WS = createWebSocketClass(async () => ({
-      port,
-      protocol: res.headers.get("Sec-WebSocket-Protocol") ?? undefined,
-    }));
-    const cell = new WS("ws://cell/") as WebSocket;
-    cell.binaryType = "arraybuffer";
+    const cell = cellSocket(res as Response & { webSocket: CfWebSocket }, protocols);
     const pending: (string | ArrayBuffer)[] = [];
     let open = false;
     wss.handleUpgrade(req, socket, head, (client) => {
