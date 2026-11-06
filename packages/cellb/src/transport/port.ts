@@ -11,10 +11,11 @@ import { type Send, withScheme } from "./cells-link.js";
 
 /**
  * Multiplexed ports per link: one per exchange in flight, given back when the exchange ends
- * (p31-port-leak.test.ts). `globalThis.__cellbMaxPorts` overrides the links' default (1024):
- * tests that check nothing leaks set it low.
+ * (p31-port-leak.test.ts). 4096 per link, cellb's ceiling before the links were the package's (its
+ * default is 1024): a streaming response holds its port for its whole life.
+ * `globalThis.__cellbMaxPorts` overrides it: tests that check nothing leaks set it low.
  */
-const maxPorts = () => (globalThis as { __cellbMaxPorts?: number }).__cellbMaxPorts;
+const maxPorts = () => (globalThis as { __cellbMaxPorts?: number }).__cellbMaxPorts ?? 4096;
 
 /**
  * A DEDICATED message pipe (MessagePort, or a worker_threads port). Don't pass a

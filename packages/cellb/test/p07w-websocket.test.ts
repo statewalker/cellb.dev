@@ -313,3 +313,26 @@ describe("P07w heartbeat: MessagePorts never report a dead peer, so both ends pi
     expect((await msg).data).toBe("still here");
   });
 });
+
+describe("P07w client rules cellb keeps over webrun-http-browser's client", () => {
+  const WS = createWebSocketClass(async () => {
+    throw new Error("not connecting");
+  });
+  it("duplicate subprotocols are refused case-insensitively", () => {
+    expect(() => new WS("ws://x/", ["chat", "CHAT"])).toThrow(/duplicated/);
+  });
+  it("a relative url resolves against http://localhost/ where there is no page", async () => {
+    const urls: string[] = [];
+    const Rel = createWebSocketClass(async (url) => {
+      urls.push(url);
+      throw new Error("not connecting");
+    });
+    const ws = new Rel("/room/a");
+    expect(ws.url).toBe("ws://localhost/room/a");
+    await new Promise((r) => ws.addEventListener("close", r, { once: true }));
+    expect(urls).toEqual(["ws://localhost/room/a"]);
+  });
+  it("an url that does not parse is still refused with SyntaxError", () => {
+    expect(() => new WS("http://[")).toThrow(/invalid/);
+  });
+});

@@ -70,7 +70,8 @@ export class CfWebSocket extends EventTarget {
   #ping(hb: number): void {
     this.#lastPing = Date.now();
     this[kPort]?.postMessage({ t: "q" } satisfies Frame);
-    if (this.#watch || !hb) return;
+    // A period no timer takes (2³¹−1 ms and up: `heartbeatMs: 0`) means no heartbeat.
+    if (this.#watch || !hb || hb >= 2 ** 31 - 1) return;
     this.#watch = setInterval(() => {
       if (this.readyState === 3) return clearInterval(this.#watch);
       if (Date.now() - this.#lastPing > 3 * hb) this.#gone();

@@ -52,7 +52,7 @@ export function createWebSocketClass(
   const clearTimer =
     timers?.clearTimeout?.bind(timers) ??
     ((id: unknown) => clearTimeout(id as ReturnType<typeof setTimeout>));
-  return createPortWebSocketClass(
+  const Base = createPortWebSocketClass(
     async (url, protocols) => {
       const { port, protocol } = await connect(url, protocols);
       return { port, protocol: protocol ?? "" };
@@ -67,7 +67,38 @@ export function createWebSocketClass(
         clearTimeout: clearTimer,
       },
     },
-  ) as unknown as typeof WebSocket;
+  );
+  // Two of cellb's own client's rules the package's does not apply.
+  class CellsWebSocket extends Base {
+    constructor(url: string | URL, protocols: string | string[] = []) {
+      const list = typeof protocols === "string" ? [protocols] : [...protocols];
+      // Subprotocols are duplicates case-insensitively (WHATWG; WPT
+      // Create-protocols-repeated-case-insensitive).
+      const seen = new Set<string>();
+      for (const p of list) {
+        const key = p.toLowerCase();
+        if (seen.has(key))
+          throw new DOMException(`The subprotocol '${p}' is duplicated.`, "SyntaxError");
+        seen.add(key);
+      }
+      super(resolved(url), list);
+    }
+  }
+  return CellsWebSocket as unknown as typeof WebSocket;
+}
+
+/**
+ * A relative url resolved against the page, or, where there is none (Node, a worker without
+ * `location`), against `http://localhost/`, as cellb's client always did. An url that does not
+ * parse is passed on, for the class to refuse with its SyntaxError.
+ */
+function resolved(url: string | URL): string | URL {
+  if ((globalThis as { location?: unknown }).location) return url;
+  try {
+    return new URL(String(url), "http://localhost/").href;
+  } catch {
+    return url;
+  }
 }
 
 export type CellsWebSocketClass = ReturnType<typeof createWebSocketClass>;
