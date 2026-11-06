@@ -37,9 +37,9 @@ and WebKit.
   It can route requests, hold Web Locks and pass MessagePorts, so it routes and a page owns the
   workers.
 - **A ServiceWorker cannot intercept WebSockets.** Pages and objects get a WebSocket class whose
-  frames travel over MessagePorts ([ADR 0006](adr/0006-websockets-over-messageports.md)). The
+  frames travel over MessagePorts ([ADR 0006](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0006-websockets-over-messageports.md)). The
   class, the frames and the HTTP links over ports are `@statewalker/webrun-http-browser`'s; the
-  router is still cellb's ([ADR 0010](adr/0010-transport-and-webrun-http-browser.md) says why).
+  router is still cellb's ([ADR 0010](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0010-transport-and-webrun-http-browser.md) says why).
 - **Without an open page nothing runs.** No page means no Dedicated Worker and no SQLite. Cells that
   must stay reachable live on a fleet bucket that server nodes share.
 
@@ -236,7 +236,7 @@ ServiceWorker: CellRouter
 ```
 
 - Each shard is one Web Lock, one OPFS pool and one Dedicated Worker
-  ([ADR 0005](adr/0005-fixed-shards-in-the-browser.md)). A second tab queues on the locks, is served
+  ([ADR 0005](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0005-fixed-shards-in-the-browser.md)). A second tab queues on the locks, is served
   by the first tab's workers, and takes the shards over when that tab closes.
 - `createShardWorker` runs in each shard worker: its own cells stay local, others go upstream to the
   router. When the ServiceWorker restarts, it asks the pages to re-attach their links; the first

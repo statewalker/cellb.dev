@@ -25,7 +25,7 @@ These rules hold on every platform and with every storage.
   `BrokenObjectError` ("Durable Object reset because …"), and the next call builds a fresh instance.
 
 The gates need no `AsyncLocalStorage`: each object owns its gate, and its storage holds it by
-closure ([ADR 0004](adr/0004-gates-without-asynclocalstorage.md)).
+closure ([ADR 0004](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0004-gates-without-asynclocalstorage.md)).
 
 ## Ownership depends on the deployment
 
@@ -35,7 +35,7 @@ closure ([ADR 0004](adr/0004-gates-without-asynclocalstorage.md)).
 | A browser origin, sharded | a shard (a fixed set of cells) | a Web Lock per shard, held by one shard worker | the lock itself: OPFS pools are exclusive per worker |
 | A fleet bucket (celld nodes, CellB nodes, browsers) | a cell | celld's ownership records: `own.json` per cell, a node lease per node | the epoch in every log key, and self-fencing |
 
-[ADR 0009](adr/0009-leases-chosen-by-deployment.md) records why there is no single lease for all
+[ADR 0009](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0009-leases-chosen-by-deployment.md) records why there is no single lease for all
 three. The `Lease` port (`tryAcquire(cellKey) → { epoch, lost, release }`) is per cell; its
 implementation is `celldBucket(...).ownership`. Shard locks are taken by the browser wiring around
 `CellRouter`, not through the port.
@@ -98,7 +98,7 @@ closes. Details are in [browser-host.md](browser-host.md).
 | `filesApiChangeLog(files)` | one SQLite changeset per commit, plus periodic snapshots | 0 | snapshot, then the segments after it |
 | a `CellBackup` alone | a database image every `intervalMs` (30 s) | one interval | the last image, restored on first open |
 
-- **The LTX log** is the format celld writes ([ADR 0001](adr/0001-celld-storage-format-is-native.md)).
+- **The LTX log** is the format celld writes ([ADR 0001](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0001-celld-storage-format-is-native.md)).
   The first commit of a generation is a snapshot (every page, TXID 1); later commits carry only the
   changed pages. SQLite WASM reports changed pages through a hook on its database file; on Node the
   log diffs the image, or, with `nodeSqliteOpener(dir, { pageCapture: true })`, reads the pages from

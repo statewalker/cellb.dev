@@ -48,7 +48,7 @@ unchanged and run by the conformance suite on Node and in Chromium.
 ## In a browser, a WebSocket is a MessagePort
 
 A ServiceWorker cannot intercept WebSockets, so in a browser pages and objects get a `WebSocket`
-class whose frames travel over MessagePorts ([ADR 0006](../adr/0006-websockets-over-messageports.md)).
+class whose frames travel over MessagePorts ([ADR 0006](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0006-websockets-over-messageports.md)).
 The `WebSocket` global of Worker code is workerd's, built over the host's: its prototype carries
 `serializeAttachment` and `deserializeAttachment`, which partyserver and the Agents SDK use.
 
