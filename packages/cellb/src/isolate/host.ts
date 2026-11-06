@@ -22,8 +22,10 @@ export function isolatedModuleLoader(opts: {
   storage?: () => CellStorage | undefined;
   spawn(id: string): { port: PortLike; terminate(): void };
   prepare(id: string, code: WorkerCode): Promise<{ source?: string; url?: string }>;
-}): ModuleLoader {
-  return async (id: string, code: WorkerCode, logs?: LogSink) => {
+}): IsolatedModuleLoader {
+  // Every isolate this loader started: `close()` ends them (a project runtime's close does).
+  const isolates = new Set<{ terminate(): void }>();
+  const load = async (id: string, code: WorkerCode, logs?: LogSink) => {
     // The env crosses as any call does: bindings and other stubs by reference.
     const env: Record<string, unknown> = { ...code.env };
     // The loaded code's global fetch(): blocked in the isolate, or sent back here to the Fetcher.
@@ -31,6 +33,7 @@ export function isolatedModuleLoader(opts: {
     const outbound = code.globalOutbound === null ? "blocked" : fetcher ? "fetcher" : undefined;
     const where = await opts.prepare(id, code);
     const isolate = opts.spawn(id);
+    isolates.add(isolate);
     const { call, fetch } = await hostPort(
       isolate.port,
       async (m) => {
@@ -96,4 +99,13 @@ export function isolatedModuleLoader(opts: {
     });
     return module as Record<string, unknown>;
   };
+  return Object.assign(load, {
+    close() {
+      for (const isolate of isolates) isolate.terminate();
+      isolates.clear();
+    },
+  });
 }
+
+/** A Worker Loader's module loader whose isolates end with `close()`. */
+export type IsolatedModuleLoader = ModuleLoader & { close(): void };
