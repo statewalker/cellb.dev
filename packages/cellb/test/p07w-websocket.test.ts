@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { writeText } from "@statewalker/webrun-files";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import type { WsFrame } from "@statewalker/webrun-http-browser/sw";
 import { newHostRegistry, newModuleServer } from "@statewalker/webrun-modules";
 import { describe, expect, it } from "vitest";
 import {
@@ -14,6 +15,12 @@ import {
   WebSocketPair,
 } from "../src/index.js";
 import { nodeSqliteOpener } from "../src/node.js";
+import type { Frame } from "../src/ws/frames.js";
+
+// cellb's frames are webrun-http-browser's, declared again (src/ws/frames.ts): either way round.
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const framesAreThePackages: Same<Frame, WsFrame> = true;
+void framesAreThePackages;
 
 /** Cloudflare-style chat room: accepts sockets, echoes, broadcasts, closes on "bye". */
 class Room extends DurableObject {

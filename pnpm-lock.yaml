@@ -13,8 +13,8 @@ catalogs:
       specifier: ^3.0.3
       version: 3.0.3
     '@statewalker/webrun-http-browser':
-      specifier: ^0.7.0
-      version: 0.7.0
+      specifier: ^0.7.1
+      version: 0.7.1
     '@statewalker/webrun-modules':
       specifier: ^0.3.5
       version: 0.3.5
@@ -88,16 +88,16 @@ importers:
         version: 0.10.3
       '@statewalker/webrun-http-browser':
         specifier: 'catalog:'
-        version: 0.7.0
+        version: 0.7.1
       '@statewalker/webrun-http-streams':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.1
+        version: 0.3.1
       '@statewalker/webrun-rpc':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@statewalker/webrun-streams':
-        specifier: ^0.2.0
-        version: 0.2.2
+        specifier: ^0.2.3
+        version: 0.2.3
       acorn:
         specifier: ^8.19.0
         version: 8.19.0
@@ -1327,17 +1327,17 @@ packages:
   '@statewalker/webrun-files@0.10.3':
     resolution: {integrity: sha512-YALXiT2lyPhV2dq7kNVjcy3fUw8AAMyKub+9PdJ0T+5jnTD9RcRudy266Aqb18Nw/T2Up5B/eG4hEFnFQR3p8A==}
 
-  '@statewalker/webrun-http-browser@0.7.0':
-    resolution: {integrity: sha512-8EsL7Rop2VyaTGUdeFKG/k9QkDKMJ8ZVaiIK2KoIc3CeapSJDGXjf5ddZJSPcB65p6lFZSzHmHwu5phiBXklcQ==}
+  '@statewalker/webrun-http-browser@0.7.1':
+    resolution: {integrity: sha512-MxRTSu1QXQ6N8QuXYXxJFKTJADZUjmJXDF7gzqrjFhkYZt37BQXZkk0gZvY94p/WsbZSyTST1QONMJsk3ShNAQ==}
 
-  '@statewalker/webrun-http-streams@0.3.0':
-    resolution: {integrity: sha512-QuTbwbRhwhFtVaDP3q00RG9ReC3OLu/TSyhU2nlTAaF4HerUKrpLn6paUwL7DEYe42OWih0BPH4rVwEn6Yjbgw==}
+  '@statewalker/webrun-http-streams@0.3.1':
+    resolution: {integrity: sha512-BTnLyuLwmkJxmZGAVVpDtsCVzWhnXAQQL42GFU3uFw/bu/cSHgciqkTCX782N5Wrb5nssTCaUrW9aoOobNRUcA==}
 
   '@statewalker/webrun-modules@0.3.5':
     resolution: {integrity: sha512-nFtaCII75pbSh6Ocdc6OHjpf/3OvndPQ/eGjJY2IHD5/POSAQv/zEExjLj55dqzeeZuaCOG4Zk3nJYduTgbBkQ==}
 
-  '@statewalker/webrun-rpc@0.5.0':
-    resolution: {integrity: sha512-giq6gU9eKDleyfi0f6XaVA0eIHFDdYIJYj2Pb9vPrOSEXtxF19qUTYRmFUR2lW1L6vWjknIHn7LxqQhAVdO9SQ==}
+  '@statewalker/webrun-rpc@0.5.1':
+    resolution: {integrity: sha512-DpnT0dJ0KpdL5QKqKTmN75CnGc1w24iHdZqYfJQLVpSKEIR/GjPb3Vzbzb4NIu9tCHsroW+Dq1CO84Jp6YCXzw==}
 
   '@statewalker/webrun-site-builder@0.2.2':
     resolution: {integrity: sha512-+qIRtF3DujfjMLKViSiDgpwUruPL3SQUvXOqSAw7CLL/YoVFE/KgRlnup299Fd2yW/5FiPvdKEFYvVbTv8ATFA==}
@@ -1349,8 +1349,8 @@ packages:
     peerDependencies:
       '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
 
-  '@statewalker/webrun-streams@0.2.2':
-    resolution: {integrity: sha512-1MIkezOoKBh8M7lk7MORjzvN+qbG4UCJnaf3oSM26vqiFg0BLdUaGpVbH7hfrPiotBbAi7PlxUWFeej89RYNBg==}
+  '@statewalker/webrun-streams@0.2.3':
+    resolution: {integrity: sha512-v4+32VDLjt8HzAhjgd7K3bgiasQosU7FooXhLaTU2dQzYyNZ6NbNMOI/24SL0bdmTHkSU3bxktASn0hO3sCwng==}
 
   '@tailwindcss/node@4.3.3':
     resolution: {integrity: sha512-/T8IKEsf9VTU6tLjgC7+sv2mOPtQxzE2jMw7u4Tt40Tx+QSZxpzh95/H6cMKoja9XuW7iMdLJYBB0o9G1CaAgg==}
@@ -4336,16 +4336,16 @@ snapshots:
 
   '@statewalker/webrun-files@0.10.3': {}
 
-  '@statewalker/webrun-http-browser@0.7.0':
+  '@statewalker/webrun-http-browser@0.7.1':
     dependencies:
-      '@statewalker/webrun-http-streams': 0.3.0
-      '@statewalker/webrun-rpc': 0.5.0
-      '@statewalker/webrun-streams': 0.2.2
+      '@statewalker/webrun-http-streams': 0.3.1
+      '@statewalker/webrun-rpc': 0.5.1
+      '@statewalker/webrun-streams': 0.2.3
       idb-keyval: 6.3.0
 
-  '@statewalker/webrun-http-streams@0.3.0':
+  '@statewalker/webrun-http-streams@0.3.1':
     dependencies:
-      '@statewalker/webrun-streams': 0.2.2
+      '@statewalker/webrun-streams': 0.2.3
 
   '@statewalker/webrun-modules@0.3.5':
     dependencies:
@@ -4362,9 +4362,9 @@ snapshots:
       semver: 7.8.5
       sucrase: 3.35.1
 
-  '@statewalker/webrun-rpc@0.5.0':
+  '@statewalker/webrun-rpc@0.5.1':
     dependencies:
-      '@statewalker/webrun-streams': 0.2.2
+      '@statewalker/webrun-streams': 0.2.3
 
   '@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.3)':
     dependencies:
@@ -4374,10 +4374,10 @@ snapshots:
     dependencies:
       '@statewalker/webrun-files': 0.10.3
       '@statewalker/webrun-files-mem': 0.10.3
-      '@statewalker/webrun-http-browser': 0.7.0
+      '@statewalker/webrun-http-browser': 0.7.1
       '@statewalker/webrun-site-builder': 0.2.2(@statewalker/webrun-files@0.10.3)
 
-  '@statewalker/webrun-streams@0.2.2': {}
+  '@statewalker/webrun-streams@0.2.3': {}
 
   '@tailwindcss/node@4.3.3':
     dependencies:

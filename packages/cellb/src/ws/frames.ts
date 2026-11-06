@@ -1,5 +1,3 @@
-import type { WsFrame } from "@statewalker/webrun-http-browser/sw";
-
 /**
  * Wire protocol of a WebSocket carried by a MessagePort (both directions):
  * `@statewalker/webrun-http-browser`'s frames (version `WS_PORT_PROTOCOL_VERSION`), spoken by its
@@ -16,7 +14,15 @@ import type { WsFrame } from "@statewalker/webrun-http-browser/sw";
  * 2·hb; the server closes with 1006 when pings stop for 3·hb. This is what makes a socket notice a
  * closed tab. A hidden tab's client announces a longer period (its timers are throttled).
  */
-export type Frame = WsFrame;
+export type Frame =
+  | { t: "m"; d: string | ArrayBuffer }
+  | { t: "c"; code: number; reason: string }
+  | { t: "p"; hb: number }
+  | { t: "q" }
+  | { t: "a"; n: number };
+// Declared here, not imported from webrun-http-browser/sw: its declarations name ServiceWorker
+// types, and cellb's must compile with the DOM lib alone (scripts/pack-check.mjs). The two are
+// kept the same by test/p07w-websocket.test.ts.
 
 /** What a message adds to the sender's `bufferedAmount` (WHATWG: UTF-8 bytes of a string). */
 export function byteSize(d: string | ArrayBuffer): number {
