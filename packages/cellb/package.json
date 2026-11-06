@@ -123,7 +123,6 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@sparticuz/chromium": "^153.0.0",
-    "@statewalker/webrun-http-browser": "^0.7.1",
     "@statewalker/webrun-modules": "catalog:",
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",
