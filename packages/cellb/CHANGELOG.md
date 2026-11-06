@@ -1,5 +1,25 @@
 # @statewalker/cellb
 
+## 0.3.0
+
+### Minor Changes
+
+- f3621be: The HTTP links between a page, its shard workers and the ServiceWorker (`serveRuntime`, `connectRuntime`, `linkOverPort`, `serveHandlerOverPort`) are `@statewalker/webrun-http-browser`'s (`connectHttpLink` / `serveHttpLink`, 0.7.1), which give every exchange's multiplexed port back however it ends; cellb's own draining around them (`fetchClosing`, `servingClosing`) goes. With them come: a handler that answers first and reads the upload afterwards gets all of it, an aborted request to a handler that never answers gives its port back at once, and a request in flight when a link is closed fails (with webrun-http-browser's `LinkLostError`) instead of hanging. One behaviour change: once a response is out, a request body the handler took and stopped reading is abandoned after 30 s with no read pending (webrun-http-browser's `requestIdleMs`, not configurable through cellb yet); a handler that keeps reading keeps it. The ceiling stays 4096 requests in flight per link. Requires webrun-http-browser 0.7.1, webrun-http-streams 0.3.1, webrun-rpc 0.5.1 and webrun-streams 0.2.3.
+
+### Patch Changes
+
+- f334946: A WebSocket that celld tunnels to a cell cellb owns opens again when the cell picks a subprotocol: the bridge's socket to the cell now asks for the subprotocols the far client offered. With webrun-http-browser's client (a client refuses a subprotocol it did not ask for), such a socket failed with 1006. The bridge also drops malformed or (case-insensitively) duplicate subprotocols from the far client's `Sec-WebSocket-Protocol`; if the socket still cannot be made, it answers 400 and closes the cell's port instead of hanging.
+- af8397e: WebSockets into a loaded Worker (Worker Loader) no longer go through the isolate's multiplexed
+  port: a 101 answer hands the host the socket's own MessagePort, transferred, so its frames go
+  straight to the isolate. One isolate now holds any number of open sockets (it refused the
+  1,024th), with lower latency and more throughput (bench/README.md: echo p50 0.14 → 0.10 ms on
+  Node and 0.2 → 0.1 ms in Chromium; 64 KiB messages 65 → 192 MB/s on Node, 68 → 114 MB/s in
+  Chromium). The isolate's multiplexer allows 4,096 ports at once (for fetches and upgrades in
+  flight), as cellb's other port links do; `globalThis.__cellbMaxPorts` overrides it. When a
+  runtime closes, each isolate closes its sockets with 1001 before it ends. An upgrade into an
+  isolate fails when its port closes without an answer, instead of staying pending.
+- 2abcc32: `createWebSocketClass` is `@statewalker/webrun-http-browser`'s client (0.7.1), and the frames a socket's MessagePort carries are that package's: the server end acknowledges the bytes it dispatched (`{ t: "a", n }`) rather than one message per ack. The ends of a `WebSocketPair` stay cellb's, with workerd's semantics. Over cellb's own client, sockets gain a close-handshake timeout (`closeTimeoutMs`, default 5 s: a server that never echoes the close frame ends the socket with 1006 instead of leaving it closing) and sends that keep their order behind a `Blob`. `heartbeatMs: 0` still turns the heartbeat off (the client pings once, announcing a period the server end does not watch), `timers` may still pass only `setInterval`/`clearInterval`, a relative url still resolves against `http://localhost/` where there is no page, and duplicate subprotocols are still refused case-insensitively. One change: `close()` while the socket is still connecting fails it, as WHATWG says — `error`, then `close` with 1006 — where cellb's client sent the given code once connected. The server end keeps the heartbeat period of the client's first ping: the package's client announces a longer one when its page turns hidden, which a closing tab does on its way out.
+
 ## 0.2.0
 
 ### Minor Changes
