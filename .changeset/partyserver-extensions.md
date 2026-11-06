@@ -15,3 +15,9 @@ through a Worker Loader and run as facets, on Node and in browsers:
   `ctx.id.name`, partyserver's `this.name`), as it already did for local classes.
 - Frames a server sends before its 101 response is handed over (partyserver greets the socket in
   `onConnect`) are no longer dropped: `takeClientPort` hands them to the new holder first.
+- Two facets of loaded code given the same `id` keep their own object and storage (the id is
+  their `ctx.id` only).
+- An upgrade's port into an isolate closes when the upgrade is refused or fails, and a socket's
+  relay closes with its closing handshake; a 204/205/304 answer has no body; an error that
+  cannot be copied crosses as its name and message.
+- When a runtime closes, the sockets open into its loaded Workers close with 1001.
