@@ -24,7 +24,7 @@ export function isolatedModuleLoader(opts: {
   prepare(id: string, code: WorkerCode): Promise<{ source?: string; url?: string }>;
 }): IsolatedModuleLoader {
   // Every isolate this loader started: `close()` ends them (a project runtime's close does).
-  const isolates = new Set<{ terminate(): void }>();
+  const isolates = new Set<{ terminate(): void; closeSockets?(): void }>();
   const load = async (id: string, code: WorkerCode, logs?: LogSink) => {
     // The env crosses as any call does: bindings and other stubs by reference.
     const env: Record<string, unknown> = { ...code.env };
@@ -33,8 +33,11 @@ export function isolatedModuleLoader(opts: {
     const outbound = code.globalOutbound === null ? "blocked" : fetcher ? "fetcher" : undefined;
     const where = await opts.prepare(id, code);
     const isolate = opts.spawn(id);
-    isolates.add(isolate);
-    const { call, fetch } = await hostPort(
+    const running: { terminate(): void; closeSockets?(): void } = {
+      terminate: () => isolate.terminate(),
+    };
+    isolates.add(running);
+    const { call, fetch, closeSockets } = await hostPort(
       isolate.port,
       async (m) => {
         if (m.type === "durable") {
@@ -60,6 +63,7 @@ export function isolatedModuleLoader(opts: {
       },
       fetcher,
     );
+    running.closeSockets = closeSockets;
     const exports = await call<Record<string, string>>({
       type: "load",
       ...where,
@@ -102,7 +106,10 @@ export function isolatedModuleLoader(opts: {
   };
   return Object.assign(load, {
     close() {
-      for (const isolate of isolates) isolate.terminate();
+      for (const isolate of isolates) {
+        isolate.closeSockets?.(); // its sockets' clients hear 1001 before the isolate ends
+        isolate.terminate();
+      }
       isolates.clear();
     },
   });

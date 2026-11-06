@@ -27,13 +27,22 @@ describe("P36 partyserver", () => {
   const get = async (path: string) =>
     (await runtime.fetch(new Request(`http://party${path}`))).json();
   const socket = (path: string) =>
-    new Promise<{ inbox: string[]; send(m: string): void; close(): void }>((resolve, reject) => {
+    new Promise<{
+      inbox: string[];
+      send(m: string): void;
+      close(): void;
+      closed: Promise<number>;
+    }>((resolve, reject) => {
       const WS = createWebSocketClass((url, p) => runtime.connectWebSocket(url, p));
       const ws = new WS(`ws://party${path}`);
       const inbox: string[] = [];
+      const closed = new Promise<number>((r) => {
+        ws.onclose = (e: CloseEvent) => r(e.code);
+      });
       ws.onmessage = (e: MessageEvent) => inbox.push(String(e.data));
       ws.onerror = () => reject(new Error(`socket ${path} failed`));
-      ws.onopen = () => resolve({ inbox, send: (m) => ws.send(m), close: () => ws.close() });
+      ws.onopen = () =>
+        resolve({ inbox, send: (m) => ws.send(m), close: () => ws.close(), closed });
     });
   const until = async (check: () => boolean, ms = 5_000) => {
     for (const end = Date.now() + ms; !check() && Date.now() < end; )
@@ -119,7 +128,14 @@ describe("P36 partyserver", () => {
   }, 60_000);
 
   it("a fresh node continues the room and activates the extension from its storage", async () => {
+    // A socket still open into the extension's isolate hears 1001 when the runtime closes.
+    const open = await socket("/ext/notes");
+    const closed = Promise.race([
+      open.closed,
+      new Promise((r) => setTimeout(() => r("no close within 5 s"), 5_000)),
+    ]);
     await runtime.close();
+    expect(await closed).toBe(1001);
     runtime = await start();
     expect(await get("/parties/room/lobby")).toMatchObject({ n: 1, ticks: 1 });
     expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 2, requests: 2 });
