@@ -38,6 +38,28 @@ test.each(["src/index.ts", "src/browser.ts", "src/isolate/isolate-worker.ts"])(
   },
 );
 
+// The in-browser site compiler (webrun-modules, and through it lightningcss-wasm and @jspm/core)
+// is an optional peer dependency, reached only through @statewalker/cellb/site: importing any
+// other entry point must not load it, or bundlers emit its 16 MB .wasm with every app.
+const SITE_COMPILER = [
+  "@statewalker/webrun-modules",
+  "@statewalker/webrun-site-builder",
+  "@statewalker/webrun-site-host",
+  "lightningcss-wasm",
+];
+test.each(["src/index.ts", "src/browser.ts", "src/node.ts", "src/isolate/isolate-worker.ts"])(
+  "importing %s loads none of the in-browser site compiler",
+  (entry) => {
+    expect(staticImports(entry).filter(([spec]) => SITE_COMPILER.includes(spec))).toEqual([]);
+  },
+);
+
+test("@statewalker/cellb/site is where the site compiler is reached", () => {
+  expect(staticImports("src/site.ts").map(([spec]) => spec)).toContain(
+    "@statewalker/webrun-modules",
+  );
+});
+
 class Counter extends DurableObject {
   increment(): number {
     const sql = this.ctx.storage.sql;

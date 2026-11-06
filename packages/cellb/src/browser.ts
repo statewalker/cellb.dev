@@ -18,5 +18,4 @@ export {
   type ServiceWorkerScope,
   shardOwner,
 } from "./project/browser-tabs.js";
-export { createProjectSite } from "./project/site.js";
 export { serviceWorkerConnector } from "./ws/sw-connector.js";

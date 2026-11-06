@@ -17,6 +17,7 @@
     ".": "./src/index.ts",
     "./node": "./src/node.ts",
     "./browser": "./src/browser.ts",
+    "./site": "./src/site.ts",
     "./host-modules": "./src/project/host-modules.ts",
     "./isolate-worker": "./src/isolate/isolate-worker.ts"
   },
@@ -40,6 +41,10 @@
       "./browser": {
         "types": "./dist/browser.d.ts",
         "default": "./dist/browser.js"
+      },
+      "./site": {
+        "types": "./dist/site.d.ts",
+        "default": "./dist/site.js"
       },
       "./host-modules": {
         "types": "./dist/project/host-modules.d.ts",
@@ -83,10 +88,7 @@
     "@statewalker/webrun-files-mem": "^0.10.0",
     "@statewalker/webrun-http-browser": "catalog:",
     "@statewalker/webrun-http-streams": "^0.3.0",
-    "@statewalker/webrun-modules": "catalog:",
     "@statewalker/webrun-rpc": "^0.5.0",
-    "@statewalker/webrun-site-builder": "catalog:",
-    "@statewalker/webrun-site-host": "catalog:",
     "@statewalker/webrun-streams": "^0.2.0",
     "acorn": "^8.19.0",
     "assert": "^2.1.0",
@@ -99,9 +101,21 @@
     "ws": "catalog:"
   },
   "peerDependencies": {
+    "@statewalker/webrun-modules": "catalog:",
+    "@statewalker/webrun-site-builder": "catalog:",
+    "@statewalker/webrun-site-host": "catalog:",
     "esbuild": ">=0.25"
   },
   "peerDependenciesMeta": {
+    "@statewalker/webrun-modules": {
+      "optional": true
+    },
+    "@statewalker/webrun-site-builder": {
+      "optional": true
+    },
+    "@statewalker/webrun-site-host": {
+      "optional": true
+    },
     "esbuild": {
       "optional": true
     }
@@ -110,6 +124,9 @@
     "@playwright/test": "^1.63.0",
     "@sparticuz/chromium": "^153.0.0",
     "@statewalker/webrun-http-browser": "^0.7.0",
+    "@statewalker/webrun-modules": "catalog:",
+    "@statewalker/webrun-site-builder": "catalog:",
+    "@statewalker/webrun-site-host": "catalog:",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "esbuild": "^0.28.0",

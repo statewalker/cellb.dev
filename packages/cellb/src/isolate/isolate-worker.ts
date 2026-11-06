@@ -6,7 +6,7 @@ import { sahpoolOpener } from "../adapters/wasm-sqlite.js";
 import { browserModuleLoader, PROJECT_WORKERS_MODULE_SHIM } from "../project/browser-modules.js";
 import * as emailModule from "../project/cloudflare-email.js";
 import * as workersModule from "../project/cloudflare-workers.js";
-import { workersHostRegistry } from "../project/site.js";
+import { workersHostRegistry } from "../project/site-loader.js";
 import { realmWorkerScope } from "../project/worker-scope.js";
 import * as workersGlobals from "../project/workers-globals-module.js";
 import { serveIsolate } from "./isolate.js";

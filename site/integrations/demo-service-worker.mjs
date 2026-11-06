@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 const ENTRY = fileURLToPath(new URL("../src/demo/counter/sw.ts", import.meta.url));
-const STUB = fileURLToPath(new URL("../src/demo/no-lightningcss.ts", import.meta.url));
 export const DEMO_SW_PATH = "/cellb-demo-sw.js";
 
 async function bundle() {
@@ -18,8 +17,6 @@ async function bundle() {
     target: "es2022",
     minify: true,
     write: false,
-    // The router needs none of the in-browser site compiler (see no-lightningcss.ts).
-    alias: { "lightningcss-wasm": STUB },
     // Code the router does not run reads it (worker URLs); in a classic worker it is the script.
     define: { "import.meta.url": "self.location.href" },
     logLevel: "warning",

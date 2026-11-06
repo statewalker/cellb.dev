@@ -16,13 +16,6 @@ export default defineConfig({
     // so it is not pre-bundled, and the worker is an ES module (it starts nested workers).
     optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
     worker: { format: "es" },
-    resolve: {
-      alias: {
-        "lightningcss-wasm": fileURLToPath(
-          new URL("./src/demo/no-lightningcss.ts", import.meta.url),
-        ),
-      },
-    },
   },
   markdown: {
     // The theme CodeBlock uses, so code reads the same in Markdown pages and hand-written ones.
