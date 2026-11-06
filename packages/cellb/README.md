@@ -38,7 +38,8 @@ worker is started that way (checked with a Vite build, see `scripts/pack-check.m
 |---|---|
 | `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes, and the errors embedders catch |
 | `@statewalker/cellb/node` | `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
-| `@statewalker/cellb/browser` | `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `createProjectSite`, `serviceWorkerConnector` |
+| `@statewalker/cellb/browser` | `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
+| `@statewalker/cellb/site` | `createProjectSite`: a project's sources compiled in the browser and served by an in-browser HTTP server (`browserProjectRuntime({ site })`). Needs the optional peer dependencies `@statewalker/webrun-modules` and `@statewalker/webrun-site-builder`; the site is hosted in a ServiceWorker with `@statewalker/webrun-site-host`, also an optional peer |
 | `@statewalker/cellb/host-modules` | for bundlers other than cellb's own (webrun-bundler in a browser, say): the sources of `cloudflare:workers`, `node:*` and the Workers globals as cellb's realms provide them (`cellbHostModule`, `CELLS_GLOBALS_MODULE`) |
 | `@statewalker/cellb/isolate-worker` | the Dedicated Worker that runs a Worker-Loader Worker in a realm of its own (`isolateScript`) |
 
@@ -256,8 +257,12 @@ Queues, Workflows, …) in [docs/services/](docs/services/). What is isolated, a
 - `@statewalker/webrun-rpc`, `webrun-http-streams`, `webrun-streams` — HTTP with streaming bodies
   over MessagePorts.
 - `@statewalker/webrun-files` — the FilesApi for logs, backups and KV blobs;
-  `webrun-http-browser`, `webrun-site-builder`, `webrun-site-host` — ServiceWorker ingress and the
-  in-browser HTTP server.
+  `webrun-http-browser` — ServiceWorker ingress.
+- Optional peers, for `@statewalker/cellb/site` only: `webrun-modules` (compiles a project's
+  sources in the browser; it brings lightningcss-wasm and @jspm/core, about 30 MB),
+  `webrun-site-builder` (the in-browser HTTP server), and `webrun-site-host`, which the
+  embedder's own ServiceWorker code uses to host it (cellb does not import it). Projects that run a
+  bundle (`{ bundle }`) need none of them, and their builds emit none of their assets.
 - `worker-timers` — unthrottled heartbeat timers on a page's main thread.
 - `buffer`, `events`, `util`, `assert`, `path-browserify` — `nodejs_compat` in browsers.
 

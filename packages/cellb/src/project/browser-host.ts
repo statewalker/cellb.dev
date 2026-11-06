@@ -18,7 +18,7 @@ import { installAsyncContext } from "../node-compat/async_hooks.js";
 import { installNodeGlobals } from "../node-compat/install.js";
 import { browserModuleLoader } from "./browser-modules.js";
 import * as workersModule from "./cloudflare-workers.js";
-import { siteModuleLoader, workersHostRegistry } from "./site.js";
+import { siteModuleLoader, workersHostRegistry } from "./site-loader.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import * as workersGlobals from "./workers-globals-module.js";
 import { createProjectRuntime, loadTimeEnv, type WranglerConfig } from "./wrangler.js";

@@ -65,9 +65,10 @@ code and builds the runtime from the wrangler configuration. The code is either:
   `@statewalker/cellb/node` builds it: `cloudflare:workers` with the project's own `env` and
   `exports`, `cloudflare:email`, and with nodejs_compat the `node:*` polyfills (bare names such as
   `"path"` too). A Flue app built for Cloudflare runs this way (examples/flue); or
-- `{ site }` — the base URL of an in-browser HTTP server made by `createProjectSite` and hosted by
-  `@statewalker/webrun-site-host`, which compiles the project's sources on request
-  (`@statewalker/webrun-modules`). Loaded Workers' code is uploaded to it and imported from URLs.
+- `{ site }` — the base URL of an in-browser HTTP server made by `createProjectSite` (from
+  `@statewalker/cellb/site`) and hosted by `@statewalker/webrun-site-host`, which compiles the
+  project's sources on request (`@statewalker/webrun-modules`). These are optional peer
+  dependencies: install them to build sites. Loaded Workers' code is uploaded to it and imported from URLs.
   The project's `cloudflare:workers` has its own `env` and `exports` (Workers loaded into its
   realm get empty ones; in isolates, their own), and `cloudflare:email` loads. With `nodeCompat`
   the site lowers `await` in the modules it serves, so `AsyncLocalStorage` answers as in a bundle;

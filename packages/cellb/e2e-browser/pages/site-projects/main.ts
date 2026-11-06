@@ -3,7 +3,7 @@
 // and runs it in a Dedicated Worker that imports its code from that server.
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { HostedSiteBuilder } from "@statewalker/webrun-site-host";
-import { createProjectSite } from "../../../src/browser.js";
+import { createProjectSite } from "../../../src/site.js";
 
 interface Job {
   name: string;
