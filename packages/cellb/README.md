@@ -259,7 +259,7 @@ Queues, Workflows, …) in [docs/services/](docs/services/). What is isolated, a
 - `@statewalker/webrun-rpc`, `webrun-http-streams`, `webrun-streams` — HTTP with streaming bodies
   over MessagePorts.
 - `@statewalker/webrun-files` — the FilesApi for logs, backups and KV blobs;
-  `webrun-http-browser` — the WebSocket client and its frames over MessagePorts.
+  `webrun-http-browser` — the HTTP links over MessagePorts, the WebSocket client and its frames.
 - Optional peers, for `@statewalker/cellb/site` only: `webrun-modules` (compiles a project's
   sources in the browser; it brings lightningcss-wasm and @jspm/core, about 30 MB),
   `webrun-site-builder` (the in-browser HTTP server), and `webrun-site-host`, which the

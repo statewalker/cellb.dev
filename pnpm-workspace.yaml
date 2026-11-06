@@ -5,7 +5,7 @@ packages:
 catalog:
   "@changesets/cli": "^3.0.3"
   "@biomejs/biome": 2.6.4
-  "@statewalker/webrun-http-browser": "^0.7.0"
+  "@statewalker/webrun-http-browser": "^0.7.1"
   "@statewalker/webrun-modules": ^0.3.5
   "@statewalker/webrun-site-builder": "^0.2.0"
   "@statewalker/webrun-site-host": "^0.3.0"

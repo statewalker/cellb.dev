@@ -18,6 +18,12 @@ anything it has, and keeps the rest until the package can carry it (#18).
   turns hidden; cellb's server end keeps the first one, because a tab that closes turns hidden on
   its way out and would otherwise be noticed dead only after 3.5 minutes
   (`websocket.spec.ts`, "the server side notices a client tab that died").
+- **HTTP links over ports** (`src/transport/port.ts`: `serveRuntime`, `connectRuntime`,
+  `linkOverPort`, `serveHandlerOverPort` are `connectHttpLink` / `serveHttpLink`), since 0.7.1. In
+  0.7.0 each exchange whose response body was read to its end left its multiplexed port open, and a
+  link refused calls after 1024 of them; cellb drained both sides of every exchange itself. 0.7.1
+  (with webrun-http-streams 0.3.1 and webrun-rpc 0.5.1, statewalker/webrun-wire#38) gives every
+  exchange's port back however it ends, and `p31-port-leak.test.ts` pins it with `maxPorts` 16.
 
 ## Still cellb's, and what would let the package take it
 
@@ -27,12 +33,6 @@ anything it has, and keeps the rest until the package can carry it (#18).
   and would close such a socket with 1006 after 30 s. They also carry workerd's semantics: `send`
   before `accept`, close codes and `1005`, attachments, hibernation, `goAway`. Needed: a server end
   whose watch starts with the first ping, and a client end that is not a page's.
-- **HTTP links over ports** (`src/transport/port.ts`). Over the package's `connectHttpLink` /
-  `serveHttpLink`, each exchange whose response body is read to its end (a GET, a POST) leaves one
-  multiplexed port open, and the link refuses calls after 1024 of them (`webrun-rpc: maxPorts
-  (1024) reached`); one whose response has no body (a HEAD) or whose body is cancelled does not. cellb drains both sides of every exchange (`fetchClosing`,
-  `servingClosing`, `p31-port-leak.test.ts`), which the package's links have no hook for. Needed:
-  the same draining in the package.
 - **The router** (`CellRouter`, `installProjectRouter`, `joinProjectShards`, `shardRouting`).
   - `SwHttpAdapter.start()` registers the ServiceWorker with no `type`: re-registering a module
     worker (the examples' are) as a classic one fails. Needed: a `type` option, or an adapter for a
@@ -48,8 +48,8 @@ anything it has, and keeps the rest until the package can carry it (#18).
 
 ## Consequences
 
-- One copy of the package's code is bundled where cellb's WebSocket client is: about 20 KB
-  minified, most of it the HTTP codec the package's bundle builds at load (a single file, so
-  `sideEffects: false` cannot drop it).
-- Once the package carries the rest, the router and links move, and `CellRouter`'s own
+- One copy of the package's code is bundled where cellb's links and WebSocket client are. A bundle
+  that uses only the WebSocket client keeps about 8 KB of it minified (0.7.1 annotates the HTTP
+  codec pure; 0.7.0 kept about 20 KB).
+- Once the package carries the rest, the router moves, and `CellRouter`'s own
   bookkeeping (in-flight requests, owner liveness, drain, re-linking) goes with them.
