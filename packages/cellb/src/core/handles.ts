@@ -1,4 +1,5 @@
 import { deserialize, type HostObjects, serialize } from "../v8/serialize.js";
+import { carryWebSocketHeaders } from "../ws/upgrade.js";
 import { isRpcTarget, isWorkerEntrypoint } from "./durable-object.js";
 import type { DurableObjectState } from "./state.js";
 
@@ -25,8 +26,11 @@ export interface IsolatedClass {
   call(cellKey: string, method: string, args: unknown[]): Promise<unknown>;
   restart(cellKey: string): Promise<void>;
   delete(cellKey: string): Promise<void>;
-  /** Tells the isolate which root epoch the facet's log is written under. */
-  attach?(cellKey: string, epoch?: number): Promise<void>;
+  /**
+   * Tells the isolate which root epoch the facet's log is written under, and the name of the
+   * `id` given to `ctx.facets.get` (the facet's `ctx.id.name`; none: the facet's cell key).
+   */
+  attach?(cellKey: string, epoch?: number, idName?: string): Promise<void>;
 }
 
 export function classHandle(resolve: ClassHandle["resolve"]): ClassHandle {
@@ -173,8 +177,18 @@ export function asyncStub(
         if (prop === STUB) return true;
         if (prop === "then" || typeof prop === "symbol") return undefined;
         if (prop === "fetch")
-          return (input: RequestInfo | URL, init?: RequestInit) =>
-            fetch(new Request(input as RequestInfo, init));
+          return (input: RequestInfo | URL, init?: RequestInit) => {
+            const req = new Request(input as RequestInfo, init);
+            // A browser drops `Upgrade` and `Sec-WebSocket-*` from the copy: carried over, so a
+            // WebSocket reaches a facet (partyserver forwards its upgrade request as it is).
+            const from =
+              init?.headers !== undefined
+                ? new Headers(init.headers)
+                : input instanceof Request
+                  ? input.headers
+                  : undefined;
+            return fetch(from ? carryWebSocketHeaders(from, req) : req);
+          };
         return (...args: unknown[]) => rpcCall(() => call(String(prop), cross(args)), cross);
       },
     },

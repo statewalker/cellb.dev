@@ -1,6 +1,15 @@
-import { byteSize, CellsCloseEvent, checkClose, type Frame, toFrameData } from "./frames.js";
+import {
+  byteSize,
+  CellsCloseEvent,
+  checkClose,
+  type Frame,
+  portEnd,
+  relayFrames,
+  toFrameData,
+} from "./frames.js";
 
 const kPort = Symbol("cellb.ws.port");
+const kTakeQueued = Symbol("cellb.ws.takeQueued");
 /** Server ends accepted in this realm and not yet closed (see `CfWebSocket.goAway`). */
 const acceptedEnds = new Set<CfWebSocket>();
 
@@ -30,6 +39,10 @@ export class CfWebSocket extends EventTarget {
   [kPort]: MessagePort | undefined;
   #accepted = false;
   #queued: Frame[] = [];
+  /** The frames that arrived before accept(), removed (takeClientPort hands them over). */
+  [kTakeQueued](): Frame[] {
+    return this.#queued.splice(0);
+  }
   #attachment: unknown;
 
   #lastPing = 0;
@@ -231,7 +244,15 @@ export function takeClientPort(ws: CfWebSocket): MessagePort {
   ws[kPort] = undefined;
   port.onmessage = null;
   ws.readyState = 3; // handed over: this end must not answer pings any more
-  return port;
+  // Frames the server sent before the response was handed over (partyserver greets in
+  // onConnect, before it returns the 101) reached this end and wait in its queue: the new
+  // holder gets them first, then the rest, through a channel that relays both ways.
+  const queued = ws[kTakeQueued]();
+  if (!queued.length) return port;
+  const relay = new MessageChannel();
+  for (const f of queued) relay.port2.postMessage(f);
+  relayFrames(portEnd(relay.port2), portEnd(port)); // closed with the socket's handshake
+  return relay.port1;
 }
 
 /**

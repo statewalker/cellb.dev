@@ -319,18 +319,28 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 
 ### Releasing
 
-Releases are made by hand from a local checkout, with the maintainer's npm login and 2FA; CI
-never publishes (the statewalker convention). A change to the package carries a changeset
-(`pnpm changeset` at the repository root). To release:
+Releases are made by CI, the same pipeline as the other statewalker monorepos
+(`.github/workflows/ci.yml`). A change to the package carries a changeset (`pnpm changeset` at
+the repository root); without one, the release planner (statewalker/.github's
+`scripts/release-changesets.mjs`) writes a patch for a package whose published contents changed.
+On every push to `main`, after the `cellb` checks pass:
 
-```sh
-pnpm changeset version                 # versions and changelog from the pending changesets
-git commit -am "chore: version packages"
-pnpm changeset publish                 # publishes what npm lacks (prepack builds dist/), tags it
-git push --follow-tags
-```
+1. `version` applies the pending changesets in a "chore: version packages" pull request
+   (versions, `CHANGELOG.md`). It never publishes.
+2. Once that pull request is merged, `pack` packs every public package whose version npm lacks
+   (`pnpm pack`: `prepack` builds `dist/`, and `catalog:` ranges are resolved).
+3. `publish` waits for a maintainer's approval (the `npm` GitHub environment), then publishes
+   the tarballs with npm trusted publishing (OIDC, with provenance) and creates a GitHub release
+   per package. No npm token is stored in GitHub.
 
-Run `node scripts/pack-check.mjs` first: it checks exactly what `publish` uploads.
+One-time setup on npm: `@statewalker/cellb` → Settings → Trusted publishing → GitHub Actions,
+repository `statewalker/cellb.dev`, workflow `ci.yml`, environment `npm`. On GitHub: an
+environment named `npm` with required reviewers. A new package's first version is published by
+hand (`pnpm publish` in its directory, with the maintainer's 2FA), since a trusted publisher can
+only be added to a package that exists.
+
+The `cellb` job runs `node scripts/pack-check.mjs` before any of these: it checks exactly what
+`publish` uploads. Run it locally to see the same.
 
 ## License
 

@@ -95,8 +95,10 @@ projects, and workerd's own Worker Loader tests (`wd-worker-loader`), on Node an
 
 - **A `data` module is refused**, as celld refuses it:
   `worker loader: module "x" must be a string or wasm bytes`.
-- **Hop-by-hop request headers do not reach it** (`Connection`, `Upgrade`, `TE`, `Keep-Alive`):
-  a fetch into a loaded Worker crosses as HTTP/1.1.
+- **Hop-by-hop request headers do not reach it** (`Connection`, `TE`, `Keep-Alive`): a fetch into
+  a loaded Worker crosses as HTTP/1.1. A WebSocket upgrade is the exception: it crosses on a
+  channel of its own with all its headers, and a 101 answer's socket is relayed to the caller, so
+  a loaded Worker or its facet can accept WebSockets (partyserver does, test/p36).
 - **Some of workerd's Worker Loader features are missing**: `WorkerCode.compatibilityFlags`,
   `abortIsolateDynamic*`, the props of `getDurableObjectClass(name, { props })`, and
   `inheritGlobalOutbound` ([gaps.md](../gaps.md)).

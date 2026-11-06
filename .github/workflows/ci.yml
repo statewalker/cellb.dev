@@ -1,0 +1,204 @@
+name: CI
+
+# Every pull request and push to main: cellb's own checks (`cellb`), independent of the examples.
+# Lint, typecheck and the unit tests (test/) on the sources; then the package as it is published
+# (scripts/pack-check.mjs): `pnpm pack`, the packed manifest and files, and the tarball installed
+# from npm outside the workspace and used from plain Node, TypeScript, and a Vite app in Chromium.
+# On main, once they pass, the release jobs below (the statewalker pipeline, as in httpeers).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push cancels a pull request's run; on main every run finishes, so a release is never cut short.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  cellb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: packages/cellb
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - name: Lint
+        run: pnpm exec biome check .
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Unit tests
+        run: pnpm run test:unit
+      - name: Build
+        run: pnpm run build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: The published package (pack, install, Node, types, Vite + Chromium)
+        run: node scripts/pack-check.mjs
+
+  # Releases to npm in three jobs: `version` opens the version pull request, `pack` packs what
+  # npm lacks once it is merged, `publish` uploads the tarballs after a maintainer approves.
+  #
+  # No npm token is stored in GitHub: `publish` authenticates with trusted publishing (OIDC),
+  # and its provenance attestation ties each tarball to this commit. npm's trusted publishers
+  # name this file (ci.yml) and the `npm` environment, so a run that skips the approval cannot
+  # publish. Only `publish` may request an identity token, and it never checks out, installs or
+  # builds: no build tool or dependency runs where a publish token can be obtained.
+  #
+  # A trusted publisher can only be added to a package that exists, so a package's first
+  # version is published by hand, with the maintainer's 2FA, before `publish` is approved; `pack`
+  # or `publish` then skips it.
+
+  # Writes the changesets nobody wrote by hand (statewalker/.github's
+  # scripts/release-changesets.mjs: a patch for every package whose packed files or published
+  # manifest differ from npm's `latest`, a minor (0.x) / major when a dependency moved to another
+  # breaking line), then opens or updates the "chore: version packages" pull request. Never
+  # publishes.
+  version:
+    needs: cellb
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      pending: ${{ steps.changesets.outputs.has-changesets }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Release scripts
+        uses: actions/checkout@v7
+        with:
+          repository: statewalker/.github
+          ref: main
+          path: .statewalker-ci
+
+      - name: Move the release scripts out of the workspace
+        run: mv .statewalker-ci "$RUNNER_TEMP/statewalker-ci"
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run --if-present build
+
+      - name: Changesets for unreleased changes
+        run: node "$RUNNER_TEMP/statewalker-ci/scripts/release-changesets.mjs"
+
+      - name: Version pull request
+        id: changesets
+        uses: changesets/action@v2
+        with:
+          version-script: pnpm exec changeset version
+          commit-message: "chore: version packages"
+          pr-title: "chore: version packages"
+
+  # Nothing pending (the version pull request was merged): packs every public package whose
+  # version is not on npm. No credentials.
+  pack:
+    needs: version
+    if: needs.version.outputs.pending == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      any: ${{ steps.pack.outputs.any }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run --if-present build
+
+      # `pnpm pack` writes the published manifest: workspace: and catalog: become version ranges.
+      - name: Pack what npm lacks
+        id: pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          for dir in packages/*/; do
+            read -r name version private < <(node -p "const p=require('./${dir}package.json');[p.name,p.version,!!p.private].join(' ')")
+            [ "$private" = true ] && continue
+            npm view "$name@$version" version >/dev/null 2>&1 && continue
+            (cd "$dir" && pnpm pack --pack-destination "$RUNNER_TEMP/out")
+          done
+          ls "$RUNNER_TEMP/out"/*.tgz >/dev/null 2>&1 && echo "any=true" >> "$GITHUB_OUTPUT" || echo "any=false" >> "$GITHUB_OUTPUT"
+
+      - if: steps.pack.outputs.any == 'true'
+        uses: actions/upload-artifact@v5
+        with:
+          name: packages
+          path: ${{ runner.temp }}/out/*.tgz
+
+  # Waits for a maintainer's approval (the `npm` environment), then publishes the tarballs packed
+  # above with OIDC and tags each one as a GitHub release.
+  publish:
+    needs: pack
+    if: needs.pack.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      # Pinned: trusted publishing needs npm 11.5.1 or later.
+      - name: npm
+        run: npm install --global npm@11.19.0 && npm --version
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: packages
+          path: packages
+
+      # Skips a version already on npm: a first version published by hand while this job waited
+      # for approval, or what an earlier attempt of a re-run job published.
+      - name: Publish
+        run: |
+          for t in packages/*.tgz; do
+            id=$(tar -xzOf "$t" package/package.json | node -p "const p=JSON.parse(require('fs').readFileSync(0));p.name+'@'+p.version")
+            if npm view "$id" version >/dev/null 2>&1; then echo "$id: already on npm"; continue; fi
+            npm publish "./$t" --provenance --access public
+          done
+
+      - name: Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for t in packages/*.tgz; do
+            tag=$(tar -xzOf "$t" package/package.json | node -p "const p=JSON.parse(require('fs').readFileSync(0));p.name+'@'+p.version")
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && continue
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --notes "Published to npm."
+          done

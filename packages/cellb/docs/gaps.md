@@ -41,7 +41,7 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
   storage (as V8 host objects, `[name, props]`, restored against the Worker's `ctx.exports`). celld
   cannot read such a value; other stubs and `RpcTarget`s are refused with `DataCloneError`.
 - A fetch into a loaded Worker crosses as HTTP/1.1, so hop-by-hop request headers (`Connection`,
-  `Upgrade`, `TE`, `Keep-Alive`) do not reach it.
+  `TE`, `Keep-Alive`) do not reach it. WebSocket upgrades do: they cross on a channel of their own.
 
 ## Firefox and WebKit
 
