@@ -71,4 +71,68 @@ describe("P10h a closed node's lease", () => {
     await new Promise((r) => setTimeout(r, 300)); // two renewal periods
     expect(await s.store.get("nodes/a.json")).toBeUndefined();
   });
+  /** A store whose node-record writes each wait for their own release, in any order. */
+  function heldLeases() {
+    const inner = memoryObjectStore();
+    let holding = false;
+    const held: Array<() => void> = [];
+    let onHeld: () => void = () => {};
+    const store: ObjectStore = {
+      get: (k) => inner.get(k),
+      list: (p) => inner.list(p),
+      delete: (k) => inner.delete(k),
+      async put(key, body, cond, attrs) {
+        if (holding && key.startsWith("nodes/")) {
+          await new Promise<void>((r) => {
+            held.push(r);
+            onHeld();
+          });
+        }
+        return inner.put(key, body, cond, attrs);
+      },
+    };
+    const heldCount = (n: number) =>
+      new Promise<void>((r) => {
+        onHeld = () => held.length >= n && r();
+        onHeld();
+      });
+    return { store, hold: () => (holding = true), held, heldCount };
+  }
+
+  it("two lease writes in flight at close(), landing out of order, leave no record", async () => {
+    const s = heldLeases();
+    const a = celldBucket(s.store, { node: "a", leaseTtlMs: 300 });
+    expect(await a.ownership.tryAcquire(cell)).toBeDefined();
+    s.hold();
+    await s.heldCount(1); // a renewal on its way
+    void a.advertise("addr-2");
+    await s.heldCount(2); // and the advertise's write after it
+    const closed = a.close();
+    s.held[1]?.(); // the later write lands first...
+    await new Promise((r) => setTimeout(r, 20));
+    s.held[0]?.(); // ...the earlier one last
+    await closed;
+    await new Promise((r) => setTimeout(r, 50));
+    expect(await s.store.get("nodes/a.json")).toBeUndefined();
+  });
+
+  it("close() returns within a lease even when a lease write never lands", async () => {
+    const s = heldLeases();
+    const a = celldBucket(s.store, { node: "a", leaseTtlMs: 300 });
+    expect(await a.ownership.tryAcquire(cell)).toBeDefined();
+    s.hold();
+    await s.heldCount(1);
+    const t0 = Date.now();
+    await a.close();
+    expect(Date.now() - t0).toBeLessThan(1_000);
+  });
+
+  it("a closed bucket acknowledges no more writes", async () => {
+    const a = celldBucket(memoryObjectStore(), { node: "a", leaseTtlMs: 60_000 });
+    expect(await a.ownership.tryAcquire(cell)).toBeDefined();
+    await a.close();
+    await expect(
+      a.durability.logCommit(cell, { epoch: 1 } as Parameters<typeof a.durability.logCommit>[1]),
+    ).rejects.toThrow(/self-fencing/);
+  });
 });

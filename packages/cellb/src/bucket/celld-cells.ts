@@ -88,7 +88,8 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   let validUntil = 0;
   const writeLease = () => {
     const w = putLease();
-    writing = w.catch(() => {});
+    // Every write in flight, not only the latest: they may land in any order.
+    writing = Promise.all([writing, w.catch(() => {})]);
     return w;
   };
   const putLease = async () => {
@@ -126,7 +127,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     // Our authority lasts until the record we just wrote expires — minus a margin, so a node
     // that stalls (a paused process, a frozen tab) stops acknowledging before celld may take
     // over: celld waits for expires_ms; we stop at expires_ms - margin.
-    validUntil = t + ttl - Math.min(1_000, ttl / 4);
+    if (!closed) validUntil = t + ttl - Math.min(1_000, ttl / 4);
   };
   const owned = new Set<string>();
   /** Cells whose ownership record was found lost, with the time their refusal ends. */
@@ -163,7 +164,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
 
   // One LTX writer (ltx-log.ts) holds each cell's epoch, TXID and page mirror.
   // A write is acknowledged only while our node lease is still ours (self-fencing).
-  const log = ltxLog(store, { now, authorized: () => now() < validUntil });
+  const log = ltxLog(store, { now, authorized: () => !closed && now() < validUntil });
 
   const ownership = {
     async tryAcquire(cellKey: string) {
@@ -312,9 +313,13 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
       closed = true;
       if (renew) clearTimeout(renew);
       if (deadline) clearTimeout(deadline);
+      validUntil = 0; // no write is acknowledged once closing has begun
       // A renewal already on its way would write the record back after the delete, and the
-      // node's cells would stay "owned by a live node" for a whole lease: let it land first.
-      await writing;
+      // node's cells would stay "owned by a live node" for a whole lease: let it land first —
+      // for at most a lease, since one that lands later expires within a lease anyway.
+      let waited: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([writing, new Promise((r) => (waited = setTimeout(r, ttl)))]);
+      clearTimeout(waited);
       if (leaseWritten) await store.delete(`nodes/${opts.node}.json`).catch(() => {});
       store.close?.();
     },
