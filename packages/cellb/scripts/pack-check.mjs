@@ -2,7 +2,7 @@
 // (no workspace:/catalog:/link:/file: specifier, every export target present, every bare import of
 // dist/ and vendor/ declared); then the tarball installed with npm in a project of its own,
 // outside this workspace, and used three ways:
-//   1. plain Node: a wrangler project with a Durable Object and nodejs_compat, through
+//   1. plain Node: a wrangler project with a Durable Object, nodejs_compat and Worker Loader code, through
 //      loadNodeProject (esbuild, the module files cellb loads at run time), and
 //      bundleWorkerForBrowser; the process must end by itself afterwards
 //   2. TypeScript: a consumer file type-checked against the published declarations
@@ -121,6 +121,7 @@ try {
     compatibility_date: "2026-02-24",
     compatibility_flags: ["nodejs_compat"],
     durable_objects: { bindings: [{ name: "COUNTER", class_name: "Counter" }] },
+    worker_loaders: [{ binding: "LOADER" }],
     migrations: [{ tag: "v1", new_sqlite_classes: ["Counter"] }],
   };
   write(join(project, "wrangler.json"), JSON.stringify(config, null, 2));
@@ -136,8 +137,20 @@ export class Counter extends DurableObject {
     return n;
   }
 }
+// Worker Loader code that imports cloudflare:workers: it is bundled for its isolate with the
+// module files of the package (a .ts path that only the sources have broke it, #48).
+const LOADED = \`import { WorkerEntrypoint } from "cloudflare:workers";
+export default class extends WorkerEntrypoint {
+  fetch() { return new Response("loaded"); }
+}\`;
 export default {
   async fetch(req, env) {
+    if (new URL(req.url).pathname === "/loaded")
+      return env.LOADER.get("loaded-v1", () => ({
+        compatibilityDate: "2026-02-24",
+        mainModule: "w.js",
+        modules: { "w.js": LOADED },
+      })).getEntrypoint().fetch(req);
     const n = await env.COUNTER.getByName("a").inc();
     return new Response(Buffer.from(tail("/n=" + n)).toString());
   },
@@ -166,8 +179,9 @@ const { runtime, unsupported } = await loadNodeProject(${JSON.stringify(project)
 if (unsupported.length) throw new Error("unsupported: " + unsupported.join("; "));
 const got = [];
 for (let i = 0; i < 2; i++) got.push(await (await runtime.fetch(new Request("http://x/"))).text());
+got.push(await (await runtime.fetch(new Request("http://x/loaded"))).text());
 await runtime.close();
-if (got.join(",") !== "n=1,n=2") throw new Error("got " + got.join(","));
+if (got.join(",") !== "n=1,n=2,loaded") throw new Error("got " + got.join(","));
 const bundle = await bundleWorkerForBrowser(${JSON.stringify(join(project, "index.js"))}, { nodeCompat: true });
 if (!bundle.includes("Counter")) throw new Error("the browser bundle has no Counter");
 writeFileSync("worker-bundle.js", bundle);
