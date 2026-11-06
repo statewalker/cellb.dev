@@ -13,7 +13,7 @@ type Op =
       config: WranglerConfig;
       bundle: string;
       run: string;
-      /** The bucket lease (ms): short for the restart test, the default for measurements. */
+      /** The bucket lease (ms); the default (10 s) unless a test needs another. */
       leaseTtlMs?: number;
     }
   | { op: "fetch"; path: string }
@@ -79,9 +79,9 @@ self.onmessage = async (e: MessageEvent<Op>) => {
     if (m.op === "bench")
       return reply({ ok: true, result: await bench(m.path, m.sockets, m.sizes) });
     if (m.op === "restart") {
+      // A clean close removes the first node's lease record: the next one takes the cells at
+      // once, with no lease to wait out.
       await host!.close();
-      // The first node's lease must lapse before the next one takes the cells.
-      await new Promise((r) => setTimeout(r, 1_500));
       await start(started!);
       return reply({ ok: true });
     }

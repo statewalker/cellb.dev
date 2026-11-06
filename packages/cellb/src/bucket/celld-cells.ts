@@ -53,6 +53,9 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   let renew: ReturnType<typeof setTimeout> | undefined;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let leaseWritten: Promise<void> | undefined;
+  /** The lease write on its way to the bucket, if any: `close()` waits for it before the delete. */
+  let writing: Promise<unknown> = Promise.resolve();
+  let closed = false;
 
   /** nodes/<node>.json, renewed every ttl/3; a failed renewal stops every cell (self-fencing). */
   // celld decodes every node record (ownership_store.rs NodeLeaseWire / NodeLoadWire): a record
@@ -83,7 +86,13 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     }
   })();
   let validUntil = 0;
-  const writeLease = async () => {
+  const writeLease = () => {
+    const w = putLease();
+    writing = w.catch(() => {});
+    return w;
+  };
+  const putLease = async () => {
+    if (closed) return;
     const t = now();
     const body = {
       node: opts.node,
@@ -125,6 +134,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   const ensureLease = () => {
     leaseWritten ??= probeKeyReady.then(writeLease).then(() => {
       const tick = () => {
+        if (closed) return;
         renew = setTimeout(() => {
           writeLease().then(tick, (e) => lost.abort(e));
         }, ttl / 3);
@@ -299,8 +309,12 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     },
     /** Clean shutdown: stop renewing, remove this node's lease record, close the store. */
     async close() {
+      closed = true;
       if (renew) clearTimeout(renew);
       if (deadline) clearTimeout(deadline);
+      // A renewal already on its way would write the record back after the delete, and the
+      // node's cells would stay "owned by a live node" for a whole lease: let it land first.
+      await writing;
       if (leaseWritten) await store.delete(`nodes/${opts.node}.json`).catch(() => {});
       store.close?.();
     },

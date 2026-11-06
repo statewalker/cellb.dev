@@ -22,9 +22,7 @@ test("partyserver: room, scheduler and a loaded extension, over HTTP and WebSock
   const get = async (path: string) => JSON.parse((await party({ op: "fetch", path })).text);
 
   const run = Date.now().toString(36);
-  expect(
-    (await party({ op: "start", config, bundle, run, leaseTtlMs: 1_000 })).unsupported,
-  ).toEqual([]);
+  expect((await party({ op: "start", config, bundle, run })).unsupported).toEqual([]);
 
   // A room: the greeting, then the broadcast of its own message.
   const room = await party({ op: "socket", path: "/parties/room/lobby", send: ["hi"], receive: 2 });
