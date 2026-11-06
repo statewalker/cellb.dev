@@ -1,12 +1,30 @@
 // A worker thread hosting ONE loaded Worker (an isolate); see src/isolate/protocol.ts.
 import { parentPort } from "node:worker_threads";
 import { nodeSqliteOpener } from "../adapters/node-sqlite.js";
+import {
+  CellsRequest,
+  CellsResponse,
+  WebSocket,
+  WebSocketPair,
+  WebSocketRequestResponsePair,
+} from "../project/workers-globals-module.js";
 import { serveIsolate } from "./isolate.js";
 import type { PortLike } from "./protocol.js";
 
 // An exception no request awaits (a timer, ctx.abort() from one) is reported, and the isolate
 // lives on, as in a browser Dedicated Worker and workerd; Node would end the thread.
 process.on("uncaughtException", (e) => console.error("Uncaught", e));
+
+// This thread is the loaded Worker's realm: its globals are the Workers ones, as in a browser
+// isolate (src/isolate/isolate-worker.ts). A `Response` that takes `{ status: 101, webSocket }`
+// and a `WebSocketPair` are what a Worker that accepts WebSockets needs.
+Object.assign(globalThis, {
+  Request: CellsRequest,
+  Response: CellsResponse,
+  WebSocket,
+  WebSocketPair,
+  WebSocketRequestResponsePair,
+});
 
 serveIsolate(
   parentPort as unknown as PortLike,

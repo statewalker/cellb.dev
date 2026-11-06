@@ -54,3 +54,61 @@ export class CellsCloseEvent extends Event {
     this.wasClean = init.wasClean ?? false;
   }
 }
+
+/** One side of a frame relay: a MessagePort, or a port of a multiplexer. */
+export interface FrameEnd {
+  post(f: Frame): void;
+  listen(fn: (f: Frame) => void): void;
+  close(): void;
+}
+
+export const portEnd = (port: MessagePort): FrameEnd => ({
+  post: (f) => port.postMessage(f),
+  listen: (fn) => {
+    port.onmessage = (e) => fn(e.data as Frame);
+  },
+  close: () => port.close(),
+});
+
+/**
+ * Relays a socket's frames between `a` and `b`. Once a close frame has passed each way (the
+ * closing handshake) both ends are closed, after a moment for the last frames to arrive.
+ * Returns a function that ends the relay at once, telling `a` the socket closed with `code`;
+ * `onDone` runs when the relay ends either way.
+ */
+export function relayFrames(
+  a: FrameEnd,
+  b: FrameEnd,
+  onDone?: () => void,
+): (code: number, reason: string) => void {
+  let fromA = false;
+  let fromB = false;
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    onDone?.();
+    const t = setTimeout(() => {
+      a.close();
+      b.close();
+    }, 1_000);
+    (t as { unref?(): void }).unref?.();
+  };
+  a.listen((f) => {
+    b.post(f);
+    if (f.t !== "c") return;
+    fromA = true;
+    if (fromB) finish();
+  });
+  b.listen((f) => {
+    a.post(f);
+    if (f.t !== "c") return;
+    fromB = true;
+    if (fromA) finish();
+  });
+  return (code, reason) => {
+    if (done) return;
+    a.post({ t: "c", code, reason });
+    finish();
+  };
+}

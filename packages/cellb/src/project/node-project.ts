@@ -361,7 +361,8 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
               }));
               b.onLoad({ filter: /.*/, namespace: "isolate-workers" }, () => ({
                 contents: [
-                  'export * from "./cloudflare-workers.ts";',
+                  // cloudflare-workers.js in the published package (dist/), .ts in the sources.
+                  `export * from ${JSON.stringify(ownModule(import.meta.dirname, "cloudflare-workers"))};`,
                   "export const env = globalThis.__cellsProjectScope.env, exports = globalThis.__cellsProjectScope.exports, waitUntil = (p) => globalThis.__cellsProjectScope.waitUntil(p);",
                 ].join("\n"),
                 loader: "js",

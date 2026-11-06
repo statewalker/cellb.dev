@@ -78,6 +78,14 @@ unchanged and run by the conformance suite on Node and in Chromium.
 - When the facet opens, under the root's lease, its database is rebuilt from that storage, as the
   root's is; its rows are rescoped to the current run.
 
+## A facet's own id
+
+`ctx.facets.get(name, () => ({ class, id }))` gives the facet that `id` as its `ctx.id`, for
+classes of loaded code too: partyserver's `this.name` is the facet's id's name, not its parent's.
+Storage stays the facet's, by its name, either way.
+
 ## How it is checked
 
-celld's `facets` example and CellB's `facets-api` project, on Node and in Chromium.
+celld's `facets` example and CellB's `facets-api` project, on Node and in Chromium; partyserver
+Servers loaded at run time and run as facets, over HTTP and WebSockets (`test/p36-partyserver`,
+`e2e-browser/partyserver.spec.ts`).
