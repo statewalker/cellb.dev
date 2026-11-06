@@ -1,4 +1,5 @@
 import {
+  byteSize,
   CellsCloseEvent,
   checkClose,
   type Frame,
@@ -58,11 +59,19 @@ export class CfWebSocket extends EventTarget {
     };
   }
 
-  /** Heartbeat: answer the client's ping; close 1006 when pings stop for 3 periods. */
+  /**
+   * Heartbeat: answer the client's ping; close 1006 when pings stop for 3 periods. The watch
+   * starts with the first ping (a pair's ends used in this realm never ping) and keeps that
+   * period. A later ping may announce a longer one (webrun-http-browser's client does when its
+   * page turns hidden), but a tab that closes turns hidden on its way out: following it would
+   * leave a dead tab's socket open for minutes. Pages keep pinging on time with unthrottled
+   * timers (`timers`).
+   */
   #ping(hb: number): void {
     this.#lastPing = Date.now();
     this[kPort]?.postMessage({ t: "q" } satisfies Frame);
-    if (this.#watch || !hb) return;
+    // A period no timer takes (2³¹−1 ms and up: `heartbeatMs: 0`) means no heartbeat.
+    if (this.#watch || !hb || hb >= 2 ** 31 - 1) return;
     this.#watch = setInterval(() => {
       if (this.readyState === 3) return clearInterval(this.#watch);
       if (Date.now() - this.#lastPing > 3 * hb) this.#gone();
@@ -108,7 +117,8 @@ export class CfWebSocket extends EventTarget {
     if (f.t === "m") {
       const data = typeof f.d !== "string" && this.#binaryType === "blob" ? new Blob([f.d]) : f.d;
       this.dispatchEvent(new MessageEvent("message", { data }));
-      this[kPort]?.postMessage({ t: "a" } satisfies Frame); // the sender's bufferedAmount drains
+      // The sender's bufferedAmount drains by the bytes dispatched.
+      this[kPort]?.postMessage({ t: "a", n: byteSize(f.d) } satisfies Frame);
       return;
     }
     if (f.t !== "c") return;

@@ -37,7 +37,9 @@ and WebKit.
   It can route requests, hold Web Locks and pass MessagePorts, so it routes and a page owns the
   workers.
 - **A ServiceWorker cannot intercept WebSockets.** Pages and objects get a WebSocket class whose
-  frames travel over MessagePorts ([ADR 0006](adr/0006-websockets-over-messageports.md)).
+  frames travel over MessagePorts ([ADR 0006](adr/0006-websockets-over-messageports.md)). The
+  class, the frames and the HTTP links over ports are `@statewalker/webrun-http-browser`'s; the
+  router is still cellb's ([ADR 0010](adr/0010-transport-and-webrun-http-browser.md) says why).
 - **Without an open page nothing runs.** No page means no Dedicated Worker and no SQLite. Cells that
   must stay reachable live on a fleet bucket that server nodes share.
 

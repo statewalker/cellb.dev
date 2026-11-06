@@ -1,18 +1,28 @@
-/** Wire protocol of a WebSocket carried by a MessagePort (both directions). */
-export type Frame =
-  | { t: "m"; d: string | ArrayBuffer } // message
-  | { t: "c"; code: number; reason: string } // close (initiating or echo)
-  | { t: "p"; hb: number } // ping (client → server), carries the heartbeat period
-  | { t: "q" } // pong (server → client)
-  | { t: "a" }; // ack: the server end dispatched the oldest message not acknowledged yet
-
 /**
- * MessagePorts never report that the other side died (no `close` event in
- * browsers), so both ends run a heartbeat: the client pings every `hb` ms and
- * closes with 1006 when pongs stop for 2·hb; the server closes with 1006 when
- * pings stop for 3·hb. This is what makes a socket notice a closed tab.
+ * Wire protocol of a WebSocket carried by a MessagePort (both directions):
+ * `@statewalker/webrun-http-browser`'s frames (version `WS_PORT_PROTOCOL_VERSION`), spoken by its
+ * client (`createWebSocketClass`) and by the ends of cellb's WebSocketPairs.
+ *
+ *   m  a message (an ArrayBuffer is transferred)
+ *   c  close, initiating or echo
+ *   p  ping (client → server), carries the client's heartbeat period
+ *   q  pong (server → client)
+ *   a  ack: the receiver dispatched `n` more bytes of messages (the sender's `bufferedAmount`)
+ *
+ * MessagePorts never report that the other side died (no `close` event in browsers), so both
+ * ends run a heartbeat: the client pings every `hb` ms and closes with 1006 when pongs stop for
+ * 2·hb; the server closes with 1006 when pings stop for 3·hb. This is what makes a socket notice a
+ * closed tab. A hidden tab's client announces a longer period (its timers are throttled).
  */
-export const DEFAULT_HEARTBEAT_MS = 10_000;
+export type Frame =
+  | { t: "m"; d: string | ArrayBuffer }
+  | { t: "c"; code: number; reason: string }
+  | { t: "p"; hb: number }
+  | { t: "q" }
+  | { t: "a"; n: number };
+// Declared here, not imported from webrun-http-browser/sw: its declarations name ServiceWorker
+// types, and cellb's must compile with the DOM lib alone (scripts/pack-check.mjs). The two are
+// kept the same by test/p07w-websocket.test.ts.
 
 /** What a message adds to the sender's `bufferedAmount` (WHATWG: UTF-8 bytes of a string). */
 export function byteSize(d: string | ArrayBuffer): number {
