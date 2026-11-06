@@ -51,8 +51,8 @@ nothing is copied and nothing drifts.
 
 Relative links in that Markdown are written for GitHub (`gaps.md`, `../astro-in-browser`).
 `src/lib/rehype-repo-links.ts` rewrites them at build time: a link to a rendered file, or to a
-directory whose `README.md` is rendered, goes to its page; any other file (the decision records in
-`docs/adr/`, source files) goes to GitHub. Link to docs from `.astro` pages with
+directory whose `README.md` is rendered, goes to its page; any other file (source files, for
+instance) goes to GitHub. Link to docs from `.astro` pages with
 `docHref("packages/cellb/docs/gaps.md")`, which makes the same choice. To publish another file,
 add it to `src/lib/docs.ts`, and add its path to the `paths` filters of
 `.github/workflows/site.yml` if it is outside the ones listed there, or an edit to it will not

@@ -60,7 +60,7 @@ those transcripts, and that CellB matches:
 
 | Layer | celld | CellB |
 |---|---|---|
-| Object ids | namespace key `cells:v1:<len(script)>:<script>:<class>`; id = HMAC(SHA-256(key), name)[0..16] ‖ HMAC(key, first half)[0..16] | the same bytes ([ADR 0008](adr/0008-synchronous-idfromname.md)) |
+| Object ids | namespace key `cells:v1:<len(script)>:<script>:<class>`; id = HMAC(SHA-256(key), name)[0..16] ‖ HMAC(key, first half)[0..16] | the same bytes ([ADR 0008](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0008-synchronous-idfromname.md)) |
 | Fleet-wide namespaces | KV, D1 and Queues use keys that do not depend on the script | the same |
 | Internal tables | `_cf_KV(scope, k, v)`, `_cf_ALARM`, `_cf_METADATA(scope, actor_name)`, `_cf_FACETS`, `_cf_WAKE` and their triggers | the same DDL, plus CellB's own `_cf_LOG` (the changeset log's sequence) |
 | Stored values | V8 serialization, version 15 | a TypeScript V8 serializer, byte-identical to Node's on the tested corpus |
@@ -70,7 +70,7 @@ those transcripts, and that CellB matches:
 | Object names | `_cf_METADATA.actor_name` restored as `ctx.id.name` when woken by id | the same |
 | Ownership | `own.json` CAS per cell, `nodes/<node>.json` per node, `wake/` index, waker role | the same ([ownership-and-durability.md](ownership-and-durability.md)) |
 
-[ADR 0001](adr/0001-celld-storage-format-is-native.md) records why this is CellB's only format.
+[ADR 0001](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0001-celld-storage-format-is-native.md) records why this is CellB's only format.
 
 ## Bindings keep celld's storage
 
@@ -90,7 +90,7 @@ by `put` and by multipart upload cross both ways with their metadata.
 Without a fleet bucket, R2 keeps its objects in the project's FilesApi. Queues default
 `max_concurrency` to celld's ceiling, 250.
 
-[ADR 0002](adr/0002-vendored-celld-javascript.md) records why the vendored code is not rewritten.
+[ADR 0002](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0002-vendored-celld-javascript.md) records why the vendored code is not rewritten.
 
 ## A mixed fleet: CellB as a celld peer (Node)
 

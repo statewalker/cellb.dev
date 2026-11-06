@@ -44,7 +44,7 @@ copied unchanged and run by the conformance suite on Node and in Chromium.
 ## A cell is stored as celld stores it
 
 - **Ids** are derived from the script name and class as celld derives them, synchronously
-  ([ADR 0008](../adr/0008-synchronous-idfromname.md)).
+  ([ADR 0008](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0008-synchronous-idfromname.md)).
 - **Storage** is celld's internal tables (`_cf_KV`, `_cf_ALARM`, `_cf_METADATA`, …), plus CellB's own `_cf_LOG`, in the object's
   SQLite, values in V8 serialization version 15, written by a TypeScript serializer in browsers.
 - **Logs** are LTX v3, as celld writes them, so a cell CellB wrote is one celld can continue.
