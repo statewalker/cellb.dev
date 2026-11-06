@@ -128,9 +128,9 @@ describe("P36 partyserver", () => {
   }, 60_000);
 
   it("open sockets hold none of the isolate's multiplexer ports", async () => {
-    // Each socket's frames go over its own transferred port: 1,100 sockets into one isolate
-    // whose multiplexer allows 1,024 ports at once (webrun-rpc's default, which the relay
-    // design hit at 1,023 sockets).
+    // Each socket's frames go over its own transferred port: 1,100 sockets into one isolate,
+    // with the host's multiplexer allowing 1,024 ports at once (webrun-rpc's default, which
+    // the relay design hit at 1,023 sockets).
     const g = globalThis as { __cellbMaxPorts?: number };
     g.__cellbMaxPorts = 1024;
     try {

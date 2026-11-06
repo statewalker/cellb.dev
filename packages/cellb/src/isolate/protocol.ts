@@ -2,6 +2,7 @@ import { fetchOverDuplex, serveFetchOverDuplex } from "@statewalker/webrun-http-
 import {
   callPort,
   duplexOverPort,
+  getPortCloseSignal,
   listenPort,
   type MessageTarget,
   multiplexPort,
@@ -187,8 +188,19 @@ async function upgradeOver(mux: PortMux, meta: object, req: Request): Promise<Re
     headers: [...req.headers],
   } satisfies UpgradeMeta);
   return new Promise((resolve, reject) => {
+    // A port closed without an answer (the isolate refused it, or could not post one)
+    // fails the upgrade rather than leaving it pending.
+    const closed = getPortCloseSignal(p);
+    const onClosed = () => {
+      p.removeEventListener("message", onHead);
+      reject(
+        closed?.reason ?? new Error("cellb: the isolate closed the upgrade without an answer"),
+      );
+    };
+    closed?.addEventListener("abort", onClosed, { once: true });
     const onHead = (e: MessageEvent) => {
       p.removeEventListener("message", onHead);
+      closed?.removeEventListener("abort", onClosed);
       void p.close?.();
       try {
         const head = e.data as UpgradeHead;
@@ -231,6 +243,9 @@ function serveUpgrade(
   );
   const answer = (head: UpgradeHead, transfer: Transferable[] = []) => {
     try {
+      // The multiplexer drops a message it cannot copy, so check before posting; a 101
+      // head is not checked, since its socket port is transferred rather than copied.
+      if (transfer.length === 0) cloneable(head);
       p.postMessage(head, transfer);
     } catch {
       // An error that cannot be copied (a function in its `cause`, say): its name and message.

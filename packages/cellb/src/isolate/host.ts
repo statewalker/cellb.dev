@@ -113,10 +113,14 @@ export function isolatedModuleLoader(opts: {
       // Each isolate closes its sockets (1001), within a second; then it ends.
       return Promise.all(
         ending.map(async (isolate) => {
+          let timer: ReturnType<typeof setTimeout> | undefined;
           await Promise.race([
             isolate.goAway?.().catch(() => {}),
-            new Promise((r) => setTimeout(r, 1_000)),
+            new Promise((r) => {
+              timer = setTimeout(r, 1_000);
+            }),
           ]);
+          clearTimeout(timer);
           isolate.terminate();
         }),
       ).then(() => {});
