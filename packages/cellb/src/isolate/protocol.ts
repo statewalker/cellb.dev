@@ -13,7 +13,8 @@ import {
 } from "@statewalker/webrun-rpc";
 import { cross, pipeTo, rpcPromise, STUB } from "../core/handles.js";
 import { withUrl } from "../core/request-body.js";
-import { CellsResponse, CfWebSocket, takeClientPort } from "../ws/server.js";
+import type { Frame } from "../ws/frames.js";
+import { CellsResponse, CfWebSocket, takeClientEnd } from "../ws/server.js";
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
 
 /**
@@ -41,8 +42,10 @@ import { carryWebSocketHeaders } from "../ws/upgrade.js";
  * A WebSocket upgrade (host → isolate) has a port of its own instead, since HTTP/1.1 drops the
  * `Upgrade` header: its meta carries the request's method and headers; the isolate answers with
  * the response's head and closes the port. A 101's head carries the socket's own MessagePort,
- * transferred: the socket's frames then go straight between the client and the isolate, outside
- * the multiplexer, so open sockets hold none of its ports (it allows `maxPorts` at once).
+ * transferred, and the frames the server sent before the 101 (replayed by the host's end): the
+ * socket's frames then go straight between the client and the isolate, outside the multiplexer
+ * and through no relay in the isolate, so open sockets hold none of its ports (it allows
+ * `maxPorts` at once) and a socket's 1001 reaches its client before the isolate ends.
  */
 export interface PortLike {
   postMessage(msg: unknown, transfer?: Transferable[]): void;
@@ -170,6 +173,8 @@ type UpgradeHead =
       body: ArrayBuffer | null;
       /** A 101's socket: the port of its client end, transferred. */
       socket?: MessagePort;
+      /** A 101's frames that reached its client end before the hand-over. */
+      frames?: Frame[];
     }
   | { error: unknown };
 
@@ -210,7 +215,7 @@ async function upgradeOver(mux: PortMux, meta: object, req: Request): Promise<Re
             new CellsResponse(null, {
               status: 101,
               headers: head.headers,
-              webSocket: new CfWebSocket(head.socket),
+              webSocket: new CfWebSocket(head.socket, head.frames),
             }),
           );
         resolve(
@@ -262,8 +267,8 @@ function serveUpgrade(
       const res = await fetch(req);
       const ws = (res as { webSocket?: CfWebSocket | null }).webSocket;
       if (res.status === 101 && ws) {
-        const socket = takeClientPort(ws);
-        answer({ status: 101, headers: [...res.headers], body: null, socket }, [socket]);
+        const { port: socket, frames } = takeClientEnd(ws);
+        answer({ status: 101, headers: [...res.headers], body: null, socket, frames }, [socket]);
       } else
         answer({
           status: res.status,

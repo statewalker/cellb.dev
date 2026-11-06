@@ -10,8 +10,11 @@ import {
 
 const kPort = Symbol("cellb.ws.port");
 const kTakeQueued = Symbol("cellb.ws.takeQueued");
-/** Server ends accepted in this realm and not yet closed (see `CfWebSocket.goAway`). */
-const acceptedEnds = new Set<CfWebSocket>();
+/**
+ * Server ends of this realm that a client may be waiting on, not yet closed: the accepted ones,
+ * and those whose client end was handed over (see `CfWebSocket.goAway`).
+ */
+const serverEnds = new Set<CfWebSocket>();
 
 /**
  * Cloudflare Workers' server-side WebSocket (one end of a WebSocketPair):
@@ -48,9 +51,11 @@ export class CfWebSocket extends EventTarget {
   #lastPing = 0;
   #watch: ReturnType<typeof setInterval> | undefined;
 
-  constructor(port: MessagePort) {
+  /** `queued`: frames the end received before `port` reached it, delivered first (a 101's). */
+  constructor(port: MessagePort, queued: Frame[] = []) {
     super();
     this[kPort] = port;
+    this.#queued = [...queued];
     port.onmessage = (e) => {
       const f = e.data as Frame;
       if (f.t === "p") return this.#ping(f.hb); // answered even before accept()
@@ -83,7 +88,7 @@ export class CfWebSocket extends EventTarget {
     clearInterval(this.#watch);
     if (this.readyState === 3) return;
     this.readyState = 3;
-    acceptedEnds.delete(this);
+    serverEnds.delete(this);
     this[kPort]?.close();
     this.dispatchEvent(new CellsCloseEvent("close", { code: 1006, reason: "", wasClean: false }));
   }
@@ -101,7 +106,7 @@ export class CfWebSocket extends EventTarget {
     if (!this[kPort])
       throw new TypeError("This WebSocket end was handed to a client; it cannot be accepted.");
     this.#accepted = true;
-    acceptedEnds.add(this);
+    serverEnds.add(this);
     this[kPort].start?.();
     for (const f of this.#queued.splice(0)) this.#frame(f);
   }
@@ -126,7 +131,7 @@ export class CfWebSocket extends EventTarget {
     if (wasOpen)
       this[kPort]!.postMessage({ t: "c", code: f.code, reason: f.reason } satisfies Frame);
     this.readyState = 3;
-    acceptedEnds.delete(this);
+    serverEnds.delete(this);
     clearInterval(this.#watch);
     this[kPort]!.close();
     this.dispatchEvent(
@@ -135,13 +140,15 @@ export class CfWebSocket extends EventTarget {
   }
 
   /**
-   * Closes every server end accepted in this realm with 1001 (going away). A shard worker that
-   * hands its cells to another tab does it before it stops, so that clients reconnect at once
-   * instead of noticing through the heartbeat; Worker code cannot send 1001 itself (`close`).
+   * Closes every server end of this realm with 1001 (going away): the accepted ones, and those
+   * whose client end was handed over but which were never accepted. A shard worker that hands
+   * its cells to another tab does it before it stops, and an isolate before it is terminated,
+   * so that clients reconnect at once instead of noticing through the heartbeat; Worker code
+   * cannot send 1001 itself (`close`).
    */
   static goAway(reason = "moving to another worker"): void {
-    for (const ws of acceptedEnds) {
-      acceptedEnds.delete(ws);
+    for (const ws of serverEnds) {
+      serverEnds.delete(ws);
       if (ws.readyState >= 2) continue;
       ws.readyState = 2;
       ws[kPort]?.postMessage({ t: "c", code: 1001, reason } satisfies Frame);
@@ -236,19 +243,30 @@ export class StandardWebSocketPair extends WebSocketPair {
 }
 
 /**
- * Detaches the transport of the CLIENT end returned in a 101 response, so the
- * runtime can hand the raw MessagePort to the real client (transferable).
+ * Detaches the CLIENT end returned in a 101 response: its own port, and the frames the server
+ * sent before the response was handed over (partyserver greets in onConnect, before it returns
+ * the 101), which reached this end and wait in its queue. A holder that can replay them
+ * (`new CfWebSocket(port, frames)`) needs no relay.
  */
-export function takeClientPort(ws: CfWebSocket): MessagePort {
+export function takeClientEnd(ws: CfWebSocket): { port: MessagePort; frames: Frame[] } {
   const port = ws[kPort];
   if (!port) throw new TypeError("WebSocket end already handed over");
   ws[kPort] = undefined;
   port.onmessage = null;
   ws.readyState = 3; // handed over: this end must not answer pings any more
-  // Frames the server sent before the response was handed over (partyserver greets in
-  // onConnect, before it returns the 101) reached this end and wait in its queue: the new
-  // holder gets them first, then the rest, through a channel that relays both ways.
-  const queued = ws[kTakeQueued]();
+  // Its server end now has a client waiting, accepted or not: `goAway` must reach it.
+  if (ws.peer?.[kPort] && ws.peer.readyState < 2) serverEnds.add(ws.peer);
+  return { port, frames: ws[kTakeQueued]() };
+}
+
+/**
+ * Detaches the transport of the CLIENT end returned in a 101 response, so the
+ * runtime can hand the raw MessagePort to the real client (transferable).
+ */
+export function takeClientPort(ws: CfWebSocket): MessagePort {
+  const { port, frames: queued } = takeClientEnd(ws);
+  // Early frames go to the new holder first, then the rest, through a channel that relays
+  // both ways.
   if (!queued.length) return port;
   const relay = new MessageChannel();
   for (const f of queued) relay.port2.postMessage(f);

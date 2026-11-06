@@ -166,13 +166,10 @@ export function serveIsolate(
       return Object.fromEntries(Object.entries(module).map(([k, v]) => [k, typeof v]));
     }
     if (m.type === "image") return await images.get(m.token)?.();
-    // The host is stopping this isolate: the sockets accepted here hear 1001 first.
-    // A socket whose early frames went through a relay port hears it one hop later: the
-    // answer waits a macrotask, so the host does not terminate the isolate before that.
-    if (m.type === "goAway") {
-      CfWebSocket.goAway("the loaded Worker stopped");
-      return await new Promise((r) => setTimeout(r, 0));
-    }
+    // The host is stopping this isolate: the sockets served here hear 1001 first. Each one's
+    // close goes straight to its client (no relay lives here: a 101 carries its early frames),
+    // so the host may terminate the isolate as soon as this returns.
+    if (m.type === "goAway") return CfWebSocket.goAway("the loaded Worker stopped");
     if (m.type === "object") {
       const { rt, stub, key } = await facet(m.className, m.cellKey);
       if (m.op === "attach") {
