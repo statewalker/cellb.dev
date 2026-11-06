@@ -97,8 +97,11 @@ projects, and workerd's own Worker Loader tests (`wd-worker-loader`), on Node an
   `worker loader: module "x" must be a string or wasm bytes`.
 - **Hop-by-hop request headers do not reach it** (`Connection`, `TE`, `Keep-Alive`): a fetch into
   a loaded Worker crosses as HTTP/1.1. A WebSocket upgrade is the exception: it crosses on a
-  channel of its own with all its headers, and a 101 answer's socket is relayed to the caller, so
-  a loaded Worker or its facet can accept WebSockets (partyserver does, test/p36).
+  channel of its own with all its headers, so a loaded Worker or its facet can accept WebSockets
+  (partyserver does, test/p36). A 101 answer hands the host the socket's own MessagePort: its
+  frames go straight to the isolate, and open sockets take none of the isolate's multiplexed
+  ports (at most 4,096 at once, `globalThis.__cellbMaxPorts`). When the runtime closes, the
+  isolate's sockets close with 1001 before it ends (bench/README.md has the numbers).
 - **Some of workerd's Worker Loader features are missing**: `WorkerCode.compatibilityFlags`,
   `abortIsolateDynamic*`, the props of `getDurableObjectClass(name, { props })`, and
   `inheritGlobalOutbound` ([gaps.md](../gaps.md)).

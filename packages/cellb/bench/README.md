@@ -37,3 +37,32 @@ BENCH_JSON=bench/results/chromium.json pnpm bench:browser   # Chromium (BENCH_CE
   expires (10 s by default, `leaseTtlMs`); the measured failover is that wait plus the restore.
 - **Browser timers are coarse.** A Dedicated Worker's `performance.now()` has about 0.1 ms
   resolution, so sub-millisecond browser rows round to 0 or 0.1.
+
+## WebSockets into a loaded Worker
+
+`socket-bench.mjs` (Node) and `e2e-browser/probes/socket.probe.spec.ts` (Chromium) measure a
+WebSocket into a Worker loaded at run time (Worker Loader), which runs in an isolate of its own:
+the partyserver extension of `test/partyserver`, as a facet. Each runs 3 times (`RUNS`) and
+reports the median: an echo round trip (2,000 after 200 to warm up), throughput at 64 B, 1 KiB
+and 64 KiB (messages sent back to back until the last echo), and how many sockets one isolate
+holds at once (up to 1,500).
+
+```sh
+pnpm build && BENCH_JSON=bench/results/sockets-node.json node bench/socket-bench.mjs
+BENCH_JSON=bench/results/sockets-chromium.json pnpm bench:browser socket
+```
+
+A socket's frames used to be relayed over the isolate's multiplexed port; now the socket's own
+MessagePort is transferred to the host, so frames go straight to the isolate. `*-relay.json`
+are the runs before the change, on the same machine (4 vCPUs, Node 22, headless Chromium):
+
+| Median of 3 runs | Node, relay | Node, port | Chromium, relay | Chromium, port |
+|---|---|---|---|---|
+| Echo round trip p50 / p99 (ms) | 0.14 / 0.98 | 0.10 / 0.65 | 0.2 / 1.6 | 0.1 / 0.5 |
+| 64 B messages per second | 22,946 | 32,515 | 10,421 | 18,918 |
+| 1 KiB messages per second | 17,793 | 29,364 | 8,734 | 16,021 |
+| 64 KiB throughput (MB/s) | 65 | 192 | 68 | 114 |
+| Sockets one isolate holds | 1,023 | 1,500 (all asked) | 1,023 | 1,500 (all asked) |
+
+Before, each open socket held one of the isolate multiplexer's ports, at most 1,024 at once
+(webrun-rpc's default): the 1,024th socket was refused (an HTTP 500 to the upgrade).

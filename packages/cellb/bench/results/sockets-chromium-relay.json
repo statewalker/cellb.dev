@@ -1,0 +1,58 @@
+{
+  "date": "2026-11-06",
+  "runs": 3,
+  "median": {
+    "rttP50Ms": 0.19999999995343387,
+    "rttP95Ms": 0.5,
+    "rttP99Ms": 1.599999999976717,
+    "msgsPerSec64B": 10421,
+    "mbPerSec64B": 0.6,
+    "msgsPerSec1KiB": 8734,
+    "mbPerSec1KiB": 8.5,
+    "msgsPerSec64KiB": 1084,
+    "mbPerSec64KiB": 67.8,
+    "concurrentSockets": 1023,
+    "concurrentOpenMs": 1042
+  },
+  "all": [
+    {
+      "rttP50Ms": 0.19999999995343387,
+      "rttP95Ms": 0.5,
+      "rttP99Ms": 1.599999999976717,
+      "msgsPerSec64B": 10421,
+      "mbPerSec64B": 0.6,
+      "msgsPerSec1KiB": 8524,
+      "mbPerSec1KiB": 8.3,
+      "msgsPerSec64KiB": 1084,
+      "mbPerSec64KiB": 67.8,
+      "concurrentSockets": 1023,
+      "concurrentOpenMs": 1042
+    },
+    {
+      "rttP50Ms": 0.19999999995343387,
+      "rttP95Ms": 0.30000000004656613,
+      "rttP99Ms": 0.5999999999767169,
+      "msgsPerSec64B": 11216,
+      "mbPerSec64B": 0.7,
+      "msgsPerSec1KiB": 9020,
+      "mbPerSec1KiB": 8.8,
+      "msgsPerSec64KiB": 1098,
+      "mbPerSec64KiB": 68.6,
+      "concurrentSockets": 1023,
+      "concurrentOpenMs": 1271
+    },
+    {
+      "rttP50Ms": 0.2999999999301508,
+      "rttP95Ms": 0.8000000000465661,
+      "rttP99Ms": 2.799999999930151,
+      "msgsPerSec64B": 10365,
+      "mbPerSec64B": 0.6,
+      "msgsPerSec1KiB": 8734,
+      "mbPerSec1KiB": 8.5,
+      "msgsPerSec64KiB": 582,
+      "mbPerSec64KiB": 36.4,
+      "concurrentSockets": 1022,
+      "concurrentOpenMs": 915
+    }
+  ]
+}

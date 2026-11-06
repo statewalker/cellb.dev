@@ -8,6 +8,7 @@ import { runInDurableObject } from "../core/namespace.js";
 import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
 import type { Lease, LeaseHandle, OpenCellSql } from "../ports.js";
 import { realmWorkerScope } from "../project/worker-scope.js";
+import { CfWebSocket } from "../ws/server.js";
 import { type FetchTarget, isolatePort, type PortLike } from "./protocol.js";
 
 export function serveIsolate(
@@ -165,6 +166,13 @@ export function serveIsolate(
       return Object.fromEntries(Object.entries(module).map(([k, v]) => [k, typeof v]));
     }
     if (m.type === "image") return await images.get(m.token)?.();
+    // The host is stopping this isolate: the sockets accepted here hear 1001 first.
+    // A socket whose early frames went through a relay port hears it one hop later: the
+    // answer waits a macrotask, so the host does not terminate the isolate before that.
+    if (m.type === "goAway") {
+      CfWebSocket.goAway("the loaded Worker stopped");
+      return await new Promise((r) => setTimeout(r, 0));
+    }
     if (m.type === "object") {
       const { rt, stub, key } = await facet(m.className, m.cellKey);
       if (m.op === "attach") {

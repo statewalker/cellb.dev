@@ -127,6 +127,28 @@ describe("P36 partyserver", () => {
     expect((await upgrade("?status=204")).status).toBe(204);
   }, 60_000);
 
+  it("open sockets hold none of the isolate's multiplexer ports", async () => {
+    // Each socket's frames go over its own transferred port: 1,100 sockets into one isolate,
+    // with the host's multiplexer allowing 1,024 ports at once (webrun-rpc's default, which
+    // the relay design hit at 1,023 sockets).
+    const g = globalThis as { __cellbMaxPorts?: number };
+    g.__cellbMaxPorts = 1024;
+    try {
+      const sockets: Awaited<ReturnType<typeof socket>>[] = [];
+      for (let i = 0; i < 1100; i++) sockets.push(await socket("/ext/many"));
+      const last = sockets.at(-1)!;
+      last.send("still here");
+      await until(() => last.inbox.length === 2);
+      expect(last.inbox[1]).toBe(JSON.stringify({ plugin: "facet:many", echo: "still here" }));
+      // The broadcast reaches the first socket too.
+      await until(() => sockets[0].inbox.at(-1) === last.inbox[1]);
+      expect(sockets[0].inbox.at(-1)).toBe(last.inbox[1]);
+      for (const s of sockets) s.close();
+    } finally {
+      delete g.__cellbMaxPorts;
+    }
+  }, 60_000);
+
   it("a fresh node continues the room and activates the extension from its storage", async () => {
     // A socket still open into the extension's isolate hears 1001 when the runtime closes.
     const open = await socket("/ext/notes");
