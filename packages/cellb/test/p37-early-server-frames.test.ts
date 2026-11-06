@@ -16,7 +16,7 @@ describe("P37 frames sent before the client end is handed over", () => {
     const [client, server] = Object.values(new WebSocketPair());
     server.accept();
     const fromClient: string[] = [];
-    server.addEventListener("message", (e) => fromClient.push(String((e as MessageEvent).data)));
+    server.addEventListener("message", (e: Event) => fromClient.push(String((e as MessageEvent).data)));
     server.send("hello");
     await tick(); // delivered to the client end, which queues it
     const port = takeClientPort(client);
