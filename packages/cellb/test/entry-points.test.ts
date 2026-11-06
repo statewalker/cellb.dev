@@ -47,12 +47,39 @@ const SITE_COMPILER = [
   "@statewalker/webrun-site-host",
   "lightningcss-wasm",
 ];
-test.each(["src/index.ts", "src/browser.ts", "src/node.ts", "src/isolate/isolate-worker.ts"])(
-  "importing %s loads none of the in-browser site compiler",
-  (entry) => {
-    expect(staticImports(entry).filter(([spec]) => SITE_COMPILER.includes(spec))).toEqual([]);
-  },
-);
+// What a bundler emits for `entry`: static imports and dynamic `import("…")`, which becomes a
+// chunk of its own (its .wasm included), followed through relative modules.
+const DYNAMIC = /\bimport\s*\(\s*["']([^"']+)["']/g;
+function bundledImports(entry: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const visit = (file: string) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const text = readFileSync(file, "utf8");
+    for (const re of [STATIC, DYNAMIC])
+      for (const [, spec] of text.matchAll(re)) {
+        if (!spec.startsWith(".")) {
+          out.push(spec);
+          continue;
+        }
+        const ts = resolve(dirname(file), spec.replace(/\.js$/, ".ts"));
+        const target = existsSync(ts) ? ts : resolve(dirname(file), spec);
+        if (existsSync(target)) visit(target);
+      }
+  };
+  visit(resolve(PKG, entry));
+  return out;
+}
+test.each([
+  "src/index.ts",
+  "src/browser.ts",
+  "src/node.ts",
+  "src/project/host-modules.ts",
+  "src/isolate/isolate-worker.ts",
+])("importing %s loads none of the in-browser site compiler", (entry) => {
+  expect(bundledImports(entry).filter((spec) => SITE_COMPILER.includes(spec))).toEqual([]);
+});
 
 test("@statewalker/cellb/site is where the site compiler is reached", () => {
   expect(staticImports("src/site.ts").map(([spec]) => spec)).toContain(

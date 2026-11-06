@@ -9,6 +9,17 @@ import { SCHEDULER_EXPRESSION } from "./scheduler.js";
 import { ESM_HEADER, LOADED_CONSOLES, WORKERS_MODULE_NAMES } from "./site-loader.js";
 import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
 
+/** webrun-modules' transform, then `lowerAwait` on its output. */
+function loweringTransform(): Transform {
+  const base = newDefaultTransform(true);
+  return {
+    async transform(file, rewrite) {
+      const r = await base.transform(file, rewrite);
+      return { ...r, code: lowerAwait(r.code) };
+    },
+  };
+}
+
 /**
  * A project served by an in-browser "HTTP server" (webrun-site-builder handler, hosted in a
  * ServiceWorker by webrun-site-host): the browser's own module loader then fetches the
@@ -24,17 +35,6 @@ import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
  * that imports the code (see `workersHostRegistry`). Each loaded Worker gets its own module
  * server whose `console` proxy selects that Worker's console (Tail Workers).
  */
-/** webrun-modules' transform, then `lowerAwait` on its output. */
-function loweringTransform(): Transform {
-  const base = newDefaultTransform(true);
-  return {
-    async transform(file, rewrite) {
-      const r = await base.transform(file, rewrite);
-      return { ...r, code: lowerAwait(r.code) };
-    },
-  };
-}
-
 export function createProjectSite(opts: {
   projectFiles: FilesApi;
   /**
