@@ -192,6 +192,13 @@ const mutants = [
     "p07x",
   ],
   [
+    "ws client: duplicate subprotocols accepted (case-insensitively)",
+    "src/ws/client.ts",
+    "if (seen.has(key))",
+    "if (false)",
+    "p07",
+  ],
+  [
     "ws heartbeat: server never gives up",
     "src/ws/server.ts",
     "if (Date.now() - this.#lastPing > 3 * hb) this.#gone();",

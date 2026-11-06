@@ -343,3 +343,51 @@ describe("P07w client rules cellb keeps over webrun-http-browser's client", () =
     expect(() => new WS("http://[")).toThrow(/invalid/);
   });
 });
+
+describe("P07w the celld peer bridge's socket to a cell", () => {
+  const upgrade = (protocol: string) => {
+    const pair = new WebSocketPair();
+    const server = pair[1];
+    server.accept();
+    server.addEventListener("message", (e: any) => server.send(`echo:${e.data}`));
+    return new CellsResponse(null, {
+      status: 101,
+      webSocket: pair[0],
+      headers: { "Sec-WebSocket-Protocol": protocol },
+    }) as Response & { webSocket: any };
+  };
+
+  it("asks for the subprotocols the far client offered, so the cell's pick is accepted", async () => {
+    const { cellSocket } = await import("../src/peer/celld-peer.js");
+    const cell = cellSocket(upgrade("v1"), "v0, v1");
+    await next(cell, "open");
+    expect(cell.protocol).toBe("v1");
+    const reply = next(cell, "message");
+    cell.send("hi");
+    expect((await reply).data).toBe("echo:hi");
+    cell.close();
+  });
+
+  it("parses the offered header as a client may ask for it: valid tokens, each once", async () => {
+    const { offeredProtocols } = await import("../src/peer/celld-peer.js");
+    expect(offeredProtocols(undefined)).toEqual([]);
+    expect(offeredProtocols(" v0 , ,v1,")).toEqual(["v0", "v1"]);
+    expect(offeredProtocols("v1, V1, v2")).toEqual(["v1", "v2"]);
+    expect(offeredProtocols('a b, ok, "q"')).toEqual(["ok"]);
+  });
+
+  it("a malformed offer from a client does not throw: the socket still opens", async () => {
+    const { cellSocket } = await import("../src/peer/celld-peer.js");
+    const cell = cellSocket(upgrade("v1"), "v1, V1, not valid");
+    await next(cell, "open");
+    expect(cell.protocol).toBe("v1");
+    cell.close();
+  });
+
+  it("(why) a client that asked for none refuses the subprotocol the cell picked", async () => {
+    const { cellSocket } = await import("../src/peer/celld-peer.js");
+    const cell = cellSocket(upgrade("v1"), undefined);
+    const ev = await next(cell, "close");
+    expect(ev.code).toBe(1006);
+  });
+});
