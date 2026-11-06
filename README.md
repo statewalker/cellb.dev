@@ -50,7 +50,8 @@ examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples 
 examples/landing/      the page of https://cellb-examples.httpeers.net, which links to the published examples
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 docs/superpowers/      plans for work on the repository
-.github/workflows/     cellb (lint, typecheck, unit tests, the packed package) and interop against the real
+.github/workflows/     ci (cellb's lint, typecheck, unit tests and packed package; on main, the npm release)
+                       and interop against the real
                        celld and RustFS, on every pull request; examples (run by hand, on released cellb or
                        on cellb as this checkout would publish it); examples-publish (run by hand: the
                        browser examples' static builds, tested, then published)
@@ -105,8 +106,8 @@ in `examples/` (what the examples workflow does with `cellb: packed`; do not com
   by internal module, so `@statewalker/cellb`, `/node` and `/browser` are the seams.
 - **CI runs against the real celld.** celld is the conformance judge, so the interop workflow
   downloads the pinned celld and RustFS and runs the Node and Chromium interop suites on every pull
-  request. cellb's own checks (`cellb.yml`: lint, typecheck, unit tests, the packed package) run
-  there too.
+  request. cellb's own checks (`ci.yml`: lint, typecheck, unit tests, the packed package) run
+  there too, and gate the release.
 - **Examples pin a released cellb.** They show cellb as its users get it, so they run on npm's
   `@statewalker/cellb`, not on this repository's sources: a cellb pull request does not wait on
   them, and an example breaks only by a release it moves to.
