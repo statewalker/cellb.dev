@@ -186,10 +186,16 @@ describe("P05a one router, several shard workers over MessagePorts", () => {
     const client = await remoteRuntime(router.internal);
     const inflight = client.env.COUNTER.getByName(x).slow(10_000);
     await new Promise((r) => setTimeout(r, 100));
-    const t0 = Date.now();
+    // Timed from the worker's "exit" (what watchOwner reacts to), not from terminate(): how long
+    // Node takes to stop a worker depends on the machine's load, not on the router.
+    let exitedAt = 0;
+    a.w.once("exit", () => {
+      exitedAt = Date.now();
+    });
     await a.w.terminate();
     await expect(inflight).rejects.toThrow(/Owner of cell shard 0 was lost/);
-    expect(Date.now() - t0).toBeLessThan(200);
+    expect(exitedAt).toBeGreaterThan(0);
+    expect(Date.now() - exitedAt).toBeLessThan(200);
     expect(router.attachedShards).not.toContain(0);
   });
 });
