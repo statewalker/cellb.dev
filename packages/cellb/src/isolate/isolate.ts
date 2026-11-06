@@ -108,14 +108,18 @@ export function serveIsolate(
   let exports: Record<string, unknown> = {};
   // The loaded Worker is this realm's own: its `cloudflare:workers` reads `env` and `exports` here.
   const scope = realmWorkerScope();
-  // A facet of loaded code: the object lives here, named by the parent's facet cell key.
+  // The name of each facet's own `ctx.id`, when `ctx.facets.get` was given one (by cell key).
+  const idNames = new Map<string, string>();
+  // A facet of loaded code: the object lives here, named by its id's name or else by the
+  // parent's facet cell key; its log is the facet's either way (facetKeys).
   const facet = async (className: string, cellKey: string) => {
     const rt = await objectRuntime(className);
     const ns = rt.env[className] as {
       getByName(n: string): any;
       idFromName(n: string): { toString(): string };
     };
-    return { rt, stub: ns.getByName(cellKey), key: `${className}/${ns.idFromName(cellKey)}` };
+    const name = idNames.get(cellKey) ?? cellKey;
+    return { rt, stub: ns.getByName(name), key: `${className}/${ns.idFromName(name)}` };
   };
   const exported = (name: string, props?: unknown) => {
     const target = module[name];
@@ -155,6 +159,7 @@ export function serveIsolate(
     }
     if (m.type === "image") return await images.get(m.token)?.();
     if (m.type === "object") {
+      if (m.op === "attach" && typeof m.idName === "string") idNames.set(m.cellKey, m.idName);
       const { rt, stub, key } = await facet(m.className, m.cellKey);
       if (m.op === "attach") {
         facetKeys.set(key, { key: m.cellKey, epoch: m.epoch });

@@ -12,6 +12,9 @@ import {
 } from "@statewalker/webrun-rpc";
 import { cross, pipeTo, rpcPromise, STUB } from "../core/handles.js";
 import { withUrl } from "../core/request-body.js";
+import type { Frame } from "../ws/frames.js";
+import { CellsResponse, CfWebSocket, takeClientPort } from "../ws/server.js";
+import { carryWebSocketHeaders } from "../ws/upgrade.js";
 
 /**
  * Isolation for loaded Workers (celld runs each in its own V8 isolate): the loaded code runs
@@ -35,6 +38,9 @@ import { withUrl } from "../core/request-body.js";
  * Fetches: one port per request (meta: its target and URL), HTTP/1.1 with streamed bodies,
  * as cells-http over a port (src/transport/port.ts): host → isolate to an export or facet,
  * isolate → host for the loaded code's global `fetch()` when a `globalOutbound` Fetcher routes it.
+ * A WebSocket upgrade (host → isolate) has a port of its own instead, since HTTP/1.1 drops the
+ * `Upgrade` header: its meta carries the request's method and headers; the isolate answers with
+ * the response's head (and body, unless it is a 101), then both sides relay the socket's frames.
  */
 export interface PortLike {
   postMessage(msg: unknown, transfer?: Transferable[]): void;
@@ -76,7 +82,10 @@ export async function hostPort(
     },
   });
   const call = callsOver(await mux.openPort({ kind: "calls" }), handle);
-  const fetch: Fetch = (target, req) => fetchOver(mux, { kind: "fetch", target }, req);
+  const fetch: Fetch = (target, req) =>
+    isUpgrade(req)
+      ? upgradeOver(mux, { kind: "upgrade", target }, req)
+      : fetchOver(mux, { kind: "fetch", target }, req);
   return { call, fetch };
 }
 
@@ -98,6 +107,10 @@ export function isolatePort(
       const m = meta as { kind?: string; target: FetchTarget; url: string } | undefined;
       if (m?.kind === "fetch") {
         serveFetch(p, m.url, (r) => fetch(m.target, r));
+        return true;
+      }
+      if (m?.kind === "upgrade") {
+        serveUpgrade(p, m as unknown as UpgradeMeta, (r) => fetch(m.target, r));
         return true;
       }
       if (m?.kind !== "calls" || calls) return false;
@@ -128,6 +141,99 @@ function serveFetch(p: MessageTarget, url: string, fetch: (req: Request) => Prom
     p,
     serveFetchOverDuplex((req) => withUrl(req, url).then(fetch).catch(throwOwn)),
   );
+}
+
+const isUpgrade = (req: Request) => req.headers.get("upgrade")?.toLowerCase() === "websocket";
+
+interface UpgradeMeta {
+  url: string;
+  method: string;
+  headers: [string, string][];
+}
+/** The isolate's answer to an upgrade: the head of its response, or the error it threw. */
+type UpgradeHead =
+  | {
+      status: number;
+      statusText?: string;
+      headers: [string, string][];
+      body?: ArrayBuffer;
+    }
+  | { error: unknown };
+
+/**
+ * A WebSocket upgrade over a port of its own. A 101 answer becomes a Workers response whose
+ * `webSocket` is a client end here; its frames and the isolate's are relayed over the port.
+ */
+async function upgradeOver(mux: PortMux, meta: object, req: Request): Promise<Response> {
+  const p = await mux.openPort({
+    ...meta,
+    url: req.url,
+    method: req.method,
+    headers: [...req.headers],
+  } satisfies UpgradeMeta);
+  return new Promise((resolve, reject) => {
+    let relay: MessagePort | undefined;
+    p.addEventListener("message", (e) => {
+      if (relay) return relay.postMessage(e.data as Frame);
+      const head = e.data as UpgradeHead;
+      if ("error" in head) return reject(head.error);
+      if (head.status !== 101)
+        return resolve(
+          new Response(head.body ?? null, {
+            status: head.status,
+            statusText: head.statusText,
+            headers: head.headers,
+          }),
+        );
+      const channel = new MessageChannel();
+      relay = channel.port2;
+      relay.onmessage = (f) => p.postMessage(f.data);
+      resolve(
+        new CellsResponse(null, {
+          status: 101,
+          headers: head.headers,
+          webSocket: new CfWebSocket(channel.port1),
+        }),
+      );
+    });
+    void p.start?.();
+  });
+}
+
+/** Serves an upgrade on port `p`: the loaded code's 101 hands its client end's frames to the port. */
+function serveUpgrade(
+  p: MessageTarget,
+  meta: UpgradeMeta,
+  fetch: (req: Request) => Promise<Response>,
+) {
+  // A browser drops `Upgrade` and `Sec-WebSocket-*` from `new Request()`: carried over here.
+  const headers = new Headers(meta.headers);
+  const req = carryWebSocketHeaders(
+    headers,
+    new Request(meta.url, { method: meta.method, headers }),
+  );
+  void (async () => {
+    try {
+      const res = await fetch(req);
+      const ws = (res as { webSocket?: CfWebSocket | null }).webSocket;
+      if (res.status === 101 && ws) {
+        const port = takeClientPort(ws);
+        port.onmessage = (e) => p.postMessage(e.data);
+        p.addEventListener("message", (e) => port.postMessage(e.data as Frame));
+        void p.start?.();
+        p.postMessage({ status: 101, headers: [...res.headers] } satisfies UpgradeHead);
+        return;
+      }
+      p.postMessage({
+        status: res.status,
+        statusText: res.statusText,
+        headers: [...res.headers],
+        body: await res.arrayBuffer(),
+      } satisfies UpgradeHead);
+    } catch (error) {
+      p.postMessage({ error } satisfies UpgradeHead);
+    }
+  })();
 }
 
 /** Marks a value passed by reference in a message: `{ [REF]: id }`. */

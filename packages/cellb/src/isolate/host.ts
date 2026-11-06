@@ -95,7 +95,8 @@ export function isolatedModuleLoader(opts: {
         call({ type: "object", op: "call", className, cellKey, method, args }),
       restart: (cellKey) => call({ type: "object", op: "restart", className, cellKey }),
       delete: (cellKey) => call({ type: "object", op: "delete", className, cellKey }),
-      attach: (cellKey, epoch) => call({ type: "object", op: "attach", className, cellKey, epoch }),
+      attach: (cellKey, epoch, idName) =>
+        call({ type: "object", op: "attach", className, cellKey, epoch, idName }),
     });
     return module as Record<string, unknown>;
   };

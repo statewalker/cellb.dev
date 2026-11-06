@@ -28,6 +28,17 @@ workersHostRegistry({
   Response: workersGlobals.CellsResponse,
 });
 
+// This worker is the loaded Worker's realm: its globals are the Workers ones (as on Node,
+// src/isolate/node-entry.ts). Loaded code reads them as free names (partyserver builds its
+// `new WebSocketPair()` and its 101 `Response` that way).
+Object.assign(globalThis, {
+  Request: workersGlobals.CellsRequest,
+  Response: workersGlobals.CellsResponse,
+  WebSocket: workersGlobals.WebSocket,
+  WebSocketPair: workersGlobals.WebSocketPair,
+  WebSocketRequestResponsePair: workersGlobals.WebSocketRequestResponsePair,
+});
+
 // The global console is left alone (the dev server's client logs here too): loaded modules
 // get a console of their own that reports to the host.
 serveIsolate(

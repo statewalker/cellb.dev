@@ -699,8 +699,8 @@ function createFacets(
     },
   });
   /** A class of isolated loaded code: the facet's instance and SQLite live in the isolate. */
-  const isolated = (iso: IsolatedClass, cellKey: string): FacetTarget => {
-    const attached = iso.attach?.(cellKey, parent.epoch?.());
+  const isolated = (iso: IsolatedClass, cellKey: string, idName?: string): FacetTarget => {
+    const attached = iso.attach?.(cellKey, parent.epoch?.(), idName);
     const ready = async () => attached;
     return {
       call: async (method, args) => (await ready(), iso.call(cellKey, method, args)),
@@ -722,7 +722,12 @@ function createFacets(
         if (isClassHandle(info.class)) {
           const r = await info.class.resolve();
           if ("isolated" in r)
-            return isolated(r.isolated, `${parent.cellKey}/facets/${facetSegment(name)}`);
+            return isolated(
+              r.isolated,
+              `${parent.cellKey}/facets/${facetSegment(name)}`,
+              // The facet's own `ctx.id` (partyserver's `this.name` reads its name).
+              info.id instanceof DurableObjectIdClass ? info.id.name : undefined,
+            );
           ({ cls, env, props } = r);
         } else cls = info.class as DurableObjectClass;
         const id = info.id instanceof DurableObjectIdClass ? info.id : parent.id;
