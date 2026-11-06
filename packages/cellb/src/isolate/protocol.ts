@@ -12,7 +12,7 @@ import {
 } from "@statewalker/webrun-rpc";
 import { cross, pipeTo, rpcPromise, STUB } from "../core/handles.js";
 import { withUrl } from "../core/request-body.js";
-import type { Frame } from "../ws/frames.js";
+import { type Frame, type FrameEnd, portEnd, relayFrames } from "../ws/frames.js";
 import { CellsResponse, CfWebSocket, takeClientPort } from "../ws/server.js";
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
 
@@ -70,7 +70,7 @@ export async function hostPort(
   port: PortLike,
   handle: Handle,
   outbound?: (req: Request) => Promise<Response>,
-): Promise<{ call: Call; fetch: Fetch }> {
+): Promise<{ call: Call; fetch: Fetch; closeSockets(): void }> {
   const mux = multiplexPort(messageTarget(port), {
     codec: structuredCodec,
     side: "initiator",
@@ -82,11 +82,17 @@ export async function hostPort(
     },
   });
   const call = callsOver(await mux.openPort({ kind: "calls" }), handle);
+  // The sockets open into the isolate: told it stopped (1001) when it does.
+  const sockets = new Set<(code: number, reason: string) => void>();
   const fetch: Fetch = (target, req) =>
     isUpgrade(req)
-      ? upgradeOver(mux, { kind: "upgrade", target }, req)
+      ? upgradeOver(mux, { kind: "upgrade", target }, req, sockets)
       : fetchOver(mux, { kind: "fetch", target }, req);
-  return { call, fetch };
+  const closeSockets = () => {
+    for (const end of sockets) end(1001, "the loaded Worker stopped");
+    sockets.clear();
+  };
+  return { call, fetch, closeSockets };
 }
 
 /**
@@ -156,15 +162,35 @@ type UpgradeHead =
       status: number;
       statusText?: string;
       headers: [string, string][];
-      body?: ArrayBuffer;
+      body: ArrayBuffer | null;
     }
   | { error: unknown };
 
+/** A port of the multiplexer as one end of a frame relay. */
+const muxEnd = (p: MessageTarget): FrameEnd => ({
+  post: (f) => p.postMessage(f),
+  listen: (fn) => {
+    p.addEventListener("message", (e) => fn(e.data as Frame));
+    void p.start?.();
+  },
+  close: () => void p.close?.(),
+});
+
+/** Statuses whose response has no body (`new Response(body, …)` refuses one). */
+const nullBody = (status: number) => [101, 204, 205, 304].includes(status);
+
 /**
  * A WebSocket upgrade over a port of its own. A 101 answer becomes a Workers response whose
- * `webSocket` is a client end here; its frames and the isolate's are relayed over the port.
+ * `webSocket` is a client end here; its frames and the isolate's are relayed over the port until
+ * the socket's closing handshake, or `sockets`' close (the isolate stops). Any other answer
+ * closes the port.
  */
-async function upgradeOver(mux: PortMux, meta: object, req: Request): Promise<Response> {
+async function upgradeOver(
+  mux: PortMux,
+  meta: object,
+  req: Request,
+  sockets: Set<(code: number, reason: string) => void>,
+): Promise<Response> {
   const p = await mux.openPort({
     ...meta,
     url: req.url,
@@ -172,30 +198,37 @@ async function upgradeOver(mux: PortMux, meta: object, req: Request): Promise<Re
     headers: [...req.headers],
   } satisfies UpgradeMeta);
   return new Promise((resolve, reject) => {
-    let relay: MessagePort | undefined;
-    p.addEventListener("message", (e) => {
-      if (relay) return relay.postMessage(e.data as Frame);
-      const head = e.data as UpgradeHead;
-      if ("error" in head) return reject(head.error);
-      if (head.status !== 101)
-        return resolve(
-          new Response(head.body ?? null, {
-            status: head.status,
-            statusText: head.statusText,
+    const onHead = (e: MessageEvent) => {
+      p.removeEventListener("message", onHead);
+      try {
+        const head = e.data as UpgradeHead;
+        if ("error" in head) throw head.error;
+        if (head.status !== 101) {
+          void p.close?.();
+          return resolve(
+            new Response(nullBody(head.status) ? null : head.body, {
+              status: head.status,
+              statusText: head.statusText,
+              headers: head.headers,
+            }),
+          );
+        }
+        const channel = new MessageChannel();
+        const end = relayFrames(portEnd(channel.port2), muxEnd(p), () => sockets.delete(end));
+        sockets.add(end);
+        resolve(
+          new CellsResponse(null, {
+            status: 101,
             headers: head.headers,
+            webSocket: new CfWebSocket(channel.port1),
           }),
         );
-      const channel = new MessageChannel();
-      relay = channel.port2;
-      relay.onmessage = (f) => p.postMessage(f.data);
-      resolve(
-        new CellsResponse(null, {
-          status: 101,
-          headers: head.headers,
-          webSocket: new CfWebSocket(channel.port1),
-        }),
-      );
-    });
+      } catch (err) {
+        void p.close?.();
+        reject(err);
+      }
+    };
+    p.addEventListener("message", onHead);
     void p.start?.();
   });
 }
@@ -212,27 +245,39 @@ function serveUpgrade(
     headers,
     new Request(meta.url, { method: meta.method, headers }),
   );
+  const answer = (head: UpgradeHead) => {
+    try {
+      p.postMessage(head);
+    } catch {
+      // An error that cannot be copied (a function in its `cause`, say): its name and message.
+      const e = (head as { error?: { name?: unknown; message?: unknown } }).error;
+      p.postMessage({
+        error: Object.assign(new Error(String(e?.message ?? e)), {
+          name: String(e?.name ?? "Error"),
+        }),
+      } satisfies UpgradeHead);
+    }
+  };
   void (async () => {
     try {
       const res = await fetch(req);
       const ws = (res as { webSocket?: CfWebSocket | null }).webSocket;
       if (res.status === 101 && ws) {
-        const port = takeClientPort(ws);
-        port.onmessage = (e) => p.postMessage(e.data);
-        p.addEventListener("message", (e) => port.postMessage(e.data as Frame));
-        void p.start?.();
-        p.postMessage({ status: 101, headers: [...res.headers] } satisfies UpgradeHead);
+        // Listening before the head goes out: the host relays frames as soon as it has it.
+        relayFrames(portEnd(takeClientPort(ws)), muxEnd(p));
+        answer({ status: 101, headers: [...res.headers], body: null });
         return;
       }
-      p.postMessage({
+      answer({
         status: res.status,
         statusText: res.statusText,
         headers: [...res.headers],
-        body: await res.arrayBuffer(),
-      } satisfies UpgradeHead);
+        body: nullBody(res.status) ? null : await res.arrayBuffer(),
+      });
     } catch (error) {
-      p.postMessage({ error } satisfies UpgradeHead);
+      answer({ error });
     }
+    void p.close?.();
   })();
 }
 

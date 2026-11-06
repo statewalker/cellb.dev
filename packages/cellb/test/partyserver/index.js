@@ -33,20 +33,32 @@ export class Room extends Server {
 /** One object per extension: the extension's partyserver Server runs as its facet. */
 export class ExtensionHost extends DurableObject {
   fetch(request) {
-    const name = new URL(request.url).pathname.split("/")[2];
+    const url = new URL(request.url);
+    const name = url.pathname.split("/")[2];
+    // ?facet=: another facet of this extension; ?id=: the facet's id (two facets may share one,
+    // and each keeps its own storage).
+    const facetName = url.searchParams.get("facet") ?? name;
+    const idName = url.searchParams.get("id") ?? `facet:${name}`;
     const worker = this.env.LOADER.get(`${name}@1`, () => ({
       compatibilityDate: "2026-01-01",
       mainModule: "plugin.js",
       modules: { "plugin.js": this.env.PLUGIN_CODE },
     }));
-    const facet = this.ctx.facets.get(name, () => ({
+    const facet = this.ctx.facets.get(facetName, () => ({
       class: worker.getDurableObjectClass("Plugin"),
       // partyserver's `this.name` is the facet's own id's name.
-      id: this.ctx.exports.ExtensionHost.idFromName(`facet:${name}`),
+      id: this.ctx.exports.ExtensionHost.idFromName(idName),
     }));
     return facet.fetch(request);
   }
 }
+
+const REFUSER = `export default {
+  fetch(request) {
+    const status = Number(new URL(request.url).searchParams.get("status") ?? 426);
+    return new Response(status === 204 ? null : "no upgrade", { status });
+  },
+};`;
 
 export default {
   async fetch(request, env) {
@@ -61,6 +73,15 @@ export default {
       });
       return new Response("scheduled");
     }
+    // A loaded Worker that refuses upgrades (?status=, default 426): every refusal ends its port.
+    if (url.pathname === "/refuse")
+      return env.LOADER.get("refuser", () => ({
+        compatibilityDate: "2026-01-01",
+        mainModule: "refuser.js",
+        modules: { "refuser.js": REFUSER },
+      }))
+        .getEntrypoint()
+        .fetch(request);
     if (url.pathname.startsWith("/ext/"))
       return env.EXT_HOST.getByName(url.pathname.split("/")[2]).fetch(request);
     return (await routePartykitRequest(request, env)) ?? new Response("not found", { status: 404 });

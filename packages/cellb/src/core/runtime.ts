@@ -56,6 +56,11 @@ export interface CellRuntimeOptions {
   wakePollMs?: number;
   /** Every object of this runtime is a facet of an outer cell (an isolate's runtime). */
   facets?: boolean;
+  /**
+   * The `ctx.id` an object sees, when it is not the id that addresses it (a facet given an `id`
+   * by `ctx.facets.get`): its storage, cell key and alarms stay the addressing id's.
+   */
+  ctxIdOf?: (cellKey: string) => DurableObjectId | undefined;
   /** The Worker script's name (wrangler `name`): object ids derive from it, as on celld. */
   scriptName?: string;
   /** Namespace keys overriding the script-scoped default, per class (celld's fleet-wide ones). */
@@ -259,7 +264,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
         h?.close();
         h = new ObjectHost({
           cellKey,
-          id,
+          id: opts.ctxIdOf?.(cellKey) ?? id,
           cls,
           env,
           openSql: opts.openSql,

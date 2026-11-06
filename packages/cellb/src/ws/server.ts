@@ -1,4 +1,11 @@
-import { CellsCloseEvent, checkClose, type Frame, toFrameData } from "./frames.js";
+import {
+  CellsCloseEvent,
+  checkClose,
+  type Frame,
+  portEnd,
+  relayFrames,
+  toFrameData,
+} from "./frames.js";
 
 const kPort = Symbol("cellb.ws.port");
 const kTakeQueued = Symbol("cellb.ws.takeQueued");
@@ -235,8 +242,7 @@ export function takeClientPort(ws: CfWebSocket): MessagePort {
   if (!queued.length) return port;
   const relay = new MessageChannel();
   for (const f of queued) relay.port2.postMessage(f);
-  relay.port2.onmessage = (e) => port.postMessage(e.data);
-  port.onmessage = (e) => relay.port2.postMessage(e.data);
+  relayFrames(portEnd(relay.port2), portEnd(port)); // closed with the socket's handshake
   return relay.port1;
 }
 

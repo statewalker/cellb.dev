@@ -1,5 +1,5 @@
 // An extension: a partyserver Server shipped as a prebuilt bundle and loaded at run time
-// (Worker Loader). `activations` counts how often it started, across restarts.
+// (Worker Loader). `activations` counts how often it started, `requests` its HTTP requests.
 import { Server } from "partyserver";
 
 export class Plugin extends Server {
@@ -14,8 +14,11 @@ export class Plugin extends Server {
   onMessage(_conn, msg) {
     this.broadcast(JSON.stringify({ plugin: this.name, echo: String(msg) }));
   }
-  onRequest() {
-    return Response.json({ plugin: this.name, activations: this.activations });
+  /** Counts its requests in its own storage: facets that shared an object would share it. */
+  async onRequest() {
+    const requests = ((await this.ctx.storage.get("requests")) ?? 0) + 1;
+    await this.ctx.storage.put("requests", requests);
+    return Response.json({ plugin: this.name, activations: this.activations, requests });
   }
 }
 

@@ -38,7 +38,7 @@ test("partyserver: room, scheduler and a loaded extension, over HTTP and WebSock
     .toBe(1);
 
   // A loaded extension, as a facet under its own id's name, over HTTP and a WebSocket.
-  expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 1 });
+  expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 1, requests: 1 });
   const ext = await party({ op: "socket", path: "/ext/notes", send: ["ping"], receive: 2 });
   expect(ext.inbox).toEqual([
     JSON.stringify({ plugin: "facet:notes", hello: true }),
@@ -48,5 +48,5 @@ test("partyserver: room, scheduler and a loaded extension, over HTTP and WebSock
   // A fresh runtime continues from the log: the room's count, the extension's activations.
   await party({ op: "restart" });
   expect(await get("/parties/room/lobby")).toMatchObject({ n: 1, ticks: 1 });
-  expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 2 });
+  expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 2, requests: 2 });
 });

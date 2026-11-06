@@ -73,8 +73,8 @@ describe("P36 partyserver", () => {
   }, 20_000);
 
   it("a loaded extension's Server runs as a facet, under its own id's name", async () => {
-    expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 1 });
-    expect(await get("/ext/todo")).toEqual({ plugin: "facet:todo", activations: 1 });
+    expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 1, requests: 1 });
+    expect(await get("/ext/todo")).toEqual({ plugin: "facet:todo", activations: 1, requests: 1 });
   });
 
   it("a WebSocket reaches the loaded extension", async () => {
@@ -88,10 +88,50 @@ describe("P36 partyserver", () => {
     s.close();
   });
 
+  it("two facets given the same id keep their own state", async () => {
+    expect(await get("/ext/pair?facet=a&id=shared")).toEqual({
+      plugin: "shared",
+      activations: 1,
+      requests: 1,
+    });
+    expect(await get("/ext/pair?facet=a&id=shared")).toEqual({
+      plugin: "shared",
+      activations: 1,
+      requests: 2,
+    });
+    expect(await get("/ext/pair?facet=b&id=shared")).toEqual({
+      plugin: "shared",
+      activations: 1,
+      requests: 1,
+    });
+  });
+
+  it("refused upgrades end their ports: more than the multiplexer's 1024 open ports", async () => {
+    const upgrade = (q = "") =>
+      runtime.fetch(new Request(`http://party/refuse${q}`, { headers: { Upgrade: "websocket" } }));
+    for (let i = 0; i < 1100; i++) {
+      const res = await upgrade();
+      expect(res.status).toBe(426);
+      await res.arrayBuffer();
+    }
+    // A status with no body is answered with none (`new Response(body, { status: 204 })` throws).
+    expect((await upgrade("?status=204")).status).toBe(204);
+  }, 60_000);
+
   it("a fresh node continues the room and activates the extension from its storage", async () => {
     await runtime.close();
     runtime = await start();
     expect(await get("/parties/room/lobby")).toMatchObject({ n: 1, ticks: 1 });
-    expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 2 });
+    expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 2, requests: 2 });
+    expect(await get("/ext/pair?facet=a&id=shared")).toEqual({
+      plugin: "shared",
+      activations: 2,
+      requests: 3,
+    });
+    expect(await get("/ext/pair?facet=b&id=shared")).toEqual({
+      plugin: "shared",
+      activations: 2,
+      requests: 2,
+    });
   }, 30_000);
 });

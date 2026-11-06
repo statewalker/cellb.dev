@@ -3,6 +3,7 @@
  * `importCode` is realm specific (data: URL of a bundle on Node, a site URL in browsers).
  */
 import { ctxExports, entrypointStub } from "../core/handles.js";
+import type { DurableObjectId } from "../core/id.js";
 import { runInDurableObject } from "../core/namespace.js";
 import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
 import type { Lease, LeaseHandle, OpenCellSql } from "../ports.js";
@@ -99,6 +100,12 @@ export function serveIsolate(
         vars: env, // the loaded Worker's env: plain values and host stubs
         storage: { durability, backup, ownership },
         facets: true, // rows move to this run's scope on open, as celld does for facets
+        ctxIdOf: (key) => {
+          const name = idNames.get(key);
+          return name === undefined
+            ? undefined
+            : (rt!.env[className] as { idFromName(n: string): DurableObjectId }).idFromName(name);
+        },
       });
       runtimes.set(className, rt);
     }
@@ -108,18 +115,18 @@ export function serveIsolate(
   let exports: Record<string, unknown> = {};
   // The loaded Worker is this realm's own: its `cloudflare:workers` reads `env` and `exports` here.
   const scope = realmWorkerScope();
-  // The name of each facet's own `ctx.id`, when `ctx.facets.get` was given one (by cell key).
+  // The name of the `id` a facet was given by `ctx.facets.get`, by its isolate-local cell key:
+  // the facet's `ctx.id` (partyserver's `this.name`). Two facets may be given the same id; each
+  // keeps its own object and storage, addressed by the parent's facet cell key.
   const idNames = new Map<string, string>();
-  // A facet of loaded code: the object lives here, named by its id's name or else by the
-  // parent's facet cell key; its log is the facet's either way (facetKeys).
+  // A facet of loaded code: the object lives here, named by the parent's facet cell key.
   const facet = async (className: string, cellKey: string) => {
     const rt = await objectRuntime(className);
     const ns = rt.env[className] as {
       getByName(n: string): any;
       idFromName(n: string): { toString(): string };
     };
-    const name = idNames.get(cellKey) ?? cellKey;
-    return { rt, stub: ns.getByName(name), key: `${className}/${ns.idFromName(name)}` };
+    return { rt, stub: ns.getByName(cellKey), key: `${className}/${ns.idFromName(cellKey)}` };
   };
   const exported = (name: string, props?: unknown) => {
     const target = module[name];
@@ -159,10 +166,10 @@ export function serveIsolate(
     }
     if (m.type === "image") return await images.get(m.token)?.();
     if (m.type === "object") {
-      if (m.op === "attach" && typeof m.idName === "string") idNames.set(m.cellKey, m.idName);
       const { rt, stub, key } = await facet(m.className, m.cellKey);
       if (m.op === "attach") {
         facetKeys.set(key, { key: m.cellKey, epoch: m.epoch });
+        if (typeof m.idName === "string") idNames.set(key, m.idName);
         return;
       }
       if (m.op === "call") return stub[m.method](...m.args);
