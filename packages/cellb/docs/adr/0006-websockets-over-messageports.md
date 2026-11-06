@@ -23,5 +23,8 @@ the module server's `~deps` proxies); the page's real `WebSocket` is left alone.
 - Socket ports must be handed between realms out of band: each shard link has a control port next to
   its HTTP links, and `Upgrade` and `Sec-WebSocket-Protocol` travel as `x-cellb-*` headers because
   the HTTP/1.1 wire and browser `Request`s drop them.
-- `bufferedAmount` is always 0.
+- A port has no send buffer to measure, so the receiving end acknowledges the bytes it dispatched
+  and a client's `bufferedAmount` counts the bytes not acknowledged yet.
+- The client class and the frames are `@statewalker/webrun-http-browser`'s (since 0.7); the ends
+  of a `WebSocketPair` are cellb's ([ADR 0010](0010-transport-and-webrun-http-browser.md)).
 - The sockets are tested against the platform's own WebSocket on 19 WHATWG behaviours.
