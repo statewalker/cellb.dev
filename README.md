@@ -68,8 +68,8 @@ runs them. Cellb's own storage labs (`ltx-lab`, `sqlite-lab`) are in
 
 ## How to run it
 
-Node 24, the version in `.nvmrc` and CI (`nvm use`). The examples need Node 22.23.4 or later
-(Astro refuses older ones); the cellb package itself runs on Node 22.13 or later.
+Node 24, the version in `.nvmrc` and CI (`nvm use`). Astro, which `site/` and `examples/emdash`
+run, refuses Node older than 22.23.4; the cellb package itself runs on Node 22.13 or later.
 
 cellb, at the root:
 
