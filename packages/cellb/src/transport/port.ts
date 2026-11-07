@@ -14,6 +14,10 @@ import { type Send, withScheme } from "./cells-link.js";
  * (p31-port-leak.test.ts). 4096 per link, cellb's ceiling before the links were the package's (its
  * default is 1024): a streaming response holds its port for its whole life.
  * `globalThis.__cellbMaxPorts` overrides it: tests that check nothing leaks set it low.
+ *
+ * Since webrun-http-browser 0.12 a body's chunks are pipelined under the link's flow-control
+ * window (256 KiB by default) instead of going one confirmed chunk at a time: a reader that stops
+ * holds about one window of its body, so the bound is about `maxPorts` windows per link.
  */
 const maxPorts = () => (globalThis as { __cellbMaxPorts?: number }).__cellbMaxPorts ?? 4096;
 

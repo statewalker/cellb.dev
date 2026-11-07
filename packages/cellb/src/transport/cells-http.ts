@@ -39,6 +39,12 @@ export interface CellsHttpOptions {
    * upgrades cannot cross this link.
    */
   onUpgrade?: (id: string, port: MessagePort, protocol?: string) => void;
+  /**
+   * A stub.fetch answered 101 with a WebSocket, and the transport carries ports itself (a
+   * ServiceWorker's sockets): the 101, its `webSocket` included, is returned as it is, for the
+   * transport to hand the client end over.
+   */
+  passUpgrades?: boolean;
 }
 
 /** Server side: exposes a runtime as one HTTP handler. */
@@ -52,7 +58,7 @@ export function cellsHttpHandler(
 ): (req: Request) => Promise<Response> {
   const codec = opts.codec ?? v8Codec; // the runtime's default: V8 serialization
   return async (incoming) => {
-    const req = await restoreScheme(incoming);
+    const req = await restoreScheme(await restoreRoute(incoming));
     const kind = req.headers.get(H.kind);
     if (!kind) {
       const cookie = req.headers.get(H.cookie);
@@ -93,6 +99,7 @@ export function cellsHttpHandler(
         }
         const res = (await stub.fetch(inner)) as Response & { webSocket?: CfWebSocket | null };
         if (res.status !== 101 || !res.webSocket) return res;
+        if (opts.passUpgrades && !wsId) return res;
         if (!wsId || !opts.onUpgrade)
           throw new Error("WebSocket upgrade cannot cross this link (no control channel)");
         const protocol = res.headers.get("Sec-WebSocket-Protocol") ?? undefined;
@@ -154,6 +161,22 @@ export async function remoteRuntime(
       (id) => () => httpEndpoint(post, codec, binding, className, id),
     );
   return { env, fetch: (req) => send(withScheme(req)) };
+}
+
+/**
+ * The url the request was meant for, where a router changed it to route it: a call between
+ * shards carries its own (`H.url`), and with stripBase the router's prefix (`H.base`) comes off.
+ */
+async function restoreRoute(req: Request): Promise<Request> {
+  const original = req.headers.get(H.url);
+  if (original !== null) return keepUpgrade(req, await withUrl(req, new URL(original)));
+  const base = req.headers.get(H.base);
+  if (base === null) return req;
+  const url = new URL(req.url);
+  if (!url.pathname.startsWith(base)) return req;
+  url.pathname = url.pathname.slice(base.length) || "/";
+  if (!url.pathname.startsWith("/")) url.pathname = `/${url.pathname}`;
+  return keepUpgrade(req, await withUrl(req, url));
 }
 
 async function restoreScheme(req: Request): Promise<Request> {

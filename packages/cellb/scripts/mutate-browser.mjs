@@ -33,8 +33,8 @@ const mutants = [
   [
     "browser drops Upgrade: not re-attached on rebuilt requests",
     "src/ws/upgrade.ts",
-    '  const upgrade = from.get("Upgrade");\n  if (!upgrade) return to;',
-    '  const upgrade = from.get("Upgrade");\n  return to;',
+    "  if (!upgrade) return to;\n  const extra",
+    "  return to;\n  const extra",
     "websocket",
   ],
   [
@@ -52,10 +52,10 @@ const mutants = [
     "ws-conformance",
   ],
   [
-    "server never notices dead clients (no server heartbeat watch)",
+    "server follows a closing tab's longer heartbeat period: notices it dead minutes late",
     "src/ws/server.ts",
-    "if (Date.now() - this.#lastPing > 3 * hb) this.#gone();",
-    "",
+    '      heartbeatPeriod: "first",',
+    '      heartbeatPeriod: "follow",',
     "websocket.spec",
   ],
   // Node keeps Sec-* headers on rebuilt Requests, so only a browser can catch this one.

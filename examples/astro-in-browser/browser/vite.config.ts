@@ -73,7 +73,7 @@ function appSources(): Plugin {
 
 // The host page and its workers under /__cellb/; the rest of the origin is the built site.
 // No COOP/COEP here: the ServiceWorker adds them (browser/sw.ts).
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   root: import.meta.dirname,
   base: "/__cellb/",
   plugins: [appSources()],
@@ -93,7 +93,10 @@ export default defineConfig({
   // A production build replaces `globalThis.process.env` with `{}`, which makes cellb's
   // `Object.assign(globalThis.process.env, vars)` in the shard worker a no-op: the built Worker
   // then reads no `vars` from process.env (EmDash: "Set siteUrl or EMDASH_SITE_URL").
-  define: { "globalThis.process.env": "globalThis.process.env" },
+  // `vite build` only: the dev server evaluates each define in its client (`/@vite/env`), loaded
+  // by the host page and by every module worker before their code runs, where
+  // `globalThis.process` is undefined: they would fail before they start.
+  define: command === "build" ? { "globalThis.process.env": "globalThis.process.env" } : {},
   // `vite build`: the two host pages, their workers and the apps' sources under
   // dist/static/__cellb/ (the base); scripts/build-static.mjs adds the ServiceWorker.
   build: {
@@ -117,4 +120,4 @@ export default defineConfig({
       ],
     },
   },
-});
+}));

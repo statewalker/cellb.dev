@@ -16,29 +16,26 @@
  * finish, new ones wait for the next owner); a tab that closes runs no code, so the requests in
  * flight in its shards fail (ShardOwnerLostError) and the other tabs take the shards over.
  */
-import { CellRouter } from "../router/cell-router.js";
-import { linkOverPort, serveHandlerOverPort } from "../transport/port.js";
+import {
+  type DispatchFailure,
+  type HandlerInfo,
+  LinkLostError,
+  SwHttpAdapter,
+  SwHttpDispatcher,
+  type WorkerLink,
+} from "@statewalker/webrun-http-browser/sw";
+import { ShardOwnerLostError } from "../router/cell-router.js";
+import { errorResponse } from "../transport/cells-http.js";
+import { H } from "../transport/cells-link.js";
 import { SW_SOCKET } from "../ws/sw-connector.js";
 import { applyWorkerCookies, withPageCookies } from "./browser-cookies.js";
 import type { BrowserBucket, BrowserProjectOptions } from "./browser-host.js";
-import {
-  SHARD_KEEPALIVE,
-  SHARD_WAKE,
-  TAB_INIT,
-  TAB_LINK,
-  TAB_WATCH,
-  type TabShardInit,
-} from "./browser-shards.js";
+import { INTERNAL_ORIGIN, TAB_INIT, type TabShardInit } from "./browser-shards.js";
 
-const ATTACH = "cellb:attach";
+/** The ServiceWorker asks a project's tabs to attach their shards again (a host page's wait). */
 const NEED_LINKS = "cellb:need-links";
 /** A page opens a socket (`serviceWorkerConnector`). */
 const SOCKET = SW_SOCKET;
-const DRAIN = "cellb:drain";
-/** A shard's call waits for the ServiceWorker: this message starts it, and it asks for links. */
-const WAKE = "cellb:wake";
-/** Calls between shards are in flight: the message itself resets the ServiceWorker's idle timer. */
-const KEEPALIVE = "cellb:keepalive";
 
 /**
  * The tab that should run `shard`: the tabs sorted by id (ids start with the time the tab joined),
@@ -64,7 +61,12 @@ export interface ProjectTabsOptions {
   ai?: BrowserProjectOptions["ai"];
   /** Each shard is its own fleet node, `<node>-s<shard>`. */
   bucket?: BrowserBucket;
-  /** The active ServiceWorker that runs `installProjectRouter`. */
+  /**
+   * The active ServiceWorker that runs `installProjectRouter`. This page must be inside its scope
+   * and controlled by it (webrun-http-browser's adapter asks the worker to claim the page if it
+   * is not, and rejects with a `ServiceWorkerControlError` after 30 s if that fails: after a hard
+   * reload, say).
+   */
   serviceWorker: () => Promise<ServiceWorker>;
   /** Called whenever the shards this tab runs change. */
   onChange?: (owned: number[]) => void;
@@ -92,6 +94,9 @@ interface Held {
   worker?: Worker;
   running?: Promise<void>;
 }
+
+/** A shard's handler id under the project's key: the router's `route` picks shards by it. */
+const shardId = (shard: number) => `shard:${shard}`;
 
 /** The page side: this tab takes part in running the project's shards. */
 export async function joinProjectShards(opts: ProjectTabsOptions): Promise<ProjectTabs> {
@@ -123,7 +128,6 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
     new Promise<{
       ok: boolean;
       error?: string;
-      ownerLock?: string;
       unsupported?: string[];
     }>((resolve) => {
       const { port1, port2 } = new MessageChannel();
@@ -134,57 +138,24 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
       w.postMessage(data, [port2, ...ports]);
     });
 
-  /** Links a shard's worker to the router (again, after a ServiceWorker restart). */
-  const attach = async (shard: number, w: Worker, ownerLock: string) => {
-    const down = new MessageChannel(); // router → shard
-    const up = new MessageChannel(); // shard → router
-    const ctl = new MessageChannel(); // WebSocket port hand-over
-    const linked = await ask(w, { type: TAB_LINK }, [down.port2, up.port2, ctl.port2]);
-    if (!linked.ok) throw new Error(linked.error);
-    const sw = await opts.serviceWorker();
-    const routerLock = await new Promise<string>((resolve, reject) => {
-      const { port1, port2 } = new MessageChannel();
-      port1.onmessage = (e) => (
-        port1.close(), e.data?.ok ? resolve(e.data.routerLock) : reject(new Error(e.data?.error))
-      );
-      sw.postMessage(
-        {
-          type: ATTACH,
-          name: opts.name,
-          shards: opts.shards,
-          scriptName: opts.config.name ?? "worker",
-          shard,
-          ownerLock,
-          down: down.port1,
-          up: up.port1,
-          ctl: ctl.port1,
-        },
-        [port2, down.port1, up.port1, ctl.port1],
-      );
-    });
-    // The shard drops these links once the ServiceWorker is gone, and wakes it when it needs it.
-    const watching = await ask(w, { type: TAB_WATCH, routerLock });
-    if (!watching.ok) throw new Error(watching.error);
-  };
-
-  /** Starts the ServiceWorker again (WAKE: it asks the tabs for their shards' links), or keeps it up. */
-  const tell = async (type: typeof WAKE | typeof KEEPALIVE) => {
-    const sw = await opts.serviceWorker();
-    sw.postMessage({ type, name: opts.name });
-  };
-  const owners = new Map<number, string>(); // shard → its worker's owner lock
-
-  /** Asks the router to stop sending the shard new requests and let the current ones finish. */
-  const drain = async (shard: number, ownerLock: string) => {
-    const sw = await opts.serviceWorker();
-    const ms = opts.drainMs ?? 5_000;
-    await new Promise<void>((resolve) => {
-      const { port1, port2 } = new MessageChannel();
-      const t = setTimeout(resolve, ms + 1_000); // a ServiceWorker that does not answer
-      port1.onmessage = () => (clearTimeout(t), port1.close(), resolve());
-      sw.postMessage({ type: DRAIN, name: opts.name, shard, ownerLock, ms }, [port2]);
-    });
-  };
+  // The tab's side of the ServiceWorker's router (webrun-http-browser): it attaches this tab's
+  // shard workers under the project's key, and attaches them again whenever the ServiceWorker
+  // asks (after a restart). The page itself attaches no handler the router would pick.
+  const worker = await opts.serviceWorker();
+  // The given worker's registration, not `navigator.serviceWorker.ready` (that is this page's
+  // scope's registration, and never settles for a page outside every scope).
+  const registration = (await navigator.serviceWorker.getRegistrations()).find((r) =>
+    [r.active, r.waiting, r.installing].includes(worker),
+  );
+  if (!registration)
+    throw new Error(`cellb: no registration holds the ServiceWorker ${worker.scriptURL}`);
+  const adapter = new SwHttpAdapter({
+    key: opts.name,
+    registration,
+    id: `tab:${tabId}`,
+  });
+  await adapter.start();
+  const links = new Map<number, WorkerLink>();
 
   const changed = () => opts.onChange?.([...running].sort((a, b) => a - b));
 
@@ -196,10 +167,6 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
       .request(`${prefix}:shard:${shard}`, { signal: h.stop.signal }, async () => {
         const w = opts.spawn(shard);
         h.worker = w;
-        w.addEventListener("message", (e) => {
-          if (e.data?.type === SHARD_WAKE) void tell(WAKE).catch(() => {});
-          if (e.data?.type === SHARD_KEEPALIVE) void tell(KEEPALIVE).catch(() => {});
-        });
         try {
           const started = await ask(w, {
             type: TAB_INIT,
@@ -214,16 +181,22 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
             pool: `${opts.name}-shard-${shard}`,
             filesDir: `${opts.name}-files-${shard}`,
           } satisfies TabShardInit);
-          if (!started.ok || !started.ownerLock) throw new Error(started.error);
+          if (!started.ok) throw new Error(started.error);
           // What the configuration asks for and this runtime does not provide (a cron trigger
           // without a scheduled() handler, say): said once, not silently ignored.
           if (started.unsupported?.length)
             console.warn(
               `cellb: project ${opts.name} shard ${shard}: unsupported: ${started.unsupported.join("; ")}`,
             );
-          owners.set(shard, started.ownerLock);
           if (!h.stop.signal.aborted) {
-            await attach(shard, w, started.ownerLock);
+            links.set(
+              shard,
+              await adapter.attachWorker(w, {
+                key: opts.name,
+                id: shardId(shard),
+                meta: { shard },
+              }),
+            );
             running.add(shard);
             changed();
             await new Promise<void>((r) =>
@@ -233,10 +206,11 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
         } finally {
           // A planned hand-over drains the shard's requests in flight first; then the runtime
           // closes (and the pool with it) before the lock goes to the next tab.
-          const lock = owners.get(shard);
-          if (lock && running.has(shard)) await drain(shard, lock).catch(() => {});
+          const link = links.get(shard);
+          links.delete(shard);
+          if (link && running.has(shard))
+            await link.drain({ ms: opts.drainMs ?? 5_000 }).catch(() => {});
           running.delete(shard);
-          owners.delete(shard);
           await ask(w, { type: "cellb:shard-close" }).catch(() => {});
           w.terminate();
           changed();
@@ -267,6 +241,8 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
         again = false;
         if (closed) return;
         const present = await tabs();
+        // close() may have run while `tabs()` was answering: take nothing after it.
+        if (closed) return;
         for (let shard = 0; shard < opts.shards; shard++) {
           const mine = shardOwner(shard, present) === tabId;
           const h = held.get(shard);
@@ -282,11 +258,7 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
   const timer = setInterval(() => void balance(), opts.checkMs ?? 1000);
   const onSw = (e: MessageEvent) => {
     if (e.data?.type !== NEED_LINKS || (e.data.name && e.data.name !== opts.name)) return;
-    for (const shard of running) {
-      const w = held.get(shard)?.worker;
-      const lock = owners.get(shard);
-      if (w && lock) void attach(shard, w, lock).catch(() => {});
-    }
+    void adapter.relink().catch(() => {});
   };
   navigator.serviceWorker.addEventListener("message", onSw);
   channel.postMessage({ joined: tabId });
@@ -302,6 +274,7 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
       const stopping = [...held.values()];
       for (const h of stopping) h.stop.abort();
       await Promise.all(stopping.map((h) => h.running));
+      await adapter.stop().catch(() => {});
       leave();
       channel.postMessage({ left: tabId });
       channel.close();
@@ -319,7 +292,12 @@ export interface ServiceWorkerScope {
   addEventListener(type: string, listener: (event: never) => unknown): void;
 }
 
-/** The ServiceWorker side: one CellRouter per project, fed by the tabs' shard workers. */
+/**
+ * The ServiceWorker side: webrun-http-browser's dispatcher, with the project as its key and the
+ * tabs' shard workers as its handlers. What cellb adds: its urls (`<basePath><name>/`, a root
+ * project, `http://cellb.internal/<name>/` for calls between shards), which shard a call goes to,
+ * the page's cookies, no control headers from pages, and the host page.
+ */
 export function installProjectRouter(
   scope: ServiceWorkerScope,
   opts: {
@@ -345,120 +323,10 @@ export function installProjectRouter(
      */
     root?: { name: string; passthrough?: string[]; hostPage?: string; hostWaitMs?: number };
   },
-): { routers: Map<string, CellRouter> } {
+): { dispatcher: SwHttpDispatcher } {
   const sw = scope as unknown as ServiceWorkerGlobalScope;
   const base = opts.basePath.endsWith("/") ? opts.basePath : `${opts.basePath}/`;
-  // Held while this ServiceWorker lives: the browser releases it when it stops the worker, which
-  // tells the shards that their links to it are dead (MessagePorts report nothing).
-  const routerLock = `cellb:router:${crypto.randomUUID()}`;
-  const lockHeld = new Promise<void>((held) => {
-    void navigator.locks.request(routerLock, () => {
-      held();
-      return new Promise<void>(() => {});
-    });
-  });
-  const routers = new Map<string, CellRouter>();
-  const created = new Map<string, () => void>();
-  const ready = new Map<string, Promise<void>>();
-
-  let asking: Promise<void> | undefined;
-  const askForLinks = (name?: string) => {
-    asking ??= sw.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((cs) => {
-        for (const c of cs) c.postMessage({ type: NEED_LINKS, name });
-      })
-      .finally(() => setTimeout(() => (asking = undefined), 500));
-    return asking;
-  };
-
-  const routerFor = (name: string, shards: number, scriptName: string) => {
-    let router = routers.get(name);
-    if (!router) {
-      router = new CellRouter({
-        shards,
-        bindings: {}, // shards name the owner of every internal request (x-cellb-shard)
-        scriptName,
-        attachTimeoutMs: opts.attachTimeoutMs ?? 15_000,
-        onMissingShard: () => void askForLinks(name),
-        // The owner worker's own lock: released when it closes, its tab closes or it dies.
-        watchOwner: (_shard, ownerLock) =>
-          navigator.locks.request(ownerLock as string, async () => {}),
-        isAlive: async (_shard, ownerLock) =>
-          !!(await navigator.locks.query()).held?.some((l) => l.name === ownerLock),
-        livenessIntervalMs: 5_000,
-      });
-      routers.set(name, router);
-      created.get(name)?.();
-    }
-    return router;
-  };
-
-  /** A project's router; after a ServiceWorker restart, once a tab has attached a shard again. */
-  const routerNamed = (name: string): Promise<CellRouter> => {
-    const r = routers.get(name);
-    if (r) return Promise.resolve(r);
-    let wait = ready.get(name);
-    if (!wait) {
-      wait = new Promise<void>((resolve, reject) => {
-        const t = setTimeout(
-          () => reject(new Error(`project ${name} has no shards in any tab`)),
-          opts.attachTimeoutMs ?? 15_000,
-        );
-        created.set(name, () => (clearTimeout(t), resolve()));
-      }).finally(() => (ready.delete(name), created.delete(name)));
-      ready.set(name, wait);
-      void askForLinks(name);
-    }
-    return wait.then(() => routers.get(name)!);
-  };
-
-  sw.addEventListener("message", (e: ExtendableMessageEvent) => {
-    const m = e.data;
-    const reply = e.ports[0];
-    if (m?.type === ATTACH)
-      e.waitUntil(
-        (async () => {
-          try {
-            const router = routerFor(m.name, m.shards, m.scriptName);
-            await serveHandlerOverPort(m.up, router.internal);
-            const link = await linkOverPort(m.down);
-            router.attach(m.shard, link.send, m.ownerLock, m.ctl);
-            await lockHeld;
-            reply?.postMessage({ ok: true, routerLock });
-          } catch (err) {
-            reply?.postMessage({ ok: false, error: String((err as Error)?.message ?? err) });
-          }
-        })(),
-      );
-    else if (m?.type === DRAIN)
-      e.waitUntil(
-        (async () => {
-          await routers.get(m.name)?.drain(m.shard, m.ownerLock, m.ms);
-          reply?.postMessage({ ok: true });
-        })(),
-      );
-    else if (m?.type === WAKE)
-      // Started by this message: stay up until a tab has linked the project's shards again.
-      e.waitUntil(routerNamed(m.name).catch(() => {}));
-    else if (m?.type === SOCKET)
-      e.waitUntil(
-        (async () => {
-          try {
-            const { name, path } = split(new URL(m.url));
-            const url = new URL(m.url);
-            if (opts.stripBase && !atRoot(url)) url.pathname = path;
-            const { port, protocol } = await (await routerNamed(name)).connectWebSocket(
-              url.toString(),
-              m.protocols ?? [],
-            );
-            reply.postMessage({ ok: true, port, protocol }, [port]);
-          } catch (err) {
-            reply.postMessage({ ok: false, error: String((err as Error)?.message ?? err) });
-          }
-        })(),
-      );
-  });
+  const internal = new URL(INTERNAL_ORIGIN);
 
   /** Whether `url` goes to the root project (`opts.root`). */
   const atRoot = (url: URL) =>
@@ -467,45 +335,89 @@ export function installProjectRouter(
     !url.pathname.startsWith(base) &&
     !(opts.root.passthrough ?? []).some((p) => url.pathname.startsWith(p));
 
-  /** `<base><name>/<rest>` → the project's name and the Worker's path `/<rest>`. */
-  const split = (url: URL) => {
-    if (opts.root && atRoot(url)) return { name: opts.root.name, path: url.pathname };
-    if (!url.pathname.startsWith(base)) throw new Error(`not a project URL: ${url}`);
+  /**
+   * `<base><name>/<rest>` → the project's name, the Worker's path `/<rest>`, and `<base><name>` as
+   * the URL spells it (`prefix`: what `stripBase` cuts, so a name the URL leaves unescaped, `a@b`,
+   * or escapes where it need not, `%61pp`, is cut as written).
+   */
+  const split = (url: URL): { name: string; path: string; prefix: string } | undefined => {
+    if (opts.root && atRoot(url)) return { name: opts.root.name, path: url.pathname, prefix: "" };
+    if (url.origin !== sw.location.origin || !url.pathname.startsWith(base)) return undefined;
     const rest = url.pathname.slice(base.length);
     const slash = rest.indexOf("/");
-    const name = decodeURIComponent(slash < 0 ? rest : rest.slice(0, slash));
-    return { name, path: slash < 0 ? "/" : rest.slice(slash) };
+    const raw = slash < 0 ? rest : rest.slice(0, slash);
+    const name = decodeURIComponent(raw);
+    return name
+      ? { name, path: slash < 0 ? "/" : rest.slice(slash), prefix: `${base}${raw}` }
+      : undefined;
   };
 
-  sw.addEventListener("fetch", (e: FetchEvent) => {
-    const url = new URL(e.request.url);
-    const root = atRoot(url);
-    if (!root) {
-      if (url.origin !== sw.location.origin || !url.pathname.startsWith(base)) return;
-      if (e.request.mode === "navigate") return;
-    }
-    const { name, path } = split(url);
-    if (!name) return;
-    const req = e.request;
-    const target = opts.stripBase && !root ? new URL(`${path}${url.search}`, url.origin) : url;
-    const hostPage = root && req.mode === "navigate" ? opts.root?.hostPage : undefined;
-    if (hostPage)
-      e.respondWith(
-        runningShards(name, opts.root?.hostWaitMs ?? 2_000).then((running) =>
-          running
-            ? serve(name, req, target)
-            : Response.redirect(
-                `${new URL(hostPage, url.origin).href}?next=${encodeURIComponent(`${url.pathname}${url.search}`)}`,
-                302,
-              ),
-        ),
-      );
-    else e.respondWith(serve(name, req, target));
+  const isShard = (h: HandlerInfo) => typeof (h.meta as { shard?: unknown })?.shard === "number";
+  let rr = 0;
+  const dispatcher = new SwHttpDispatcher({
+    self: sw,
+    handleFetch: false,
+    attachTimeoutMs: opts.attachTimeoutMs ?? 15_000,
+    key: (url) => {
+      // Calls between shards: http://cellb.internal/<name>/.
+      if (url.host === internal.host) {
+        const name = url.pathname.split("/")[1];
+        return name ? decodeURIComponent(name) : undefined;
+      }
+      return split(url)?.name;
+    },
+    // A call between shards names its shard (it waits for that one); the rest go to the shard
+    // with the fewest requests in flight, round robin among equals. The tabs' pages are handlers
+    // of the key too (their adapters'), with nothing to serve: never picked.
+    route: (request, _key, handlers) => {
+      const shards = handlers.filter(isShard);
+      const named = request.headers.get(H.shard);
+      if (named !== null)
+        return shards.find((h) => (h.meta as { shard: number }).shard === Number(named));
+      if (!shards.length) return undefined;
+      const start = rr++ % shards.length;
+      let best = shards[start];
+      for (let i = 1; i < shards.length; i++) {
+        const h = shards[(start + i) % shards.length];
+        if (h.inflight < best.inflight) best = h;
+      }
+      return best;
+    },
+    // A call between shards fails as an error its caller rethrows (postVia); a page's request
+    // gets a response it can read.
+    failure: (request, failure) => failed(request, failure),
+    // Pages may not address objects or shards directly: no control headers on their sockets.
+    socketHeaders: (headers, from) =>
+      from === "page"
+        ? headers?.filter(([name]) => !name.toLowerCase().startsWith("x-cellb"))
+        : headers,
   });
+  dispatcher.start();
+
+  const failed = (request: Request, failure: DispatchFailure): Response => {
+    const named = request.headers.get(H.shard);
+    const what = named !== null ? `cell shard ${named}` : "the project";
+    const error =
+      failure.kind === "lost" && failure.error instanceof LinkLostError && named !== null
+        ? new ShardOwnerLostError(Number(named))
+        : failure.kind === "timeout"
+          ? new Error(`${what} was not attached in time`)
+          : failure.kind === "gone"
+            ? new Error(`${what} has no tab running it`)
+            : (failure.error as Error);
+    if (request.headers.get(H.kind) !== null) return errorResponse(error, 503);
+    return new Response(`cellb: ${(error as Error)?.message ?? error}`, { status: 503 });
+  };
+
+  const askForLinks = async (name: string) => {
+    const clients = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of clients) c.postMessage({ type: NEED_LINKS, name });
+  };
 
   /** Whether a tab runs project `name`'s shards, waiting up to `ms` for one to link. */
   const runningShards = async (name: string, ms: number): Promise<boolean> => {
-    const live = () => (routers.get(name)?.attachedShards.length ?? 0) > 0;
+    await dispatcher.ready;
+    const live = () => dispatcher.table.live(name).some(isShard);
     if (live()) return true;
     void askForLinks(name);
     for (const until = Date.now() + ms; Date.now() < until; ) {
@@ -515,31 +427,99 @@ export function installProjectRouter(
     return false;
   };
 
-  /** A request to project `name`, with the page's cookies in and the Worker's out. */
-  const serve = (name: string, req: Request, target: URL): Promise<Response> =>
-    routerNamed(name).then(
-      async (router) => {
-        try {
-          return await applyWorkerCookies(
-            sw,
-            await router.ingress(
-              new Request(target, {
-                method: req.method,
-                headers: await withPageCookies(sw, req),
-                body: req.body,
-                signal: req.signal,
-                duplex: "half",
-              } as RequestInit),
-            ),
-          );
-        } catch (err) {
-          // A response the page can read, instead of a network error with no cause.
-          console.error(`cellb: ${req.method} ${target.pathname} failed:`, err);
-          return new Response(`cellb: ${(err as Error)?.stack ?? err}`, { status: 502 });
-        }
-      },
-      (err) => new Response(String((err as Error)?.message ?? err), { status: 503 }),
-    );
+  /** Headers for a request the router sends on: no control headers from the page, its base. */
+  const routed = (req: Request, prefix: string, root: boolean): Headers => {
+    // Headers only: a Request built from `req` would take its body.
+    const headers = new Headers(req.headers);
+    for (const h of Object.values(H)) if (h !== H.cookie) headers.delete(h);
+    if (opts.stripBase && !root) headers.set(H.base, prefix);
+    return headers;
+  };
 
-  return { routers };
+  /** A request to project `name`, with the page's cookies in and the Worker's out. */
+  const serve = async (
+    { name, prefix }: { name: string; prefix: string },
+    req: Request,
+    root: boolean,
+  ): Promise<Response> => {
+    try {
+      // A project no tab has ever served is not the router's: the page's own request goes to the
+      // network, as if there were no router (not the copy below, with the page's cookies in a
+      // header and a streamed body).
+      await dispatcher.ready;
+      if (!dispatcher.serves(name)) return await fetch(req);
+      const headers = await withPageCookies(
+        sw,
+        new Request(req.url, { headers: routed(req, prefix, root) }),
+      );
+      const res = await dispatcher.dispatch(
+        new Request(req.url, {
+          method: req.method,
+          headers,
+          body: req.body,
+          signal: req.signal,
+          duplex: "half",
+        } as RequestInit),
+      );
+      return await applyWorkerCookies(sw, res);
+    } catch (err) {
+      // A response the page can read, instead of a network error with no cause.
+      console.error(`cellb: ${req.method} ${new URL(req.url).pathname} failed:`, err);
+      return new Response(`cellb: ${(err as Error)?.stack ?? err}`, { status: 502 });
+    }
+  };
+
+  sw.addEventListener("fetch", (e: FetchEvent) => {
+    const req = e.request;
+    const url = new URL(req.url);
+    const root = atRoot(url);
+    if (!root && req.mode === "navigate") return; // the pages under basePath are the host's
+    const project = split(url);
+    if (!project) return;
+    const hostPage = root && req.mode === "navigate" ? opts.root?.hostPage : undefined;
+    if (hostPage)
+      e.respondWith(
+        runningShards(project.name, opts.root?.hostWaitMs ?? 2_000).then((running) =>
+          running
+            ? serve(project, req, root)
+            : Response.redirect(
+                `${new URL(hostPage, url.origin).href}?next=${encodeURIComponent(`${url.pathname}${url.search}`)}`,
+                302,
+              ),
+        ),
+      );
+    else e.respondWith(serve(project, req, root));
+  });
+
+  // A page's socket (`serviceWorkerConnector`): routed as a fetch would be, without the page's
+  // headers.
+  sw.addEventListener("message", (e: ExtendableMessageEvent) => {
+    const m = e.data;
+    if (m?.type !== SOCKET) return;
+    const reply = e.ports[0];
+    e.waitUntil(
+      (async () => {
+        try {
+          const url = new URL(m.url);
+          const httpUrl = new URL(url);
+          if (httpUrl.protocol === "ws:") httpUrl.protocol = "http:";
+          else if (httpUrl.protocol === "wss:") httpUrl.protocol = "https:";
+          const project = split(httpUrl);
+          if (!project) throw new Error(`not a project URL: ${m.url}`);
+          const headers: [string, string][] = [];
+          if (opts.stripBase && !atRoot(httpUrl)) headers.push([H.base, project.prefix]);
+          const { port, protocol } = await dispatcher.connectWebSocket(
+            `${httpUrl}`,
+            m.protocols ?? [],
+            headers,
+          );
+          reply.postMessage({ ok: true, port, protocol }, [port]);
+        } catch (err) {
+          reply.postMessage({ ok: false, error: String((err as Error)?.message ?? err) });
+        }
+      })(),
+    );
+  });
+
+  return { dispatcher };
 }

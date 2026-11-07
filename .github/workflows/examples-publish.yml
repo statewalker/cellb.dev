@@ -46,7 +46,7 @@ jobs:
           package_json_file: cellb.dev/examples/package.json
       - uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version-file: cellb.dev/.nvmrc
       - name: webrun-bundler and the workspace packages it imports (their packages export dist/)
         working-directory: webrun-sites
         run: |
