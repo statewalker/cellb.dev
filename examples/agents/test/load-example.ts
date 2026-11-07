@@ -1,8 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
-import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import { loadProject } from "@statewalker/cellb/node";
 
 const examples = resolve(import.meta.dirname, "..");
 
@@ -18,5 +17,5 @@ export async function loadExample(name: string, vars: Record<string, string>) {
   config.vars = { ...config.vars, ...vars };
   const dir = mkdtempSync(join(tmpdir(), `agent-${name}-`));
   writeFileSync(join(dir, "wrangler.json"), JSON.stringify(config));
-  return loadNodeProject(dir, { openSql: nodeSqliteOpener(), files: new MemFilesApi() });
+  return loadProject(dir);
 }

@@ -3,8 +3,7 @@ import { builtinModules } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWebSocketClass } from "@statewalker/cellb";
-import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
-import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import { loadProject } from "@statewalker/cellb/node";
 import { build } from "esbuild";
 import { describe, expect, it } from "vitest";
 
@@ -32,10 +31,7 @@ async function deployment(): Promise<string> {
 // The Agents SDK's own WebSocket path (partyserver: accept, attachments, broadcast) on cellb.
 describe("an Agents SDK app's WebSockets on cellb", () => {
   it("runs onConnect and onMessage, keeps each connection's state, broadcasts to all", async () => {
-    const { runtime, unsupported } = await loadNodeProject(await deployment(), {
-      openSql: nodeSqliteOpener(),
-      files: new MemFilesApi(),
-    });
+    const { runtime, unsupported } = await loadProject(await deployment());
     try {
       expect(unsupported).toEqual([]);
       const WS = createWebSocketClass((url, protocols) => runtime.connectWebSocket(url, protocols));

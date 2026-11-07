@@ -13,14 +13,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { DatabaseSync as DatabaseSyncT } from "node:sqlite";
 
-// Loaded via require: bundlers (vite/vitest) strip the "node:" prefix of the
-// still-experimental node:sqlite builtin and fail to resolve "sqlite".
-const { DatabaseSync } = createRequire(import.meta.url)(
-  "node:sqlite",
-) as typeof import("node:sqlite");
-
 import { splitSqlStatements } from "../core/sql-split.js";
 import type { OpenCellSql, SqlResult, SyncSqlDriver } from "../ports.js";
+import { requireNodeSqlite } from "./node-sqlite-module.js";
+
+const { DatabaseSync } = requireNodeSqlite();
 
 const requireCjs = createRequire(import.meta.url);
 const KNOWN_EXTENSIONS: Record<string, () => string> = {
