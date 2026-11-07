@@ -1,11 +1,13 @@
 /**
  * `loadProject` in a browser (`@statewalker/cellb/browser`), in a Dedicated Worker: fetches a
- * folder written by `cellb build` and runs it with `browserProjectRuntime`.
+ * folder written by `cellb build`, or compiles a source folder with the `compile` it is given,
+ * and runs it with `browserProjectRuntime`.
  */
 
 import { type BrowserBucket, browserProjectRuntime } from "./browser-host.js";
 import {
   BUILD_MANIFEST,
+  type BuiltProject,
   filesApiReader,
   isFilesApi,
   type LoadedProject,
@@ -15,6 +17,13 @@ import {
   readBuiltProject,
   urlReader,
 } from "./built-project.js";
+import {
+  type CompiledProject,
+  hasNodeCompat,
+  type ProjectCompiler,
+  readSourceProject,
+  WRANGLER_FILES,
+} from "./source-project.js";
 
 export interface BrowserLoadProjectOptions extends LoadProjectOptions<BrowserBucket> {
   /**
@@ -23,6 +32,14 @@ export interface BrowserLoadProjectOptions extends LoadProjectOptions<BrowserBuc
    * realm.
    */
   isolateScript?: URL | (() => Worker) | false;
+  /**
+   * How a source folder (`wrangler.jsonc`, `main`, `package.json`, assets) becomes code, for a
+   * FilesApi that holds one: `bundleCompiler` (`@statewalker/cellb/bundle`: webrun-bundler and
+   * esbuild-wasm, one ES module) or `siteCompiler` (`@statewalker/cellb/site`: modules compiled
+   * one by one and served from a ServiceWorker). Without it, only `cellb build` folders load.
+   * A folder written by `cellb build` loads as built either way.
+   */
+  compile?: ProjectCompiler;
 }
 
 /** The isolate worker this package ships (bundlers follow the `new Worker(new URL(…))` form). */
@@ -30,11 +47,13 @@ const ownIsolate = () =>
   new Worker(new URL("../isolate/isolate-worker.ts", import.meta.url), { type: "module" });
 
 /**
- * Loads a built project and runs it in this worker.
+ * Loads a project and runs it in this worker.
  *
  * `source`: the URL of a `cellb build` folder (relative URLs resolve against the page or
- * worker), or a FilesApi holding one. `options.data` names the OPFS pool (`<data>`) and the
- * project's files directory (`<data>-files`); it defaults to the project's `name`.
+ * worker), or a FilesApi holding one — or, with `options.compile`, a FilesApi holding the
+ * project's sources (`wrangler.jsonc` and `main` at its root, `package.json`, assets).
+ * `options.data` names the OPFS pool (`<data>`) and the project's files directory
+ * (`<data>-files`); it defaults to the project's `name`.
  */
 export async function loadProject(
   source: ProjectSource,
@@ -52,18 +71,49 @@ export async function loadProject(
     where = url.href;
   }
   const manifest = await readBuildManifest(reader);
-  if (!manifest)
+  let built: BuiltProject;
+  let compiled: CompiledProject | undefined;
+  if (manifest) built = await readBuiltProject(reader, manifest);
+  else if (isFilesApi(source) && options.compile) {
+    const project = await readSourceProject(source);
+    if (!project)
+      throw new Error(
+        `the FilesApi has neither ${BUILD_MANIFEST} nor ${WRANGLER_FILES.join(" nor ")}`,
+      );
+    const { config } = project;
+    compiled = config.main
+      ? await options.compile.compile({ files: source, config, nodeCompat: hasNodeCompat(config) })
+      : { code: { bundle: null } };
+    built = { config, code: null, assets: project.assets ?? new Map() };
+  } else
     throw new Error(
-      `${where} has no ${BUILD_MANIFEST}: browsers load folders written by \`cellb build\``,
+      isFilesApi(source)
+        ? `${where} has no ${BUILD_MANIFEST}: pass \`compile\` to load a source folder, or load a folder written by \`cellb build\``
+        : `${where} has no ${BUILD_MANIFEST}: browsers load folders written by \`cellb build\` by URL (a source folder loads from a FilesApi, with \`compile\`)`,
     );
-  const built = await readBuiltProject(reader, manifest);
+  try {
+    const release =
+      compiled?.close && (() => (compiled as CompiledProject).close?.() ?? Promise.resolve());
+    return await run(built, compiled?.code ?? { bundle: built.code }, options, release);
+  } catch (err) {
+    await compiled?.close?.().catch(() => {});
+    throw err;
+  }
+}
+
+async function run(
+  built: BuiltProject,
+  code: CompiledProject["code"],
+  options: BrowserLoadProjectOptions,
+  release?: () => Promise<void>,
+): Promise<LoadedProject> {
   const data = options.data ?? built.config.name ?? "cellb";
   const sqlite3 = options.sqlite3 ?? (await defaultSqlite3());
   const isolateScript =
     options.isolateScript === false ? undefined : (options.isolateScript ?? ownIsolate);
   const project = await browserProjectRuntime({
     config: built.config,
-    code: { bundle: built.code },
+    code,
     assetFiles: built.assets,
     sqlite3,
     pool: data,
@@ -78,7 +128,13 @@ export async function loadProject(
     runtime,
     unsupported: project.unsupported,
     fetch: (req) => runtime.fetch(req),
-    close: project.close,
+    close: async () => {
+      try {
+        await project.close();
+      } finally {
+        await release?.();
+      }
+    },
   };
 }
 

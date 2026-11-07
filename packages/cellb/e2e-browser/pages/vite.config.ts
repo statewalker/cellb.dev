@@ -63,6 +63,8 @@ export default defineConfig({
       "@statewalker/webrun-files-mem",
       "@statewalker/webrun-site-host",
       "@statewalker/webrun-site-builder",
+      "@statewalker/webrun-bundler",
+      "esbuild-wasm",
       "assert",
       "buffer",
       "events",

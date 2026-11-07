@@ -41,7 +41,11 @@ test.each(["src/index.ts", "src/browser.ts", "src/isolate/isolate-worker.ts"])(
 // The in-browser site compiler (webrun-modules, and through it lightningcss-wasm and @jspm/core)
 // is an optional peer dependency, reached only through @statewalker/cellb/site: importing any
 // other entry point must not load it, or bundlers emit its 16 MB .wasm with every app.
+// The in-browser bundler (webrun-bundler, which loads webrun-modules) is reached only through
+// @statewalker/cellb/bundle, the same way (#72): `loadProject` takes a compiler, it never imports one.
 const SITE_COMPILER = [
+  "@statewalker/webrun-bundler",
+  "esbuild-wasm",
   "@statewalker/webrun-modules",
   "@statewalker/webrun-site-builder",
   "@statewalker/webrun-site-host",
@@ -84,6 +88,16 @@ test.each([
 test("@statewalker/cellb/site is where the site compiler is reached", () => {
   expect(staticImports("src/site.ts").map(([spec]) => spec)).toContain(
     "@statewalker/webrun-modules",
+  );
+});
+
+test("@statewalker/cellb/bundle is where the bundler is reached", () => {
+  expect(staticImports("src/bundle.ts").map(([spec]) => spec)).toContain(
+    "@statewalker/webrun-bundler",
+  );
+  // A bundle compiler loads no site compiler of its own (webrun-bundler brings what it needs).
+  expect(staticImports("src/bundle.ts").map(([spec]) => spec)).not.toContain(
+    "@statewalker/webrun-site-host",
   );
 });
 
