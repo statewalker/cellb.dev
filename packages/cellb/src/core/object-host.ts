@@ -27,17 +27,49 @@ import { DurableObjectStorage, SyncKvStorage } from "./storage.js";
  * The request as the object sees it: its signal also aborts when the host closes (the runtime
  * shuts down), as on Cloudflare when the client goes away; a long poll or an SSE stream that
  * waits on it then ends instead of running on into a closed database.
+ *
+ * The request is not copied: its `signal` becomes a getter that builds the merged signal the
+ * first time it is read. Copying a Request and merging two signals cost about 7 µs a request, as
+ * much as a small handler's whole turn, and most handlers never read the signal. The request is
+ * the caller's own object (`runtime.fetch`) or a stub's fresh copy (a Durable Object's `fetch`);
+ * `cf` and the upgrade's `headers` that cellb sets on it stay as they are. A copy the handler
+ * makes itself (`new Request(req)`) takes the request's own signal, without the host's.
  */
 export function closingWith(req: Request, closing: AbortSignal): Request {
   if (closing.aborted) return req;
-  const r = new Request(req, { signal: AbortSignal.any([req.signal, closing]) });
-  // What cellb set on the request itself (`cf`; `headers` carrying a WebSocket upgrade's
-  // headers, which a Request would drop) stays as it was.
-  for (const k of ["cf", "headers"]) {
-    const d = Object.getOwnPropertyDescriptor(req, k);
-    if (d) Object.defineProperty(r, k, d);
+  const own = signalOf(req);
+  let merged: AbortSignal | undefined;
+  try {
+    Object.defineProperty(req, "signal", {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        if (!merged) {
+          const before = own();
+          merged = before ? AbortSignal.any([before, closing]) : closing;
+        }
+        return merged;
+      },
+    });
+    return req;
+  } catch {
+    // A request whose `signal` cannot be redefined: a copy with the merged signal, as before.
+    const r = new Request(req, { signal: AbortSignal.any([req.signal, closing]) });
+    for (const k of ["cf", "headers"]) {
+      const d = Object.getOwnPropertyDescriptor(req, k);
+      if (d) Object.defineProperty(r, k, d);
+    }
+    return r;
   }
-  return r;
+}
+
+/** Reads `req.signal` as it is now: a getter set by an earlier `closingWith`, or the Request's own. */
+function signalOf(req: Request): () => AbortSignal | undefined {
+  for (let o: object | null = req; o; o = Object.getPrototypeOf(o)) {
+    const d = Object.getOwnPropertyDescriptor(o, "signal");
+    if (d) return d.get ? () => d.get?.call(req) : () => d.value;
+  }
+  return () => undefined;
 }
 
 /** The object's host was closed for good: its storage and events fail with this. */
