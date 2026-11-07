@@ -126,7 +126,10 @@ export function ltxCellStore(
   const owned = new Set<string>();
   /** Ends the held Web Locks (`close()`). */
   const releases: (() => void)[] = [];
+  /** Set by `close()`: no request served, no lock taken, no swap made after it. */
+  let closed = false;
   const own = async (dir: string) => {
+    if (closed) throw new Error("ltx: the store is closed");
     const locks = (globalThis.navigator as { locks?: LockManager } | undefined)?.locks;
     if (!locks || owned.has(dir)) return;
     // Waits a while for it: on a reload, the previous page's store holds it until its worker
@@ -138,12 +141,16 @@ export function ltxCellStore(
           { signal: AbortSignal.timeout(20_000) },
           () => {
             resolve(true);
-            return new Promise<void>((release) => releases.push(release)); // until close()
+            // Held until close(); one granted after close() (a request was waiting) goes at once.
+            return closed
+              ? Promise.resolve()
+              : new Promise<void>((release) => releases.push(release));
           },
         )
         .catch(() => resolve(false));
     });
     if (!got) throw new Error(`ltx: cell ${dir} is open in another tab or worker (waited 20 s)`);
+    if (closed) throw new Error("ltx: the store is closed");
     owned.add(dir);
   };
   const cellOf = async (cell: string) => {
@@ -153,22 +160,34 @@ export function ltxCellStore(
       await own(dir);
       const paths = await list(dir, first);
       const opened = paths.length ? await openPagedCell(files, paths) : undefined;
-      // An interrupted compaction's leftovers, which its snapshot covers: their space back.
-      if (first && opened?.superseded.length)
+      // An interrupted compaction's leftovers, which its snapshot covers: their space back
+      // (this store owns the cell, so no one else reads them).
+      if (opened?.superseded.length)
         for (const p of opened.superseded) await files.remove(p).catch(() => false);
       if (opened) opened.superseded = [];
       cells.set(cell, opened);
     }
     return cells.get(cell);
   };
+  /**
+   * The request being answered's sequence number (the VFS's `seq`), tagged onto the state
+   * word: a VFS that gave up on a request (its 30 s wait) and sent the next one ignores the
+   * late answer instead of reading it as the next one's.
+   */
+  let answering = 0;
   const answer = (bytes: Uint8Array, state = 1) => {
     payload.set(bytes);
     ctl[1] = bytes.length;
-    Atomics.store(ctl, 0, state);
+    Atomics.store(ctl, 0, answering ? (answering << 2) | state : state);
     Atomics.notify(ctl, 0);
   };
   const enc = new TextEncoder();
   let queue = Promise.resolve();
+  /** `task` in the request queue (between two requests): the cell views change only there. */
+  const inQueue = <T>(task: () => Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      queue = queue.then(() => task().then(resolve, reject));
+    });
   /** The request being served and its stage: a watchdog names the one that does not end. */
   const current = { op: "", cell: "", stage: "", since: 0 };
   const stage = (s: string) => {
@@ -193,7 +212,7 @@ export function ltxCellStore(
     const running = compacting.get(cell);
     if (running) return running;
     const job = (async () => {
-      const c = await cellOf(cell);
+      const c = await inQueue(() => cellOf(cell));
       if (!c || c.files.length < 2) return c?.files.length ?? 0;
       const dir = dirOf(cell);
       const replaced = c.files.map((f) => f.path);
@@ -216,23 +235,26 @@ export function ltxCellStore(
         await files.remove(tmp).catch(() => false);
         throw err;
       }
-      await new Promise<void>((resolve, reject) => {
-        queue = queue.then(async () => {
-          try {
-            // The snapshot in place FIRST, then the files it replaces removed: stopped between
-            // the two (a closed tab, a lost connection to a remote FilesApi), the cell still
-            // opens from the snapshot (openPagedCell skips the files it covers). The other
-            // order could leave only the `.tmp`, which the next open deletes: the cell lost.
-            await files.move(tmp, final);
-            for (const p of replaced) await files.remove(p);
-            cells.delete(cell);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        });
+      // The swap and the reopen in one turn of the queue: a reopen outside it could finish
+      // after a commit that came between, and put back a view without that commit's file (the
+      // next commit would then take its TXID and overwrite it).
+      return inQueue(async () => {
+        if (closed) {
+          await files.remove(tmp).catch(() => false);
+          throw new Error("ltx: the store closed during a compaction");
+        }
+        // The snapshot in place FIRST, then the files it replaces removed: stopped between the
+        // two (a closed tab, a lost connection to a remote FilesApi), the cell still opens from
+        // the snapshot (openPagedCell skips the files it covers). The other order could leave
+        // only the `.tmp`, which the next open deletes: the cell lost.
+        await files.move(tmp, final);
+        try {
+          for (const p of replaced) await files.remove(p);
+        } finally {
+          cells.delete(cell); // the moved snapshot is the cell now, whatever the removes did
+        }
+        return (await cellOf(cell))?.files.length ?? 0;
       });
-      return (await cellOf(cell))?.files.length ?? 0;
     })().finally(() => compacting.delete(cell));
     compacting.set(cell, job);
     return job;
@@ -253,8 +275,10 @@ export function ltxCellStore(
 
   return {
     /** Answers one request of a VFS (requests are served in order). */
-    handle(msg: LtxStoreMessage) {
+    handle(msg: LtxStoreMessage & { seq?: number }) {
       queue = queue.then(async () => {
+        answering = msg.seq ?? 0;
+        if (closed) return answer(enc.encode("ltx: the store is closed"), 2);
         Object.assign(current, {
           op: msg.op,
           cell: msg.cell,
@@ -374,14 +398,19 @@ export function ltxCellStore(
      * Stops the store: its Web Locks released (another store may open its cells), its open
      * cells forgotten. A store in a worker of its own ends with the worker instead.
      */
-    close() {
+    async close() {
+      closed = true;
+      // What is under way ends first (a compaction's swap is refused), then the locks go.
+      await Promise.allSettled([queue, ...compacting.values()]);
+      await queue.catch(() => {});
       clearInterval(watchdog);
       for (const release of releases.splice(0)) release();
       owned.clear();
       cells.clear();
     },
     /** The paths of a cell's current files. */
-    files: async (cell: string) => (await cellOf(cell))?.files.map((f) => f.path) ?? [],
+    files: (cell: string) =>
+      inQueue(async () => (await cellOf(cell))?.files.map((f) => f.path) ?? []),
   };
 }
 

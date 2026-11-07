@@ -48,11 +48,22 @@ export interface FilesRpcOptions {
 
 const start = (port: MessageTarget) => (port as { start?: () => void }).start?.();
 
+/**
+ * The bytes of `c` in a buffer of their own: posting a view clones its WHOLE buffer (a page
+ * read as a subarray of a 10 MB file would cross the thread as 10 MB).
+ */
+const own = (c: Uint8Array) =>
+  c.byteOffset === 0 && c.byteLength === c.buffer.byteLength ? c : c.slice();
+
+async function* owned(chunks: AsyncIterable<Uint8Array>) {
+  for await (const c of chunks) yield own(c);
+}
+
 async function concat(chunks: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
   const parts: Uint8Array[] = [];
   let n = 0;
   for await (const c of chunks) parts.push(c), (n += c.length);
-  if (parts.length === 1) return parts[0];
+  if (parts.length === 1) return own(parts[0]);
   const out = new Uint8Array(n);
   let o = 0;
   for (const p of parts) out.set(p, o), (o += p.length);
@@ -80,7 +91,7 @@ export function serveFilesApi(port: MessageTarget, files: FilesApi): () => void 
     port,
     async (input, params) => {
       const { fs, path, opts } = params as unknown as StreamRequest;
-      if (fs === "read") return files.read(path, opts as ReadOptions);
+      if (fs === "read") return owned(files.read(path, opts as ReadOptions));
       if (fs === "list") return files.list(path, opts as ListOptions);
       await files.write(path, input);
       return (async function* () {})();
@@ -105,21 +116,31 @@ export function rpcFilesClient(
   start(port);
   const timeout = opts.timeout ?? 60_000;
   const batchBytes = opts.batchBytes ?? 1 << 20;
+  const call = <T>(m: UnaryMethod, a: unknown[], signal?: AbortSignal) =>
+    callPort<T, UnaryRequest>(port, { m, a }, { channelName: UNARY, timeout, signal });
   const unary =
     <T>(m: UnaryMethod) =>
     (...a: unknown[]) =>
-      callPort<T, UnaryRequest>(port, { m, a }, { channelName: UNARY, timeout });
-  const stream = <T>(req: StreamRequest, input: AsyncIterable<Uint8Array> | Uint8Array[] = []) =>
+      call<T>(m, a);
+  const stream = <T>(
+    req: StreamRequest,
+    input: AsyncIterable<Uint8Array> | Uint8Array[] = [],
+    signal?: AbortSignal,
+  ) =>
     callBidi<Uint8Array, T>(port, input, {
       ...req,
-      options: { timeout, bidiTimeout: 2147483647 },
+      // Read by the serving side too: its `send` waits this long for each chunk's
+      // acknowledgement, which comes when this side's consumer asks for the next one (without
+      // it, a consumer pausing over 1 s between chunks failed the stream).
+      timeout,
+      options: { timeout, bidiTimeout: 2147483647, signal },
     });
   /** Chunks gathered into messages of about `batchBytes`. */
   async function* batched(content: Iterable<Uint8Array> | AsyncIterable<Uint8Array>) {
     let parts: Uint8Array[] = [];
     let n = 0;
     const flush = () => {
-      const out = parts.length === 1 ? parts[0] : new Uint8Array(n);
+      const out = parts.length === 1 ? own(parts[0]) : new Uint8Array(n);
       if (parts.length > 1) {
         let o = 0;
         for (const p of parts) out.set(p, o), (o += p.length);
@@ -138,14 +159,14 @@ export function rpcFilesClient(
   }
   const api: FilesApi = {
     read(path: string, o?: ReadOptions): AsyncIterable<Uint8Array> {
-      const { start, length } = o ?? {};
+      const { start, length, signal } = o ?? {};
       // A ranged read (the LTX store's page reads): one call, one answer.
       if (length !== undefined)
         return (async function* () {
-          const bytes = await unary<Uint8Array>("readRange")(path, start ?? 0, length);
+          const bytes = await call<Uint8Array>("readRange", [path, start ?? 0, length], signal);
           if (bytes.length) yield bytes;
         })();
-      return stream<Uint8Array>({ fs: "read", path, opts: { start } });
+      return stream<Uint8Array>({ fs: "read", path, opts: { start } }, [], signal);
     },
     list(path: string, o?: ListOptions): AsyncIterable<FileInfo> {
       return stream<FileInfo>({

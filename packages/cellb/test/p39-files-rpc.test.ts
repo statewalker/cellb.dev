@@ -76,6 +76,52 @@ describe("FilesApi over a MessagePort (files-rpc)", () => {
     expect(Buffer.from(all).equals(Buffer.from(big))).toBe(true); // toEqual walks 3 M elements
   });
 
+  it("waits for a consumer that pauses between chunks (longer than webrun-rpc's 1 s default)", async () => {
+    const { files, client } = remote();
+    await files.write("/slow.txt", [enc.encode("a"), enc.encode("b"), enc.encode("c")]);
+    // MemFilesApi yields its content as one chunk: list three files to get three values.
+    for (const n of ["x", "y", "z"]) await files.write(`/d/${n}`, [enc.encode(n)]);
+    const names: string[] = [];
+    for await (const e of client.list("/d")) {
+      names.push(e.name);
+      await new Promise((r) => setTimeout(r, 1300));
+    }
+    expect(names).toEqual(["x", "y", "z"]);
+  }, 10_000);
+
+  it("posts only the bytes of a view, not the buffer under it", async () => {
+    const big = new Uint8Array(4 << 20).map((_, i) => i & 255);
+    const files = new MemFilesApi();
+    await files.write("/big.bin", [big]);
+    const { client } = remote(files);
+    for await (const c of client.read("/big.bin", { start: 4096, length: 4096 })) {
+      expect(c.byteLength).toBe(4096);
+      expect(c.buffer.byteLength).toBe(4096);
+      expect(c[0]).toBe(0);
+    }
+    const ch = new MessageChannel();
+    channels.push(ch);
+    const seen: number[] = [];
+    const spy = Object.assign(new MemFilesApi(), {
+      async write(_p: string, content: AsyncIterable<Uint8Array>) {
+        for await (const c of content) seen.push(c.buffer.byteLength);
+      },
+    });
+    serveFilesApi(ch.port1, spy);
+    await rpcFilesClient(ch.port2, { batchBytes: 4096 }).write("/x", [big.subarray(0, 8192)]);
+    expect(seen).toEqual([8192]);
+  });
+
+  it("stops a read whose signal is aborted", async () => {
+    const { files, client } = remote();
+    await files.write("/a.txt", [enc.encode("abc")]);
+    const ac = new AbortController();
+    ac.abort();
+    await expect(
+      text(client.read("/a.txt", { start: 0, length: 3, signal: ac.signal })),
+    ).rejects.toThrow();
+  });
+
   it("rejects with the serving side's error", async () => {
     const failing = Object.assign(new MemFilesApi(), {
       async stats(): Promise<never> {

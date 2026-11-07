@@ -2,12 +2,12 @@
 <html lang="en"><head><meta charset="UTF-8" /><title>LTX on the app's FilesApi</title></head>
 <body>
 <script type="module">
+  import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
   // The app opens its own FilesApi FIRST (in memory: nothing OPFS-specific), then starts shard
   // workers on it: `?store=page` runs the LTX store on this page (serveLtxStore);
   // `?store=module` lets the store worker build it (files: { module, args }); else each shard's
   // store worker reaches the FilesApi through a port (filesApiPort).
   import { MemFilesApi } from "@statewalker/webrun-files-mem";
-  import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
   import { filesApiPort, serveLtxStore } from "../../../src/ltx/ltx-host.ts";
 
   const mode = new URLSearchParams(location.search).get("store");

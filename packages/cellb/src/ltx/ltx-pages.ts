@@ -178,7 +178,23 @@ export interface PagedCell {
  * in TXID order. Only headers and page indexes are read.
  */
 export async function openPagedCell(files: FilesApi, paths: string[]): Promise<PagedCell> {
-  const opened = await Promise.all(paths.map((p) => openLtxPages(files, p)));
+  const settled = await Promise.all(
+    paths.map((p) =>
+      openLtxPages(files, p).then(
+        (f) => ({ f }),
+        (error: unknown) => ({ p, error }),
+      ),
+    ),
+  );
+  const opened: LtxPages[] = [];
+  for (const r of settled) {
+    if ("f" in r) opened.push(r.f);
+    // A snapshot that does not open (a compaction's move done as a copy, cut short): the
+    // files it was made from are all still there, so the cell is read from them.
+    else if (/(^|\/)0{15}1-[0-9a-f]{16}\.ltx$/.test(r.p))
+      console.warn(`cellb ltx: skipping ${r.p}, which does not open:`, r.error);
+    else throw r.error;
+  }
   // By maxTXID; at the same maxTXID, a snapshot (minTXID 1) after the incremental file it
   // folded in: a compaction interrupted between writing its snapshot and removing the files it
   // replaces leaves both, and the snapshot is what the cell is.

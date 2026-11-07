@@ -8,7 +8,7 @@
  *   which runs the store (LZ4, compaction) and calls the FilesApi by message.
  * - `serveLtxStore(files)`: the LTX store itself runs in this thread on the instance (no
  *   FilesApi messages at all); the shard worker's VFS sends it its page reads and commits
- *   (`bucket: { ltx, store: { sab, port } }`). The store's work then shares this thread.
+ *   (`bucket: { ltx, ltxStore: { sab, port } }`). The store's work then shares this thread.
  *
  * Either way, one call per shard worker: a port answers one worker, a store one VFS.
  */
@@ -36,7 +36,7 @@ export interface ServeLtxStoreOptions {
   compactAfter?: number;
   /** Free bytes where the files are (see ltxCellStore); unknown by default. */
   room?: () => Promise<number | undefined>;
-  /** Bytes of the shared buffer's payload: at least a read-ahead run (default 1 MiB). */
+  /** Bytes of the shared buffer's payload: a read-ahead run (default 1 MiB, at least 64 KiB). */
   payloadBytes?: number;
 }
 
@@ -46,7 +46,9 @@ export interface ServeLtxStoreOptions {
  * does not run SQLite); it answers into `sab`.
  */
 export function serveLtxStore(files: FilesApi, opts: ServeLtxStoreOptions) {
-  const sab = new SharedArrayBuffer(8 + (opts.payloadBytes ?? 16 * 65536));
+  // At least one page of SQLite's largest size: a smaller buffer would answer reads with no
+  // pages at all.
+  const sab = new SharedArrayBuffer(8 + Math.max(65536, opts.payloadBytes ?? 16 * 65536));
   const store = ltxCellStore(files, sab, {
     lockScope: opts.lockScope,
     compactAfter: opts.compactAfter,
@@ -58,9 +60,14 @@ export function serveLtxStore(files: FilesApi, opts: ServeLtxStoreOptions) {
     sab,
     port: ch.port2,
     store,
+    /**
+     * Stops serving: call it when the shard worker ends, so a store for its successor can
+     * take the cells' Web Locks (it waits 20 s for them, then fails). Resolves once the
+     * store's work under way has ended and its locks are released.
+     */
     close() {
       ch.port1.close();
-      store.close();
+      return store.close();
     },
   };
 }

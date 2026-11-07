@@ -86,11 +86,14 @@ export type BrowserBucket =
        * kept). Or the app's own FilesApi, opened before cellb starts: `{ port }` from
        * `filesApiPort(files)` (served where the app opened it), or `{ module, args }` (built in
        * the store worker). `ltx` then names the storage (the scope of the cells' Web Locks).
+       * A port is transferred to the store worker, so it serves one runtime: give each
+       * `browserProjectRuntime` a new `filesApiPort`.
        */
       files?: LtxStoreFiles;
       /**
        * A store already running elsewhere (`serveLtxStore(files)`, on the page): no store
-       * worker; the VFS sends its reads and commits there. `files` is then ignored.
+       * worker; the VFS sends its reads and commits there. `files` is then ignored. One store
+       * per runtime; the app calls its `close()` when the runtime ends.
        */
       ltxStore?: { sab: SharedArrayBuffer; port: MessagePort };
     }
@@ -190,8 +193,13 @@ export async function ltxOpener(
     });
     // A port to the app's FilesApi moves on to the store worker.
     const transfer = files && typeof files === "object" && "port" in files ? [files.port] : [];
-    store.postMessage({ op: "init", sab, dir, compactAfter, files }, transfer);
-    await ready;
+    try {
+      store.postMessage({ op: "init", sab, dir, compactAfter, files }, transfer);
+      await ready;
+    } catch (err) {
+      store.terminate(); // a store worker that did not start is not left behind
+      throw err;
+    }
     post = (m) => store.postMessage(m);
     release = () => store.terminate();
   }
