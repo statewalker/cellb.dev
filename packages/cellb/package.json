@@ -1,6 +1,6 @@
 {
   "name": "@statewalker/cellb",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "cellb: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers",
   "type": "module",
   "license": "MIT",
