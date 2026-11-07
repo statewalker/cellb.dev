@@ -16,6 +16,7 @@ import {
 } from "../src/index.js";
 import { nodeSqliteOpener } from "../src/node.js";
 import type { Frame } from "../src/ws/frames.js";
+import { CfWebSocket } from "../src/ws/server.js";
 
 // cellb's frames are webrun-http-browser's, declared again (src/ws/frames.ts): either way round.
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
@@ -318,6 +319,41 @@ describe("P07w heartbeat: MessagePorts never report a dead peer, so both ends pi
     const msg = next(ws, "message");
     ws.send("still here");
     expect((await msg).data).toBe("still here");
+  });
+});
+
+describe("P07w a WebSocketPair's ends keep workerd's semantics", () => {
+  const next = <T extends Event>(target: EventTarget, type: string) =>
+    new Promise<T>((resolve) =>
+      target.addEventListener(type, (e) => resolve(e as T), { once: true }),
+    );
+  const pair = () => Object.values(new WebSocketPair()) as CfWebSocket[];
+
+  it("close() with no code reaches the other end as 1005", async () => {
+    const [client, server] = pair();
+    client.accept();
+    server.accept();
+    const closed = next<CloseEvent>(client, "close");
+    server.close();
+    expect((await closed).code).toBe(1005);
+  });
+
+  it("either end may send before accept(); the frames wait for the other end", async () => {
+    const [client, server] = pair();
+    server.send("early");
+    const got = next<MessageEvent>(client, "message");
+    client.accept();
+    expect((await got).data).toBe("early");
+  });
+
+  it("Worker code may not send 1001; goAway() does, for the ends accepted here", async () => {
+    const [client, server] = pair();
+    client.accept();
+    server.accept();
+    expect(() => server.close(1001)).toThrow();
+    const closed = next<CloseEvent>(client, "close");
+    CfWebSocket.goAway("moving");
+    expect(await closed).toMatchObject({ code: 1001, reason: "moving" });
   });
 });
 

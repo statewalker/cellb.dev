@@ -14,7 +14,7 @@ import {
   serveHttpInWorker,
   type WorkerHttpService,
   webSocketUpgradeResponse,
-} from "@statewalker/webrun-http-browser/worker";
+} from "@statewalker/webrun-http-browser/sw";
 import { withUrl } from "../core/request-body.js";
 import type { CellRuntimeOptions } from "../core/runtime.js";
 import { shardOf } from "../core/shard.js";
