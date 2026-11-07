@@ -86,6 +86,9 @@ importers:
       '@statewalker/webrun-files-mem':
         specifier: ^0.10.0
         version: 0.10.3
+      '@statewalker/webrun-files-node':
+        specifier: ^0.10.3
+        version: 0.10.3
       '@statewalker/webrun-http-browser':
         specifier: 'catalog:'
         version: 0.12.1
@@ -1323,6 +1326,9 @@ packages:
 
   '@statewalker/webrun-files-mem@0.10.3':
     resolution: {integrity: sha512-a6SnfQerlKqJybvK4oxd0VsvREHv91yo20JsU4s4EhiewdT3o6q3qzDKS9hZoMGBaOPOyqoQY9ViGnHjdXeiEA==}
+
+  '@statewalker/webrun-files-node@0.10.3':
+    resolution: {integrity: sha512-h74IPpnC1VSh+YJhQO3KQbQ1HFS5ygwIiuMOqiwimUITeljlNrWjaUAksPhHyXRK9M/ZKUk+XBxmDWZndcQRhw==}
 
   '@statewalker/webrun-files@0.10.3':
     resolution: {integrity: sha512-YALXiT2lyPhV2dq7kNVjcy3fUw8AAMyKub+9PdJ0T+5jnTD9RcRudy266Aqb18Nw/T2Up5B/eG4hEFnFQR3p8A==}
@@ -4340,6 +4346,10 @@ snapshots:
       '@statewalker/webrun-files': 0.10.3
 
   '@statewalker/webrun-files-mem@0.10.3':
+    dependencies:
+      '@statewalker/webrun-files': 0.10.3
+
+  '@statewalker/webrun-files-node@0.10.3':
     dependencies:
       '@statewalker/webrun-files': 0.10.3
 

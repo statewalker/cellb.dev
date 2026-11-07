@@ -458,3 +458,24 @@ export function withResourceIds(config: WranglerConfig): WranglerConfig {
     ),
   };
 }
+
+/**
+ * workerd fills `process.env` with the project's text `vars` under nodejs_compat from
+ * compatibility date 2025-04-01 (`nodejs_compat_populate_process_env`), unless
+ * `nodejs_compat_do_not_populate_process_env` is set. Frameworks read their settings there
+ * (EmDash's `EMDASH_SITE_URL`, for one).
+ */
+export function populatesProcessEnv(config: WranglerConfig): boolean {
+  const flags = config.compatibility_flags ?? [];
+  if (!flags.some((f) => f.startsWith("nodejs_compat"))) return false;
+  if (flags.includes("nodejs_compat_do_not_populate_process_env")) return false;
+  if (flags.includes("nodejs_compat_populate_process_env")) return true;
+  return (config.compatibility_date ?? "") >= "2025-04-01";
+}
+
+/** The text `vars` of a project, as `process.env` holds them. */
+export function processEnvOf(config: WranglerConfig): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(config.vars ?? {})) if (typeof v === "string") env[k] = v;
+  return env;
+}
