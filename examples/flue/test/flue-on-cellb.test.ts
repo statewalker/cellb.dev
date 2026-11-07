@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFlueClient } from "@flue/sdk";
 import { celldBucket, memoryObjectStore, type ObjectStore } from "@statewalker/cellb";
-import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
-import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import { loadProject } from "@statewalker/cellb/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startFakeLlm } from "./fake-llm.js";
 import { whoamiScript, wrongIdentities } from "./whoami.js";
@@ -41,9 +40,7 @@ describe("a Flue agent app on cellb", () => {
   afterAll(() => llm.close());
 
   it("loads with nothing unsupported and answers a prompt through a tool call", async () => {
-    const { runtime, unsupported } = await loadNodeProject(deployment(llm.baseUrl), {
-      openSql: nodeSqliteOpener(),
-      files: new MemFilesApi(),
+    const { runtime, unsupported } = await loadProject(deployment(llm.baseUrl), {
       ai: { baseUrl: llm.baseUrl, models: { "*": "tiny" } }, // env.AI, for the `cloud` agent
     });
     try {
@@ -81,9 +78,7 @@ describe("a Flue agent app on cellb", () => {
 
   it("answers through Workers AI: Flue's cloudflare provider on cellb's env.AI", async () => {
     const before = llm.requests.length;
-    const { runtime, unsupported } = await loadNodeProject(deployment(llm.baseUrl), {
-      openSql: nodeSqliteOpener(),
-      files: new MemFilesApi(),
+    const { runtime, unsupported } = await loadProject(deployment(llm.baseUrl), {
       ai: {
         baseUrl: llm.baseUrl,
         models: { "@cf/meta/llama-3.3-70b-instruct-fp8-fast": "tiny-cf" },
@@ -110,10 +105,7 @@ describe("a Flue agent app on cellb", () => {
   }, 60_000);
 
   it("streams a reply live over SSE and runs two conversations at once", async () => {
-    const { runtime } = await loadNodeProject(deployment(llm.baseUrl), {
-      openSql: nodeSqliteOpener(),
-      files: new MemFilesApi(),
-    });
+    const { runtime } = await loadProject(deployment(llm.baseUrl));
     try {
       const clientFor = (id: string) =>
         createFlueClient({
@@ -159,10 +151,7 @@ describe("a Flue agent app on cellb", () => {
 describe("concurrent conversations on cellb (Node)", () => {
   it("each conversation's tool sees its own agent context", async () => {
     const llm = await startFakeLlm(whoamiScript, { delayMs: 30 });
-    const { runtime } = await loadNodeProject(deployment(llm.baseUrl), {
-      openSql: nodeSqliteOpener(),
-      files: new MemFilesApi(),
-    });
+    const { runtime } = await loadProject(deployment(llm.baseUrl));
     try {
       const ids = Array.from({ length: 8 }, (_, i) => `who-${i}`);
       const results = await Promise.all(
@@ -194,11 +183,8 @@ describe("a Flue conversation moving between cellb nodes", () => {
   afterAll(() => llm.close());
 
   const node = async (dir: string, store: ObjectStore, name: string) =>
-    loadNodeProject(dir, {
-      openSql: nodeSqliteOpener(), // in memory: node B has nothing local, only the bucket
-      files: new MemFilesApi(),
-      storage: celldBucket(store, { node: name, leaseTtlMs: 3_000 }),
-    });
+    // No `data`: cells in memory, so node B has nothing local, only the bucket.
+    loadProject(dir, { bucket: celldBucket(store, { node: name, leaseTtlMs: 3_000 }) });
 
   it("finishes on node B a submission node A was running when it stopped", async () => {
     const dir = deployment(llm.baseUrl);

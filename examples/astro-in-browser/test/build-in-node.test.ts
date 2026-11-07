@@ -2,9 +2,8 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { transform } from "@astrojs/compiler-rs";
-import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
+import { loadProject } from "@statewalker/cellb/node";
 import { npmPackages } from "@statewalker/webrun-bundler";
-import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import * as esbuild from "esbuild-wasm";
 import { expect, it } from "vitest";
 import { buildAstroApp } from "../src/builder/build.ts";
@@ -36,10 +35,7 @@ it("builds the Astro app from its sources and serves it on cellb", async () => {
       compatibility_flags: ["nodejs_compat"],
     }),
   );
-  const { runtime, unsupported } = await loadNodeProject(dir, {
-    openSql: nodeSqliteOpener(),
-    files: new MemFilesApi(),
-  });
+  const { runtime, unsupported } = await loadProject(dir);
   try {
     expect(unsupported).toEqual([]);
     const get = (p: string) => runtime.fetch(new Request(`http://localhost${p}`));

@@ -1,11 +1,11 @@
 import { r as __exportAll$1 } from "./assets/rolldown-runtime-DQp2zzRu.js";
-import { S as lazyApi, a as createInitialSystemMessage, b as mergeClientIdentity, c as getCurrentTools, d as getToolStateChanges, f as normalizeContext, h as toToolDeclaration, i as createProvider, m as resolveTranscriptTools, n as clampThinkingLevel, o as getCurrentSystemMessage, r as createModels, s as getCurrentSystemPrompt, v as PI_ATTRIBUTION, w as createAssistantMessageEventStream } from "./assets/models-CzbUlNE1.js";
-import { n as parseStreamingJson } from "./assets/json-parse-BCl4j9Gq.js";
+import { S as lazyApi, a as createInitialSystemMessage, b as mergeClientIdentity, c as getCurrentTools, d as getToolStateChanges, f as normalizeContext, h as toToolDeclaration, i as createProvider, m as resolveTranscriptTools, n as clampThinkingLevel, o as getCurrentSystemMessage, r as createModels, s as getCurrentSystemPrompt, v as PI_ATTRIBUTION, w as createAssistantMessageEventStream } from "./assets/models-82ZuVgDk.js";
+import { n as parseStreamingJson } from "./assets/json-parse-C5itvf2E.js";
 import * as cloudflareWorkers from "cloudflare:workers";
 import { DurableObject, RpcTarget, env, exports } from "cloudflare:workers";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { channel } from "node:diagnostics_channel";
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/agent-tool-types.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/agent-tool-types.js
 /**
 * Reserved chunk type a sub-agent emits via `reportProgress({ milestone })`.
 * Unlike the ephemeral progress part this rides the child's stream as a
@@ -13,13 +13,13 @@ import { channel } from "node:diagnostics_channel";
 * re-resolves milestone waiters. See `design/rfc-detached-agent-tools.md`.
 */
 var AGENT_TOOL_MILESTONE_PART = "data-agent-milestone";
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/internal_context.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/internal_context.js
 /**
 * @internal — This is an internal implementation detail.
 * Importing or relying on this symbol **will** break your code in a future release.
 */
 var __DO_NOT_USE_WILL_BREAK__agentContext = new AsyncLocalStorage();
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/utils.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/utils.js
 /**
 * Property keys that JavaScript runtimes and test frameworks probe
 * on arbitrary objects (serialization, thenable check, inspection,
@@ -66,7 +66,7 @@ function camelCaseToKebabCase(str) {
 	kebabified = kebabified.startsWith("-") ? kebabified.slice(1) : kebabified;
 	return kebabified.replace(/_/g, "-").replace(/-$/, "");
 }
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/email.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/email.js
 /**
 * Compute HMAC-SHA256 signature for agent routing headers
 * @param secret - Secret key for HMAC
@@ -114,7 +114,7 @@ async function signAgentHeaders(secret, agentName, agentId) {
 		"X-Agent-Sig-Ts": timestamp
 	};
 }
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/classPrivateFieldGet2-DZBYAB34.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/classPrivateFieldGet2-DZBYAB34.js
 function _checkPrivateRedeclaration(e, t) {
 	if (t.has(e)) throw new TypeError("Cannot initialize the same private elements twice on an object");
 }
@@ -131,7 +131,7 @@ function _classPrivateFieldSet2(s, a, r) {
 function _classPrivateFieldGet2(s, a) {
 	return s.get(_assertClassBrand(s, a));
 }
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/cloudflare-BduZwmYK.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/cloudflare-BduZwmYK.js
 /**
 * Spans that asked to be invocation-bounded while a scope was active. Closed
 * when that scope ends; see {@link withInvocationScope}.
@@ -326,7 +326,7 @@ var noopSpan$1 = {
 var tracer = createTracer(cloudflareWorkers.tracing ?? { startActiveSpan(_name, run) {
 	return run(noopSpan$1);
 } });
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/sub-routing.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/sub-routing.js
 /**
 * Parse a URL and extract the first `/sub/{class}/{name}` segment,
 * if any. Recursive nesting is handled naturally: callers parse one
@@ -376,7 +376,7 @@ function resolveClassName(segment, knownClasses) {
 	if (knownClasses) return knownClasses.find((name) => camelCaseToKebabCase(name) === segment) ?? null;
 	return segment.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join("");
 }
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/retries.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/retries.js
 /**
 * Validate retry options eagerly so invalid config fails at enqueue/schedule time
 * rather than at execution time. Checks individual field ranges, enforces integer
@@ -592,7 +592,7 @@ function isPlatformTransientError(error) {
 	}
 	return false;
 }
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/client-invoker-VNZ7X0nn.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/client-invoker-VNZ7X0nn.js
 function isLegacyResultSchema(value) {
 	return typeof value?.parse === "function";
 }
@@ -614,16 +614,16 @@ function callV2Tool(client, params, schemaOrOptions, options) {
 	}, normalized.schema, normalized.options);
 	return client.callTool(params, normalized.options);
 }
-// ../../node_modules/.pnpm/nanoid@5.1.16/node_modules/nanoid/url-alphabet/index.js
+// ../node_modules/.pnpm/nanoid@5.1.16/node_modules/nanoid/url-alphabet/index.js
 var urlAlphabet = "useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
-// ../../node_modules/.pnpm/nanoid@5.1.16/node_modules/nanoid/index.browser.js
+// ../node_modules/.pnpm/nanoid@5.1.16/node_modules/nanoid/index.browser.js
 var nanoid$2 = (size = 21) => {
 	let id = "";
 	let bytes = crypto.getRandomValues(new Uint8Array(size |= 0));
 	while (size--) id += urlAlphabet[bytes[size] & 63];
 	return id;
 };
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/mcp/do-oauth-client-provider.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/mcp/do-oauth-client-provider.js
 var STATE_EXPIRATION_MS = 6e5;
 var codeVerifierStateStorage = new AsyncLocalStorage();
 function parseOAuthState(state) {
@@ -910,7 +910,7 @@ var DurableObjectOAuthClientProvider = class {
 		if (keys.length > 0) await this.storage.delete(keys);
 	}
 };
-// ../../node_modules/.pnpm/partyserver@0.5.10_@cloudflare+workers-types@5.20261026.1/node_modules/partyserver/dist/index.js
+// ../node_modules/.pnpm/partyserver@0.5.10_@cloudflare+workers-types@5.20261101.1/node_modules/partyserver/dist/index.js
 if (!("OPEN" in WebSocket)) {
 	const WebSocketStatus = {
 		CONNECTING: WebSocket.READY_STATE_CONNECTING,
@@ -1716,7 +1716,7 @@ var Server = class extends DurableObject {
 		await this.onAlarm();
 	}
 };
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/util.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/util.js
 function getEnumValues(entries) {
 	const numericValues = Object.values(entries).filter((v) => typeof v === "number");
 	return Object.entries(entries).filter(([k, _]) => numericValues.indexOf(+k) === -1).map(([_, v]) => v);
@@ -2282,7 +2282,7 @@ function constantCatch(value) {
 	fn[CONSTANT_CATCH] = true;
 	return fn;
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/core.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/core.js
 var _a$1;
 /** A special constant with type `never` */
 var NEVER = /*@__PURE__*/ Object.freeze({ status: "aborted" });
@@ -2390,7 +2390,7 @@ function config(newConfig) {
 	if (newConfig) Object.assign(globalConfig, newConfig);
 	return globalConfig;
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/errors.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/errors.js
 function _getMessage() {
 	const internals = this._zod;
 	internals.message ?? (internals.message = JSON.stringify(internals.def, jsonStringifyReplacer, 2));
@@ -2505,7 +2505,7 @@ function formatError$1(error, mapper = (issue) => issue.message) {
 	processError(error);
 	return fieldErrors;
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/parse.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/parse.js
 function finalizeParams(callee, params) {
 	return {
 		callee: params?.callee ?? callee,
@@ -2709,7 +2709,7 @@ var _safeEncodeAsync = (_Err) => async (schema, value, _ctx) => {
 var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
 	return _safeParseAsync(_Err)(schema, value, _ctx);
 };
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/regexes.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/regexes.js
 var regexes_exports = /* @__PURE__ */ __exportAll$1({
 	anyString: () => anyString,
 	base64: () => base64$1,
@@ -2897,7 +2897,7 @@ var sha384_base64url = /*@__PURE__*/ fixedBase64url(64);
 var sha512_hex = /^[0-9a-fA-F]{128}$/;
 var sha512_base64 = /*@__PURE__*/ fixedBase64(86, "==");
 var sha512_base64url = /*@__PURE__*/ fixedBase64url(86);
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/checks.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/checks.js
 var $ZodCheck = /*@__PURE__*/ $constructor("$ZodCheck", (inst, def) => {
 	var _a;
 	inst._zod ?? (inst._zod = {});
@@ -3344,7 +3344,7 @@ var $ZodCheckOverwrite = /*@__PURE__*/ $constructor("$ZodCheckOverwrite", (inst,
 		payload.value = def.tx(payload.value);
 	};
 });
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/doc.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/doc.js
 var Doc = class {
 	constructor(args = [], closed = {}) {
 		this.content = [];
@@ -3377,13 +3377,13 @@ var Doc = class {
 		return new F(...Object.keys(this.closed), `return function (${this.args.join(", ")}) {\n${content.join("\n")}\n};`)(...Object.values(this.closed));
 	}
 };
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/versions.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/versions.js
 var version$1 = {
 	major: 4,
 	minor: 6,
 	patch: 7
 };
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/schemas.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/schemas.js
 var $ZodType = /*@__PURE__*/ $constructor("$ZodType", (inst, def) => {
 	var _a;
 	inst ?? (inst = {});
@@ -5549,7 +5549,7 @@ function handleRefineResult(result, payload, input, inst) {
 		payload.issues.push(issue(_iss));
 	}
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/memoizer.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/memoizer.js
 var $ZodCyclicError = class extends Error {
 	constructor() {
 		super(`Cannot parse a reference cycle that closes through a transform`);
@@ -5801,7 +5801,7 @@ function isBackEdge(ctx, value) {
 	const backEdges = ctx[STATE]?.backEdges;
 	return backEdges !== void 0 && isRef(value) && backEdges.has(value);
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/locales/en.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/locales/en.js
 var error = () => {
 	const Sizable = {
 		string: {
@@ -5908,7 +5908,7 @@ var error = () => {
 function en_default() {
 	return { localeError: error() };
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/registries.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/registries.js
 var _a;
 var $ZodRegistry = class {
 	constructor() {
@@ -5954,7 +5954,7 @@ function registry() {
 }
 (_a = globalThis).__zod_globalRegistry ?? (_a.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/api.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/api.js
 function snapshotChecks(def) {
 	if (def.checks) def.checks = [...def.checks];
 	return def;
@@ -6801,7 +6801,7 @@ function _stringFormat(Class, format, fnOrRegex, _params = {}) {
 	if (fnOrRegex instanceof RegExp) def.pattern = fnOrRegex;
 	return new Class(def);
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/to-json-schema.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/to-json-schema.js
 function assignProps(target, ...sources) {
 	for (const source of sources) for (const key of Reflect.ownKeys(source)) if (Object.prototype.propertyIsEnumerable.call(source, key)) assignProp(target, key, source[key]);
 	return target;
@@ -7244,7 +7244,7 @@ var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) =
 	extractDefs(ctx, schema);
 	return finalize(ctx, schema);
 };
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/json-schema-processors.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/json-schema-processors.js
 var narrowMin = (agg, key, value) => {
 	if (agg[key] === void 0 || value > agg[key]) agg[key] = value;
 };
@@ -7889,7 +7889,7 @@ function toJSONSchema(input, params) {
 	extractDefs(ctx, input);
 	return finalize(ctx, input);
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/checks.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/checks.js
 var checks_exports = /* @__PURE__ */ __exportAll$1({
 	endsWith: () => _endsWith,
 	gt: () => _gt,
@@ -7922,7 +7922,7 @@ var checks_exports = /* @__PURE__ */ __exportAll$1({
 	trim: () => _trim,
 	uppercase: () => _uppercase
 });
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/errors.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/errors.js
 var _installedErrorProtos = /* @__PURE__ */ new WeakSet([Object.prototype, Error.prototype]);
 function _lazyMethod(proto, key, make) {
 	Object.defineProperty(proto, key, {
@@ -7971,7 +7971,7 @@ var initializer = (inst, issues) => {
 	});
 };
 var ZodRealError = /*@__PURE__*/ $constructor("ZodError", initializer, void 0, { Parent: Error });
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/parse.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/parse.js
 var parse = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse$1 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -7984,7 +7984,7 @@ var safeEncode = /* @__PURE__ */ _safeEncode(ZodRealError);
 var safeDecode = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/schemas.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/schemas.js
 var schemas_exports$1 = /* @__PURE__ */ __exportAll$1({
 	ZodAny: () => ZodAny,
 	ZodArray: () => ZodArray,
@@ -9599,7 +9599,7 @@ function preprocess(fn, schema) {
 		out: schema
 	});
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/compat.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/compat.js
 /** @deprecated Use the raw string literal codes instead, e.g. "invalid_type". */
 var ZodIssueCode = {
 	invalid_type: "invalid_type",
@@ -9617,7 +9617,7 @@ var ZodIssueCode = {
 /** @deprecated Do not use. Stub definition, only included for zod-to-json-schema compatibility. */
 var ZodFirstPartyTypeKind;
 ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {});
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/iso.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/iso.js
 var iso_exports = /* @__PURE__ */ __exportAll$1({
 	ZodISODate: () => ZodISODate,
 	ZodISODateTime: () => ZodISODateTime,
@@ -9640,7 +9640,7 @@ function time$1(params) {
 function duration(params) {
 	return /* @__PURE__ */ _isoDuration(ZodISODuration, params);
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/from-json-schema.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/from-json-schema.js
 var z = {
 	...schemas_exports$1,
 	...checks_exports,
@@ -10209,11 +10209,11 @@ function fromJSONSchema(schema, params) {
 	};
 	return convertSchema$1(normalized, ctx);
 }
-// ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/coerce.js
+// ../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/coerce.js
 function number(params) {
 	return /* @__PURE__ */ _coercedNumber(ZodNumber, params);
 }
-// ../../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/chunk-Br0eD_fh.mjs
+// ../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/chunk-Br0eD_fh.mjs
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -10244,7 +10244,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 	value: mod,
 	enumerable: true
 }) : target, mod));
-// ../../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/dialects-BOhdv1Fc.mjs
+// ../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/dialects-BOhdv1Fc.mjs
 /**
 * Canonical `$schema` URIs per supported dialect (http + https variants, trailing-`#` stripped).
 */
@@ -10274,7 +10274,7 @@ function declaredDialect(schema, remedy) {
 	if (DRAFT_07_URIS.has(declared) || DRAFT_06_URIS.has(declared)) return "draft-7";
 	throw new Error(`JSON Schema declares an unsupported dialect ("$schema": "${schema.$schema.slice(0, 200)}"). The default validator supports JSON Schema 2020-12, 2019-09, draft-07, and draft-06; ${remedy}`);
 }
-// ../../node_modules/.pnpm/@modelcontextprotocol+core@2.0.0/node_modules/@modelcontextprotocol/core/dist/auth-CUe6YdwF.mjs
+// ../node_modules/.pnpm/@modelcontextprotocol+core@2.0.0/node_modules/@modelcontextprotocol/core/dist/auth-CUe6YdwF.mjs
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
 var SUPPORTED_PROTOCOL_VERSIONS = [
 	LATEST_PROTOCOL_VERSION,
@@ -11905,7 +11905,7 @@ var OAuthTokenRevocationRequestSchema = object$1({
 	token: string$1(),
 	token_type_hint: string$1().optional()
 }).strip();
-// ../../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/src-D_zzAWoS.mjs
+// ../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/src-D_zzAWoS.mjs
 /**
 * Cross-bundle `instanceof` support for the SDK error classes.
 *
@@ -18226,7 +18226,7 @@ function preloadSchemas() {
 	warmInputSchemaMaps2026();
 	warmWireResultSchemas2026();
 }
-// ../../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/cfWorkerProvider-BylNJ1R5.mjs
+// ../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/cfWorkerProvider-BylNJ1R5.mjs
 function deepCompareStrict(a, b) {
 	const typeofa = typeof a;
 	if (typeofa !== typeof b) return false;
@@ -19180,14 +19180,14 @@ var CfWorkerJsonSchemaValidator = class {
 		};
 	}
 };
-// ../../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/shimsWorkerd.mjs
+// ../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/shimsWorkerd.mjs
 /**
 * Cloudflare Workers runtime shims for client package
 *
 * This file is selected via package.json export conditions when running in workerd.
 */
 preloadSchemas();
-// ../../node_modules/.pnpm/pkce-challenge@5.0.1/node_modules/pkce-challenge/dist/index.browser.js
+// ../node_modules/.pnpm/pkce-challenge@5.0.1/node_modules/pkce-challenge/dist/index.browser.js
 var crypto$1 = globalThis.crypto;
 /**
 * Creates an array of length `size` of random bytes
@@ -19239,7 +19239,7 @@ async function pkceChallenge(length) {
 		code_challenge: await generateChallenge(verifier)
 	};
 }
-// ../../node_modules/.pnpm/eventsource-parser@3.1.1/node_modules/eventsource-parser/dist/index.js
+// ../node_modules/.pnpm/eventsource-parser@3.1.1/node_modules/eventsource-parser/dist/index.js
 var ParseError$1 = class extends Error {
 	constructor(message, options) {
 		super(message), this.name = "ParseError", this.type = options.type, this.field = options.field, this.value = options.value, this.line = options.line;
@@ -19406,7 +19406,7 @@ function isDataPrefix(chunk, i, firstCharCode) {
 function isEventPrefix(chunk, i, firstCharCode) {
 	return firstCharCode === 101 && chunk.charCodeAt(i + 1) === 118 && chunk.charCodeAt(i + 2) === 101 && chunk.charCodeAt(i + 3) === 110 && chunk.charCodeAt(i + 4) === 116 && chunk.charCodeAt(i + 5) === 58;
 }
-// ../../node_modules/.pnpm/eventsource@3.0.7/node_modules/eventsource/dist/index.js
+// ../node_modules/.pnpm/eventsource@3.0.7/node_modules/eventsource/dist/index.js
 var ErrorEvent = class extends Event {
 	/**
 	* Constructs a new `ErrorEvent` instance. This is typically not called directly,
@@ -19664,7 +19664,7 @@ function getBaseURL() {
 	const doc = "document" in globalThis ? globalThis.document : void 0;
 	return doc && typeof doc == "object" && "baseURI" in doc && typeof doc.baseURI == "string" ? doc.baseURI : void 0;
 }
-// ../../node_modules/.pnpm/eventsource-parser@3.1.1/node_modules/eventsource-parser/dist/stream.js
+// ../node_modules/.pnpm/eventsource-parser@3.1.1/node_modules/eventsource-parser/dist/stream.js
 var EventSourceParserStream = class extends TransformStream {
 	constructor({ onError, onRetry, onComment, maxBufferSize } = {}) {
 		let parser;
@@ -19688,7 +19688,7 @@ var EventSourceParserStream = class extends TransformStream {
 		});
 	}
 };
-// ../../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/index.mjs
+// ../node_modules/.pnpm/@modelcontextprotocol+client@2.0.0/node_modules/@modelcontextprotocol/client/dist/index.mjs
 /**
 * Base class for the OAuth-client-flow error family. Concrete subclasses are
 * added to this module alongside the SEP-2468/837/2207/2350/2352 behavior
@@ -24294,7 +24294,7 @@ var StreamableHTTPClientTransport = class {
 		});
 	}
 };
-// ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.30.0_@cfworker+json-schema@4.1.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
+// ../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.2_@cfworker+json-schema@4.1.4_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
 /**
 * Assert 'object' type schema.
@@ -26124,7 +26124,7 @@ union([
 	ListTasksResultSchema,
 	CreateTaskResultSchema
 ]);
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/client-zqKcsyFa.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/client-zqKcsyFa.js
 function toDisposable(fn) {
 	return { dispose: fn };
 }
@@ -28301,7 +28301,7 @@ function getNamespacedData(mcpClients, type) {
 		});
 	});
 }
-// ../../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.9_@babel+runtime@7.29.10_@cloudflare+workers-types@5.2026_6fc8964dbb9e65763c0cec92dd8f14bc/node_modules/agents/dist/observability/index.js
+// ../node_modules/.pnpm/agents@0.20.1_@babel+core@8.0.10_@babel+runtime@8.0.10_@cloudflare+workers-types@5.2026_34bff94d05a280f35311d28faa17f16d/node_modules/agents/dist/observability/index.js
 /**
 * Diagnostics channels for agent observability.
 *
@@ -28359,7 +28359,7 @@ function getChannel(type) {
 var genericObservability = { emit(event) {
 	getChannel(event.type).publish(event);
 } };
-// ../../node_modules/.pnpm/cron-schedule@6.0.0/node_modules/cron-schedule/dist/utils.js
+// ../node_modules/.pnpm/cron-schedule@6.0.0/node_modules/cron-schedule/dist/utils.js
 function extractDateElements(date) {
 	return {
 		second: date.getSeconds(),
@@ -28378,7 +28378,7 @@ function getDaysBetweenWeekdays(weekday1, weekday2) {
 	if (weekday1 <= weekday2) return weekday2 - weekday1;
 	return 6 - weekday1 + weekday2 + 1;
 }
-// ../../node_modules/.pnpm/cron-schedule@6.0.0/node_modules/cron-schedule/dist/cron.js
+// ../node_modules/.pnpm/cron-schedule@6.0.0/node_modules/cron-schedule/dist/cron.js
 var Cron = class {
 	constructor({ seconds, minutes, hours, days, months, weekdays }) {
 		if (!seconds || seconds.size === 0) throw new Error("There must be at least one allowed second.");
@@ -28630,7 +28630,7 @@ var Cron = class {
 		return this.days.indexOf(day) !== -1 && this.weekdays.indexOf(weekday) !== -1;
 	}
 };
-// ../../node_modules/.pnpm/cron-schedule@6.0.0/node_modules/cron-schedule/dist/cron-parser.js
+// ../node_modules/.pnpm/cron-schedule@6.0.0/node_modules/cron-schedule/dist/cron-parser.js
 var secondConstraint = {
 	min: 0,
 	max: 59
@@ -30120,7 +30120,7 @@ var Agent$1 = class Agent extends Server {
 			if (email._secureRouted && options.secret === void 0) throw new Error("This email was routed via createSecureReplyEmailResolver. You must pass a secret to replyToEmail() to sign replies, or pass explicit null to opt-out (not recommended).");
 			const agentName = camelCaseToKebabCase(this._ParentClass.name);
 			const agentId = this.name;
-			const { createMimeMessage } = await import("./assets/mimetext.node.es-DLC8KomI.js");
+			const { createMimeMessage } = await import("./assets/mimetext.node.es-Ct5IW9dc.js");
 			const msg = createMimeMessage();
 			msg.setSender({
 				addr: email.to,
@@ -35840,7 +35840,7 @@ var StreamingResponse = class {
 		return sendRpcResponseIfOpen(this._connection, response);
 	}
 };
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/sandbox-CR3o1Qmd.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/sandbox-CR3o1Qmd.mjs
 /** Build a standard `AbortError` (`DOMException`) carrying the signal's reason as `cause`. */
 function abortErrorFor(signal) {
 	const reason = signal.reason;
@@ -36058,7 +36058,7 @@ function createCwdSandbox(parentEnv, cwd) {
 		resolvePath
 	};
 }
-// ../../node_modules/.pnpm/layerr@3.0.0/node_modules/layerr/dist/error.js
+// ../node_modules/.pnpm/layerr@3.0.0/node_modules/layerr/dist/error.js
 function assertError(err) {
 	if (!isError(err)) throw new Error("Parameter was not an error");
 }
@@ -36072,7 +36072,7 @@ var __name = "Layerr";
 function getGlobalName() {
 	return __name;
 }
-// ../../node_modules/.pnpm/layerr@3.0.0/node_modules/layerr/dist/tools.js
+// ../node_modules/.pnpm/layerr@3.0.0/node_modules/layerr/dist/tools.js
 function parseArguments(args) {
 	let options, shortMessage = "";
 	if (args.length === 0) options = {};
@@ -36091,7 +36091,7 @@ function parseArguments(args) {
 		shortMessage
 	};
 }
-// ../../node_modules/.pnpm/layerr@3.0.0/node_modules/layerr/dist/layerr.js
+// ../node_modules/.pnpm/layerr@3.0.0/node_modules/layerr/dist/layerr.js
 var Layerr = class Layerr extends Error {
 	constructor(errorOptionsOrMessage, messageText) {
 		const { options, shortMessage } = parseArguments([...arguments]);
@@ -36134,7 +36134,7 @@ var Layerr = class Layerr extends Error {
 		return output;
 	}
 };
-// ../../node_modules/.pnpm/ulidx@2.4.1/node_modules/ulidx/dist/browser/index.js
+// ../node_modules/.pnpm/ulidx@2.4.1/node_modules/ulidx/dist/browser/index.js
 var ENCODING = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 var ENCODING_LEN = 32;
 var TIME_MAX = 0xffffffffffff;
@@ -36223,7 +36223,7 @@ function ulid(seedTime, prng) {
 	const currentPRNG = prng || detectPRNG();
 	return encodeTime(isNaN(seedTime) ? Date.now() : seedTime, TIME_LEN) + encodeRandom(RANDOM_LEN, currentPRNG);
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/errors-BcRwz-UD.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/errors-BcRwz-UD.mjs
 var interceptors = [];
 function extractTraceCarrier(headers) {
 	const traceparent = headers.get("traceparent");
@@ -38047,7 +38047,7 @@ function safeParse(schema, input, config$1) {
 		issues: dataset.issues
 	};
 }
-// ../../node_modules/.pnpm/@valibot+to-json-schema@1.8.0_valibot@1.5.0_typescript@7.0.2_/node_modules/@valibot/to-json-schema/dist/index.mjs
+// ../node_modules/.pnpm/@valibot+to-json-schema@1.8.0_valibot@1.5.0_typescript@7.0.2_/node_modules/@valibot/to-json-schema/dist/index.mjs
 /**
 * Adds an error message to the errors array.
 *
@@ -38729,7 +38729,7 @@ function toJsonSchema(schema, config) {
 	if (context.referenceMap.size) jsonSchema.$defs = context.definitions;
 	return jsonSchema;
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/schema-DIDpvZZa.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/schema-DIDpvZZa.mjs
 var jsonSchemas = /* @__PURE__ */ new WeakMap();
 function isStandardSchema(value) {
 	if (!value || typeof value !== "object") return false;
@@ -38788,7 +38788,7 @@ function normalizeValibotIssue(issue) {
 		path
 	} : { message: issue.message };
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/metrics.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/metrics.mjs
 /** TypeBox instantiation metrics */
 var Metrics = {
 	assign: 0,
@@ -38797,7 +38797,7 @@ var Metrics = {
 	discard: 0,
 	update: 0
 };
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/string.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/string.mjs
 function IsBetween(value, min, max) {
 	return value >= min && value <= max;
 }
@@ -38891,7 +38891,7 @@ function IsMaxLength$3(value, maxLength) {
 		if (++index > maxLength) return false;
 	}
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/guard.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/guard.mjs
 var guard_exports = /* @__PURE__ */ __exportAll$1({
 	Counted: () => Counted$1,
 	Entries: () => Entries$2,
@@ -39105,7 +39105,7 @@ function DeepEqualArray(left, right) {
 function IsDeepEqual$1(left, right) {
 	return IsArray$2(left) ? DeepEqualArray(left, right) : IsObject$2(left) ? DeepEqualObject(left, right) : IsEqual$1(left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/emit.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/emit.mjs
 var identifierRegExp = /^[\p{ID_Start}_$][\p{ID_Continue}_$\u200C\u200D]*$/u;
 /** Returns true if this value is a valid JavaScript identifier */
 function IsIdentifier(value) {
@@ -39258,7 +39258,7 @@ function ReduceOr(operands) {
 function MultipleOf(dividend, divisor) {
 	return `Guard.IsMultipleOf(${dividend}, ${divisor})`;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/globals.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/globals.mjs
 function IsBoolean$1(value) {
 	return value instanceof Boolean;
 }
@@ -39287,9 +39287,9 @@ function IsSet(value) {
 function IsMap(value) {
 	return value instanceof globalThis.Map;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/index.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/guard/index.mjs
 var guard_default = guard_exports;
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/settings/settings.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/settings/settings.mjs
 var settings = {
 	immutableTypes: false,
 	maxErrors: 8,
@@ -39304,12 +39304,12 @@ var settings = {
 function Get$3() {
 	return settings;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/freeze.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/freeze.mjs
 /** Conditionally freezes the value if `immutableTypes` is true, otherwise no action. */
 function Freeze(value) {
 	return Get$3().immutableTypes ? Object.freeze(value) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/assign.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/assign.mjs
 /**
 * Performs an Object assign using the Left and Right object types. We track this operation as it
 * creates a new GC handle per assignment.
@@ -39321,7 +39321,7 @@ function Assign(left, right) {
 		...right
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/clone.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/clone.mjs
 function FromClassInstance(value) {
 	return value;
 }
@@ -39377,7 +39377,7 @@ function Clone$1(value) {
 	Metrics.clone += 1;
 	return FromValue$2(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/create.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/create.mjs
 function MergeHidden(left, right) {
 	for (const key of Object.keys(right)) Object.defineProperty(left, key, {
 		configurable: true,
@@ -39403,7 +39403,7 @@ function Create$1(hidden, enumerable, options = {}) {
 	const withOptions = Merge(enumerable, options);
 	return Freeze(Get$3().enumerableKind ? Merge(withOptions, hidden) : MergeHidden(withOptions, hidden));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/discard.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/discard.mjs
 /** Discards multiple property keys from the given object value */
 function Discard(value, propertyKeys) {
 	Metrics.discard += 1;
@@ -39416,7 +39416,7 @@ function Discard(value, propertyKeys) {
 	}
 	return Freeze(result);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/update.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/memory/update.mjs
 /**
 * Updates a value with new properties while preserving property enumerability. Use this function to modify
 * existing types without altering their configuration.
@@ -39439,14 +39439,14 @@ function Update$1(current, hidden, enumerable) {
 	});
 	return Freeze(result);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/schema.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/schema.mjs
 function IsKind(value, kind) {
 	return IsObject$2(value) && HasPropertyKey$1(value, "~kind") && IsEqual$1(value["~kind"], kind);
 }
 function IsSchema$1(value) {
 	return IsObject$2(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/deferred.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/deferred.mjs
 /** Creates a Deferred action. */
 function Deferred(action, parameters, options) {
 	return Create$1({ "~kind": "Deferred" }, {
@@ -39460,7 +39460,7 @@ function Deferred(action, parameters, options) {
 function IsDeferred(value) {
 	return IsKind(value, "Deferred");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly/instantiate_add.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly/instantiate_add.mjs
 function AddReadonlyOperation(type) {
 	return Update$1(type, { "~readonly": true }, {});
 }
@@ -39470,7 +39470,7 @@ function AddReadonlyAction(type, options) {
 function AddReadonlyInstantiate(context, state, type, options) {
 	return AddReadonlyAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/optional/instantiate_add.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/optional/instantiate_add.mjs
 function AddOptionalOperation(type) {
 	return Update$1(type, { "~optional": true }, {});
 }
@@ -39480,7 +39480,7 @@ function AddOptionalAction(type, options) {
 function AddOptionalInstantiate(context, state, type, options) {
 	return AddOptionalAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/array.mjs
 /** Creates an Array type. */
 function _Array_(items, options) {
 	return Create$1({ "~kind": "Array" }, {
@@ -39500,7 +39500,7 @@ function ArrayOptions(type) {
 		"items"
 	]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/constructor.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/constructor.mjs
 /** Creates a Constructor type. */
 function Constructor(parameters, instanceType, options = {}) {
 	return Create$1({ "~kind": "Constructor" }, {
@@ -39522,7 +39522,7 @@ function ConstructorOptions(type) {
 		"instanceType"
 	]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/function.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/function.mjs
 /** Creates a Function type. */
 function _Function_(parameters, returnType, options = {}) {
 	return Create$1({ ["~kind"]: "Function" }, {
@@ -39544,7 +39544,7 @@ function FunctionOptions(type) {
 		"returnType"
 	]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/ref.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/ref.mjs
 /** Creates a Ref type. */
 function Ref$1(ref, options) {
 	return Create$1({ ["~kind"]: "Ref" }, { $ref: ref }, options);
@@ -39553,7 +39553,7 @@ function Ref$1(ref, options) {
 function IsRef$1(value) {
 	return IsKind(value, "Ref");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/generic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/generic.mjs
 /** Creates a Generic type. */
 function Generic(parameters, expression) {
 	return Create$1({ "~kind": "Generic" }, {
@@ -39566,7 +39566,7 @@ function Generic(parameters, expression) {
 function IsGeneric(value) {
 	return IsKind(value, "Generic");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/any.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/any.mjs
 /** Creates a Any type. */
 function Any(options) {
 	return Create$1({ ["~kind"]: "Any" }, {}, options);
@@ -39575,7 +39575,7 @@ function Any(options) {
 function IsAny(value) {
 	return IsKind(value, "Any");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/never.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/never.mjs
 var NeverPattern = "(?!)";
 /** Creates a Never type. */
 function Never(options) {
@@ -39585,12 +39585,12 @@ function Never(options) {
 function IsNever(value) {
 	return IsKind(value, "Never");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_add_optional.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_add_optional.mjs
 /** Applies an AddOptional action to a type. */
 function AddOptional(type, options = {}) {
 	return AddOptionalAction(type, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/_optional.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/_optional.mjs
 /** Applies an Optional modifier to the given type. */
 function Optional(type) {
 	return AddOptional(type);
@@ -39599,7 +39599,7 @@ function Optional(type) {
 function IsOptional(value) {
 	return IsSchema$1(value) && HasPropertyKey$1(value, "~optional");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/properties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/properties.mjs
 /** Creates a RequiredArray derived from the given TProperties value. */
 function RequiredArray(properties) {
 	return Keys$1(properties).filter((key) => !IsOptional(properties[key]));
@@ -39612,7 +39612,7 @@ function PropertyKeys(properties) {
 function PropertyValues(properties) {
 	return Values(properties);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/object.mjs
 /** Creates an Object type. */
 function _Object_(properties, options = {}) {
 	const requiredKeys = RequiredArray(properties);
@@ -39635,7 +39635,7 @@ function ObjectOptions(type) {
 		"required"
 	]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/unknown.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/unknown.mjs
 /** Creates an Unknown type. */
 function Unknown(options) {
 	return Create$1({ ["~kind"]: "Unknown" }, {}, options);
@@ -39644,7 +39644,7 @@ function Unknown(options) {
 function IsUnknown(value) {
 	return IsKind(value, "Unknown");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/cyclic.mjs
 /** Creates a Cyclic type. */
 function Cyclic($defs, $ref, options) {
 	const defs = Keys$1($defs).reduce((result, key) => {
@@ -39662,12 +39662,12 @@ function Cyclic($defs, $ref, options) {
 function IsCyclic(value) {
 	return IsKind(value, "Cyclic");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/unsafe.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/unsafe.mjs
 /** Returns true if the given value is TUnsafe. */
 function IsUnsafe(value) {
 	return IsObjectNotArray$1(value) && HasPropertyKey$1(value, "~unsafe") && IsNull$2(value["~unsafe"]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/arguments/arguments.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/arguments/arguments.mjs
 /**
 * Match arguments for overloaded functions that use the `...args: unknown[]` pattern. Arguments
 * are parsed using argument length only.
@@ -39677,12 +39677,12 @@ function Match$3(args, match) {
 		throw Error("Invalid Arguments");
 	})();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/infer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/infer.mjs
 /** Returns true if the given value is TInfer. */
 function IsInfer(value) {
 	return IsKind(value, "Infer");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/dependent.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/dependent.mjs
 /** Creates a Dependent type */
 function Dependent(if_, then_, else_, options = {}) {
 	return Create$1({ "~kind": "Dependent" }, {
@@ -39704,12 +39704,12 @@ function DependentOptions(type) {
 		"else"
 	]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/enum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/enum.mjs
 /** Returns true if the given value is a TEnum. */
 function IsEnum$1(value) {
 	return IsKind(value, "Enum");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/intersect.mjs
 /** Creates a Intersect type. */
 function Intersect(types, options = {}) {
 	return Create$1({ "~kind": "Intersect" }, { allOf: types }, options);
@@ -39722,7 +39722,7 @@ function IsIntersect(value) {
 function IntersectOptions(type) {
 	return Discard(type, ["~kind", "allOf"]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/environment/evaluate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/environment/evaluate.mjs
 var supported = void 0;
 function TryEvaluate() {
 	try {
@@ -39746,12 +39746,12 @@ function CanEvaluate() {
 function Evaluate$1(...args) {
 	return new globalThis.Function(...args);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/unreachable/unreachable.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/unreachable/unreachable.mjs
 /** Used for unreachable logic */
 function Unreachable() {
 	throw new Error("Unreachable");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/hashing/hash.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/hashing/hash.mjs
 var hash_exports = /* @__PURE__ */ __exportAll$1({
 	Hash: () => Hash,
 	HashCode: () => HashCode
@@ -39869,7 +39869,7 @@ function HashCode(value) {
 function Hash(value) {
 	return HashCode(value).toString(16).padStart(16, "0");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/locale/en_US.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/locale/en_US.mjs
 /** en_US: English (United States) - ISO 639-1 language code 'en' with ISO 3166-1 alpha-2 country code 'US' for United States. */
 function en_US(error) {
 	switch (error.keyword) {
@@ -39907,32 +39907,32 @@ function en_US(error) {
 		default: return "an unknown validation error occurred";
 	}
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/locale/_config.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/system/locale/_config.mjs
 var locale = en_US;
 /** Gets the locale */
 function Get$2() {
 	return locale;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/_codec.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/_codec.mjs
 function IsCodec(value) {
 	return IsSchema$1(value) && HasPropertyKey$1(value, "~codec") && IsObject$2(value["~codec"]) && HasPropertyKey$1(value["~codec"], "encode") && HasPropertyKey$1(value["~codec"], "decode");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/_immutable.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/_immutable.mjs
 /** Returns true if the given value is a TImmutable */
 function IsImmutable(value) {
 	return IsSchema$1(value) && HasPropertyKey$1(value, "~immutable");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_add_readonly.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_add_readonly.mjs
 /** Applies an AddReadonly action to a type. */
 function AddReadonly(type, options = {}) {
 	return AddReadonlyAction(type, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/_readonly.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/_readonly.mjs
 /** Returns true if the given value is a TReadonly */
 function IsReadonly(value) {
 	return IsSchema$1(value) && HasPropertyKey$1(value, "~readonly");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/bigint.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/bigint.mjs
 var BigIntPattern = "-?(?:0|[1-9][0-9]*)n";
 /** Creates a BigInt type. */
 function BigInt$1(options) {
@@ -39942,7 +39942,7 @@ function BigInt$1(options) {
 function IsBigInt(value) {
 	return IsKind(value, "BigInt");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/boolean.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/boolean.mjs
 /** Creates a Boolean type. */
 function Boolean$1(options) {
 	return Create$1({ "~kind": "Boolean" }, { type: "boolean" }, options);
@@ -39951,7 +39951,7 @@ function Boolean$1(options) {
 function IsBoolean(value) {
 	return IsKind(value, "Boolean");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/integer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/integer.mjs
 var IntegerPattern = "-?(?:0|[1-9][0-9]*)";
 /** Creates a Integer type. */
 function Integer(options) {
@@ -39961,7 +39961,7 @@ function Integer(options) {
 function IsInteger(value) {
 	return IsKind(value, "Integer");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/literal.mjs
 var InvalidLiteralValue = class extends Error {
 	constructor(value) {
 		super(`Invalid Literal value`);
@@ -40009,7 +40009,7 @@ function IsLiteralString(value) {
 function IsLiteral(value) {
 	return IsKind(value, "Literal");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/null.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/null.mjs
 /** Creates a Null type. */
 function Null(options) {
 	return Create$1({ "~kind": "Null" }, { type: "null" }, options);
@@ -40018,7 +40018,7 @@ function Null(options) {
 function IsNull(value) {
 	return IsKind(value, "Null");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/number.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/number.mjs
 var NumberPattern = "-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?";
 /** Creates a Number type. */
 function Number$1(options) {
@@ -40028,7 +40028,7 @@ function Number$1(options) {
 function IsNumber(value) {
 	return IsKind(value, "Number");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/symbol.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/symbol.mjs
 /** Creates a Symbol type. */
 function Symbol$1(options) {
 	return Create$1({ "~kind": "Symbol" }, { type: "symbol" }, options);
@@ -40037,7 +40037,7 @@ function Symbol$1(options) {
 function IsSymbol(value) {
 	return IsKind(value, "Symbol");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/string.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/string.mjs
 /** Creates a String type. */
 function String$1(options) {
 	return Create$1({ "~kind": "String" }, { type: "string" }, options);
@@ -40046,7 +40046,7 @@ function String$1(options) {
 function IsString(value) {
 	return IsKind(value, "String");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/union.mjs
 /** Creates a Union type. */
 function Union(anyOf, options = {}) {
 	return Create$1({ "~kind": "Union" }, { anyOf }, options);
@@ -40059,13 +40059,13 @@ function IsUnion(value) {
 function UnionOptions(type) {
 	return Discard(type, ["~kind", "anyOf"]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/patterns/pattern.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/patterns/pattern.mjs
 /** Parses a Pattern into a sequence of TemplateLiteral types. A result of [] indicates failure to parse. */
 function ParsePatternIntoTypes(pattern) {
 	const parsed = Pattern(pattern);
 	return IsEqual$1(parsed.length, 2) ? parsed[0] : [];
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/is_finite.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/is_finite.mjs
 function FromLiteral$6(_value) {
 	return true;
 }
@@ -40082,14 +40082,14 @@ function FromType$24(type) {
 function IsTemplateLiteralFinite(types) {
 	return FromTypes$5(types);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/create.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/create.mjs
 function TemplateLiteralCreate(pattern) {
 	return Create$1({ ["~kind"]: "TemplateLiteral" }, {
 		type: "string",
 		pattern
 	}, {});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/decode.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/decode.mjs
 function FromLiteralPush(variants, value, result = []) {
 	return ShiftLeft(variants, (left, right) => FromLiteralPush(right, value, [...result, `${left}${value}`]), () => result);
 }
@@ -40129,7 +40129,7 @@ function TemplateLiteralDecode(pattern) {
 	const decoded = TemplateLiteralDecodeUnsafe(pattern);
 	return IsTemplateLiteral(decoded) ? String$1() : decoded;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/record_create.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/record_create.mjs
 function CreateRecord(key, value) {
 	const type = "object";
 	const patternProperties = { [key]: value };
@@ -40138,18 +40138,18 @@ function CreateRecord(key, value) {
 		patternProperties
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_any.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_any.mjs
 function FromAnyKey(value) {
 	return CreateRecord(StringKey, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_boolean.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_boolean.mjs
 function FromBooleanKey(value) {
 	return _Object_({
 		true: value,
 		false: value
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/tuple.mjs
 /** Creates a Tuple type. */
 function Tuple(types, options = {}) {
 	const [items, minItems, additionalItems] = [
@@ -40178,7 +40178,7 @@ function TupleOptions(type) {
 		"additionalItems"
 	]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly/instantiate_remove.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly/instantiate_remove.mjs
 function RemoveReadonlyOperation(type) {
 	return Discard(type, ["~readonly"]);
 }
@@ -40188,12 +40188,12 @@ function RemoveReadonlyAction(type, options) {
 function RemoveReadonlyInstantiate(context, state, type, options) {
 	return RemoveReadonlyAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_remove_readonly.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_remove_readonly.mjs
 /** Applies an RemoveReadonly action to a type. */
 function RemoveReadonly(type, options = {}) {
 	return RemoveReadonlyAction(type, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/optional/instantiate_remove.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/optional/instantiate_remove.mjs
 function RemoveOptionalOperation(type) {
 	return Discard(type, ["~optional"]);
 }
@@ -40203,12 +40203,12 @@ function RemoveOptionalAction(type, options) {
 function RemoveOptionalInstantiate(context, state, type, options) {
 	return RemoveOptionalAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_remove_optional.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_remove_optional.mjs
 /** Applies an RemoveOptional action to a type. */
 function RemoveOptional(type, options = {}) {
 	return RemoveOptionalAction(type, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/tuple/to_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/tuple/to_object.mjs
 function TupleElementsToProperties(types) {
 	return types.reduceRight((result, right, index) => {
 		return {
@@ -40220,7 +40220,7 @@ function TupleElementsToProperties(types) {
 function TupleToObject(type) {
 	return _Object_(TupleElementsToProperties(type.items));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/composite.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/composite.mjs
 /** Returns true if the type is a valid operand to Composite. */
 function CanComposite(type) {
 	return IsObject(type) || IsTuple(type);
@@ -40254,7 +40254,7 @@ function GetProperties(type) {
 function Composite(left, right) {
 	return _Object_(CompositeProperties(GetProperties(left), GetProperties(right)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/narrow.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/narrow.mjs
 function NarrowCompareRule(left, right) {
 	const result = Compare(left, right);
 	return IsEqual$1(result, 2) ? left : IsEqual$1(result, 3) ? right : IsEqual$1(result, 0) ? right : Never();
@@ -40267,7 +40267,7 @@ function NarrowCompositeRule(left, right) {
 function Narrow(left, right) {
 	return IsNever(left) ? left : IsAny(left) ? left : IsUnknown(left) ? right : IsNever(right) ? right : IsAny(right) ? right : IsUnknown(right) ? left : NarrowCompositeRule(left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/distribute.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/distribute.mjs
 function ShouldEvaluate(left, right) {
 	return IsUnion(left) || IsUnion(right);
 }
@@ -40285,7 +40285,7 @@ function DistributeUnion(types, distribution, result = []) {
 function Distribute$1(types, result = []) {
 	return ShiftLeft(types, (left, right) => IsUnion(left) ? Distribute$1(right, DistributeUnion(left.anyOf, result)) : Distribute$1(right, DistributeType(left, result)), () => result);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/exclude/operation.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/exclude/operation.mjs
 function ExcludeType(left, right) {
 	return IsExtendsTrueLike(Extends({}, left, right)) ? [] : [left];
 }
@@ -40296,7 +40296,7 @@ function ExcludeOperation(left, right) {
 	const evaluated = EvaluateType(left);
 	return EvaluateUnion(ExcludeUnion(IsUnion(evaluated) ? evaluated.anyOf : [evaluated], right));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/evaluate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/evaluate.mjs
 function EvaluateDependent(if_, then_, else_) {
 	return EvaluateUnion([EvaluateIntersect([if_, then_]), ExcludeOperation(else_, if_)]);
 }
@@ -40318,42 +40318,42 @@ function EvaluateType(type) {
 function EvaluateUnionFast(types) {
 	return IsEqual$1(types.length, 1) ? types[0] : IsEqual$1(types.length, 0) ? Never() : Union(types);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_enum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_enum.mjs
 function FromEnumKey(values, value) {
 	return FromKey(EvaluateEnum(values), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_integer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_integer.mjs
 function FromIntegerKey(_key, value) {
 	return CreateRecord(IntegerKey, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_intersect.mjs
 function FromIntersectKey(types, value) {
 	return FromKey(EvaluateIntersect(types), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_literal.mjs
 function FromLiteralKey(key, value) {
 	return IsString$3(key) || IsNumber$3(key) ? _Object_({ [key]: value }) : IsEqual$1(key, false) ? _Object_({ false: value }) : IsEqual$1(key, true) ? _Object_({ true: value }) : _Object_({});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_number.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_number.mjs
 function FromNumberKey(_key, value) {
 	return CreateRecord(NumberKey, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_string.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_string.mjs
 function FromStringKey(key, value) {
 	return HasPropertyKey$1(key, "pattern") && (IsString$3(key.pattern) || key.pattern instanceof RegExp) ? CreateRecord(key.pattern.toString(), value) : CreateRecord(StringKey, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_template_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_template_literal.mjs
 function FromTemplateKey(pattern, value) {
 	return IsTemplateLiteralFinite(ParsePatternIntoTypes(pattern)) ? FromKey(EvaluateTemplateLiteral(pattern), value) : CreateRecord(pattern, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/flatten.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/flatten.mjs
 function FlattenType(type) {
 	return IsUnion(type) ? Flatten(type.anyOf) : [type];
 }
 function Flatten(types, result = []) {
 	return ShiftLeft(types, (left, right) => Flatten(right, [...result, ...FlattenType(left)]), () => result);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key_union.mjs
 function StringOrNumberCheck(types) {
 	return types.some((type) => IsString(type) || IsNumber(type) || IsInteger(type));
 }
@@ -40376,18 +40376,18 @@ function FromUnionKey(types, value) {
 	const record = TryBuildRecord(flattened, value);
 	return IsSchema$1(record) ? record : CreateObject(flattened, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/from_key.mjs
 function FromKey(key, value) {
 	return IsAny(key) ? FromAnyKey(value) : IsBoolean(key) ? FromBooleanKey(value) : IsEnum$1(key) ? FromEnumKey(key.enum, value) : IsInteger(key) ? FromIntegerKey(key, value) : IsIntersect(key) ? FromIntersectKey(key.allOf, value) : IsLiteral(key) ? FromLiteralKey(key.const, value) : IsNumber(key) ? FromNumberKey(key, value) : IsUnion(key) ? FromUnionKey(key.anyOf, value) : IsString(key) ? FromStringKey(key, value) : IsTemplateLiteral(key) ? FromTemplateKey(key.pattern, value) : _Object_({});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/record/instantiate.mjs
 function RecordAction(key, value, options) {
 	return CanInstantiate([key]) ? Update$1(FromKey(key, value), {}, options) : RecordDeferred(key, value, options);
 }
 function RecordInstantiate(context, state, key, value, options) {
 	return RecordAction(InstantiateType(context, state, key), InstantiateType(context, state, value), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/record.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/record.mjs
 var IntegerKey = `^${IntegerPattern}$`;
 var NumberKey = `^${NumberPattern}$`;
 var StringKey = `^.*$`;
@@ -40422,7 +40422,7 @@ function RecordValue(type) {
 function IsRecord(value) {
 	return IsKind(value, "Record");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/rest.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/rest.mjs
 /** Creates a Rest instruction type. */
 function Rest(type) {
 	return Create$1({ "~kind": "Rest" }, {
@@ -40434,12 +40434,12 @@ function Rest(type) {
 function IsRest(value) {
 	return IsKind(value, "Rest");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/this.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/this.mjs
 /** Returns true if the given value is TThis. */
 function IsThis(value) {
 	return IsKind(value, "This");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/undefined.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/undefined.mjs
 /** Creates a Undefined type. */
 function Undefined(options) {
 	return Create$1({ "~kind": "Undefined" }, { type: "undefined" }, options);
@@ -40448,12 +40448,12 @@ function Undefined(options) {
 function IsUndefined(value) {
 	return IsKind(value, "Undefined");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/void.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/void.mjs
 /** Returns true if the given value is TVoid. */
 function IsVoid(value) {
 	return IsKind(value, "Void");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/mapping.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/mapping.mjs
 function PatternBigIntMapping(input) {
 	return BigInt$1();
 }
@@ -40490,7 +40490,7 @@ function PatternBodyMapping(input) {
 function PatternMapping(input) {
 	return input[1];
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/internal/match.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/internal/match.mjs
 /** Checks the value is a Tuple-2 [string, string] result */
 function IsMatch(value) {
 	return IsEqual$1(value.length, 2);
@@ -40499,7 +40499,7 @@ function IsMatch(value) {
 function Match$2(input, ok, fail) {
 	return IsMatch(input) ? ok(input[0], input[1]) : fail();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/internal/take.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/internal/take.mjs
 function TakeVariant(variant, input) {
 	return IsEqual$1(input.indexOf(variant), 0) ? [variant, input.slice(variant.length)] : [];
 }
@@ -40511,13 +40511,13 @@ function Take(variants, input) {
 	}
 	return [];
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/internal/char.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/internal/char.mjs
 function Range(start, end) {
 	return Array.from({ length: end - start + 1 }, (_, i) => String.fromCharCode(start + i));
 }
 var Alpha = [...Range(97, 122), ...Range(65, 90)];
 var Digit = ["0", ...Range(49, 57)];
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/internal/trim.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/internal/trim.mjs
 var LineComment = "//";
 var OpenComment = "/*";
 var CloseComment = "*/";
@@ -40541,7 +40541,7 @@ function Trim(input) {
 	return trimmed.startsWith(OpenComment) ? Trim(DiscardMultilineComment(trimmed.slice(2))) : trimmed.startsWith(LineComment) ? Trim(DiscardLineComment(trimmed.slice(2))) : trimmed;
 }
 [...Digit];
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/const.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/const.mjs
 function TakeConst(const_, input) {
 	return Take([const_], input);
 }
@@ -40555,7 +40555,7 @@ function Const(const_, input) {
 	"$"
 ], ...Digit];
 [...Digit];
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/until.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/until.mjs
 function TakeOne(input) {
 	return IsEqual$1(input, "") ? [] : [input.slice(0, 1), input.slice(1)];
 }
@@ -40566,12 +40566,12 @@ function IsInputMatchSentinal(end, input) {
 function Until(end, input, result = "") {
 	return Match$2(TakeOne(input), (One, Rest) => IsInputMatchSentinal(end, input) ? [result, input] : Until(end, Rest, `${result}${One}`), () => []);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/until_1.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/token/until_1.mjs
 /** Match Input until but not including End. No match if End not found or match is zero-length. */
 function Until_1(end, input) {
 	return Match$2(Until(end, input), (Until, UntilRest) => IsEqual$1(Until, "") ? [] : [Until, UntilRest], () => []);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/parser.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/script/parser.mjs
 var If = (result, left, right = () => []) => result.length === 2 ? left(result) : right();
 var PatternBigInt = (input) => If(Const("-?(?:0|[1-9][0-9]*)n", input), ([_0, input]) => [PatternBigIntMapping(_0), input]);
 var PatternString = (input) => If(Const(".*", input), ([_0, input]) => [PatternStringMapping(_0), input]);
@@ -40607,7 +40607,7 @@ var Pattern = (input) => If(If(Const("^", input), ([_0, input]) => If(PatternBod
 	_1,
 	_2
 ], input]))), ([_0, input]) => [PatternMapping(_0), input]);
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/encode.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/encode.mjs
 function JoinString(input) {
 	return input.join("|");
 }
@@ -40657,14 +40657,14 @@ function EncodePattern(types) {
 function TemplateLiteralEncode(types) {
 	return TemplateLiteralCreate(EncodePattern(types));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/template_literal/instantiate.mjs
 function TemplateLiteralAction(types, options) {
 	return CanInstantiate(types) ? Update$1(TemplateLiteralEncode(types), {}, options) : TemplateLiteralDeferred(types, options);
 }
 function TemplateLiteralInstantiate(context, state, types, options) {
 	return TemplateLiteralAction(InstantiateTypes(context, state, types), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/template_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/template_literal.mjs
 /** Creates a deferred TemplateLiteral action. */
 function TemplateLiteralDeferred(types, options = {}) {
 	return Deferred("TemplateLiteral", [types], options);
@@ -40677,7 +40677,7 @@ function IsTemplateLiteralDeferred(value) {
 function IsTemplateLiteral(value) {
 	return IsKind(value, "TemplateLiteral");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/result.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/result.mjs
 function ExtendsUnion$1(inferred) {
 	return Create$1({ ["~kind"]: "ExtendsUnion" }, { inferred });
 }
@@ -40702,7 +40702,7 @@ function IsExtendsTrueLike(value) {
 function Match$1(result, true_, false_) {
 	return IsExtendsTrueLike(result) ? true_(result.inferred) : false_();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/extends_right.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/extends_right.mjs
 function ExtendsRightInfer(inferred, name, left, right) {
 	return Match$1(ExtendsLeft(inferred, left, right), (checkInferred) => ExtendsTrue(Assign(Assign(inferred, checkInferred), { [name]: left })), () => ExtendsFalse());
 }
@@ -40727,11 +40727,11 @@ function ExtendsRightUnion(inferred, left, right) {
 function ExtendsRight(inferred, left, right) {
 	return IsAny(right) ? ExtendsRightAny(inferred, left) : IsDependent(right) ? ExtendsRightDependent(inferred, left, right.if, right.then, right.else) : IsEnum$1(right) ? ExtendsRightEnum(inferred, left, right.enum) : IsInfer(right) ? ExtendsRightInfer(inferred, right.name, left, right.extends) : IsIntersect(right) ? ExtendsRightIntersect(inferred, left, right.allOf) : IsTemplateLiteral(right) ? ExtendsRightTemplateLiteral(inferred, left, right.pattern) : IsUnion(right) ? ExtendsRightUnion(inferred, left, right.anyOf) : IsUnknown(right) ? ExtendsTrue(inferred) : ExtendsFalse();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/any.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/any.mjs
 function ExtendsAny(inferred, left, right) {
 	return IsInfer(right) ? ExtendsRight(inferred, left, right) : IsAny(right) ? ExtendsTrue(inferred) : IsUnknown(right) ? ExtendsTrue(inferred) : ExtendsUnion$1(inferred);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/array.mjs
 function ExtendsImmutable(left, right) {
 	const isImmutableLeft = IsImmutable(left);
 	const isImmutableRight = IsImmutable(right);
@@ -40740,15 +40740,15 @@ function ExtendsImmutable(left, right) {
 function ExtendsArray(inferred, arrayLeft, left, right) {
 	return IsArray(right) ? ExtendsImmutable(arrayLeft, right) ? ExtendsLeft(inferred, left, right.items) : ExtendsFalse() : ExtendsRight(inferred, arrayLeft, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/bigint.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/bigint.mjs
 function ExtendsBigInt(inferred, left, right) {
 	return IsBigInt(right) ? ExtendsTrue(inferred) : ExtendsRight(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/boolean.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/boolean.mjs
 function ExtendsBoolean(inferred, left, right) {
 	return IsBoolean(right) ? ExtendsTrue(inferred) : ExtendsRight(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/parameters.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/parameters.mjs
 function ParameterCompare(inferred, left, leftRest, right, rightRest) {
 	const checkLeft = IsInfer(right) ? left : right;
 	const checkRight = IsInfer(right) ? right : left;
@@ -40765,35 +40765,35 @@ function ParametersLeft(inferred, left, rightRest) {
 function ExtendsParameters(inferred, left, right) {
 	return ParametersLeft(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/return_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/return_type.mjs
 function ExtendsReturnType(inferred, left, right) {
 	return IsVoid(right) ? ExtendsTrue(inferred) : ExtendsLeft(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/constructor.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/constructor.mjs
 function ExtendsConstructor(inferred, parameters, returnType, right) {
 	return IsAny(right) ? ExtendsTrue(inferred) : IsUnknown(right) ? ExtendsTrue(inferred) : IsConstructor(right) ? Match$1(ExtendsParameters(inferred, parameters, right["parameters"]), (inferred) => ExtendsReturnType(inferred, returnType, right["instanceType"]), () => ExtendsFalse()) : ExtendsFalse();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/dependent.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/dependent.mjs
 function ExtendsDependent(inferred, if_, then_, else_, right) {
 	return Match$1(ExtendsLeft(inferred, if_, right), () => ExtendsLeft(inferred, then_, right), () => ExtendsLeft(inferred, else_, right));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/enum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/enum.mjs
 function ExtendsEnum(inferred, left, right) {
 	return ExtendsLeft(inferred, EvaluateEnum(left), right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/function.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/function.mjs
 function ExtendsFunction(inferred, parameters, returnType, right) {
 	return IsAny(right) ? ExtendsTrue(inferred) : IsUnknown(right) ? ExtendsTrue(inferred) : IsFunction(right) ? Match$1(ExtendsParameters(inferred, parameters, right["parameters"]), (inferred) => ExtendsReturnType(inferred, returnType, right["returnType"]), () => ExtendsFalse()) : ExtendsFalse();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/integer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/integer.mjs
 function ExtendsInteger(inferred, left, right) {
 	return IsInteger(right) ? ExtendsTrue(inferred) : IsNumber(right) ? ExtendsTrue(inferred) : ExtendsRight(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/intersect.mjs
 function ExtendsIntersect(inferred, left, right) {
 	return ExtendsLeft(inferred, EvaluateIntersect(left), right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/literal.mjs
 function ExtendsLiteralValue(inferred, left, right) {
 	return left === right ? ExtendsTrue(inferred) : ExtendsFalse();
 }
@@ -40812,19 +40812,19 @@ function ExtendsLiteralString(inferred, left, right) {
 function ExtendsLiteral(inferred, left, right) {
 	return IsBigInt$2(left.const) ? ExtendsLiteralBigInt(inferred, left.const, right) : IsBoolean$3(left.const) ? ExtendsLiteralBoolean(inferred, left.const, right) : IsNumber$3(left.const) ? ExtendsLiteralNumber(inferred, left.const, right) : IsString$3(left.const) ? ExtendsLiteralString(inferred, left.const, right) : Unreachable();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/never.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/never.mjs
 function ExtendsNever(inferred, left, right) {
 	return IsInfer(right) ? ExtendsRight(inferred, left, right) : ExtendsTrue(inferred);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/null.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/null.mjs
 function ExtendsNull(inferred, left, right) {
 	return IsNull(right) ? ExtendsTrue(inferred) : ExtendsRight(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/number.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/number.mjs
 function ExtendsNumber(inferred, left, right) {
 	return IsNumber(right) ? ExtendsTrue(inferred) : ExtendsRight(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/object.mjs
 function ExtendsPropertyOptional(inferred, left, right) {
 	return IsOptional(left) ? IsOptional(right) ? ExtendsTrue(inferred) : ExtendsFalse() : ExtendsTrue(inferred);
 }
@@ -40870,7 +40870,7 @@ function ExtendsObjectToRecord(inferred, properties, _pattern, value) {
 function ExtendsObject(inferred, left, right) {
 	return IsRecord(right) ? ExtendsObjectToRecord(inferred, left, RecordPattern(right), RecordValue(right)) : IsObject(right) ? ExtendsObjectToObject(inferred, left, right.properties) : ExtendsRight(inferred, _Object_(left), right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/record.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/record.mjs
 function FromObject$13(inferred, properties) {
 	return IsEqual$1(Keys$1(properties).length, 0) ? ExtendsTrue(inferred) : ExtendsFalse();
 }
@@ -40880,19 +40880,19 @@ function FromRecord$7(inferred, _leftKey, leftValue, _rightKey, rightValue) {
 function ExtendsRecord(inferred, leftPattern, leftValue, right) {
 	return IsRecord(right) ? FromRecord$7(inferred, RecordPatternToType(leftPattern), leftValue, RecordPatternToType(RecordPattern(right)), RecordValue(right)) : IsObject(right) ? FromObject$13(inferred, right.properties) : IsAny(right) ? ExtendsTrue(inferred) : IsUnknown(right) ? ExtendsTrue(inferred) : ExtendsFalse();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/string.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/string.mjs
 function ExtendsString(inferred, left, right) {
 	return IsString(right) ? ExtendsTrue(inferred) : ExtendsRight(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/symbol.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/symbol.mjs
 function ExtendsSymbol(inferred, left, right) {
 	return IsSymbol(right) ? ExtendsTrue(inferred) : ExtendsRight(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/template_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/template_literal.mjs
 function ExtendsTemplateLiteral(inferred, left, right) {
 	return ExtendsLeft(inferred, EvaluateTemplateLiteral(left), right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/inference.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/inference.mjs
 function Inferrable(name, type) {
 	return Create$1({ "~kind": "Inferrable" }, {
 		name,
@@ -40919,7 +40919,7 @@ function InferUnionResult(inferred, name, left, right) {
 	const results = TryInferResults(left, right);
 	return IsArray$2(results) ? ExtendsTrue(Assign(inferred, { [name]: Union(results) })) : ExtendsFalse();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/tuple.mjs
 function Reverse(types) {
 	return [...types].reverse();
 }
@@ -40956,11 +40956,11 @@ function ExtendsTuple(inferred, left, right) {
 	const instantiatedLeft = InstantiateElements(inferred, State([], []), left);
 	return IsTuple(right) ? ExtendsTupleToTuple(inferred, instantiatedLeft, right.items) : IsArray(right) ? ExtendsTupleToArray(inferred, instantiatedLeft, right.items) : ExtendsRight(inferred, Tuple(instantiatedLeft), right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/undefined.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/undefined.mjs
 function ExtendsUndefined(inferred, left, right) {
 	return IsVoid(right) ? ExtendsTrue(inferred) : IsUndefined(right) ? ExtendsTrue(inferred) : ExtendsRight(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/union.mjs
 function ExtendsUnionSome(inferred, type, unionTypes) {
 	return ShiftLeft(unionTypes, (head, tail) => Match$1(ExtendsLeft(inferred, type, head), (inferred) => ExtendsTrue(inferred), () => ExtendsUnionSome(inferred, type, tail)), () => ExtendsFalse());
 }
@@ -40971,19 +40971,19 @@ function ExtendsUnion(inferred, left, right) {
 	const inferrable = TryInferable(right);
 	return IsInferable(inferrable) ? InferUnionResult(inferred, inferrable.name, left, inferrable.type) : IsUnion(right) ? ExtendsUnionLeft(inferred, left, right.anyOf) : ExtendsUnionLeft(inferred, left, [right]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/unknown.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/unknown.mjs
 function ExtendsUnknown(inferred, left, right) {
 	return IsInfer(right) ? ExtendsRight(inferred, left, right) : IsAny(right) ? ExtendsTrue(inferred) : IsUnknown(right) ? ExtendsTrue(inferred) : ExtendsFalse();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/void.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/void.mjs
 function ExtendsVoid(inferred, left, right) {
 	return IsVoid(right) ? ExtendsTrue(inferred) : ExtendsRight(inferred, left, right);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/extends_left.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/extends_left.mjs
 function ExtendsLeft(inferred, left, right) {
 	return IsAny(left) ? ExtendsAny(inferred, left, right) : IsArray(left) ? ExtendsArray(inferred, left, left.items, right) : IsBigInt(left) ? ExtendsBigInt(inferred, left, right) : IsBoolean(left) ? ExtendsBoolean(inferred, left, right) : IsConstructor(left) ? ExtendsConstructor(inferred, left.parameters, left.instanceType, right) : IsDependent(left) ? ExtendsDependent(inferred, left.if, left.then, left.else, right) : IsEnum$1(left) ? ExtendsEnum(inferred, left.enum, right) : IsFunction(left) ? ExtendsFunction(inferred, left.parameters, left.returnType, right) : IsInteger(left) ? ExtendsInteger(inferred, left, right) : IsIntersect(left) ? ExtendsIntersect(inferred, left.allOf, right) : IsLiteral(left) ? ExtendsLiteral(inferred, left, right) : IsNever(left) ? ExtendsNever(inferred, left, right) : IsNull(left) ? ExtendsNull(inferred, left, right) : IsNumber(left) ? ExtendsNumber(inferred, left, right) : IsObject(left) ? ExtendsObject(inferred, left.properties, right) : IsRecord(left) ? ExtendsRecord(inferred, RecordPattern(left), RecordValue(left), right) : IsString(left) ? ExtendsString(inferred, left, right) : IsSymbol(left) ? ExtendsSymbol(inferred, left, right) : IsTemplateLiteral(left) ? ExtendsTemplateLiteral(inferred, left.pattern, right) : IsTuple(left) ? ExtendsTuple(inferred, left.items, right) : IsUndefined(left) ? ExtendsUndefined(inferred, left, right) : IsUnion(left) ? ExtendsUnion(inferred, left.anyOf, right) : IsUnknown(left) ? ExtendsUnknown(inferred, left, right) : IsVoid(left) ? ExtendsVoid(inferred, left, right) : ExtendsFalse();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/interface/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/interface/instantiate.mjs
 function InterfaceOperation(heritage, properties) {
 	return EvaluateIntersect([...heritage, _Object_(properties)]);
 }
@@ -40993,7 +40993,7 @@ function InterfaceAction(heritage, properties, options) {
 function InterfaceInstantiate(context, state, heritage, properties, options) {
 	return InterfaceAction(InstantiateTypes(context, state, heritage), InstantiateProperties(context, state, properties), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/interface.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/interface.mjs
 /** Creates a deferred Interface action. */
 function InterfaceDeferred(heritage, properties, options = {}) {
 	return Deferred("Interface", [heritage, properties], options);
@@ -41002,7 +41002,7 @@ function InterfaceDeferred(heritage, properties, options = {}) {
 function IsInterfaceDeferred(value) {
 	return IsSchema$1(value) && HasPropertyKey$1(value, "action") && IsEqual$1(value.action, "Interface");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/check.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/check.mjs
 function FromRef$9(stack, context, ref) {
 	return stack.includes(ref) ? true : FromType$22([...stack, ref], context, context[ref]);
 }
@@ -41019,7 +41019,7 @@ function FromType$22(stack, context, type) {
 function CyclicCheck(stack, context, type) {
 	return FromType$22(stack, context, type);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/candidates.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/candidates.mjs
 function ResolveCandidateKeys(context, keys) {
 	return keys.reduce((result, left) => {
 		return CyclicCheck([left], context, context[left]) ? [...result, left] : result;
@@ -41029,7 +41029,7 @@ function ResolveCandidateKeys(context, keys) {
 function CyclicCandidates(context) {
 	return ResolveCandidateKeys(context, PropertyKeys(context));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/dependencies.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/dependencies.mjs
 function FromRef$8(context, ref, result) {
 	return result.includes(ref) ? result : ref in context ? FromType$21(context, context[ref], [...result, ref]) : Unreachable();
 }
@@ -41048,7 +41048,7 @@ function FromType$21(context, type, result) {
 function CyclicDependencies(context, key, type) {
 	return FromType$21(context, type, [key]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/extends.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/extends.mjs
 function FromRef$7(_ref) {
 	return Any();
 }
@@ -41075,7 +41075,7 @@ function CyclicAnyFromParameters(defs, ref) {
 function CyclicExtends(type) {
 	return CyclicAnyFromParameters(type.$defs, type.$ref);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/instantiate.mjs
 function CyclicInterface(context, heritage, properties) {
 	const instantiatedHeritage = InstantiateTypes(context, State([], []), heritage);
 	const instantiatedProperties = InstantiateProperties({}, State([], []), properties);
@@ -41094,7 +41094,7 @@ function CyclicDefinitions(context, dependencies) {
 function InstantiateCyclic(context, ref, type) {
 	return Cyclic(CyclicDefinitions(context, CyclicDependencies(context, ref, type)), ref);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/target.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/cyclic/target.mjs
 function Resolve(defs, ref) {
 	return ref in defs ? IsRef$1(defs[ref]) ? Resolve(defs, defs[ref].$ref) : defs[ref] : Never();
 }
@@ -41102,7 +41102,7 @@ function Resolve(defs, ref) {
 function CyclicTarget(defs, ref) {
 	return Resolve(defs, ref);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/extends.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/extends/extends.mjs
 function Canonical(type) {
 	return IsCyclic(type) ? CyclicExtends(type) : IsUnsafe(type) ? Unknown() : type;
 }
@@ -41115,7 +41115,7 @@ function Compare(left, right) {
 	const extendsCheck = [Extends({}, left, right), Extends({}, right, left)];
 	return IsExtendsTrueLike(extendsCheck[0]) && IsExtendsTrueLike(extendsCheck[1]) ? 0 : IsExtendsTrueLike(extendsCheck[0]) && IsExtendsFalse(extendsCheck[1]) ? 2 : IsExtendsFalse(extendsCheck[0]) && IsExtendsTrueLike(extendsCheck[1]) ? 3 : 1;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/broaden.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/broaden.mjs
 function BroadenFilter(type, types, result = [], all = types) {
 	return ShiftLeft(types, (left, right) => {
 		const compare = Compare(type, left);
@@ -41133,14 +41133,14 @@ function BroadenTypes(types, result = []) {
 function Broaden(types) {
 	return Flatten(BroadenTypes(types));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/evaluate/instantiate.mjs
 function EvaluateAction(type, options) {
 	return Update$1(EvaluateType(type), {}, options);
 }
 function EvaluateInstantiate(context, state, type, options) {
 	return EvaluateAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/call/distribute_arguments.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/call/distribute_arguments.mjs
 function CollectDistributionNames(expression, result = []) {
 	return IsDeferred(expression) && IsEqual$1(expression.action, "Conditional") ? IsRef$1(expression.parameters[0]) ? CollectDistributionNames(expression.parameters[2], CollectDistributionNames(expression.parameters[3], [...result, expression.parameters[0]["$ref"]])) : CollectDistributionNames(expression.parameters[2], CollectDistributionNames(expression.parameters[3], result)) : IsDeferred(expression) && IsEqual$1(expression.action, "Mapped") ? IsDeferred(expression.parameters[1]) && IsEqual$1(expression.parameters[1].action, "KeyOf") && IsRef$1(expression.parameters[1].parameters[0]) ? [...result, expression.parameters[1].parameters[0]["$ref"]] : result : result;
 }
@@ -41174,7 +41174,7 @@ function DistributeArguments(parameters, arguments_, expression) {
 	const zippedArguments = ZipDistributionArray(arguments_, BuildDistributionArray(parameters, CollectDistributionNames(expression)));
 	return IsDeferred(expression) && IsEqual$1(expression.action, "Conditional") ? Distribute(zippedArguments) : IsDeferred(expression) && IsEqual$1(expression.action, "Mapped") ? Distribute(zippedArguments) : [arguments_];
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/call/resolve_target.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/call/resolve_target.mjs
 function FromNotResolvable() {
 	return ["(not-resolvable)", Never()];
 }
@@ -41194,7 +41194,7 @@ function FromType$19(context, name, target, arguments_) {
 function ResolveTarget(context, target, arguments_) {
 	return FromType$19(context, "(anonymous)", target, arguments_);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/call/resolve_arguments.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/call/resolve_arguments.mjs
 function AssertArgumentExtends(name, type, extends_) {
 	if (IsInfer(type) || IsCall(type) || IsExtendsTrueLike(Extends({}, type, extends_))) return;
 	const cause = {
@@ -41220,7 +41220,7 @@ function BindParameters(context, state, parameters, arguments_) {
 function ResolveArgumentsContext(context, state, parameters, arguments_) {
 	return BindParameters(context, state, parameters, arguments_);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/call/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/call/instantiate.mjs
 var instantiationDepth = 0;
 var instantiationCount = 0;
 function InstantiationAssert() {
@@ -41269,7 +41269,7 @@ function CallInstantiate(context, state, target, arguments_) {
 	const type = resolved[1];
 	return IsGeneric(type) ? IsTailCall(state, name) ? CallConstruct(Ref$1(name), instantiatedArguments) : CallImmediate(context, state, Ref$1(name), type.parameters, type.expression, instantiatedArguments) : CallConstruct(target, instantiatedArguments);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/call.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/types/call.mjs
 function CallConstruct(target, arguments_) {
 	return Create$1({ ["~kind"]: "Call" }, {
 		type: "call",
@@ -41281,7 +41281,7 @@ function CallConstruct(target, arguments_) {
 function IsCall(value) {
 	return IsKind(value, "Call");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/immutable/instantiate_remove.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/immutable/instantiate_remove.mjs
 function RemoveImmutableOperation(type) {
 	return Discard(type, ["~immutable"]);
 }
@@ -41291,47 +41291,47 @@ function RemoveImmutableAction(type, options) {
 function RemoveImmutableInstantiate(context, state, type, options) {
 	return RemoveImmutableAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/mapping.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/mapping.mjs
 function ApplyMapping(mapping, value) {
 	return mapping(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/from_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/from_literal.mjs
 function FromLiteral$4(mapping, value) {
 	return IsString$3(value) ? Literal(ApplyMapping(mapping, value)) : Literal(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/from_template_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/from_template_literal.mjs
 function FromTemplateLiteral$4(mapping, pattern) {
 	return FromType$18(mapping, EvaluateTemplateLiteral(pattern));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/from_union.mjs
 function FromUnion$12(mapping, types) {
 	return Union(types.map((type) => FromType$18(mapping, type)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/from_type.mjs
 function FromType$18(mapping, type) {
 	return IsLiteral(type) ? FromLiteral$4(mapping, type.const) : IsTemplateLiteral(type) ? FromTemplateLiteral$4(mapping, type.pattern) : IsUnion(type) ? FromUnion$12(mapping, type.anyOf) : type;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/capitalize.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/capitalize.mjs
 /** Creates a deferred Capitalize action. */
 function CapitalizeDeferred(type, options = {}) {
 	return Deferred("Capitalize", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/lowercase.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/lowercase.mjs
 /** Creates a deferred Lowercase action. */
 function LowercaseDeferred(type, options = {}) {
 	return Deferred("Lowercase", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/uncapitalize.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/uncapitalize.mjs
 /** Creates a deferred Uncapitalize action. */
 function UncapitalizeDeferred(type, options = {}) {
 	return Deferred("Uncapitalize", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/uppercase.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/uppercase.mjs
 /** Creates a deferred Uppercase action. */
 function UppercaseDeferred(type, options = {}) {
 	return Deferred("Uppercase", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/intrinsics/instantiate.mjs
 var CapitalizeMapping = (input) => input[0].toUpperCase() + input.slice(1);
 var LowercaseMapping = (input) => input.toLowerCase();
 var UncapitalizeMapping = (input) => input[0].toLowerCase() + input.slice(1);
@@ -41360,7 +41360,7 @@ function UncapitalizeInstantiate(context, state, type, options) {
 function UppercaseInstantiate(context, state, type, options) {
 	return UppercaseAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/conditional.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/conditional.mjs
 /** Creates a deferred Conditional action. */
 function ConditionalDeferred(left, right, true_, false_, options = {}) {
 	return Deferred("Conditional", [
@@ -41370,7 +41370,7 @@ function ConditionalDeferred(left, right, true_, false_, options = {}) {
 		false_
 	], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/conditional/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/conditional/instantiate.mjs
 function ConditionalOperation(context, state, left, right, true_, false_) {
 	const extendsResult = Extends(context, left, right);
 	return IsExtendsUnion(extendsResult) ? Union([InstantiateType(extendsResult.inferred, state, true_), InstantiateType(context, state, false_)]) : IsExtendsTrue(extendsResult) ? InstantiateType(extendsResult.inferred, state, true_) : InstantiateType(context, state, false_);
@@ -41381,12 +41381,12 @@ function ConditionalAction(context, state, left, right, true_, false_, options) 
 function ConditionalInstantiate(context, state, left, right, true_, false_, options) {
 	return ConditionalAction(context, state, InstantiateType(context, state, left), InstantiateType(context, state, right), true_, false_, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/constructor_parameters.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/constructor_parameters.mjs
 /** Creates a deferred ConstructorParameters action. */
 function ConstructorParametersDeferred(type, options = {}) {
 	return Deferred("ConstructorParameters", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/constructor_parameters/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/constructor_parameters/instantiate.mjs
 function ConstructorParametersOperation(type) {
 	const parameters = IsConstructor(type) ? type["parameters"] : [];
 	return Tuple(InstantiateElements({}, State([], []), parameters));
@@ -41397,24 +41397,24 @@ function ConstructorParametersAction(type, options) {
 function ConstructorParametersInstantiate(context, state, type, options) {
 	return ConstructorParametersAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/exclude.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/exclude.mjs
 /** Creates a deferred Exclude action. */
 function ExcludeDeferred(left, right, options = {}) {
 	return Deferred("Exclude", [left, right], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/exclude/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/exclude/instantiate.mjs
 function ExcludeAction(left, right, options) {
 	return CanInstantiate([left, right]) ? Update$1(ExcludeOperation(left, right), {}, options) : ExcludeDeferred(left, right, options);
 }
 function ExcludeInstantiate(context, state, left, right, options) {
 	return ExcludeAction(InstantiateType(context, state, left), InstantiateType(context, state, right), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/extract.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/extract.mjs
 /** Creates a deferred Extract action. */
 function ExtractDeferred(left, right, options = {}) {
 	return Deferred("Extract", [left, right], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/extract/operation.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/extract/operation.mjs
 function ExtractType(left, right) {
 	return IsExtendsTrueLike(Extends({}, left, right)) ? [left] : [];
 }
@@ -41425,27 +41425,27 @@ function ExtractOperation(left, right) {
 	const evaluated = EvaluateType(left);
 	return EvaluateUnion(ExtractUnion(IsUnion(evaluated) ? evaluated.anyOf : [evaluated], right));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/extract/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/extract/instantiate.mjs
 function ExtractAction(left, right, options) {
 	return CanInstantiate([left, right]) ? Update$1(ExtractOperation(left, right), {}, options) : ExtractDeferred(left, right, options);
 }
 function ExtractInstantiate(context, state, left, right, options) {
 	return ExtractAction(InstantiateType(context, state, left), InstantiateType(context, state, right), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/indexed.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/indexed.mjs
 /** Creates a deferred Index action. */
 function IndexDeferred(type, indexer, options = {}) {
 	return Deferred("Index", [type, indexer], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_cyclic.mjs
 function FromCyclic$10(defs, ref) {
 	return FromType$17(CyclicTarget(defs, ref));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_dependent.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_dependent.mjs
 function FromDependent$4(if_, then_, else_) {
 	return FromType$17(EvaluateDependent(if_, then_, else_));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_intersect.mjs
 function CollapseIntersectProperties(left, right) {
 	const leftKeys = Keys$1(left).filter((key) => !HasPropertyKey$1(right, key));
 	const rightKeys = Keys$1(right).filter((key) => !HasPropertyKey$1(left, key));
@@ -41469,15 +41469,15 @@ function FromIntersect$10(types) {
 		return CollapseIntersectProperties(result, FromType$17(left));
 	}, {});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_object.mjs
 function FromObject$12(properties) {
 	return properties;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_tuple.mjs
 function FromTuple$9(types) {
 	return FromType$17(TupleToObject(Tuple(types)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_union.mjs
 function CollapseUnionProperties(left, right) {
 	return Keys$1(left).filter((key) => key in right).reduce((result, key) => {
 		return {
@@ -41492,11 +41492,11 @@ function ReduceVariants(types, result) {
 function FromUnion$11(types) {
 	return ShiftLeft(types, (left, right) => ReduceVariants(right, FromType$17(left)), () => Unreachable());
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/from_type.mjs
 function FromType$17(type) {
 	return IsCyclic(type) ? FromCyclic$10(type.$defs, type.$ref) : IsDependent(type) ? FromDependent$4(type.if, type.then, type.else) : IsIntersect(type) ? FromIntersect$10(type.allOf) : IsUnion(type) ? FromUnion$11(type.anyOf) : IsTuple(type) ? FromTuple$9(type.items) : IsObject(type) ? FromObject$12(type.properties) : {};
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/collapse.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/object/collapse.mjs
 /**
 * Collapses a type into a TObject schema. This is a lossy fast path used to
 * normalize arbitrary TSchema types into a TObject structure. This function is
@@ -41506,13 +41506,13 @@ function FromType$17(type) {
 function CollapseToObject(type) {
 	return _Object_(FromType$17(type));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/helpers/keys.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/helpers/keys.mjs
 var integerKeyPattern = /* @__PURE__ */ new RegExp("^(?:0|[1-9][0-9]*)$");
 function ConvertToIntegerKey(value) {
 	const normal = `${value}`;
 	return integerKeyPattern.test(normal) ? parseInt(normal) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/from_array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/from_array.mjs
 function NormalizeLiteral(value) {
 	return Literal(ConvertToIntegerKey(value));
 }
@@ -41525,41 +41525,41 @@ function NormalizeIndexer(type) {
 function FromArray$9(type, indexer) {
 	return IsExtendsTrueLike(Extends({}, NormalizeIndexer(indexer), Number$1())) ? type : IsLiteral(indexer) && IsEqual$1(indexer.const, "length") ? Number$1() : Never();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_cyclic.mjs
 function FromCyclic$9(defs, ref) {
 	return FromType$16(CyclicTarget(defs, ref));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_dependent.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_dependent.mjs
 function FromDependent$3(if_, then_, else_) {
 	return FromType$16(EvaluateDependent(if_, then_, else_));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_enum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_enum.mjs
 function FromEnum$3(values) {
 	return FromType$16(EvaluateEnum(values));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_intersect.mjs
 function FromIntersect$9(types) {
 	return FromType$16(EvaluateIntersect(types));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_literal.mjs
 function FromLiteral$3(value) {
 	return [`${value}`];
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_template_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_template_literal.mjs
 function FromTemplateLiteral$3(pattern) {
 	return FromType$16(EvaluateTemplateLiteral(pattern));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_union.mjs
 function FromUnion$10(types) {
 	return types.reduce((result, left) => {
 		return [...result, ...FromType$16(left)];
 	}, []);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/from_type.mjs
 function FromType$16(type) {
 	return IsCyclic(type) ? FromCyclic$9(type.$defs, type.$ref) : IsDependent(type) ? FromDependent$3(type.if, type.then, type.else) : IsEnum$1(type) ? FromEnum$3(type.enum) : IsIntersect(type) ? FromIntersect$9(type.allOf) : IsLiteral(type) ? FromLiteral$3(type.const) : IsTemplateLiteral(type) ? FromTemplateLiteral$3(type.pattern) : IsUnion(type) ? FromUnion$10(type.anyOf) : [];
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/to_indexable_keys.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/to_indexable_keys.mjs
 /**
 * Transforms a type meant as an Indexer into string[] array which is used by Indexable types
 * like Index, Pick and Omit to select from property keys. This function should only be used
@@ -41569,7 +41569,7 @@ function FromType$16(type) {
 function ToIndexableKeys(type) {
 	return FromType$16(type);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/this/expand_this.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/this/expand_this.mjs
 function FromTypes$1(properties, types) {
 	return types.map((type) => FromType$15(properties, type));
 }
@@ -41579,7 +41579,7 @@ function FromType$15(properties, type) {
 function ExpandThis(properties, type) {
 	return FromType$15(properties, type);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/from_object.mjs
 function IndexProperty(properties, key) {
 	return ExpandThis(properties, key in properties ? properties[key] : Never());
 }
@@ -41601,7 +41601,7 @@ function FromIndexerNumber(properties) {
 function FromObject$11(properties, indexer) {
 	return IsNumber(indexer) ? FromIndexerNumber(properties) : FromIndexer(properties, indexer);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/array_indexer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/array_indexer.mjs
 function ConvertLiteral(value) {
 	return Literal(ConvertToIntegerKey(value));
 }
@@ -41612,7 +41612,7 @@ function ArrayIndexerTypes(types) {
 function FormatArrayIndexer(type) {
 	return IsIntersect(type) ? Intersect(ArrayIndexerTypes(type.allOf)) : IsUnion(type) ? Union(ArrayIndexerTypes(type.anyOf)) : IsLiteral(type) ? ConvertLiteral(type.const) : type;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/from_tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/from_tuple.mjs
 function IndexElementsWithIndexer(types, indexer) {
 	return types.reduceRight((result, right, index) => {
 		return IsExtendsTrueLike(Extends({}, Literal(index), indexer)) ? [right, ...result] : result;
@@ -41627,11 +41627,11 @@ function FromTupleWithoutIndexer(types) {
 function FromTuple$8(types, indexer) {
 	return IsLiteral(indexer) && IsEqual$1(indexer.const, "length") ? Literal(types.length) : IsNumber(indexer) || IsInteger(indexer) ? FromTupleWithoutIndexer(types) : FromTupleWithIndexer(types, indexer);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/from_type.mjs
 function FromType$14(type, indexer) {
 	return IsArray(type) ? FromArray$9(type.items, indexer) : IsObject(type) ? FromObject$11(type.properties, indexer) : IsTuple(type) ? FromTuple$8(type.items, indexer) : Never();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexed/instantiate.mjs
 function NormalizeType$1(type) {
 	return IsCyclic(type) || IsDependent(type) || IsIntersect(type) || IsUnion(type) ? CollapseToObject(type) : type;
 }
@@ -41641,12 +41641,12 @@ function IndexAction(type, indexer, options) {
 function IndexInstantiate(context, state, type, indexer, options) {
 	return IndexAction(InstantiateType(context, state, type), InstantiateType(context, state, indexer), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/instance_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/instance_type.mjs
 /** Creates a deferred InstanceType action. */
 function InstanceTypeDeferred(type, options = {}) {
 	return Deferred("InstanceType", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/instance_type/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/instance_type/instantiate.mjs
 function InstanceTypeOperation(type) {
 	return IsConstructor(type) ? type["instanceType"] : Never();
 }
@@ -41656,12 +41656,12 @@ function InstanceTypeAction(type, options) {
 function InstanceTypeInstantiate(context, state, type, options = {}) {
 	return InstanceTypeAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/keyof.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/keyof.mjs
 /** Creates a deferred KeyOf action. */
 function KeyOfDeferred(type, options = {}) {
 	return Deferred("KeyOf", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_any.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_any.mjs
 function FromAny() {
 	return Union([
 		Number$1(),
@@ -41669,11 +41669,11 @@ function FromAny() {
 		Symbol$1()
 	]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_array.mjs
 function FromArray$8(_type) {
 	return Number$1();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_object.mjs
 function FromPropertyKeys(keys) {
 	return keys.reduce((result, left) => {
 		return IsLiteralValue(left) ? [...result, Literal(ConvertToIntegerKey(left))] : Unreachable();
@@ -41682,19 +41682,19 @@ function FromPropertyKeys(keys) {
 function FromObject$10(properties) {
 	return EvaluateUnionFast(FromPropertyKeys(Keys$1(properties)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_record.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_record.mjs
 function FromRecord$6(type) {
 	return RecordKey(type);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_tuple.mjs
 function FromTuple$7(types) {
 	return EvaluateUnionFast(types.map((_, index) => Literal(index)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/from_type.mjs
 function FromType$13(type) {
 	return IsAny(type) ? FromAny() : IsArray(type) ? FromArray$8(type.items) : IsObject(type) ? FromObject$10(type.properties) : IsRecord(type) ? FromRecord$6(type) : IsTuple(type) ? FromTuple$7(type.items) : Never();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/keyof/instantiate.mjs
 function NormalizeType(type) {
 	return IsCyclic(type) || IsDependent(type) || IsIntersect(type) || IsUnion(type) ? CollapseToObject(type) : type;
 }
@@ -41704,7 +41704,7 @@ function KeyOfAction(type, options) {
 function KeyOfInstantiate(context, state, type, options) {
 	return KeyOfAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/mapped.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/mapped.mjs
 /** Creates a deferred Mapped action. */
 function MappedDeferred(identifier, type, as, property, options = {}) {
 	return Deferred("Mapped", [
@@ -41714,7 +41714,7 @@ function MappedDeferred(identifier, type, as, property, options = {}) {
 		property
 	], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/mapped/mapped_variants.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/mapped/mapped_variants.mjs
 function FromTemplateLiteral$2(pattern) {
 	return FromType$12(EvaluateTemplateLiteral(pattern));
 }
@@ -41735,7 +41735,7 @@ function FromType$12(type) {
 function MappedVariants(type) {
 	return FromType$12(type);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/mapped/mapped_operation.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/mapped/mapped_operation.mjs
 function CanonicalAs(instantiatedAs) {
 	return IsTemplateLiteral(instantiatedAs) ? EvaluateTemplateLiteral(instantiatedAs.pattern) : instantiatedAs;
 }
@@ -41758,14 +41758,14 @@ function MappedObjects(properties) {
 function MappedOperation(context, state, identifier, type, as, property) {
 	return EvaluateIntersect(MappedObjects(MappedProperties(context, state, identifier, MappedVariants(type), as, property)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/mapped/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/mapped/instantiate.mjs
 function MappedAction(context, state, identifier, type, as, property, options) {
 	return CanInstantiate([type]) ? Update$1(MappedOperation(context, state, identifier, type, as, property), {}, options) : MappedDeferred(identifier, type, as, property, options);
 }
 function MappedInstantiate(context, state, identifier, type, as, property, options) {
 	return MappedAction(context, state, identifier, InstantiateType(context, state, type), as, property, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/module/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/module/instantiate.mjs
 function InstantiateCyclics(context, declarations, cyclicKeys) {
 	const declarationContext = Assign(context, declarations);
 	return Keys$1(declarations).filter((key) => cyclicKeys.includes(key)).reduce((result, key) => {
@@ -41796,12 +41796,12 @@ function InstantiateModule(context, declarations, options) {
 function ModuleInstantiate(context, _state, declarations, options) {
 	return InstantiateModule(context, declarations, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/non_nullable.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/non_nullable.mjs
 /** Creates a deferred NonNullable action. */
 function NonNullableDeferred(type, options = {}) {
 	return Deferred("NonNullable", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/non_nullable/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/non_nullable/instantiate.mjs
 function NonNullableOperation(type) {
 	return ExcludeAction(type, Union([Null(), Undefined()]), {});
 }
@@ -41811,18 +41811,18 @@ function NonNullableAction(type, options) {
 function NonNullableInstantiate(context, state, type, options) {
 	return NonNullableAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/omit.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/omit.mjs
 /** Creates a deferred Omit action. */
 function OmitDeferred(type, indexer, options = {}) {
 	return Deferred("Omit", [type, indexer], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/to_indexable.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/indexable/to_indexable.mjs
 /** Transforms a type into a TProperties used for indexing operations */
 function ToIndexable(type) {
 	const collapsed = CollapseToObject(type);
 	return IsObject(collapsed) ? collapsed.properties : Unreachable();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/omit/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/omit/from_type.mjs
 function FromKeys$1(properties, keys) {
 	return Keys$1(properties).reduce((result, key) => {
 		return keys.includes(key) ? result : {
@@ -41834,19 +41834,19 @@ function FromKeys$1(properties, keys) {
 function FromType$11(type, indexer) {
 	return _Object_(FromKeys$1(ToIndexable(type), ToIndexableKeys(indexer)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/omit/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/omit/instantiate.mjs
 function OmitAction(type, indexer, options) {
 	return CanInstantiate([type, indexer]) ? Update$1(FromType$11(type, indexer), {}, options) : OmitDeferred(type, indexer, options);
 }
 function OmitInstantiate(context, state, type, indexer, options) {
 	return OmitAction(InstantiateType(context, state, type), InstantiateType(context, state, indexer), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/parameters.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/parameters.mjs
 /** Creates a deferred Parameters action. */
 function ParametersDeferred(type, options = {}) {
 	return Deferred("Parameters", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/parameters/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/parameters/instantiate.mjs
 function ParametersOperation(type) {
 	const parameters = IsFunction(type) ? type["parameters"] : [];
 	return Tuple(InstantiateElements({}, State([], []), parameters));
@@ -41857,29 +41857,29 @@ function ParametersAction(type, options) {
 function ParametersInstantiate(context, state, type, options) {
 	return ParametersAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/partial.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/partial.mjs
 /** Creates a deferred Partial action. */
 function PartialDeferred(type, options = {}) {
 	return Deferred("Partial", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_cyclic.mjs
 function FromCyclic$8(defs, ref) {
 	const partial = FromType$10(CyclicTarget(defs, ref));
 	return Cyclic(Assign(defs, { [ref]: partial }), ref);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_dependent.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_dependent.mjs
 function FromDependent$2(if_, then_, else_) {
 	return FromType$10(EvaluateDependent(if_, then_, else_));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_intersect.mjs
 function FromIntersect$8(types) {
 	return FromType$10(EvaluateIntersect(types));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_union.mjs
 function FromUnion$8(types) {
 	return Union(types.map((type) => FromType$10(type)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_object.mjs
 function FromObject$9(properties) {
 	return _Object_(Keys$1(properties).reduce((result, left) => {
 		return {
@@ -41888,23 +41888,23 @@ function FromObject$9(properties) {
 		};
 	}, {}));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/from_type.mjs
 function FromType$10(type) {
 	return IsCyclic(type) ? FromCyclic$8(type.$defs, type.$ref) : IsDependent(type) ? FromDependent$2(type.if, type.then, type.else) : IsIntersect(type) ? FromIntersect$8(type.allOf) : IsUnion(type) ? FromUnion$8(type.anyOf) : IsObject(type) ? FromObject$9(type.properties) : _Object_({});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/partial/instantiate.mjs
 function PartialAction(type, options) {
 	return CanInstantiate([type]) ? Update$1(FromType$10(type), {}, options) : PartialDeferred(type, options);
 }
 function PartialInstantiate(context, state, type, options) {
 	return PartialAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/pick.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/pick.mjs
 /** Creates a deferred Pick action. */
 function PickDeferred(type, indexer, options = {}) {
 	return Deferred("Pick", [type, indexer], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/pick/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/pick/from_type.mjs
 function FromKeys(properties, keys) {
 	return Keys$1(properties).reduce((result, key) => {
 		return keys.includes(key) ? Assign(result, { [key]: properties[key] }) : result;
@@ -41913,36 +41913,36 @@ function FromKeys(properties, keys) {
 function FromType$9(type, indexer) {
 	return _Object_(FromKeys(ToIndexable(type), ToIndexableKeys(indexer)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/pick/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/pick/instantiate.mjs
 function PickAction(type, indexer, options) {
 	return CanInstantiate([type, indexer]) ? Update$1(FromType$9(type, indexer), {}, options) : PickDeferred(type, indexer, options);
 }
 function PickInstantiate(context, state, type, indexer, options) {
 	return PickAction(InstantiateType(context, state, type), InstantiateType(context, state, indexer), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/readonly_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/readonly_object.mjs
 /** Creates a deferred ReadonlyType action. */
 function ReadonlyObjectDeferred(type, options = {}) {
 	return Deferred("ReadonlyObject", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_array.mjs
 function FromArray$7(type) {
 	return AddImmutable(_Array_(type));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_cyclic.mjs
 function FromCyclic$7(defs, ref) {
 	const partial = FromType$8(CyclicTarget(defs, ref));
 	return Cyclic(Assign(defs, { [ref]: partial }), ref);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_dependent.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_dependent.mjs
 function FromDependent$1(if_, then_, else_) {
 	return FromType$8(EvaluateDependent(if_, then_, else_));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_intersect.mjs
 function FromIntersect$7(types) {
 	return FromType$8(EvaluateIntersect(types));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_object.mjs
 function FromObject$8(properties) {
 	return _Object_(Keys$1(properties).reduce((result, left) => {
 		return {
@@ -41951,47 +41951,47 @@ function FromObject$8(properties) {
 		};
 	}, {}));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_tuple.mjs
 function FromTuple$6(types) {
 	return AddImmutable(Tuple(types));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_union.mjs
 function FromUnion$7(types) {
 	return Union(types.map((type) => FromType$8(type)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/from_type.mjs
 function FromType$8(type) {
 	return IsArray(type) ? FromArray$7(type.items) : IsCyclic(type) ? FromCyclic$7(type.$defs, type.$ref) : IsDependent(type) ? FromDependent$1(type.if, type.then, type.else) : IsIntersect(type) ? FromIntersect$7(type.allOf) : IsObject(type) ? FromObject$8(type.properties) : IsTuple(type) ? FromTuple$6(type.items) : IsUnion(type) ? FromUnion$7(type.anyOf) : type;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/readonly_object/instantiate.mjs
 function ReadonlyObjectAction(type, options) {
 	return CanInstantiate([type]) ? Update$1(FromType$8(type), {}, options) : ReadonlyObjectDeferred(type);
 }
 function ReadonlyObjectInstantiate(context, state, type, options) {
 	return ReadonlyObjectAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/ref/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/ref/instantiate.mjs
 function RefInstantiate(context, state, type, ref) {
 	return state.visited.includes(ref) ? type : ref in context ? InstantiateType(context, State(state["callstack"], [...state["visited"], ref]), context[ref]) : type;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_cyclic.mjs
 function FromCyclic$6(defs, ref) {
 	const partial = FromType$7(CyclicTarget(defs, ref));
 	return Cyclic(Assign(defs, { [ref]: partial }), ref);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_dependent.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_dependent.mjs
 function FromDependent(if_, then_, else_) {
 	return FromType$7(EvaluateDependent(if_, then_, else_));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_intersect.mjs
 function FromIntersect$6(types) {
 	return FromType$7(EvaluateIntersect(types));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_union.mjs
 function FromUnion$6(types) {
 	return Union(types.map((type) => FromType$7(type)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_object.mjs
 function FromObject$7(properties) {
 	return _Object_(Keys$1(properties).reduce((result, left) => {
 		return {
@@ -42000,28 +42000,28 @@ function FromObject$7(properties) {
 		};
 	}, {}));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/from_type.mjs
 function FromType$7(type) {
 	return IsCyclic(type) ? FromCyclic$6(type.$defs, type.$ref) : IsDependent(type) ? FromDependent(type.if, type.then, type.else) : IsIntersect(type) ? FromIntersect$6(type.allOf) : IsUnion(type) ? FromUnion$6(type.anyOf) : IsObject(type) ? FromObject$7(type.properties) : _Object_({});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/required.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/required.mjs
 /** Creates a deferred Required action. */
 function RequiredDeferred(type, options = {}) {
 	return Deferred("Required", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/required/instantiate.mjs
 function RequiredAction(type, options) {
 	return CanInstantiate([type]) ? Update$1(FromType$7(type), {}, options) : RequiredDeferred(type, options);
 }
 function RequiredInstantiate(context, state, type, options) {
 	return RequiredAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/return_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/return_type.mjs
 /** Creates a deferred ReturnType action. */
 function ReturnTypeDeferred(type, options = {}) {
 	return Deferred("ReturnType", [type], options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/return_type/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/return_type/instantiate.mjs
 function ReturnTypeOperation(type) {
 	return IsFunction(type) ? type["returnType"] : Never();
 }
@@ -42031,7 +42031,7 @@ function ReturnTypeAction(type, options) {
 function ReturnTypeInstantiate(context, state, type, options = {}) {
 	return ReturnTypeAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/with.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/with.mjs
 /** Creates a deferred With action. */
 function WithDeferred(type, options) {
 	return Deferred("With", [type, options], {});
@@ -42040,14 +42040,14 @@ function WithDeferred(type, options) {
 function With(type, options) {
 	return WithAction(type, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/with/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/with/instantiate.mjs
 function WithAction(type, options) {
 	return CanInstantiate([type]) ? Update$1(type, {}, options) : WithDeferred(type, options);
 }
 function WithInstantiate(context, state, type, options) {
 	return WithAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/rest/spread.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/rest/spread.mjs
 function SpreadElement(type) {
 	return IsRest(type) ? IsTuple(type.items) ? RestSpread(type.items.items) : IsInfer(type.items) ? [type] : IsRef$1(type.items) ? [type] : [Never()] : [type];
 }
@@ -42056,7 +42056,7 @@ function RestSpread(types) {
 		return [...result, ...SpreadElement(left)];
 	}, []);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/instantiate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/instantiate.mjs
 function State(callstack, visited) {
 	return {
 		callstack,
@@ -42098,7 +42098,7 @@ function InstantiateType(context, state, type) {
 function Instantiate(context, type) {
 	return InstantiateType(context, State([], []), type);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/immutable/instantiate_add.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/immutable/instantiate_add.mjs
 function AddImmutableOperation(type) {
 	return Update$1(type, { "~immutable": true }, {});
 }
@@ -42108,17 +42108,17 @@ function AddImmutableAction(type, options) {
 function AddImmutableInstantiate(context, state, type, options) {
 	return AddImmutableAction(InstantiateType(context, state, type), options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_add_immutable.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/_add_immutable.mjs
 /** Applies an AddImmutable action to a type. */
 function AddImmutable(type, options = {}) {
 	return AddImmutableAction(type, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/evaluate.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/action/evaluate.mjs
 /** Applies an Evaluate action to a type. */
 function Evaluate(type, options = {}) {
 	return EvaluateAction(type, options);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/priority/priority.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/type/engine/priority/priority.mjs
 function Comparer(left, right) {
 	const compareResult = Compare(left, right);
 	return IsEqual$1(compareResult, 3) ? 1 : IsEqual$1(compareResult, 1) ? 1 : 0;
@@ -42142,7 +42142,7 @@ function Sort(types, result = []) {
 function Priority(types) {
 	return Sort(types);
 }
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/utils/overflow.js
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/utils/overflow.js
 /**
 * Regex patterns to detect context overflow errors from different providers.
 *
@@ -42292,7 +42292,7 @@ function isContextOverflow(message, contextWindow) {
 	}
 	return false;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/_refine.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/_refine.mjs
 /**
 * Returns true if the schema contains an '~refine` keyword
 * @specification None
@@ -42300,7 +42300,7 @@ function isContextOverflow(message, contextWindow) {
 function IsRefine(value) {
 	return HasPropertyKey$1(value, "~refine") && IsArray$2(value["~refine"]) && Every$1(value["~refine"], 0, (value) => IsObject$2(value) && HasPropertyKey$1(value, "check") && HasPropertyKey$1(value, "error") && IsFunction$2(value.check) && IsFunction$2(value.error));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/schema.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/schema.mjs
 /** Returns true if this value is object like */
 function IsSchemaObject(value) {
 	return IsObject$2(value) && !IsArray$2(value);
@@ -42313,7 +42313,7 @@ function IsSchemaBoolean(value) {
 function IsSchema(value) {
 	return IsSchemaObject(value) || IsSchemaBoolean(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/additionalItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/additionalItems.mjs
 /**
 * Returns true if the schema contains a valid additionalItems property
 * @specification Json Schema 7
@@ -42321,7 +42321,7 @@ function IsSchema(value) {
 function IsAdditionalItems(schema) {
 	return HasPropertyKey$1(schema, "additionalItems") && IsSchema(schema.additionalItems);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/additionalProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/additionalProperties.mjs
 /**
 * Returns true if the schema contains a valid additionalProperties property
 * @specification Json Schema 7
@@ -42329,7 +42329,7 @@ function IsAdditionalItems(schema) {
 function IsAdditionalProperties(schema) {
 	return HasPropertyKey$1(schema, "additionalProperties") && IsSchema(schema.additionalProperties);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/allOf.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/allOf.mjs
 /**
 * Returns true if the schema contains a valid allOf property
 * @specification Json Schema 7
@@ -42337,14 +42337,14 @@ function IsAdditionalProperties(schema) {
 function IsAllOf(schema) {
 	return HasPropertyKey$1(schema, "allOf") && IsArray$2(schema.allOf) && schema.allOf.every((value) => IsSchema(value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/anchor.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/anchor.mjs
 /**
 * Returns true if the schema contains a valid $anchor property
 */
 function IsAnchor(schema) {
 	return HasPropertyKey$1(schema, "$anchor") && IsString$3(schema.$anchor);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/anyOf.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/anyOf.mjs
 /**
 * Returns true if the schema contains a valid anyOf property
 * @specification Json Schema 7
@@ -42352,7 +42352,7 @@ function IsAnchor(schema) {
 function IsAnyOf(schema) {
 	return HasPropertyKey$1(schema, "anyOf") && IsArray$2(schema.anyOf) && schema.anyOf.every((value) => IsSchema(value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/const.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/const.mjs
 /**
 * Returns true if the schema contains a valid const property
 * @specification Json Schema 7
@@ -42360,7 +42360,7 @@ function IsAnyOf(schema) {
 function IsConst(value) {
 	return HasPropertyKey$1(value, "const");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/contains.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/contains.mjs
 /**
 * Returns true if the schema contains a valid contains property
 * @specification Json Schema 7
@@ -42368,7 +42368,7 @@ function IsConst(value) {
 function IsContains(schema) {
 	return HasPropertyKey$1(schema, "contains") && IsSchema(schema.contains);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/default.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/default.mjs
 /**
 * Returns true if the schema contains a valid contentMediaType property
 * @specification Json Schema 7
@@ -42376,7 +42376,7 @@ function IsContains(schema) {
 function IsDefault(schema) {
 	return HasPropertyKey$1(schema, "default");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dependencies.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dependencies.mjs
 /**
 * Returns true if the schema contains a valid dependencies property
 * @specification Json Schema 7
@@ -42384,7 +42384,7 @@ function IsDefault(schema) {
 function IsDependencies(schema) {
 	return HasPropertyKey$1(schema, "dependencies") && IsObject$2(schema.dependencies) && Object.values(schema.dependencies).every((value) => IsSchema(value) || IsArray$2(value) && value.every((value) => IsString$3(value)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dependentRequired.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dependentRequired.mjs
 /**
 * Returns true if the schema contains a valid dependentRequired property
 * @specification Json Schema 2019-09
@@ -42392,7 +42392,7 @@ function IsDependencies(schema) {
 function IsDependentRequired(schema) {
 	return HasPropertyKey$1(schema, "dependentRequired") && IsObject$2(schema.dependentRequired) && Object.values(schema.dependentRequired).every((value) => IsArray$2(value) && value.every((value) => IsString$3(value)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dependentSchemas.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dependentSchemas.mjs
 /**
 * Returns true if the schema contains a valid dependentRequired property
 * @specification Json Schema 2019-09
@@ -42400,21 +42400,21 @@ function IsDependentRequired(schema) {
 function IsDependentSchemas(schema) {
 	return HasPropertyKey$1(schema, "dependentSchemas") && IsObject$2(schema.dependentSchemas) && Object.values(schema.dependentSchemas).every((value) => IsSchema(value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dynamicAnchor.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dynamicAnchor.mjs
 /**
 * Returns true if the schema contains a valid $dynamicAnchor property
 */
 function IsDynamicAnchor(schema) {
 	return HasPropertyKey$1(schema, "$dynamicAnchor") && IsString$3(schema.$dynamicAnchor);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dynamicRef.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/dynamicRef.mjs
 /**
 * Returns true if the schema contains a valid $dynamicRef property
 */
 function IsDynamicRef(schema) {
 	return HasPropertyKey$1(schema, "$dynamicRef") && IsString$3(schema.$dynamicRef);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/else.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/else.mjs
 /**
 * Returns true if the schema contains a valid else property
 * @specification Json Schema 7
@@ -42422,7 +42422,7 @@ function IsDynamicRef(schema) {
 function IsElse(schema) {
 	return HasPropertyKey$1(schema, "else") && IsSchema(schema.else);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/enum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/enum.mjs
 /**
 * Returns true if the schema contains a valid enum property
 * @specification Json Schema 7
@@ -42430,7 +42430,7 @@ function IsElse(schema) {
 function IsEnum(schema) {
 	return HasPropertyKey$1(schema, "enum") && IsArray$2(schema.enum);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/exclusiveMaximum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/exclusiveMaximum.mjs
 /**
 * Returns true if the schema contains a valid exclusiveMaximum property
 * @specification Json Schema 7
@@ -42438,7 +42438,7 @@ function IsEnum(schema) {
 function IsExclusiveMaximum(schema) {
 	return HasPropertyKey$1(schema, "exclusiveMaximum") && (IsNumber$3(schema.exclusiveMaximum) || IsBigInt$2(schema.exclusiveMaximum));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/exclusiveMinimum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/exclusiveMinimum.mjs
 /**
 * Returns true if the schema contains a valid exclusiveMinimum property
 * @specification Json Schema 7
@@ -42446,7 +42446,7 @@ function IsExclusiveMaximum(schema) {
 function IsExclusiveMinimum(schema) {
 	return HasPropertyKey$1(schema, "exclusiveMinimum") && (IsNumber$3(schema.exclusiveMinimum) || IsBigInt$2(schema.exclusiveMinimum));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/format.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/format.mjs
 /**
 * Returns true if the schema contains a valid format property
 * @specification Json Schema 7
@@ -42454,7 +42454,7 @@ function IsExclusiveMinimum(schema) {
 function IsFormat(schema) {
 	return HasPropertyKey$1(schema, "format") && IsString$3(schema.format);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/id.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/id.mjs
 /**
 * Returns true if the schema contains a valid $id property
 * @specification Json Schema 7
@@ -42462,7 +42462,7 @@ function IsFormat(schema) {
 function IsId(schema) {
 	return HasPropertyKey$1(schema, "$id") && IsString$3(schema.$id);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/if.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/if.mjs
 /**
 * Returns true if the schema contains a valid $id property
 * @specification Json Schema 7
@@ -42470,7 +42470,7 @@ function IsId(schema) {
 function IsIf(schema) {
 	return HasPropertyKey$1(schema, "if") && IsSchema(schema.if);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/items.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/items.mjs
 /**
 * Returns true if the schema contains a valid items property
 * @specification Json Schema 7
@@ -42484,7 +42484,7 @@ function IsItems(schema) {
 function IsItemsSized(schema) {
 	return IsItems(schema) && IsArray$2(schema.items);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maximum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maximum.mjs
 /**
 * Returns true if the schema contains a valid maximum property
 * @specification Json Schema 7
@@ -42492,7 +42492,7 @@ function IsItemsSized(schema) {
 function IsMaximum(schema) {
 	return HasPropertyKey$1(schema, "maximum") && (IsNumber$3(schema.maximum) || IsBigInt$2(schema.maximum));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maxContains.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maxContains.mjs
 /**
 * Returns true if the schema contains a valid maxContains property
 * @specification Json Schema 2019-09
@@ -42500,7 +42500,7 @@ function IsMaximum(schema) {
 function IsMaxContains(schema) {
 	return HasPropertyKey$1(schema, "maxContains") && IsNumber$3(schema.maxContains);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maxItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maxItems.mjs
 /**
 * Returns true if the schema contains a valid maxItems property
 * @specification Json Schema 7
@@ -42508,7 +42508,7 @@ function IsMaxContains(schema) {
 function IsMaxItems(schema) {
 	return HasPropertyKey$1(schema, "maxItems") && IsNumber$3(schema.maxItems);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maxLength.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maxLength.mjs
 /**
 * Returns true if the schema contains a valid maxLength property
 * @specification Json Schema 7
@@ -42516,7 +42516,7 @@ function IsMaxItems(schema) {
 function IsMaxLength(schema) {
 	return HasPropertyKey$1(schema, "maxLength") && IsNumber$3(schema.maxLength);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maxProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/maxProperties.mjs
 /**
 * Returns true if the schema contains a valid maxProperties property
 * @specification Json Schema 7
@@ -42524,7 +42524,7 @@ function IsMaxLength(schema) {
 function IsMaxProperties(schema) {
 	return HasPropertyKey$1(schema, "maxProperties") && IsNumber$3(schema.maxProperties);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minimum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minimum.mjs
 /**
 * Returns true if the schema contains a valid minimum property
 * @specification Json Schema 7
@@ -42532,7 +42532,7 @@ function IsMaxProperties(schema) {
 function IsMinimum(schema) {
 	return HasPropertyKey$1(schema, "minimum") && (IsNumber$3(schema.minimum) || IsBigInt$2(schema.minimum));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minContains.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minContains.mjs
 /**
 * Returns true if the schema contains a valid maxContains property
 * @specification Json Schema 2019-09
@@ -42540,7 +42540,7 @@ function IsMinimum(schema) {
 function IsMinContains(schema) {
 	return HasPropertyKey$1(schema, "minContains") && IsNumber$3(schema.minContains);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minItems.mjs
 /**
 * Returns true if the schema contains a valid minItems property
 * @specification Json Schema 7
@@ -42548,7 +42548,7 @@ function IsMinContains(schema) {
 function IsMinItems(schema) {
 	return HasPropertyKey$1(schema, "minItems") && IsNumber$3(schema.minItems);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minLength.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minLength.mjs
 /**
 * Returns true if the schema contains a valid minLength property
 * @specification Json Schema 7
@@ -42556,7 +42556,7 @@ function IsMinItems(schema) {
 function IsMinLength(schema) {
 	return HasPropertyKey$1(schema, "minLength") && IsNumber$3(schema.minLength);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/minProperties.mjs
 /**
 * Returns true if the schema contains a valid minProperties property
 * @specification Json Schema 7
@@ -42564,7 +42564,7 @@ function IsMinLength(schema) {
 function IsMinProperties(schema) {
 	return HasPropertyKey$1(schema, "minProperties") && IsNumber$3(schema.minProperties);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/multipleOf.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/multipleOf.mjs
 /**
 * Returns true if the schema contains a valid multipleOf property
 * @specification Json Schema 7
@@ -42572,7 +42572,7 @@ function IsMinProperties(schema) {
 function IsMultipleOf(schema) {
 	return HasPropertyKey$1(schema, "multipleOf") && (IsNumber$3(schema.multipleOf) || IsBigInt$2(schema.multipleOf));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/not.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/not.mjs
 /**
 * Returns true if the schema contains a valid not property
 * @specification Json Schema 7
@@ -42580,7 +42580,7 @@ function IsMultipleOf(schema) {
 function IsNot(schema) {
 	return HasPropertyKey$1(schema, "not") && IsSchema(schema.not);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/oneOf.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/oneOf.mjs
 /**
 * Returns true if the schema contains a valid oneOf property
 * @specification Json Schema 7
@@ -42588,7 +42588,7 @@ function IsNot(schema) {
 function IsOneOf(schema) {
 	return HasPropertyKey$1(schema, "oneOf") && IsArray$2(schema.oneOf) && schema.oneOf.every((value) => IsSchema(value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/pattern.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/pattern.mjs
 /**
 * Returns true if the schema contains a valid pattern property
 * @specification Json Schema 7
@@ -42596,7 +42596,7 @@ function IsOneOf(schema) {
 function IsPattern(schema) {
 	return HasPropertyKey$1(schema, "pattern") && (IsString$3(schema.pattern) || schema.pattern instanceof RegExp);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/patternProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/patternProperties.mjs
 /**
 * Returns true if the schema contains a valid patternProperties property
 * @specification Json Schema 7
@@ -42604,14 +42604,14 @@ function IsPattern(schema) {
 function IsPatternProperties(schema) {
 	return HasPropertyKey$1(schema, "patternProperties") && IsObject$2(schema.patternProperties) && Object.values(schema.patternProperties).every((value) => IsSchema(value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/prefixItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/prefixItems.mjs
 /**
 * Returns true if the schema contains a valid prefixItems property
 */
 function IsPrefixItems(schema) {
 	return HasPropertyKey$1(schema, "prefixItems") && IsArray$2(schema.prefixItems) && schema.prefixItems.every((schema) => IsSchema(schema));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/properties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/properties.mjs
 /**
 * Returns true if the schema contains a valid properties property
 * @specification Json Schema 7
@@ -42619,7 +42619,7 @@ function IsPrefixItems(schema) {
 function IsProperties(schema) {
 	return HasPropertyKey$1(schema, "properties") && IsObject$2(schema.properties) && Object.values(schema.properties).every((value) => IsSchema(value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/propertyNames.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/propertyNames.mjs
 /**
 * Returns true if the schema contains a valid propertyNames property
 * @specification Json Schema 7
@@ -42627,7 +42627,7 @@ function IsProperties(schema) {
 function IsPropertyNames(schema) {
 	return HasPropertyKey$1(schema, "propertyNames") && (IsObject$2(schema.propertyNames) || IsSchema(schema.propertyNames));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/recursiveAnchor.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/recursiveAnchor.mjs
 /**
 * Returns true if the schema contains a valid $recursiveAnchor property
 */
@@ -42640,14 +42640,14 @@ function IsRecursiveAnchor(schema) {
 function IsRecursiveAnchorTrue(schema) {
 	return IsRecursiveAnchor(schema) && IsEqual$1(schema.$recursiveAnchor, true);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/recursiveRef.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/recursiveRef.mjs
 /**
 * Returns true if the schema contains a valid $recursiveRef property
 */
 function IsRecursiveRef(schema) {
 	return HasPropertyKey$1(schema, "$recursiveRef") && IsString$3(schema.$recursiveRef);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/ref.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/ref.mjs
 /**
 * Returns true if the schema contains a valid $ref property
 * @specification Json Schema 7
@@ -42655,7 +42655,7 @@ function IsRecursiveRef(schema) {
 function IsRef(schema) {
 	return HasPropertyKey$1(schema, "$ref") && IsString$3(schema.$ref);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/required.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/required.mjs
 /**
 * Returns true if the schema contains a valid required property
 * @specification Json Schema 7
@@ -42663,7 +42663,7 @@ function IsRef(schema) {
 function IsRequired(schema) {
 	return HasPropertyKey$1(schema, "required") && IsArray$2(schema.required) && schema.required.every((value) => IsString$3(value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/then.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/then.mjs
 /**
 * Returns true if the schema contains a valid then property
 * @specification Json Schema 7
@@ -42671,7 +42671,7 @@ function IsRequired(schema) {
 function IsThen(schema) {
 	return HasPropertyKey$1(schema, "then") && IsSchema(schema.then);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/type.mjs
 /**
 * Returns true if the schema contains a valid type property
 * @specification Json Schema 7
@@ -42679,7 +42679,7 @@ function IsThen(schema) {
 function IsType(schema) {
 	return HasPropertyKey$1(schema, "type") && (IsString$3(schema.type) || IsArray$2(schema.type) && schema.type.every((value) => IsString$3(value)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/uniqueItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/uniqueItems.mjs
 /**
 * Returns true if the schema contains a valid uniqueItems property
 * @specification Json Schema 7
@@ -42687,7 +42687,7 @@ function IsType(schema) {
 function IsUniqueItems(schema) {
 	return HasPropertyKey$1(schema, "uniqueItems") && IsBoolean$3(schema.uniqueItems);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/unevaluatedItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/unevaluatedItems.mjs
 /**
 * Returns true if the schema contains a valid unevaluatedItems property
 * @specification Json Schema 2019-09
@@ -42695,7 +42695,7 @@ function IsUniqueItems(schema) {
 function IsUnevaluatedItems(schema) {
 	return HasPropertyKey$1(schema, "unevaluatedItems") && IsSchema(schema.unevaluatedItems);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/unevaluatedProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/types/unevaluatedProperties.mjs
 /**
 * Returns true if the schema contains a valid unevaluatedProperties property
 * @specification Json Schema 2019-09
@@ -42703,7 +42703,7 @@ function IsUnevaluatedItems(schema) {
 function IsUnevaluatedProperties(schema) {
 	return HasPropertyKey$1(schema, "unevaluatedProperties") && IsSchema(schema.unevaluatedProperties);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_context.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_context.mjs
 function HasUnevaluatedFromObject(value) {
 	return IsUnevaluatedItems(value) || IsUnevaluatedProperties(value) || Some$1(Keys$1(value), (key) => HasUnevaluatedFromUnknown(value[key]));
 }
@@ -42799,7 +42799,7 @@ var ErrorContext = class extends CheckContext {
 		return this.errors;
 	}
 };
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_externals.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_externals.mjs
 var state = {
 	identifier: "External",
 	variables: []
@@ -42815,7 +42815,7 @@ function ResetExternal() {
 function GetExternal() {
 	return { ...state };
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_refine.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_refine.mjs
 function BuildRefine(_stack, _context, schema, value) {
 	return Every(CreateVariable(schema["~refine"].map((refinement) => refinement)), Constant(0), ["refinement", "_"], Call(Member("refinement", "check"), [value]));
 }
@@ -42835,13 +42835,13 @@ function ErrorRefine(_stack, context, schemaPath, instancePath, schema, value) {
 		});
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_unique.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_unique.mjs
 var index$1 = 0;
 /** Returns a Unique Variable Name */
 function Unique() {
 	return `var_${index$1++}`;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/additionalItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/additionalItems.mjs
 function IsValid$4(schema) {
 	return IsItems(schema) && IsArray$2(schema.items);
 }
@@ -42876,12 +42876,12 @@ function ErrorAdditionalItems(stack, context, schemaPath, instancePath, schema, 
 		return IsLessThan$1(index, schema.items.length) || ErrorSchemaPushStack(stack, context, nextSchemaPath, nextInstancePath, schema.additionalItems, item) && context.AddIndex(index);
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_regexp.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_regexp.mjs
 /** Standard RegExp with Unicode */
 function UnicodeRegExp(pattern) {
 	return new RegExp(pattern, "u");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/additionalProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/additionalProperties.mjs
 function IsAdditionalPropertiesIgnored(context, additionalProperties) {
 	return !context.UseUnevaluated() && (IsEqual$1(additionalProperties, true) || IsObject$2(additionalProperties) && IsEqual$1(Keys$1(additionalProperties).length, 0));
 }
@@ -42935,7 +42935,7 @@ function ErrorAdditionalProperties(stack, context, schemaPath, instancePath, sch
 		params: { additionalProperties }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_reducer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_reducer.mjs
 function Reducer(stack, context, schemas, value, check) {
 	const results = ConstDeclaration("results", "[]");
 	const context_n = schemas.map((_schema, index) => ConstDeclaration(`context_${index}`, New("CheckContext", [])));
@@ -42950,7 +42950,7 @@ function Reducer(stack, context, schemas, value, check) {
 		returns
 	])), []);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/allOf.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/allOf.mjs
 function BuildAllOfStandard(stack, context, schema, value) {
 	return Reducer(stack, context, schema.allOf, value, IsEqual(Member("results", "length"), Constant(schema.allOf.length)));
 }
@@ -42980,7 +42980,7 @@ function ErrorAllOf(stack, context, schemaPath, instancePath, schema, value) {
 	if (!isAllOf) failedContexts.forEach((failed) => failed.GetErrors().forEach((error) => context.AddError(error)));
 	return isAllOf;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/anyOf.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/anyOf.mjs
 function BuildAnyOfStandard(stack, context, schema, value) {
 	return Reducer(stack, context, schema.anyOf, value, IsGreaterThan(Member("results", "length"), Constant(0)));
 }
@@ -43014,7 +43014,7 @@ function ErrorAnyOf(stack, context, schemaPath, instancePath, schema, value) {
 		params: {}
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/boolean.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/boolean.mjs
 function BuildSchemaBoolean(_stack, _context, schema, _value) {
 	return schema ? Constant(true) : Constant(false);
 }
@@ -43029,7 +43029,7 @@ function ErrorSchemaBoolean(stack, context, schemaPath, instancePath, schema, va
 		params: {}
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/const.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/const.mjs
 function BuildConst(_stack, _context, schema, value) {
 	return IsValueLike(schema.const) ? IsEqual(value, Constant(schema.const)) : IsDeepEqual(value, CreateVariable(schema.const));
 }
@@ -43044,7 +43044,7 @@ function ErrorConst(stack, context, schemaPath, instancePath, schema, value) {
 		params: { allowedValue: schema.const }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/contains.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/contains.mjs
 function IsValid$3(schema) {
 	return !(IsMinContains(schema) && IsEqual$1(schema.minContains, 0));
 }
@@ -43074,7 +43074,7 @@ function ErrorContains(stack, context, schemaPath, instancePath, schema, value) 
 		params: { minContains: 1 }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/dependencies.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/dependencies.mjs
 function BuildDependencies(stack, context, schema, value) {
 	return Or(IsEqual(Member(Keys(value), "length"), Constant(0)), ReduceAnd(Entries$2(schema.dependencies).map(([key, schema]) => {
 		const notKey = Not(HasPropertyKey(value, Constant(key)));
@@ -43106,7 +43106,7 @@ function ErrorDependencies(stack, context, schemaPath, instancePath, schema, val
 	});
 	return isLength || isEvery;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/dependentRequired.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/dependentRequired.mjs
 function BuildDependentRequired(_stack, _context, schema, value) {
 	return Or(IsEqual(Member(Keys(value), "length"), Constant(0)), ReduceAnd(Entries$2(schema.dependentRequired).map(([key, keys]) => {
 		return Or(Not(HasPropertyKey(value, Constant(key))), ReduceAnd(keys.map((key) => HasPropertyKey(value, Constant(key)))));
@@ -43134,7 +43134,7 @@ function ErrorDependentRequired(_stack, context, schemaPath, instancePath, schem
 	});
 	return isLength || isEveryEntry;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/dependentSchemas.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/dependentSchemas.mjs
 function BuildDependentSchemas(stack, context, schema, value) {
 	return Or(IsEqual(Member(Keys(value), "length"), Constant(0)), ReduceAnd(Entries$2(schema.dependentSchemas).map(([key, schema]) => {
 		return Or(Not(HasPropertyKey(value, Constant(key))), BuildSchema(stack, context, schema, value));
@@ -43155,7 +43155,7 @@ function ErrorDependentSchemas(stack, context, schemaPath, instancePath, schema,
 	});
 	return isLength || isEvery;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/dynamicRef.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/dynamicRef.mjs
 function BuildDynamicRef(stack, context, schema, value) {
 	return CreateFunction(stack, context, stack.DynamicRef(schema) ?? false, value);
 }
@@ -43167,7 +43167,7 @@ function ErrorDynamicRef(stack, context, _schemaPath, instancePath, schema, valu
 	const target = stack.DynamicRef(schema) ?? false;
 	return IsSchema(target) && ErrorSchema(stack, context, "#", instancePath, target, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/enum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/enum.mjs
 function BuildEnum(_stack, _context, schema, value) {
 	return ReduceOr(schema.enum.map((option) => {
 		if (IsValueLike(option)) return IsEqual(value, Constant(option));
@@ -43185,7 +43185,7 @@ function ErrorEnum(stack, context, schemaPath, instancePath, schema, value) {
 		params: { allowedValues: schema.enum }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/exclusiveMaximum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/exclusiveMaximum.mjs
 function BuildExclusiveMaximum(_stack, _context, schema, value) {
 	return IsLessThan(value, Constant(schema.exclusiveMaximum));
 }
@@ -43203,7 +43203,7 @@ function ErrorExclusiveMaximum(stack, context, schemaPath, instancePath, schema,
 		}
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/exclusiveMinimum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/exclusiveMinimum.mjs
 function BuildExclusiveMinimum(_stack, _context, schema, value) {
 	return IsGreaterThan(value, Constant(schema.exclusiveMinimum));
 }
@@ -43221,7 +43221,7 @@ function ErrorExclusiveMinimum(stack, context, schemaPath, instancePath, schema,
 		}
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/date.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/date.mjs
 var DAYS = [
 	0,
 	31,
@@ -43254,7 +43254,7 @@ function IsDate(value) {
 	const day = +matches[3];
 	return month >= 1 && month <= 12 && day >= 1 && day <= (month === 2 && IsLeapYear(year) ? 29 : DAYS[month]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/time.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/time.mjs
 var TIME = /^(\d\d):(\d\d):(\d\d)(?:\.\d+)?(?:([Zz])|([+-])(\d\d):(\d\d))?$/;
 /**
 * Returns true if the value is an ISO time string
@@ -43279,7 +43279,7 @@ function IsTime(value, strictTimeZone = true) {
 	const tzM = +(matches[7] || 0);
 	return ((hr * 60 + min - tzSign * (tzH * 60 + tzM)) % 1440 + 1440) % 1440 === 1439;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/date_time.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/date_time.mjs
 /**
 * Returns true if the value is a ISO8601 DateTime string
 * @specification https://datatracker.ietf.org/doc/html/rfc3339
@@ -43289,7 +43289,7 @@ function IsDateTime(value) {
 	const dateTime = value.split(/T/i);
 	return dateTime.length === 2 && IsDate(dateTime[0]) && IsTime(dateTime[1]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/duration.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/duration.mjs
 var Duration = /^P((\d+Y(\d+M(\d+D)?)?|\d+M(\d+D)?|\d+D)(T(\d+H(\d+M(\d+S)?)?|\d+M(\d+S)?|\d+S))?|T(\d+H(\d+M(\d+S)?)?|\d+M(\d+S)?|\d+S)|\d+W)$/;
 /**
 * Returns true if the value is a valid ISO-8601 duration.
@@ -43298,7 +43298,7 @@ var Duration = /^P((\d+Y(\d+M(\d+D)?)?|\d+M(\d+D)?|\d+D)(T(\d+H(\d+M(\d+S)?)?|\d
 function IsDuration(value) {
 	return Duration.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/email.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/email.mjs
 var Email = /^(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[^"\\]|\\[\x20-\x7e])*")@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*|\[(?:IPv6:[a-f0-9:]+|(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3})\])$/i;
 /**
 * Returns true if the value is an Email
@@ -43307,7 +43307,7 @@ var Email = /^(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*
 function IsEmail(value) {
 	return Email.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/pattern/pattern.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/pattern/pattern.mjs
 var RE_RULE_HYPHEN_PLACEMENT = /^(?!-).*(?<!-)$/;
 var RE_RULE_NOT_RESERVED_ACE = /^(?!..--)/;
 var RE_ASCII_LDH = /^[a-zA-Z0-9-]*$/;
@@ -43341,11 +43341,11 @@ var RE_PERMITTED_CATEGORY = new RegExp([
 	RE_CONTEXTO_EXCEPTIONS,
 	RE_PVALID_EXCEPTIONS
 ].map((regexp) => regexp.source).join("|"), "u");
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/label/ascii.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/label/ascii.mjs
 function IsAsciiLabel(value) {
 	return RE_RULE_HYPHEN_PLACEMENT.test(value) && RE_RULE_NOT_RESERVED_ACE.test(value) && RE_ASCII_LDH.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/format/puny.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/format/puny.mjs
 var PUNYCODE_BASE = 36;
 var PUNYCODE_TMIN = 1;
 var PUNYCODE_TMAX = 26;
@@ -43447,7 +43447,7 @@ function Encode$8(input) {
 	}
 	return result.join("");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/format/bidi.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/format/bidi.mjs
 var RE_RTL_ALLOWED = /^(?:R|AL|AN|EN|ES|CS|ET|ON|BN|NSM)$/;
 var RE_LTR_ALLOWED = /^(?:L|EN|ES|CS|ET|ON|BN|NSM)$/;
 var RE_RTL_CLASSES = /^(?:R|AL|AN)$/;
@@ -43488,7 +43488,7 @@ function SatisfiesBidiRule(value) {
 	if (isRtl && sawEN && sawAN) return false;
 	return true;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/label/unicode.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/label/unicode.mjs
 function ExceedsMaxALabelLength(value) {
 	return RE_NON_ASCII.test(value) && Encode$8(value).length + 4 > 63;
 }
@@ -43532,7 +43532,7 @@ function IsUnicodeLabel(value) {
 	if (value.includes("・") && !hasJapanese) return false;
 	return true;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/label/puny.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/label/puny.mjs
 function IsPunyLabel(value) {
 	if (!IsAcePrefixed(value)) return false;
 	try {
@@ -43545,7 +43545,7 @@ function IsPunyLabel(value) {
 		return false;
 	}
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/hostname.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/hostname.mjs
 function IsValidLabelLength$1(value) {
 	return value.length > 0 && value.length <= 63;
 }
@@ -43557,7 +43557,7 @@ function IsHostname$1(value) {
 	if (value.charCodeAt(value.length - 1) === 46) return false;
 	return value.split(".").every((label) => IsLabel$1(label));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/idn-hostname.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idna/idn-hostname.mjs
 function IsValidLabelLength(value) {
 	return value.length > 0 && value.length <= 63;
 }
@@ -43575,7 +43575,7 @@ function IsIdnHostname$1(value) {
 	const hasBidiChars = labels.some((label) => HasBidiChars(label));
 	return labels.every((label) => IsLabel(label) && (!hasBidiChars || SatisfiesBidiRule(label)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/hostname.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/hostname.mjs
 /**
 * Returns true if the value is a valid hostname.
 * @specification https://tools.ietf.org/html/rfc1123
@@ -43585,7 +43585,7 @@ function IsIdnHostname$1(value) {
 function IsHostname(value) {
 	return IsHostname$1(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idn_email.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idn_email.mjs
 var IdnEmail = /^(?:[A-Za-z0-9!#$%&'*+\/=?^_`{|}~\u{0080}-\u{10FFFF}-]+(?:\.[A-Za-z0-9!#$%&'*+\/=?^_`{|}~\u{0080}-\u{10FFFF}-]+)*|"(?:[^"\\]|\\.)*")@[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,62})(?<!-)(?:\.[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,62})(?<!-))*$/iu;
 /**
 * Returns true if the value is an IdnEmail
@@ -43594,7 +43594,7 @@ var IdnEmail = /^(?:[A-Za-z0-9!#$%&'*+\/=?^_`{|}~\u{0080}-\u{10FFFF}-]+(?:\.[A-Z
 function IsIdnEmail(value) {
 	return IdnEmail.test(value.normalize("NFC"));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idn_hostname.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/idn_hostname.mjs
 /**
 * Returns true if the value is a valid internationalized (IDN) hostname.
 * @specification https://tools.ietf.org/html/rfc3490
@@ -43605,7 +43605,7 @@ function IsIdnEmail(value) {
 function IsIdnHostname(value) {
 	return IsIdnHostname$1(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/ipv4.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/ipv4.mjs
 var IPv4 = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
 /**
 * Returns true if the value is a IPV4 address
@@ -43614,7 +43614,7 @@ var IPv4 = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d
 function IsIPv4(value) {
 	return IPv4.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/ipv6.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/ipv6.mjs
 var IPv6 = /^(?:(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}|(?:(?:[0-9a-f]{1,4}:)?[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::[0-9a-f]{1,4}:|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::)(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::)$/i;
 /**
 * Returns true if the value is an IPv6 address
@@ -43623,7 +43623,7 @@ var IPv6 = /^(?:(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4
 function IsIPv6(value) {
 	return IPv6.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/iri_reference.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/iri_reference.mjs
 var InvalidIriChars$1 = /[\x00-\x20\x7F\\]|%(?![0-9a-fA-F]{2})/;
 var MalformedScheme = /^[a-zA-Z][a-zA-Z0-9+\-.]*\/\//;
 /**
@@ -43633,7 +43633,7 @@ var MalformedScheme = /^[a-zA-Z][a-zA-Z0-9+\-.]*\/\//;
 function IsIriReference(value) {
 	return !InvalidIriChars$1.test(value) && !MalformedScheme.test(value) && URL.canParse(value, "http://example.com");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/iri.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/iri.mjs
 var IpvFutureMatchMaxLength = 2048;
 var IpvFutureMatch = /\[[vV][0-9a-fA-F]+\.[^\]]+\]/;
 var InvalidIriChars = /[\x00-\x20<>\^`{|}\\]/;
@@ -43650,7 +43650,7 @@ function IsIri(value) {
 	if (InvalidPercentEncoding.test(value)) return false;
 	return URL.canParse(NarrowIpvFuture(value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/json_pointer_uri_fragment.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/json_pointer_uri_fragment.mjs
 var JsonPointerUriFragment = /^#(?:\/(?:[a-z0-9_\-.!$&'()*+,;:=@]|%[0-9a-f]{2}|~0|~1)*)*$/i;
 /**
 * Returns true if the value is a json pointer uri fragment
@@ -43660,7 +43660,7 @@ var JsonPointerUriFragment = /^#(?:\/(?:[a-z0-9_\-.!$&'()*+,;:=@]|%[0-9a-f]{2}|~
 function IsJsonPointerUriFragment(value) {
 	return JsonPointerUriFragment.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/json_pointer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/json_pointer.mjs
 var JsonPointer = /^(?:\/(?:[^~/]|~0|~1)*)*$/;
 /**
 * Returns true if the value is a json pointer
@@ -43670,7 +43670,7 @@ var JsonPointer = /^(?:\/(?:[^~/]|~0|~1)*)*$/;
 function IsJsonPointer(value) {
 	return JsonPointer.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/regex.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/regex.mjs
 /**
 * Returns true if the value is a regular expression string pattern
 * @specification https://ecma-international.org/ecma-262
@@ -43683,7 +43683,7 @@ function IsRegex(value) {
 		return false;
 	}
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/relative_json_pointer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/relative_json_pointer.mjs
 var RelativeJsonPointer = /^(?:0|[1-9][0-9]*)(?:#|(?:\/(?:[^~/]|~0|~1)*)*)$/;
 /**
 * Returns true if the value is a relative json pointer
@@ -43693,7 +43693,7 @@ var RelativeJsonPointer = /^(?:0|[1-9][0-9]*)(?:#|(?:\/(?:[^~/]|~0|~1)*)*)$/;
 function IsRelativeJsonPointer(value) {
 	return RelativeJsonPointer.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/uri_reference.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/uri_reference.mjs
 var UriReference = /^(?:[a-z][a-z0-9+\-.]*:(?:\/\/(?:(?:[-a-z0-9._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:[\da-f]{1,4}:){6}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|::(?:[\da-f]{1,4}:){5}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:[\da-f]{1,4})?::(?:[\da-f]{1,4}:){4}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,1}[\da-f]{1,4})?::(?:[\da-f]{1,4}:){3}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,2}[\da-f]{1,4})?::(?:[\da-f]{1,4}:){2}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,3}[\da-f]{1,4})?::[\da-f]{1,4}:(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,4}[\da-f]{1,4})?::(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,5}[\da-f]{1,4})?::[\da-f]{1,4}|(?:(?:[\da-f]{1,4}:){0,6}[\da-f]{1,4})?::)|v[0-9a-f]+\.[-a-z0-9._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)|(?:[-a-z0-9._~!$&'()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:\/\/(?:(?:[-a-z0-9._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:[\da-f]{1,4}:){6}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|::(?:[\da-f]{1,4}:){5}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:[\da-f]{1,4})?::(?:[\da-f]{1,4}:){4}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,1}[\da-f]{1,4})?::(?:[\da-f]{1,4}:){3}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,2}[\da-f]{1,4})?::(?:[\da-f]{1,4}:){2}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,3}[\da-f]{1,4})?::[\da-f]{1,4}:(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,4}[\da-f]{1,4})?::(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,5}[\da-f]{1,4})?::[\da-f]{1,4}|(?:(?:[\da-f]{1,4}:){0,6}[\da-f]{1,4})?::)|v[0-9a-f]+\.[-a-z0-9._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)|(?:[-a-z0-9._~!$&'()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[-a-z0-9._~!$&'()*+,;=@]|%[0-9a-f]{2})+(?:\/(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?)(?:\?(?:[-a-z0-9._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?(?:#(?:[-a-z0-9._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?$/i;
 /**
 * Returns true if the value is a valid Uri Reference.
@@ -43702,7 +43702,7 @@ var UriReference = /^(?:[a-z][a-z0-9+\-.]*:(?:\/\/(?:(?:[-a-z0-9._~!$&'()*+,;=:]
 function IsUriReference(value) {
 	return UriReference.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/uri_template.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/uri_template.mjs
 var UriTemplate = /^(?:(?:[^\x00-\x20"<>%\\^`{|}\x7f]|%[0-9a-f]{2})|\{[+#./;?&=,!@|]?(?:[a-z0-9_]|%[0-9a-f]{2})+(?:\.(?:[a-z0-9_]|%[0-9a-f]{2})+)*(?::[1-9]\d{0,3}|\*)?(?:,(?:[a-z0-9_]|%[0-9a-f]{2})+(?:\.(?:[a-z0-9_]|%[0-9a-f]{2})+)*(?::[1-9]\d{0,3}|\*)?)*\})*$/i;
 /**
 * Returns true if the value is a valid Uri Template
@@ -43711,7 +43711,7 @@ var UriTemplate = /^(?:(?:[^\x00-\x20"<>%\\^`{|}\x7f]|%[0-9a-f]{2})|\{[+#./;?&=,
 function IsUriTemplate(value) {
 	return UriTemplate.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/uri.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/uri.mjs
 var Uri = /^[a-z][a-z0-9+\-.]*:(?:\/\/(?:(?:[-a-z0-9._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:[\da-f]{1,4}:){6}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|::(?:[\da-f]{1,4}:){5}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:[\da-f]{1,4})?::(?:[\da-f]{1,4}:){4}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,1}[\da-f]{1,4})?::(?:[\da-f]{1,4}:){3}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,2}[\da-f]{1,4})?::(?:[\da-f]{1,4}:){2}(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,3}[\da-f]{1,4})?::[\da-f]{1,4}:(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,4}[\da-f]{1,4})?::(?:[\da-f]{1,4}:[\da-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d))|(?:(?:[\da-f]{1,4}:){0,5}[\da-f]{1,4})?::[\da-f]{1,4}|(?:(?:[\da-f]{1,4}:){0,6}[\da-f]{1,4})?::)|v[0-9a-f]+\.[-a-z0-9._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)|(?:[-a-z0-9._~!$&'()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[-a-z0-9._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?(?:\?(?:[-a-z0-9._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?(?:#(?:[-a-z0-9._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?$/i;
 /**
 * Returns true if the value is a valid Uniform Resource Identifier.
@@ -43720,7 +43720,7 @@ var Uri = /^[a-z][a-z0-9+\-.]*:(?:\/\/(?:(?:[-a-z0-9._~!$&'()*+,;=:]|%[0-9a-f]{2
 function IsUri(value) {
 	return Uri.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/url.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/url.mjs
 /**
 * Returns true if the value is a valid Uniform Resource Locator
 * @specification https://datatracker.ietf.org/doc/html/rfc3986
@@ -43729,7 +43729,7 @@ function IsUri(value) {
 function IsUrl(value) {
 	return URL.canParse(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/uuid.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/uuid.mjs
 var Uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 /**
 * Returns true if the value is a uuid
@@ -43739,7 +43739,7 @@ var Uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 function IsUuid(value) {
 	return Uuid.test(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/_registry.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/_registry.mjs
 var formats = /* @__PURE__ */ new Map();
 /** Clears all entries */
 function Clear() {
@@ -43791,7 +43791,7 @@ function Reset() {
 	formats.set("uuid", IsUuid);
 }
 Reset();
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/format.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/format/format.mjs
 var format_exports = /* @__PURE__ */ __exportAll$1({
 	Clear: () => Clear,
 	Entries: () => Entries,
@@ -43822,7 +43822,7 @@ var format_exports = /* @__PURE__ */ __exportAll$1({
 	Set: () => Set$1,
 	Test: () => Test
 });
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/format.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/format.mjs
 function BuildFormat(_stack, _context, schema, value) {
 	return Call(Member("Format", "Test"), [Constant(schema.format), value]);
 }
@@ -43837,7 +43837,7 @@ function ErrorFormat(stack, context, schemaPath, instancePath, schema, value) {
 		params: { format: schema.format }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/if.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/if.mjs
 function BuildIf(stack, context, schema, value) {
 	const thenSchema = IsThen(schema) ? schema.then : true;
 	const elseSchema = IsElse(schema) ? schema.else : true;
@@ -43866,7 +43866,7 @@ function ErrorIf(stack, context, schemaPath, instancePath, schema, value) {
 	if (isIf) context.Merge([trueContext]);
 	return isIf;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/items.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/items.mjs
 function BuildItemsSizedStandard(stack, context, schema, value) {
 	return ReduceAnd(schema.items.map((schema, index) => {
 		return Or(IsLessEqualThan(Member(value, "length"), Constant(index)), And(BuildSchemaPushStack(stack, context, schema, `${value}[${index}]`), context.AddIndex(Constant(index))));
@@ -43925,7 +43925,7 @@ function CheckItems(stack, context, schema, value) {
 function ErrorItems(stack, context, schemaPath, instancePath, schema, value) {
 	return IsItemsSized(schema) ? ErrorItemsSized(stack, context, schemaPath, instancePath, schema, value) : ErrorItemsUnsized(stack, context, schemaPath, instancePath, schema, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maxContains.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maxContains.mjs
 function IsValid$2(schema) {
 	return IsContains(schema);
 }
@@ -43950,7 +43950,7 @@ function ErrorMaxContains(stack, context, schemaPath, instancePath, schema, valu
 		}
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maximum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maximum.mjs
 function BuildMaximum(_stack, _context, schema, value) {
 	return IsLessEqualThan(value, Constant(schema.maximum));
 }
@@ -43968,7 +43968,7 @@ function ErrorMaximum(stack, context, schemaPath, instancePath, schema, value) {
 		}
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maxItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maxItems.mjs
 function BuildMaxItems(_stack, _context, schema, value) {
 	return IsLessEqualThan(Member(value, "length"), Constant(schema.maxItems));
 }
@@ -43983,7 +43983,7 @@ function ErrorMaxItems(stack, context, schemaPath, instancePath, schema, value) 
 		params: { limit: schema.maxItems }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maxLength.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maxLength.mjs
 function BuildMaxLength(_stack, _context, schema, value) {
 	return IsMaxLength$1(value, Constant(schema.maxLength));
 }
@@ -43998,7 +43998,7 @@ function ErrorMaxLength(stack, context, schemaPath, instancePath, schema, value)
 		params: { limit: schema.maxLength }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maxProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/maxProperties.mjs
 function BuildMaxProperties(_stack, _context, schema, value) {
 	return IsLessEqualThan(Member(Keys(value), "length"), Constant(schema.maxProperties));
 }
@@ -44013,7 +44013,7 @@ function ErrorMaxProperties(stack, context, schemaPath, instancePath, schema, va
 		params: { limit: schema.maxProperties }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minContains.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minContains.mjs
 function IsValid$1(schema) {
 	return IsContains(schema);
 }
@@ -44041,7 +44041,7 @@ function ErrorMinContains(stack, context, schemaPath, instancePath, schema, valu
 		params: { minContains: schema.minContains }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minimum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minimum.mjs
 function BuildMinimum(_stack, _context, schema, value) {
 	return IsGreaterEqualThan(value, Constant(schema.minimum));
 }
@@ -44059,7 +44059,7 @@ function ErrorMinimum(stack, context, schemaPath, instancePath, schema, value) {
 		}
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minItems.mjs
 function BuildMinItems(_stack, _context, schema, value) {
 	return IsGreaterEqualThan(Member(value, "length"), Constant(schema.minItems));
 }
@@ -44074,7 +44074,7 @@ function ErrorMinItems(stack, context, schemaPath, instancePath, schema, value) 
 		params: { limit: schema.minItems }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minLength.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minLength.mjs
 function BuildMinLength(_stack, _context, schema, value) {
 	return IsMinLength$1(value, Constant(schema.minLength));
 }
@@ -44089,7 +44089,7 @@ function ErrorMinLength(stack, context, schemaPath, instancePath, schema, value)
 		params: { limit: schema.minLength }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/minProperties.mjs
 function BuildMinProperties(_stack, _context, schema, value) {
 	return IsGreaterEqualThan(Member(Keys(value), "length"), Constant(schema.minProperties));
 }
@@ -44104,7 +44104,7 @@ function ErrorMinProperties(stack, context, schemaPath, instancePath, schema, va
 		params: { limit: schema.minProperties }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/multipleOf.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/multipleOf.mjs
 function BuildMultipleOf(_stack, _context, schema, value) {
 	return MultipleOf(value, Constant(schema.multipleOf));
 }
@@ -44119,7 +44119,7 @@ function ErrorMultipleOf(stack, context, schemaPath, instancePath, schema, value
 		params: { multipleOf: schema.multipleOf }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/not.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/not.mjs
 function BuildNotStandard(stack, context, schema, value) {
 	return Reducer(stack, context, [schema.not], value, Not(IsEqual(Member("results", "length"), Constant(1))));
 }
@@ -44141,7 +44141,7 @@ function ErrorNot(stack, context, schemaPath, instancePath, schema, value) {
 		params: {}
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/oneOf.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/oneOf.mjs
 function BuildOneOfStandard(stack, context, schema, value) {
 	return Reducer(stack, context, schema.oneOf, value, IsEqual(Member("results", "length"), Constant(1)));
 }
@@ -44178,7 +44178,7 @@ function ErrorOneOf(stack, context, schemaPath, instancePath, schema, value) {
 		params: { passingSchemas }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/pattern.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/pattern.mjs
 function BuildPattern(_stack, _context, schema, value) {
 	return Call(Member(CreateVariable(IsString$3(schema.pattern) ? UnicodeRegExp(schema.pattern) : schema.pattern), "test"), [value]);
 }
@@ -44193,7 +44193,7 @@ function ErrorPattern(stack, context, schemaPath, instancePath, schema, value) {
 		params: { pattern: schema.pattern }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/patternProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/patternProperties.mjs
 function BuildPatternProperties(stack, context, schema, value) {
 	return ReduceAnd(Entries$2(schema.patternProperties).map(([pattern, schema]) => {
 		const [key, prop] = [Unique(), Unique()];
@@ -44222,7 +44222,7 @@ function ErrorPatternProperties(stack, context, schemaPath, instancePath, schema
 		});
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/prefixItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/prefixItems.mjs
 function BuildPrefixItems(stack, context, schema, value) {
 	return ReduceAnd(schema.prefixItems.map((schema, index) => {
 		const isLength = IsLessEqualThan(Member(value, "length"), Constant(index));
@@ -44243,7 +44243,7 @@ function ErrorPrefixItems(stack, context, schemaPath, instancePath, schema, valu
 		return IsLessEqualThan$1(value.length, index) || ErrorSchemaPushStack(stack, context, nextSchemaPath, nextInstancePath, schema, value[index]) && context.AddIndex(index);
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_exact_optional.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_exact_optional.mjs
 function IsExactOptional(required, key) {
 	return required.includes(key) || Get$3().exactOptionalPropertyTypes;
 }
@@ -44253,7 +44253,7 @@ function InexactOptionalBuild(value, key) {
 function InexactOptionalCheck(value, key) {
 	return IsUndefined$2(value[key]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/properties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/properties.mjs
 function BuildProperties(stack, context, schema, value) {
 	const required = IsRequired(schema) ? schema.required : [];
 	return ReduceAnd(Entries$2(schema.properties).map(([key, schema]) => {
@@ -44281,7 +44281,7 @@ function ErrorProperties(stack, context, schemaPath, instancePath, schema, value
 		return IsExactOptional(required, key) ? isProperty() : InexactOptionalCheck(value, key) || isProperty();
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/propertyNames.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/propertyNames.mjs
 function BuildPropertyNames(stack, context, schema, value) {
 	const [key, _index] = [Unique(), Unique()];
 	return Every(Keys(value), Constant(0), [key, _index], BuildSchema(stack, context, schema.propertyNames, key));
@@ -44303,7 +44303,7 @@ function ErrorPropertyNames(stack, context, schemaPath, instancePath, schema, va
 		params: { propertyNames }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/recursiveRef.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/recursiveRef.mjs
 function BuildRecursiveRef(stack, context, schema, value) {
 	return CreateFunction(stack, context, stack.RecursiveRef(schema) ?? false, value);
 }
@@ -44315,7 +44315,7 @@ function ErrorRecursiveRef(stack, context, _schemaPath, instancePath, schema, va
 	const target = stack.RecursiveRef(schema) ?? false;
 	return IsSchema(target) && ErrorSchema(stack, context, "#", instancePath, target, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/ref.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/ref.mjs
 function BuildRefStandard(stack, context, target, value) {
 	const interior = ArrowFunction(["context", "value"], CreateFunction(stack, context, target, "value"));
 	return Call(ArrowFunction(["context", "value"], Statements([
@@ -44347,7 +44347,7 @@ function ErrorRef(stack, context, _schemaPath, instancePath, schema, value) {
 	if (!result) nextContext.GetErrors().forEach((error) => context.AddError(error));
 	return result;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/required.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/required.mjs
 function BuildRequired(_stack, _context, schema, value) {
 	return ReduceAnd(schema.required.map((key) => HasPropertyKey(value, Constant(key))));
 }
@@ -44367,7 +44367,7 @@ function ErrorRequired(_stack, context, schemaPath, instancePath, schema, value)
 		params: { requiredProperties }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/type.mjs
 function BuildTypeName(_stack, _context, type, value) {
 	return IsEqual$1(type, "object") ? IsObjectNotArray(value) : IsEqual$1(type, "array") ? IsArray$1(value) : IsEqual$1(type, "boolean") ? IsBoolean$2(value) : IsEqual$1(type, "integer") ? IsInteger$1(value) : IsEqual$1(type, "number") ? IsNumber$2(value) : IsEqual$1(type, "null") ? IsNull$1(value) : IsEqual$1(type, "string") ? IsString$2(value) : IsEqual$1(type, "bigint") ? IsBigInt$1(value) : IsEqual$1(type, "constructor") ? IsConstructor$1(value) : IsEqual$1(type, "function") ? IsFunction$1(value) : IsEqual$1(type, "symbol") ? IsSymbol$1(value) : IsEqual$1(type, "undefined") ? IsUndefined$1(value) : IsEqual$1(type, "void") ? IsUndefined$1(value) : Constant(true);
 }
@@ -44394,7 +44394,7 @@ function ErrorType(stack, context, schemaPath, instancePath, schema, value) {
 		params: { type: schema.type }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/unevaluatedItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/unevaluatedItems.mjs
 function BuildUnevaluatedItems(stack, context, schema, value) {
 	const [index, item] = [Unique(), Unique()];
 	const indices = Call(Member("context", "GetIndices"), []);
@@ -44425,7 +44425,7 @@ function ErrorUnevaluatedItems(stack, context, schemaPath, instancePath, schema,
 		params: { unevaluatedItems }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/unevaluatedProperties.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/unevaluatedProperties.mjs
 function BuildUnevaluatedProperties(stack, context, schema, value) {
 	const [key, prop] = [Unique(), Unique()];
 	const keys = Call(Member("context", "GetKeys"), []);
@@ -44456,7 +44456,7 @@ function ErrorUnevaluatedProperties(stack, context, schemaPath, instancePath, sc
 		params: { unevaluatedProperties }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/uniqueItems.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/uniqueItems.mjs
 function IsValid(schema) {
 	return !IsEqual$1(schema.uniqueItems, false);
 }
@@ -44486,7 +44486,7 @@ function ErrorUniqueItems(_stack, context, schemaPath, instancePath, schema, val
 		params: { duplicateItems }
 	});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/schema.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/schema.mjs
 function HasTypeName(schema, typename) {
 	return IsType(schema) && (IsArray$2(schema.type) && IsGreaterThan$1(schema.type.length, 0) && Every$1(schema.type, 0, (type) => IsEqual$1(type, typename)) || IsEqual$1(schema.type, typename));
 }
@@ -44610,7 +44610,7 @@ function ErrorSchema(stack, context, schemaPath, instancePath, schema, value) {
 	stack.Pop(schema);
 	return result;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_functions.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_functions.mjs
 var index = [0];
 var names = /* @__PURE__ */ new Map();
 var funcs = /* @__PURE__ */ new Map();
@@ -44648,7 +44648,7 @@ function CreateFunction(stack, context, schema, value) {
 	funcs.set(name, CreateFunctionExpression(stack, context, schema, name));
 	return call;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/pointer/pointer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/pointer/pointer.mjs
 function GetIndex(index, value) {
 	return IsObject$2(value) && !IsUnsafePropertyKey(index) ? value[index] : void 0;
 }
@@ -44665,7 +44665,7 @@ function Indices(pointer) {
 function Get(value, pointer) {
 	return GetIndices(Indices(pointer), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/resolve/resolve.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/resolve/resolve.mjs
 var DefaultBase = "https://json-schema.org";
 function FindDynamicAnchor(schema, name) {
 	if (IsObject$2(schema) && IsDynamicAnchor(schema) && IsEqual$1(schema.$dynamicAnchor, name)) return schema;
@@ -44847,7 +44847,7 @@ function ResolveRecursiveRef(stackframe, recursiveRef) {
 function ResolveDynamicRef(stackframe, dynamicRef) {
 	return DynamicRef(stackframe.context, stackframe.root, stackframe.lexicalBase, stackframe.lexicalSchema, dynamicRef, stackframe.dynamicAnchors);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_stack.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/engine/_stack.mjs
 var __classPrivateFieldGet = function(receiver, state, kind, f) {
 	if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
 	if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
@@ -45001,7 +45001,7 @@ _Stack_instances = /* @__PURE__ */ new WeakSet(), _Stack_StackFrame = function _
 	__classPrivateFieldGet(this, _Stack_instances, "m", _Stack_UnregisterResource).call(this, resource);
 	this.resolvedResources.delete(target);
 };
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/build.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/build.mjs
 function CreateCode(build) {
 	return `${build.Functions().join(";\n")}; return (value) => { ${(build.UseUnevaluated() ? ["const context = new CheckContext({}, {})", `return ${build.Entry()}`] : [`return ${build.Entry()}`]).join("; ")} }`;
 }
@@ -45086,7 +45086,7 @@ function Build(...args) {
 	const functions = GetFunctions();
 	return new BuildResult(context, schema, GetExternal(), functions, call, build.UseUnevaluated());
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/errors.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/errors.mjs
 /** Returns an array of validation errors for the given value. */
 function Errors$1(...args) {
 	const [context, schema, value] = Match$3(args, {
@@ -45111,7 +45111,7 @@ function Errors$1(...args) {
 		message: locale(error)
 	}))];
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/check.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/schema/check.mjs
 /** Checks a value against the provided schema */
 function Check$1(...args) {
 	const [context, schema, value] = Match$3(args, {
@@ -45128,7 +45128,7 @@ function Check$1(...args) {
 	});
 	return CheckSchema(new Stack(context, schema), new CheckContext(), schema, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/check/check.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/check/check.mjs
 /** Checks a value matches the provided type. */
 function Check(...args) {
 	const [context, type, value] = Match$3(args, {
@@ -45145,7 +45145,7 @@ function Check(...args) {
 	});
 	return Check$1(context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/errors/errors.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/errors/errors.mjs
 /** Returns an array of validation errors for the given value. */
 function Errors(...args) {
 	const [context, type, value] = Match$3(args, {
@@ -45163,7 +45163,7 @@ function Errors(...args) {
 	const [_, errors] = Errors$1(context, type, value);
 	return errors;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/assert/assert.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/assert/assert.mjs
 var AssertError = class extends Error {
 	constructor(source, value, errors) {
 		super(source);
@@ -45179,19 +45179,19 @@ var AssertError = class extends Error {
 		});
 	}
 };
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_array.mjs
 function FromArray$5(context, type, value) {
 	if (!IsArray$2(value)) return value;
 	return value.map((value) => FromType$6(context, type.items, value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_cyclic.mjs
 function FromCyclic$5(context, type, value) {
 	return FromType$6({
 		...context,
 		...type.$defs
 	}, Ref$1(type.$ref), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_intersect.mjs
 function EvaluateIntersection(context, type) {
 	const additionalProperties = HasPropertyKey$1(type, "unevaluatedProperties") ? { additionalProperties: type.unevaluatedProperties } : {};
 	const evaluated = Evaluate(Instantiate(context, type));
@@ -45200,11 +45200,11 @@ function EvaluateIntersection(context, type) {
 function FromIntersect$5(context, type, value) {
 	return FromType$6(context, EvaluateIntersection(context, type), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/additional.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/additional.mjs
 function GetAdditionalProperties(type) {
 	return HasPropertyKey$1(type, "additionalProperties") ? type.additionalProperties : void 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_object.mjs
 function FromObject$5(context, type, value) {
 	if (!IsObject$2(value) || IsArray$2(value)) return value;
 	const additionalProperties = GetAdditionalProperties(type);
@@ -45221,7 +45221,7 @@ function FromObject$5(context, type, value) {
 	}
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_record.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_record.mjs
 function FromRecord$5(context, type, value) {
 	if (!IsObject$2(value)) return value;
 	const additionalProperties = GetAdditionalProperties(type);
@@ -45239,18 +45239,18 @@ function FromRecord$5(context, type, value) {
 	}
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_ref.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_ref.mjs
 function FromRef$5(context, type, value) {
 	return HasPropertyKey$1(context, type.$ref) ? FromType$6(context, context[type.$ref], value) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_tuple.mjs
 function FromTuple$5(context, schema, value) {
 	if (!IsArray$2(value)) return value;
 	const length = Math.min(value.length, schema.items.length);
 	for (let index = 0; index < length; index++) value[index] = FromType$6(context, schema.items[index], value[index]);
 	return IsGreaterThan$1(value.length, length) ? value.slice(0, length) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clone/clone.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clone/clone.mjs
 /**
 * Returns a Clone of the given value. This function is similar to structuredClone()
 * but also supports deep cloning instances of Map, Set and TypeArray.
@@ -45258,7 +45258,7 @@ function FromTuple$5(context, schema, value) {
 function Clone(value) {
 	return Clone$1(value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_union.mjs
 function FromUnion$5(context, type, value) {
 	for (const schema of type.anyOf) {
 		const clean = FromType$6(context, schema, Clone(value));
@@ -45266,11 +45266,11 @@ function FromUnion$5(context, type, value) {
 	}
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/from_type.mjs
 function FromType$6(context, type, value) {
 	return IsArray(type) ? FromArray$5(context, type, value) : IsCyclic(type) ? FromCyclic$5(context, type, value) : IsIntersect(type) ? FromIntersect$5(context, type, value) : IsObject(type) ? FromObject$5(context, type, value) : IsRecord(type) ? FromRecord$5(context, type, value) : IsRef$1(type) ? FromRef$5(context, type, value) : IsTuple(type) ? FromTuple$5(context, type, value) : IsUnion(type) ? FromUnion$5(context, type, value) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/shared/union_priority_sort.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/shared/union_priority_sort.mjs
 function Modifiers(type, next) {
 	for (const key of guard_default.Keys(type)) {
 		if (guard_default.HasPropertyKey(next, key)) continue;
@@ -45300,7 +45300,7 @@ function FromType$5(type) {
 function UnionPrioritySort(type) {
 	return FromType$5(type);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/clean.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/clean/clean.mjs
 /**
 * Cleans a value by removing non-evaluated properties and elements as derived from the provided type.
 * This function returns unknown so callers should Check the return value before use. This function
@@ -45322,18 +45322,18 @@ function Clean(...args) {
 	});
 	return FromType$6(context, Get$3().unionPrioritySort ? UnionPrioritySort(type) : type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_result.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_result.mjs
 function IsOk(value) {
 	return IsObject$2(value) && HasPropertyKey$1(value, "value");
 }
 function Ok(value) {
 	return { value };
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_array.mjs
 function TryArray(value) {
 	return IsArray$2(value) ? Ok(value) : Ok([value]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_bigint.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_bigint.mjs
 function FromBoolean$5(value) {
 	return IsEqual$1(value, true) ? Ok(BigInt(1)) : Ok(BigInt(0));
 }
@@ -45356,7 +45356,7 @@ function FromString$6(value) {
 function TryBigInt(value) {
 	return IsBigInt$2(value) ? Ok(value) : IsBoolean$3(value) ? FromBoolean$5(value) : IsNumber$3(value) ? Ok(BigInt(Math.trunc(value))) : IsNull$2(value) ? Ok(BigInt(0)) : IsString$3(value) ? FromString$6(value) : IsUndefined$2(value) ? Ok(BigInt(0)) : void 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_boolean.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_boolean.mjs
 function FromBigInt$5(value) {
 	return IsEqual$1(value, BigInt(0)) ? Ok(false) : IsEqual$1(value, BigInt(1)) ? Ok(true) : void 0;
 }
@@ -45369,7 +45369,7 @@ function FromString$5(value) {
 function TryBoolean(value) {
 	return IsBigInt$2(value) ? FromBigInt$5(value) : IsBoolean$3(value) ? Ok(value) : IsNumber$3(value) ? FromNumber$4(value) : IsNull$2(value) ? Ok(false) : IsString$3(value) ? FromString$5(value) : IsUndefined$2(value) ? Ok(false) : void 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_null.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_null.mjs
 function FromBigInt$4(value) {
 	return IsEqual$1(value, BigInt(0)) ? Ok(null) : void 0;
 }
@@ -45386,7 +45386,7 @@ function FromString$4(value) {
 function TryNull(value) {
 	return IsBigInt$2(value) ? FromBigInt$4(value) : IsBoolean$3(value) ? FromBoolean$4(value) : IsNumber$3(value) ? FromNumber$3(value) : IsNull$2(value) ? Ok(null) : IsString$3(value) ? FromString$4(value) : IsUndefined$2(value) ? Ok(null) : void 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_number.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_number.mjs
 var maxBigInt = BigInt(Number.MAX_SAFE_INTEGER);
 var minBigInt = BigInt(Number.MIN_SAFE_INTEGER);
 function FromBigInt$3(value) {
@@ -45407,11 +45407,11 @@ function FromString$3(value) {
 function TryNumber(value) {
 	return IsBigInt$2(value) ? FromBigInt$3(value) : IsBoolean$3(value) ? FromBoolean$3(value) : IsNumber$3(value) ? Ok(value) : IsNull$2(value) ? Ok(0) : IsString$3(value) ? FromString$3(value) : IsUndefined$2(value) ? Ok(0) : void 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_string.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_string.mjs
 function TryString(value) {
 	return IsBigInt$2(value) ? Ok(value.toString()) : IsBoolean$3(value) ? Ok(value.toString()) : IsNumber$3(value) ? Ok(value.toString()) : IsNull$2(value) ? Ok("null") : IsString$3(value) ? Ok(value) : IsUndefined$2(value) ? Ok("") : void 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_undefined.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/try/try_undefined.mjs
 function FromBigInt$2(value) {
 	return IsEqual$1(value, BigInt(0)) ? Ok(void 0) : void 0;
 }
@@ -45428,41 +45428,41 @@ function FromString$2(value) {
 function TryUndefined(value) {
 	return IsBigInt$2(value) ? FromBigInt$2(value) : IsBoolean$3(value) ? FromBoolean$2(value) : IsNumber$3(value) ? FromNumber$2(value) : IsNull$2(value) ? Ok(void 0) : IsString$3(value) ? FromString$2(value) : IsUndefined$2(value) ? Ok(value) : void 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_array.mjs
 function FromArray$4(context, type, value) {
 	return TryArray(value).value.map((value) => FromType$4(context, type.items, value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_bigint.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_bigint.mjs
 function FromBigInt$1(_context, _type, value) {
 	const result = TryBigInt(value);
 	return IsOk(result) ? result.value : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_boolean.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_boolean.mjs
 function FromBoolean$1(_context, _type, value) {
 	const result = TryBoolean(value);
 	return IsOk(result) ? result.value : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_cyclic.mjs
 function FromCyclic$4(context, type, value) {
 	return FromType$4({
 		...context,
 		...type.$defs
 	}, Ref$1(type.$ref), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_enum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_enum.mjs
 function FromEnum$1(context, type, value) {
 	return FromType$4(context, Evaluate(type), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_integer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_integer.mjs
 function FromInteger$1(_context, _type, value) {
 	const result = TryNumber(value);
 	return IsOk(result) ? Math.trunc(result.value) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_intersect.mjs
 function FromIntersect$4(context, type, value) {
 	return FromType$4(context, Evaluate(Instantiate(context, type)), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_literal.mjs
 function FromLiteralBigInt(_context, type, value) {
 	const result = TryBigInt(value);
 	return IsOk(result) && IsEqual$1(type.const, result.value) ? result.value : value;
@@ -45483,17 +45483,17 @@ function FromLiteral$1(context, type, value) {
 	if (IsEqual$1(type.const, value)) return value;
 	return IsLiteralBigInt(type) ? FromLiteralBigInt(context, type, value) : IsLiteralBoolean(type) ? FromLiteralBoolean(context, type, value) : IsLiteralNumber(type) ? FromLiteralNumber(context, type, value) : IsLiteralString(type) ? FromLiteralString(context, type, value) : Unreachable();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_null.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_null.mjs
 function FromNull$1(_context, _type, value) {
 	const result = TryNull(value);
 	return IsOk(result) ? result.value : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_number.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_number.mjs
 function FromNumber$1(_context, _type, value) {
 	const result = TryNumber(value);
 	return IsOk(result) ? result.value : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_additional.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_additional.mjs
 /**
 * Used by Object and Record Types. The entries are derived from the known
 * properties obtained from 'properties' and 'patternProperties' respectively.
@@ -45503,11 +45503,11 @@ function FromAdditionalProperties(context, entries, additionalProperties, value)
 	for (const [regexp, _] of entries) for (const key of keys) if (!regexp.test(key)) value[key] = FromType$4(context, additionalProperties, value[key]);
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/shared/optional_undefined.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/shared/optional_undefined.mjs
 function IsOptionalUndefined(property, key, value) {
 	return IsOptional(property) && IsUndefined$2(value[key]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_object.mjs
 function FromProperties(context, type, value) {
 	const entries = EntriesRegExp(type.properties);
 	const keys = Keys$1(value);
@@ -45520,7 +45520,7 @@ function FromProperties(context, type, value) {
 function FromObject$4(context, type, value) {
 	return IsObjectNotArray$1(value) ? FromProperties(context, type, value) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_record.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_record.mjs
 function FromPatternProperties(context, type, value) {
 	const entries = EntriesRegExp(type.patternProperties);
 	const keys = Keys$1(value);
@@ -45530,45 +45530,45 @@ function FromPatternProperties(context, type, value) {
 function FromRecord$4(context, type, value) {
 	return IsObjectNotArray$1(value) ? FromPatternProperties(context, type, value) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_ref.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_ref.mjs
 function FromRef$4(context, type, value) {
 	return HasPropertyKey$1(context, type.$ref) ? FromType$4(context, context[type.$ref], value) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_string.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_string.mjs
 function FromString$1(_context, _type, value) {
 	const result = TryString(value);
 	return IsOk(result) ? result.value : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_template_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_template_literal.mjs
 function FromTemplateLiteral$1(context, type, value) {
 	return FromType$4(context, Evaluate(type), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_tuple.mjs
 function FromTuple$4(context, type, value) {
 	if (!IsArray$2(value)) return value;
 	for (let index = 0; index < Math.min(type.items.length, value.length); index++) value[index] = FromType$4(context, type.items[index], value[index]);
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_undefined.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_undefined.mjs
 function FromUndefined$1(_context, _type, value) {
 	const result = TryUndefined(value);
 	return IsOk(result) ? result.value : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_union.mjs
 function FromUnion$4(context, type, value) {
 	if (type.anyOf.some((type) => Check(context, type, value))) return value;
 	const selected = type.anyOf.map((type) => FromType$4(context, type, Clone(value))).find((value) => Check(context, type, value));
 	return IsUndefined$2(selected) ? value : selected;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_void.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_void.mjs
 function FromVoid$1(_context, _type, value) {
 	return IsOk(TryUndefined(value)) ? void 0 : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/from_type.mjs
 function FromType$4(context, type, value) {
 	return IsArray(type) ? FromArray$4(context, type, value) : IsBigInt(type) ? FromBigInt$1(context, type, value) : IsBoolean(type) ? FromBoolean$1(context, type, value) : IsCyclic(type) ? FromCyclic$4(context, type, value) : IsEnum$1(type) ? FromEnum$1(context, type, value) : IsInteger(type) ? FromInteger$1(context, type, value) : IsIntersect(type) ? FromIntersect$4(context, type, value) : IsLiteral(type) ? FromLiteral$1(context, type, value) : IsNull(type) ? FromNull$1(context, type, value) : IsNumber(type) ? FromNumber$1(context, type, value) : IsObject(type) ? FromObject$4(context, type, value) : IsRecord(type) ? FromRecord$4(context, type, value) : IsRef$1(type) ? FromRef$4(context, type, value) : IsString(type) ? FromString$1(context, type, value) : IsTemplateLiteral(type) ? FromTemplateLiteral$1(context, type, value) : IsTuple(type) ? FromTuple$4(context, type, value) : IsUndefined(type) ? FromUndefined$1(context, type, value) : IsUnion(type) ? FromUnion$4(context, type, value) : IsVoid(type) ? FromVoid$1(context, type, value) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/convert.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/convert/convert.mjs
 /**
 * Converts a value to the given type, coercing interior values if a reasonable conversion is possible. This
 * function returns unknown so callers should Check the return value before use. This function mutates the
@@ -45589,29 +45589,29 @@ function Convert(...args) {
 	});
 	return FromType$4(context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_array.mjs
 function FromArray$3(context, type, value) {
 	if (!IsArray$2(value)) return value;
 	for (let i = 0; i < value.length; i++) value[i] = FromType$3(context, type.items, value[i]);
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_cyclic.mjs
 function FromCyclic$3(context, type, value) {
 	return FromType$3({
 		...context,
 		...type.$defs
 	}, Ref$1(type.$ref), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_default.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_default.mjs
 function FromDefault$1(type, value) {
 	if (!IsUndefined$2(value)) return value;
 	return IsFunction$2(type.default) ? type.default() : Clone(type.default);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_intersect.mjs
 function FromIntersect$3(context, type, value) {
 	return FromType$3(context, Evaluate(Instantiate(context, type)), value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_object.mjs
 function FromObject$3(context, type, value) {
 	if (!IsObject$2(value)) return value;
 	const knownPropertyKeys = Keys$1(type.properties);
@@ -45627,7 +45627,7 @@ function FromObject$3(context, type, value) {
 	}
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_record.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_record.mjs
 function FromRecord$3(context, type, value) {
 	if (!IsObject$2(value)) return value;
 	const [recordKey, recordValue] = [new RegExp(RecordPattern(type)), RecordValue(type)];
@@ -45642,18 +45642,18 @@ function FromRecord$3(context, type, value) {
 	}
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_ref.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_ref.mjs
 function FromRef$3(context, type, value) {
 	return HasPropertyKey$1(context, type.$ref) ? FromType$3(context, context[type.$ref], value) : value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_tuple.mjs
 function FromTuple$3(context, schema, value) {
 	if (!IsArray$2(value)) return value;
 	const [items, max] = [schema.items, Math.max(schema.items.length, value.length)];
 	for (let i = 0; i < max; i++) if (i < items.length) value[i] = FromType$3(context, items[i], value[i]);
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_union.mjs
 function FromUnion$3(context, schema, value) {
 	for (const inner of schema.anyOf) {
 		const result = FromType$3(context, inner, Clone(value));
@@ -45661,12 +45661,12 @@ function FromUnion$3(context, schema, value) {
 	}
 	return value;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/from_type.mjs
 function FromType$3(context, type, value) {
 	const defaulted = IsDefault(type) ? FromDefault$1(type, value) : value;
 	return IsArray(type) ? FromArray$3(context, type, defaulted) : IsCyclic(type) ? FromCyclic$3(context, type, defaulted) : IsIntersect(type) ? FromIntersect$3(context, type, defaulted) : IsObject(type) ? FromObject$3(context, type, defaulted) : IsRecord(type) ? FromRecord$3(context, type, defaulted) : IsRef$1(type) ? FromRef$3(context, type, defaulted) : IsTuple(type) ? FromTuple$3(context, type, defaulted) : IsUnion(type) ? FromUnion$3(context, type, defaulted) : defaulted;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/default.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/default/default.mjs
 /**
 * Patches missing properties on the value using default annotations specified on the provided type. This
 * function returns unknown so callers should Check the return value before use. This function mutates the
@@ -45687,7 +45687,7 @@ function Default(...args) {
 	});
 	return FromType$3(context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/pipeline/pipeline.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/pipeline/pipeline.mjs
 /** Creates a value processing pipeline. */
 function Pipeline(pipeline) {
 	return (...args) => {
@@ -45706,7 +45706,7 @@ function Pipeline(pipeline) {
 		return pipeline.reduce((result, func) => func(context, type, result), value);
 	};
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/callback.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/callback.mjs
 function Decode$7(_context, type, value) {
 	return type["~codec"].decode(value);
 }
@@ -45717,7 +45717,7 @@ function Callback(direction, context, type, value) {
 	if (!IsCodec(type)) return value;
 	return IsEqual$1(direction, "Decode") ? Decode$7(context, type, value) : Encode$7(context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_array.mjs
 function Decode$6(direction, context, type, value) {
 	if (!IsArray$2(value)) return value;
 	for (let i = 0; i < value.length; i++) value[i] = FromType$2(direction, context, type.items, value[i]);
@@ -45732,7 +45732,7 @@ function Encode$6(direction, context, type, value) {
 function FromArray$2(direction, context, type, value) {
 	return IsEqual$1(direction, "Decode") ? Decode$6(direction, context, type, value) : Encode$6(direction, context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_cyclic.mjs
 function FromCyclic$2(direction, context, type, value) {
 	value = FromType$2(direction, {
 		...context,
@@ -45740,7 +45740,7 @@ function FromCyclic$2(direction, context, type, value) {
 	}, Ref$1(type.$ref), value);
 	return Callback(direction, context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_intersect.mjs
 function MergeInteriors(interiors) {
 	return interiors.reduce((results, interior) => ({
 		...results,
@@ -45766,7 +45766,7 @@ function Encode$5(direction, context, type, value) {
 function FromIntersect$2(direction, context, type, value) {
 	return IsEqual$1(direction, "Decode") ? Decode$5(direction, context, type, value) : Encode$5(direction, context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_object.mjs
 function Decode$4(direction, context, type, value) {
 	if (!IsObjectNotArray$1(value)) return value;
 	for (const key of Keys$1(type.properties)) {
@@ -45787,7 +45787,7 @@ function Encode$4(direction, context, type, value) {
 function FromObject$2(direction, context, type, value) {
 	return IsEqual$1(direction, "Decode") ? Decode$4(direction, context, type, value) : Encode$4(direction, context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_record.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_record.mjs
 function Decode$3(direction, context, type, value) {
 	if (!IsObjectNotArray$1(value)) return value;
 	const regexp = new RegExp(RecordPattern(type));
@@ -45810,14 +45810,14 @@ function Encode$3(direction, context, type, value) {
 function FromRecord$2(direction, context, type, value) {
 	return IsEqual$1(direction, "Decode") ? Decode$3(direction, context, type, value) : Encode$3(direction, context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_ref.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_ref.mjs
 function ResolveRef(direction, context, type, value) {
 	return HasPropertyKey$1(context, type.$ref) ? FromType$2(direction, context, context[type.$ref], value) : value;
 }
 function FromRef$2(direction, context, type, value) {
 	return IsEqual$1(direction, "Decode") ? Callback(direction, context, type, ResolveRef(direction, context, type, value)) : ResolveRef(direction, context, type, Callback(direction, context, type, value));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_tuple.mjs
 function Decode$2(direction, context, type, value) {
 	if (!IsArray$2(value)) return value;
 	for (let i = 0; i < Math.min(type.items.length, value.length); i++) value[i] = FromType$2(direction, context, type.items[i], value[i]);
@@ -45832,7 +45832,7 @@ function Encode$2(direction, context, type, value) {
 function FromTuple$2(direction, context, type, value) {
 	return IsEqual$1(direction, "Decode") ? Decode$2(direction, context, type, value) : Encode$2(direction, context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_union.mjs
 function Decode$1(direction, context, type, value) {
 	for (const schema of type.anyOf) {
 		if (!Check(context, schema, value)) continue;
@@ -45852,11 +45852,11 @@ function Encode$1(direction, context, type, value) {
 function FromUnion$2(direction, context, type, value) {
 	return IsEqual$1(direction, "Decode") ? Decode$1(direction, context, type, value) : Encode$1(direction, context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/from_type.mjs
 function FromType$2(direction, context, type, value) {
 	return IsArray(type) ? FromArray$2(direction, context, type, value) : IsCyclic(type) ? FromCyclic$2(direction, context, type, value) : IsIntersect(type) ? FromIntersect$2(direction, context, type, value) : IsObject(type) ? FromObject$2(direction, context, type, value) : IsRecord(type) ? FromRecord$2(direction, context, type, value) : IsRef$1(type) ? FromRef$2(direction, context, type, value) : IsTuple(type) ? FromTuple$2(direction, context, type, value) : IsUnion(type) ? FromUnion$2(direction, context, type, value) : Callback(direction, context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/decode.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/decode.mjs
 var DecodeError = class extends AssertError {
 	constructor(value, errors) {
 		super("Decode", value, errors);
@@ -45894,7 +45894,7 @@ function Decode(...args) {
 	});
 	return Decoder(context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/encode.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/encode.mjs
 var EncodeError = class extends AssertError {
 	constructor(value, errors) {
 		super("Encode", value, errors);
@@ -45932,7 +45932,7 @@ function Encode(...args) {
 	});
 	return Encoder(context, type, value);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/has.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/codec/has.mjs
 function FromArray$1(context, type) {
 	return IsCodec(type) || FromType$1(context, type.items);
 }
@@ -45977,32 +45977,32 @@ function HasCodec(...args) {
 	visited.clear();
 	return FromType$1(context, type);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/error.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/error.mjs
 var CreateError = class extends Error {
 	constructor(type, message) {
 		super(message);
 		this.type = type;
 	}
 };
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_default.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_default.mjs
 function FromDefault(_context, schema) {
 	return IsFunction$2(schema.default) ? schema.default(schema) : IsObject$2(schema.default) ? Clone(schema.default) : schema.default;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_array.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_array.mjs
 function FromArray(context, type) {
 	if (IsUniqueItems(type) && !IsDefault(type)) throw new CreateError(type, "Arrays with uniqueItems constraints must specify a default annotation");
 	const length = IsMinItems(type) ? type.minItems : 0;
 	return Array.from({ length }, () => FromType(context, type.items));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_bigint.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_bigint.mjs
 function FromBigInt(_context, type) {
 	return IsExclusiveMinimum(type) ? BigInt(type.exclusiveMinimum) + BigInt(1) : IsMinimum(type) ? BigInt(type.minimum) : BigInt(0);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_boolean.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_boolean.mjs
 function FromBoolean(_context, _type) {
 	return false;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_constructor.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_constructor.mjs
 function FromConstructor(context, type) {
 	const instanceType = FromType(context, type.instanceType);
 	return class {
@@ -46011,47 +46011,47 @@ function FromConstructor(context, type) {
 		}
 	};
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_cyclic.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_cyclic.mjs
 function FromCyclic(context, type) {
 	return FromType({
 		...context,
 		...type.$defs
 	}, Ref$1(type.$ref));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_enum.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_enum.mjs
 function FromEnum(context, type) {
 	return FromType(context, Evaluate(type));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_function.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_function.mjs
 function FromFunction(context, type) {
 	const returnType = FromType(context, type.returnType);
 	return () => returnType;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_integer.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_integer.mjs
 function FromInteger(_context, type) {
 	return IsExclusiveMinimum(type) && IsNumber$3(type.exclusiveMinimum) ? type.exclusiveMinimum + 1 : IsMinimum(type) ? type.minimum : 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_intersect.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_intersect.mjs
 function FromIntersect(context, type) {
 	return FromType(context, Evaluate(Instantiate(context, type)));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_literal.mjs
 function FromLiteral(_context, type) {
 	return type.const;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_never.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_never.mjs
 function FromNever(_context, type) {
 	throw new CreateError(type, "Cannot create TNever types");
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_null.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_null.mjs
 function FromNull(_context, _type) {
 	return null;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_number.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_number.mjs
 function FromNumber(_context, type) {
 	return IsExclusiveMinimum(type) && IsNumber$3(type.exclusiveMinimum) ? type.exclusiveMinimum + 1 : IsMinimum(type) ? type.minimum : 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_object.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_object.mjs
 function FromObject(context, type) {
 	return (IsUndefined$2(type.required) ? [] : type.required).reduce((result, key) => {
 		return {
@@ -46060,47 +46060,47 @@ function FromObject(context, type) {
 		};
 	}, {});
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_record.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_record.mjs
 function FromRecord(_context, type) {
 	if (IsMinProperties(type) && !IsDefault(type)) throw new CreateError(type, "Record with the minProperties constraint must have a default annotation");
 	return {};
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_ref.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_ref.mjs
 function FromRef(context, type) {
 	return HasPropertyKey$1(context, type.$ref) ? FromType(context, context[type.$ref]) : (() => {
 		throw new CreateError(type, "Unable to deref Ref");
 	})();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_string.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_string.mjs
 function FromString(_context, type) {
 	if ((IsPattern(type) || IsFormat(type)) && !IsDefault(type)) throw Error("Strings with format or pattern constraints must specify default");
 	const minLength = IsMinLength(type) ? type.minLength : 0;
 	return "".padEnd(minLength);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_symbol.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_symbol.mjs
 function FromSymbol(_context, _type) {
 	return Symbol();
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_template_literal.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_template_literal.mjs
 function FromTemplateLiteral(context, type) {
 	const decoded = TemplateLiteralDecode(type.pattern);
 	if (IsString(decoded)) throw new CreateError(type, "Unable to create TemplateLiteral due to infinite type expansion");
 	return FromType(context, decoded);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_tuple.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_tuple.mjs
 function FromTuple(context, type) {
 	return Array.from({ length: type.minItems }, (_, i) => FromType(context, type.items[i]));
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_union.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_union.mjs
 function FromUnion(context, type) {
 	if (IsEqual$1(type.anyOf.length, 0)) throw Error("Unable to create Union with no variants");
 	return FromType(context, type.anyOf[0]);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_type.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/from_type.mjs
 function FromType(context, type) {
 	return IsDefault(type) ? FromDefault(context, type) : IsArray(type) ? FromArray(context, type) : IsBigInt(type) ? FromBigInt(context, type) : IsBoolean(type) ? FromBoolean(context, type) : IsConstructor(type) ? FromConstructor(context, type) : IsCyclic(type) ? FromCyclic(context, type) : IsEnum$1(type) ? FromEnum(context, type) : IsFunction(type) ? FromFunction(context, type) : IsInteger(type) ? FromInteger(context, type) : IsIntersect(type) ? FromIntersect(context, type) : IsLiteral(type) ? FromLiteral(context, type) : IsNever(type) ? FromNever(context, type) : IsNull(type) ? FromNull(context, type) : IsNumber(type) ? FromNumber(context, type) : IsObject(type) ? FromObject(context, type) : IsRecord(type) ? FromRecord(context, type) : IsRef$1(type) ? FromRef(context, type) : IsString(type) ? FromString(context, type) : IsSymbol(type) ? FromSymbol(context, type) : IsTemplateLiteral(type) ? FromTemplateLiteral(context, type) : IsTuple(type) ? FromTuple(context, type) : IsUndefined(type) ? void 0 : IsUnion(type) ? FromUnion(context, type) : IsVoid(type) ? void 0 : void 0;
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/create.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/create/create.mjs
 /** Creates a value from the provided type. This function will use `default` annotations if present. */
 function Create(...args) {
 	const [context, type] = Match$3(args, {
@@ -46109,7 +46109,7 @@ function Create(...args) {
 	});
 	return FromType(context, type);
 }
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/parse/parse.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/value/parse/parse.mjs
 var ParseError = class extends AssertError {
 	constructor(value, errors) {
 		super("Parse", value, errors);
@@ -46142,7 +46142,7 @@ Union([
 		path: String$1()
 	})
 ]);
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/compile/validator.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/compile/validator.mjs
 var Validator = class {
 	/** Constructs a Validator. */
 	constructor(context, type) {
@@ -46206,7 +46206,7 @@ var Validator = class {
 		return this.hasCodec ? Encode(this.Context(), this.Type(), value) : this.Parse(value);
 	}
 };
-// ../../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/compile/compile.mjs
+// ../node_modules/.pnpm/typebox@1.3.27/node_modules/typebox/build/compile/compile.mjs
 /** Compiles a type into a high performance Validator */
 function Compile(...args) {
 	const [context, type] = Match$3(args, {
@@ -46215,7 +46215,7 @@ function Compile(...args) {
 	});
 	return new Validator(context, type);
 }
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/utils/validation.js
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/utils/validation.js
 var validatorCache = /* @__PURE__ */ new WeakMap();
 var TYPEBOX_KIND = Symbol.for("TypeBox.Kind");
 function getSchemaTypes(schema) {
@@ -46393,7 +46393,7 @@ function validateToolArguments(tool, toolCall) {
 	const errorMessage = `Validation failed for tool "${toolCall.name}":\n${errors}\n\nReceived arguments:\n${JSON.stringify(toolCall.arguments, null, 2)}`;
 	throw new Error(errorMessage);
 }
-// ../../node_modules/.pnpm/js-yaml@5.5.0/node_modules/js-yaml/dist/js-yaml.mjs
+// ../node_modules/.pnpm/js-yaml@5.5.0/node_modules/js-yaml/dist/js-yaml.mjs
 /*! js-yaml 5.5.0 https://github.com/nodeca/js-yaml @license MIT */
 /**
 * Returned by a scalar resolver when the source does not match its tag.
@@ -49044,7 +49044,7 @@ COLLECTION_STYLE.FLOW;
 CHOMPING_MODE.CLIP;
 CHOMPING_MODE.STRIP;
 CHOMPING_MODE.KEEP;
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/result-e-IUH4HT.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/result-e-IUH4HT.mjs
 var MAX_READ_LINES = 2e3;
 var MAX_READ_BYTES = 51200;
 var MAX_GREP_MATCHES = 100;
@@ -50335,7 +50335,7 @@ var ResultUnavailableError = class extends Error {
 		this.name = "ResultUnavailableError";
 	}
 };
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/providers-DfEK_EsA.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/providers-DfEK_EsA.mjs
 /** The runtime's pi-ai `Models` instance, consumed by `resolveModel` and Session. */
 /**
 * Module-scoped pi-ai Models instance, populated at module init by `app.ts`
@@ -50502,13 +50502,13 @@ function listModelIds(providerId) {
 	const shown = ids.slice(0, 8).join(", ");
 	return ids.length > 8 ? `${shown}, … (${ids.length} total)` : shown;
 }
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/request/constants.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/request/constants.js
 var GET_MATCH_RESULT = Symbol();
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/utils/buffer.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/utils/buffer.js
 var bufferToFormData = (arrayBuffer, contentType) => {
 	return new Response(arrayBuffer, { headers: { "Content-Type": contentType.replace(/^[^;]+/, (mediaType) => mediaType.toLowerCase()) } }).formData();
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/utils/body.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/utils/body.js
 var MAX_NESTED_OBJECTS = 1e4;
 var isRawRequest = (request) => "headers" in request;
 var parseBody = async (request, options = Object.create(null)) => {
@@ -50600,7 +50600,7 @@ var handleParsingNestedValues = (form, key, value, state) => {
 var throwNestingLimitExceeded = () => {
 	throw new Error("Nesting limit exceeded");
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/utils/url.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/utils/url.js
 var splitPath = (path) => {
 	const paths = path.split("/");
 	if (paths[0] === "") paths.shift();
@@ -50701,6 +50701,15 @@ var getPathNoStrict = (request) => {
 	const result = getPath(request);
 	return result.length > 1 && result.at(-1) === "/" ? result.slice(0, -1) : result;
 };
+var stripPathPrefix = (rawPath, decodedPath, prefixLength) => {
+	if (rawPath.at(-1) === "/" && decodedPath.at(-1) !== "/") rawPath = rawPath.slice(0, -1);
+	let index = 0;
+	for (let i = decodedPath.indexOf("/"); i !== -1 && i < prefixLength; i = decodedPath.indexOf("/", i + 1)) {
+		index = rawPath.indexOf("/", index + 1);
+		if (index === -1) return "/";
+	}
+	return rawPath.slice(index) || "/";
+};
 /**
 * Merge paths.
 * @param {string[]} ...paths - The paths to merge.
@@ -50793,7 +50802,7 @@ var getQueryParams = (url, key) => {
 	return _getQueryParam(url, key, true);
 };
 var decodeURIComponent_ = decodeURIComponent;
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/request.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/request.js
 var HonoRequest = class {
 	/**
 	* `.raw` can get the raw Request object.
@@ -51062,7 +51071,7 @@ var HonoRequest = class {
 		return this.#matchResult[0].map(([[, route]]) => route)[this.routeIndex].path;
 	}
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/utils/html.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/utils/html.js
 /**
 * @module
 * HTML utility.
@@ -51095,7 +51104,7 @@ var resolveCallback = async (str, phase, preserveCallbacks, context, buffer) => 
 	if (preserveCallbacks) return raw(await resStr, callbacks);
 	else return resStr;
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/context.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/context.js
 var TEXT_PLAIN = "text/plain; charset=UTF-8";
 var setDefaultContentType = (contentType, headers) => {
 	return {
@@ -51292,7 +51301,7 @@ var Context = class {
 	* ```
 	*/
 	header = (name, value, options) => {
-		if (this.finalized) this.#res = createResponseInstance(this.#res.body, this.#res);
+		if (this.finalized && !this.#res.bodyUsed) this.#res = createResponseInstance(this.#res.body, this.#res);
 		const headers = this.#res ? this.#res.headers : this.#preparedHeaders ??= new Headers();
 		if (value === void 0) headers.delete(name);
 		else if (options?.append) headers.append(name, value);
@@ -51471,7 +51480,7 @@ var Context = class {
 		return this.#notFoundHandler(this);
 	};
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/compose.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/compose.js
 /**
 * Compose middleware functions into a single function based on `koa-compose` package.
 *
@@ -51519,7 +51528,7 @@ var compose = (middleware, onError, onNotFound) => {
 		}
 	};
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/router.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/router.js
 /**
 * Array of supported HTTP methods.
 */
@@ -51540,12 +51549,42 @@ var MESSAGE_MATCHER_IS_ALREADY_BUILT = "Can not add a route since the matcher is
 * Error class representing an unsupported path error.
 */
 var UnsupportedPathError = class extends Error {};
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/utils/constants.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/utils/constants.js
 /**
 * Constant used to mark a composed handler.
 */
 var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/hono-base.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/utils/mount.js
+var getPathPrefixLength = (c, pathPrefix, routePath) => {
+	if (!/[:*]/.test(pathPrefix)) return pathPrefix.length;
+	const path = c.req.path;
+	const matchResult = c.req[GET_MATCH_RESULT];
+	const paramNames = /* @__PURE__ */ new Set();
+	let length = 0;
+	for (const part of splitRoutingPath(pathPrefix)) {
+		const pattern = getPattern(part);
+		if (pattern && pattern !== "*") {
+			const name = pattern[1];
+			if (paramNames.has(name)) throw new Error(`mount(): Duplicate path parameter "${name}" in "${routePath}".`);
+			paramNames.add(name);
+		}
+		if (pattern && pattern !== "*" && pattern[2] !== true) {
+			const value = matchResult.length === 2 ? matchResult[1][matchResult[0][c.req.routeIndex][1][pattern[1]]] : matchResult[0][c.req.routeIndex][1][pattern[1]];
+			length += value.length + 1;
+		} else if (pattern || part.endsWith("*")) {
+			const end = path.indexOf("/", length + 1);
+			length = end === -1 ? path.length : end;
+		} else length += part.length + 1;
+	}
+	return length;
+};
+var createMountedRequest = (c, pathPrefix, routePath) => {
+	if (/[^/]\*$/.test(routePath)) throw new Error(`mount(): Wildcard must follow "/" in "${routePath}".`);
+	const url = new URL(c.req.raw.url);
+	url.pathname = stripPathPrefix(url.pathname, c.req.path, getPathPrefixLength(c, pathPrefix, routePath));
+	return new Request(url, c.req.raw);
+};
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/hono-base.js
 /**
 * @module
 * This module is the base module for the Hono object.
@@ -51769,17 +51808,10 @@ var Hono$1 = class Hono {
 			} catch {}
 			return [c.env, executionContext];
 		};
-		replaceRequest ||= (() => {
-			const mergedPath = mergePath(this._basePath, path);
-			const pathPrefixLength = mergedPath === "/" ? 0 : mergedPath.length;
-			return (request) => {
-				const url = new URL(request.url);
-				url.pathname = this.getPath(request).slice(pathPrefixLength) || "/";
-				return new Request(url, request);
-			};
-		})();
+		const mergedPath = mergePath(this._basePath, path);
+		const defaultReplaceRequest = (c) => createMountedRequest(c, mergedPath.replace(/\/$/, ""), mergePath(mergedPath, "*"));
 		const handler = async (c, next) => {
-			const res = await applicationHandler(replaceRequest(c.req.raw), ...getOptions(c));
+			const res = await applicationHandler(replaceRequest ? replaceRequest(c.req.raw) : defaultReplaceRequest(c), ...getOptions(c));
 			if (res) return res;
 			await next();
 		};
@@ -51888,9 +51920,9 @@ var Hono$1 = class Hono {
 		});
 	};
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/router/utils.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/router/utils.js
 var createNullObject = () => Object.create(null);
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/router/reg-exp-router/matcher.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
 function match(method, path) {
 	const matchers = this.buildAllMatchers();
@@ -51906,9 +51938,10 @@ function match(method, path) {
 	this.match = match;
 	return match(method, path);
 }
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/router/reg-exp-router/node.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/router/reg-exp-router/node.js
 var LABEL_REG_EXP_STR = "[^/]+";
-var TAIL_WILDCARD_REG_EXP_STR = "(?:|/.*)";
+var ONLY_WILDCARD_REG_EXP_STR = "[^]*";
+var TAIL_WILDCARD_REG_EXP_STR = "(?:|/[^]*)";
 var PATH_ERROR = Symbol();
 var regExpMetaChars = /* @__PURE__ */ new Set(".\\+*[^]$()");
 /**
@@ -51921,8 +51954,8 @@ var regExpMetaChars = /* @__PURE__ */ new Set(".\\+*[^]$()");
 function compareKey(a, b) {
 	if (a.length === 1) return b.length === 1 ? a < b ? -1 : 1 : -1;
 	if (b.length === 1) return 1;
-	if (a === ".*" || a === "(?:|/.*)") return b === "(?:|/.*)" ? -1 : 1;
-	else if (b === ".*" || b === "(?:|/.*)") return -1;
+	if (a === "[^]*" || a === "(?:|/[^]*)") return b === "[^]*" ? -1 : 1;
+	else if (b === "[^]*" || b === "(?:|/[^]*)") return -1;
 	if (a === "[^/]+") return 1;
 	else if (b === "[^/]+") return -1;
 	return a.length === b.length ? a < b ? -1 : 1 : b.length - a.length;
@@ -51931,14 +51964,14 @@ var Node$1 = class Node {
 	#index;
 	#varIndex;
 	#children = createNullObject();
-	insert(tokens, index, paramMap, context, isStatic) {
+	insert(tokens, index, paramMap, context, keys) {
 		let node = this;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const token = tokens[i];
 			const pattern = token.length === 1 ? token === "*" ? i === len - 1 ? [
 				"",
 				"",
-				".*"
+				ONLY_WILDCARD_REG_EXP_STR
 			] : [
 				"",
 				"",
@@ -51953,15 +51986,16 @@ var Node$1 = class Node {
 				const name = pattern[1];
 				let regexpStr = pattern[2] || "[^/]+";
 				if (name && pattern[2]) {
-					if (regexpStr === ".*") throw PATH_ERROR;
+					if (new RegExp(regexpStr).test("")) throw PATH_ERROR;
 					regexpStr = regexpStr.replace(/^\((?!\?:)(?=[^)]+\)$)/, "(?:");
 					if (/\((?!\?:)/.test(regexpStr)) throw PATH_ERROR;
 					if (regexpStr.length === 1 && regExpMetaChars.has(regexpStr)) throw PATH_ERROR;
 				}
+				keys.push(regexpStr);
 				nextNode = node.#children[regexpStr];
 				if (!nextNode) {
-					if (regexpStr !== ".*" && regexpStr !== "(?:|/.*)") {
-						for (const k in node.#children) if ((regexpStr.length > 1 || k.length > 1) && k !== ".*" && k !== "(?:|/.*)") throw PATH_ERROR;
+					if (regexpStr !== "[^]*" && regexpStr !== "(?:|/[^]*)") {
+						for (const k in node.#children) if ((regexpStr.length > 1 || k.length > 1) && k !== "[^]*" && k !== "(?:|/[^]*)") throw PATH_ERROR;
 					}
 					nextNode = node.#children[regexpStr] = new Node();
 				}
@@ -51970,16 +52004,17 @@ var Node$1 = class Node {
 					paramMap.push([name, nextNode.#varIndex]);
 				}
 			} else {
+				keys.push(token);
 				nextNode = node.#children[token];
 				if (!nextNode) {
-					for (const k in node.#children) if (k.length > 1 && k !== ".*" && k !== "(?:|/.*)") throw PATH_ERROR;
+					for (const k in node.#children) if (k.length > 1 && k !== "[^]*" && k !== "(?:|/[^]*)") throw PATH_ERROR;
 					nextNode = node.#children[token] = new Node();
 				}
 			}
 			node = nextNode;
 		}
 		if (node.#index !== void 0) throw PATH_ERROR;
-		node.#index = isStatic ? -1 : index;
+		node.#index = index;
 	}
 	buildRegExpStr() {
 		const strList = Object.keys(this.#children).sort(compareKey).map((k) => {
@@ -51993,15 +52028,21 @@ var Node$1 = class Node {
 		return "(?:" + strList.join("|") + ")";
 	}
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/router/reg-exp-router/trie.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/router/reg-exp-router/trie.js
 var Trie = class {
 	#context = { varIndex: 0 };
 	#root = new Node$1();
 	#index = 0;
 	paths = createNullObject();
 	insert(path, isStatic) {
+		const keys = [];
 		if (isStatic) {
-			this.#root.insert(path.split(""), 0, [], this.#context, true);
+			this.#root.insert(path.split(""), -1, [], this.#context, keys);
+			this.paths[path] = [
+				-1,
+				[],
+				keys
+			];
 			return;
 		}
 		const paramAssoc = [];
@@ -52009,7 +52050,7 @@ var Trie = class {
 		let markedPath = path;
 		for (let i = 0;;) {
 			let replaced = false;
-			markedPath = markedPath.replace(/\{[^}]+\}/g, (m) => {
+			markedPath = markedPath.replace(/\{(?:\{[\d,]+\}|[^}])+\}/g, (m) => {
 				const mark = `@\\${i}`;
 				groups[i] = [mark, m];
 				i++;
@@ -52023,7 +52064,7 @@ var Trie = class {
 		*  - /* wildcard
 		*  - character
 		*/
-		const tokens = markedPath.match(/(?::[^\/]+)|(?:\/\*$)|./g) || [];
+		const tokens = markedPath.match(/(?::[^\/]+)|(?:\/\*$)|./gs) || [];
 		for (let i = groups.length - 1; i >= 0; i--) {
 			const [mark] = groups[i];
 			for (let j = tokens.length - 1; j >= 0; j--) if (tokens[j].indexOf(mark) !== -1) {
@@ -52031,8 +52072,12 @@ var Trie = class {
 				break;
 			}
 		}
-		this.#root.insert(tokens, this.#index, paramAssoc, this.#context, false);
-		this.paths[path] = [this.#index++, paramAssoc];
+		this.#root.insert(tokens, this.#index, paramAssoc, this.#context, keys);
+		this.paths[path] = [
+			this.#index++,
+			paramAssoc,
+			keys
+		];
 	}
 	buildRegExp() {
 		let regexp = this.#root.buildRegExpStr();
@@ -52062,22 +52107,22 @@ var Trie = class {
 		];
 	}
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/router/reg-exp-router/router.js
-var wildcardRegExpCache = createNullObject();
-function buildWildcardRegExp(path) {
-	return wildcardRegExpCache[path] ??= new RegExp(`^${path.replace(/\/:[^/{}]+(?:\{\[\^\/]\+})?(?=[/{]|$)|\/?\*$|([.\\+*[^\]$()?{}|])/g, (match, metaChar) => metaChar ? `\\${metaChar}` : match === "/*" ? TAIL_WILDCARD_REG_EXP_STR : match === "*" ? ".*" : `/:${LABEL_REG_EXP_STR}`)}$`);
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/router/reg-exp-router/router.js
+function endsWithWildcard(keys) {
+	const tail = keys[keys.length - 1];
+	return tail === "[^]*" || tail === "(?:|/[^]*)";
 }
-function findMiddleware(middleware, path) {
-	for (const k of Object.keys(middleware).sort((a, b) => b.length - a.length)) if (buildWildcardRegExp(k).test(path)) return [...middleware[k]];
+function covers(wildcard, target) {
+	const last = wildcard.length - 1;
+	for (let i = 0; i < last; i++) if (wildcard[i] !== target[i]) return false;
+	return wildcard[last] === "[^]*" || target.length === last || target[last] === "/";
 }
 var RegExpRouter = class {
 	name = "RegExpRouter";
-	#middleware;
-	#routes;
+	#handlers;
 	#tries;
 	constructor() {
-		this.#middleware = { ["ALL"]: createNullObject() };
-		this.#routes = { ["ALL"]: createNullObject() };
+		this.#handlers = { ["ALL"]: [] };
 		this.#tries = { ["ALL"]: new Trie() };
 	}
 	#insertPath(method, path) {
@@ -52088,65 +52133,53 @@ var RegExpRouter = class {
 		}
 	}
 	add(method, path, handler) {
-		const middleware = this.#middleware;
-		const routes = this.#routes;
-		if (!middleware) throw new Error(MESSAGE_MATCHER_IS_ALREADY_BUILT);
-		if (!middleware[method]) {
-			this.#tries[method] = new Trie();
-			for (const handlerMap of [middleware, routes]) {
-				handlerMap[method] = createNullObject();
-				for (const p in handlerMap["ALL"]) {
-					handlerMap[method][p] = [...handlerMap["ALL"][p]];
-					this.#insertPath(method, p);
-				}
-			}
+		const handlers = this.#handlers;
+		if (!handlers) throw new Error(MESSAGE_MATCHER_IS_ALREADY_BUILT);
+		const tries = this.#tries;
+		if (!handlers[method]) {
+			tries[method] = new Trie();
+			handlers[method] = [...handlers["ALL"]];
+			for (const p in tries["ALL"].paths) this.#insertPath(method, p);
 		}
 		if (path === "/*") path = "*";
-		const methods = method === "ALL" ? Object.keys(middleware) : [method];
-		if (/\*$/.test(path)) {
-			const re = buildWildcardRegExp(path);
-			for (const m of methods) if (!middleware[m][path]) {
-				this.#insertPath(m, path);
-				middleware[m][path] = findMiddleware(middleware[m], path) || findMiddleware(middleware["ALL"], path) || [];
-			}
-			for (const handlerMap of [middleware, routes]) for (const m of methods) for (const p in handlerMap[m]) re.test(p) && handlerMap[m][p].push([handler, path]);
-			return;
-		}
+		const methods = method === "ALL" ? Object.keys(handlers) : [method];
 		const paths = checkOptionalParameter(path) || [path];
 		for (const path of paths) for (const m of methods) {
-			if (!routes[m][path]) {
-				this.#insertPath(m, path);
-				routes[m][path] = findMiddleware(middleware[m], path) || findMiddleware(middleware["ALL"], path) || [];
-			}
-			routes[m][path].push([handler, path]);
+			if (!tries[m].paths[path]) this.#insertPath(m, path);
+			handlers[m].push([handler, path]);
 		}
 	}
 	match = match;
 	buildAllMatchers() {
 		const matchers = createNullObject();
-		for (const method of Object.keys(this.#routes)) matchers[method] = this.#buildMatcher(method);
-		this.#middleware = this.#routes = this.#tries = void 0;
-		wildcardRegExpCache = createNullObject();
+		for (const method of Object.keys(this.#handlers)) matchers[method] = this.#buildMatcher(method);
+		this.#handlers = this.#tries = void 0;
 		return matchers;
 	}
 	#buildMatcher(method) {
-		const middleware = this.#middleware[method];
-		const routes = this.#routes[method];
+		const handlers = this.#handlers[method];
 		const trie = this.#tries[method];
 		const staticMap = createNullObject();
 		const handlerData = [];
 		const [regexp, indexReplacementMap, paramReplacementMap] = trie.buildRegExp();
-		for (const r of [middleware, routes]) for (const path in r) {
-			const handlers = r[path];
-			const pathData = trie.paths[path];
-			if (!pathData) {
-				staticMap[path] = [handlers.map(([h]) => [h, createNullObject()]), emptyParam];
-				continue;
-			}
-			handlerData[pathData[0]] = handlers.map(([h, handlerPath]) => [h, trie.paths[handlerPath][1].reduceRight((map, [key], i) => {
-				map[key] = paramReplacementMap[pathData[1][i][1]];
+		const own = createNullObject();
+		const entries = handlers.map(([h, p], i) => {
+			(own[p] ??= []).push(i);
+			return [h, trie.paths[p][1].reduceRight((map, [key, varIndex]) => {
+				map[key] = paramReplacementMap[varIndex];
 				return map;
-			}, createNullObject())]);
+			}, createNullObject())];
+		});
+		const wildcards = Object.keys(own).filter((p) => endsWithWildcard(trie.paths[p][2]));
+		for (const path in trie.paths) {
+			const [index, , keys] = trie.paths[path];
+			const indexes = [...own[path]];
+			for (const p of wildcards) if (p !== path && covers(trie.paths[p][2], keys)) indexes.push(...own[p]);
+			const data = indexes.sort((a, b) => a - b).map((i) => entries[i]);
+			if (index === -1) {
+				const last = Math.max(-1, ...data.flatMap(([, map]) => Object.values(map)));
+				staticMap[path] = [data, last === -1 ? emptyParam : path.match(regexp).slice(0, last + 1)];
+			} else handlerData[index] = data;
 		}
 		return [
 			regexp,
@@ -52155,7 +52188,7 @@ var RegExpRouter = class {
 		];
 	}
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/router/smart-router/router.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/router/smart-router/router.js
 var SmartRouter = class {
 	name = "SmartRouter";
 	#routers = [];
@@ -52201,7 +52234,7 @@ var SmartRouter = class {
 		return this.#routers[0];
 	}
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/router/trie-router/node.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/router/trie-router/node.js
 var emptyParams = createNullObject();
 var order = 0;
 var Node = class Node {
@@ -52330,7 +52363,7 @@ var Node = class Node {
 		return [handlerSets.map(({ handler, params }) => [handler, params])];
 	}
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/router/trie-router/router.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/router/trie-router/router.js
 var TrieRouter = class {
 	name = "TrieRouter";
 	#node = new Node();
@@ -52341,7 +52374,7 @@ var TrieRouter = class {
 		return this.#node.search(method, path);
 	}
 };
-// ../../node_modules/.pnpm/hono@4.13.14/node_modules/hono/dist/hono.js
+// ../node_modules/.pnpm/hono@4.13.16/node_modules/hono/dist/hono.js
 /**
 * The Hono class extends the functionality of the HonoBase class.
 * It sets up routing and allows for custom options to be passed.
@@ -52361,7 +52394,7 @@ var Hono = class extends Hono$1 {
 		this.router = options.router ?? new SmartRouter({ routers: [new RegExpRouter(), new TrieRouter()] });
 	}
 };
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/dispatch-t-UmrrMW.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/dispatch-t-UmrrMW.mjs
 /**
 * Signal types reserved as framework vocabulary: `dispatch()` admission and
 * `ctx.append` reject them, so a `signal` record carrying one of these types
@@ -56284,7 +56317,7 @@ function assertAgentFunction(value, identity) {
 function assertAgentIdentity(identity) {
 	if (typeof identity !== "string" || !AGENT_IDENTITY_PATTERN.test(identity)) throw new Error(`[flue] Agent identity "${String(identity)}" is invalid. Agent identities must match ${AGENT_IDENTITY_PATTERN} (a function name like "IssueTriage", or a kebab-case override like "issue-triage").`);
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/events-BhCLb2HD.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/events-BhCLb2HD.mjs
 function createObservation(event, detail) {
 	return freezeValue(cloneValue({
 		...event,
@@ -56438,7 +56471,7 @@ function createCoordinatorEventEmitter(scope) {
 	};
 	return emit;
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/instrumentation-bhqFKBik.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/instrumentation-bhqFKBik.mjs
 var installed = /* @__PURE__ */ new WeakMap();
 var installedKeys = /* @__PURE__ */ new Map();
 var ownerStorage = new AsyncLocalStorage();
@@ -56490,7 +56523,7 @@ function instrument(instrumentation) {
 	ownerStorage.getStore()?.add(dispose);
 	return dispose;
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/tool-ex5dfLTb.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/tool-ex5dfLTb.mjs
 function cloneJsonSerializable(value, label) {
 	assertJsonLike(value, label, /* @__PURE__ */ new WeakSet());
 	let json;
@@ -56700,7 +56733,7 @@ function validateToolOutput(tool, result) {
 function assertNonEmptyString(value, label) {
 	if (typeof value !== "string" || value.trim().length === 0) throw new Error(`[flue] ${label} must be a non-empty string.`);
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/provider-diagnostics-C8itP2qI.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/provider-diagnostics-C8itP2qI.mjs
 /** Diagnostic `type` under which providers attach response metadata. */
 var PROVIDER_RESPONSE_DIAGNOSTIC = "flue:provider_response";
 /**
@@ -56742,7 +56775,7 @@ function pickAllowlisted(details) {
 		...typeof details.gatewayLogId === "string" && details.gatewayLogId.length > 0 ? { gatewayLogId: details.gatewayLogId } : {}
 	};
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/format-version-CbfgskCy.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/format-version-CbfgskCy.mjs
 var InMemoryAttachmentStore = class {
 	records = /* @__PURE__ */ new Map();
 	async put(input) {
@@ -56854,7 +56887,7 @@ function migrateFlueSqlSchema(sql, ensureCurrentSchema) {
 function getDefaultStreamFn() {
 	throw new Error("No default stream function configured. Pass streamFn explicitly or call setDefaultStreamFn().");
 }
-// ../../node_modules/.pnpm/@earendil-works+pi-agent-core@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelco_ca278904cfe5a21317252b9a32d68aff/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js
+// ../node_modules/.pnpm/@earendil-works+pi-agent-core@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelco_7198c04c4fb1aab570e553b0891a1dcb/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js
 /**
 * Agent loop that works with AgentMessage throughout.
 * Transforms to Message[] only at the LLM call boundary.
@@ -57452,7 +57485,7 @@ async function emitToolResultMessage(toolResultMessage, emit) {
 		message: toolResultMessage
 	});
 }
-// ../../node_modules/.pnpm/@earendil-works+pi-agent-core@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelco_ca278904cfe5a21317252b9a32d68aff/node_modules/@earendil-works/pi-agent-core/dist/agent.js
+// ../node_modules/.pnpm/@earendil-works+pi-agent-core@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelco_7198c04c4fb1aab570e553b0891a1dcb/node_modules/@earendil-works/pi-agent-core/dist/agent.js
 function defaultConvertToLlm(messages) {
 	return messages.filter((message) => message.role === "system" || message.role === "user" || message.role === "assistant" || message.role === "toolResult");
 }
@@ -57892,7 +57925,7 @@ var Agent = class {
 		for (const listener of this.listeners) await listener(event, signal);
 	}
 };
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/conversation-stream-store-CXrgv-b0.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/conversation-stream-store-CXrgv-b0.mjs
 /** Default submission timeout in milliseconds (one hour). */
 var DURABILITY_DEFAULT_TIMEOUT_MS = 36e5;
 /** Default lease duration for submission ownership in milliseconds (30 seconds). */
@@ -63825,7 +63858,7 @@ var SqliteConversationStreamStore = class {
 		});
 	}
 };
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/use-persistent-state-D5BZ0RoS.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/use-persistent-state-D5BZ0RoS.mjs
 function createHookStateBuffer(snapshot) {
 	const overlay = /* @__PURE__ */ new Map();
 	let pending = [];
@@ -63851,7 +63884,7 @@ function createHookStateBuffer(snapshot) {
 		}
 	};
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/mcp-CYraeuuF.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/mcp-CYraeuuF.mjs
 var version = "2.3.0";
 /**
 * A per-instance MCP connection cache: the first declaration of a server
@@ -64074,7 +64107,7 @@ function formatMcpResult(result) {
 	}
 	return parts.filter(Boolean).join("\n\n") || "(MCP tool returned no content)";
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/sql-agent-execution-store-LqbFqydc.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/sql-agent-execution-store-LqbFqydc.mjs
 /**
 * How long streamed deltas are coalesced before being appended to the durable
 * stream. The timer only governs mid-block streaming cadence — block boundaries
@@ -64830,7 +64863,7 @@ function ensureSubmissionTable(sql) {
 	sql.exec("CREATE INDEX IF NOT EXISTS flue_agent_submissions_session_status_sequence_idx ON flue_agent_submissions (session_key, status, sequence ASC)");
 	sql.exec("CREATE INDEX IF NOT EXISTS flue_agent_submissions_joined_into_idx ON flue_agent_submissions (joined_into) WHERE joined_into IS NOT NULL");
 }
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/model-catalog.js
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/model-catalog.js
 function flattenModelCatalog(groups, type) {
 	return Object.fromEntries(Object.values(groups).flatMap((models) => Object.values(models)).filter((model) => model.type === type).map((model) => [model.id, model]));
 }
@@ -64843,7 +64876,7 @@ function flattenImageModelCatalog(_provider, groups) {
 function flattenClassifierModelCatalog(_provider, groups) {
 	return flattenModelCatalog(groups, "classifier");
 }
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/providers/data/cloudflare-ai-gateway.json
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/providers/data/cloudflare-ai-gateway.json
 var cloudflare_ai_gateway_default = {
 	"anthropic-messages": {
 		"chat:claude-fable-5": {
@@ -65286,11 +65319,11 @@ var cloudflare_ai_gateway_default = {
 	"openai-completions": /*#__PURE__*/ JSON.parse("{\"chat:workers-ai/@cf/deepseek-ai/deepseek-v4-flash-0731\":{\"id\":\"workers-ai/@cf/deepseek-ai/deepseek-v4-flash-0731\",\"name\":\"DeepSeek V4 Flash 0731\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.44,\"output\":1.32,\"cacheRead\":0.014,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true,\"requiresReasoningContentOnAssistantMessages\":true,\"thinkingFormat\":\"deepseek\"},\"thinkingLevelMap\":{\"minimal\":null,\"low\":null,\"medium\":null,\"high\":\"high\",\"max\":\"max\"},\"type\":\"chat\"},\"chat:workers-ai/@cf/deepseek-ai/deepseek-v4-pro-0813\":{\"id\":\"workers-ai/@cf/deepseek-ai/deepseek-v4-pro-0813\",\"name\":\"DeepSeek V4 Pro 0813\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":1.32,\"output\":3.96,\"cacheRead\":0.044,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true,\"requiresReasoningContentOnAssistantMessages\":true,\"thinkingFormat\":\"deepseek\"},\"thinkingLevelMap\":{\"minimal\":null,\"low\":null,\"medium\":null,\"high\":\"high\",\"max\":\"max\"},\"type\":\"chat\"},\"chat:workers-ai/@cf/deepseek-ai/deepseek-v4.1-flash-1017\":{\"id\":\"workers-ai/@cf/deepseek-ai/deepseek-v4.1-flash-1017\",\"name\":\"Deepseek V4.1 Flash 1017\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.3,\"output\":1.2,\"cacheRead\":0.006,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true,\"requiresReasoningContentOnAssistantMessages\":true,\"thinkingFormat\":\"deepseek\"},\"thinkingLevelMap\":{\"minimal\":null,\"low\":null,\"medium\":null,\"high\":\"high\",\"max\":\"max\"},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:workers-ai/@cf/google/gemma-4-26b-a4b-it\":{\"id\":\"workers-ai/@cf/google/gemma-4-26b-a4b-it\",\"name\":\"Gemma 4 26B A4B IT\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.1,\"output\":0.3,\"cacheRead\":0.05,\"cacheWrite\":0},\"contextWindow\":256000,\"maxTokens\":16384,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:workers-ai/@cf/ibm-granite/granite-4.0-h-micro\":{\"id\":\"workers-ai/@cf/ibm-granite/granite-4.0-h-micro\",\"name\":\"Granite 4.0 H Micro\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":false,\"input\":[\"text\"],\"cost\":{\"input\":0.017,\"output\":0.112,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":131000,\"maxTokens\":131000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast\":{\"id\":\"workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast\",\"name\":\"Llama 3.3 70B Instruct fp8 Fast\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":false,\"input\":[\"text\"],\"cost\":{\"input\":0.293,\"output\":2.253,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":24000,\"maxTokens\":24000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:workers-ai/@cf/meta/llama-4-scout-17b-16e-instruct\":{\"id\":\"workers-ai/@cf/meta/llama-4-scout-17b-16e-instruct\",\"name\":\"Llama 4 Scout 17B 16E Instruct\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":false,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.27,\"output\":0.85,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":131000,\"maxTokens\":16384,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:workers-ai/@cf/mistralai/mistral-small-3.1-24b-instruct\":{\"id\":\"workers-ai/@cf/mistralai/mistral-small-3.1-24b-instruct\",\"name\":\"Mistral Small 3.1 24B Instruct\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":false,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.351,\"output\":0.555,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":128000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:workers-ai/@cf/moonshotai/kimi-k2.6\":{\"id\":\"workers-ai/@cf/moonshotai/kimi-k2.6\",\"name\":\"Kimi K2.6\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.95,\"output\":4,\"cacheRead\":0.16,\"cacheWrite\":0},\"contextWindow\":262144,\"maxTokens\":256000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:workers-ai/@cf/moonshotai/kimi-k2.7-code\":{\"id\":\"workers-ai/@cf/moonshotai/kimi-k2.7-code\",\"name\":\"Kimi K2.7 Code\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.95,\"output\":4,\"cacheRead\":0.19,\"cacheWrite\":0},\"contextWindow\":262144,\"maxTokens\":262144,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:workers-ai/@cf/nvidia/nemotron-3-120b-a12b\":{\"id\":\"workers-ai/@cf/nvidia/nemotron-3-120b-a12b\",\"name\":\"Nemotron 3 Super 120B\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.5,\"output\":1.5,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":256000,\"maxTokens\":256000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:workers-ai/@cf/openai/gpt-oss-120b\":{\"id\":\"workers-ai/@cf/openai/gpt-oss-120b\",\"name\":\"GPT OSS 120B\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.35,\"output\":0.75,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":16384,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:workers-ai/@cf/openai/gpt-oss-20b\":{\"id\":\"workers-ai/@cf/openai/gpt-oss-20b\",\"name\":\"GPT OSS 20B\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.2,\"output\":0.3,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":16384,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:workers-ai/@cf/qwen/qwen3-30b-a3b-fp8\":{\"id\":\"workers-ai/@cf/qwen/qwen3-30b-a3b-fp8\",\"name\":\"Qwen3 30B A3b fp8\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.0509,\"output\":0.335,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":32768,\"maxTokens\":32768,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:workers-ai/@cf/qwen/qwen3.8-27b\":{\"id\":\"workers-ai/@cf/qwen/qwen3.8-27b\",\"name\":\"Qwen3.8 27B\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.45,\"output\":3.2,\"cacheRead\":0.05,\"cacheWrite\":0},\"contextWindow\":262144,\"maxTokens\":262144,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:workers-ai/@cf/zai-org/glm-4.7-flash\":{\"id\":\"workers-ai/@cf/zai-org/glm-4.7-flash\",\"name\":\"GLM-4.7-Flash\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.0605,\"output\":0.4,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":131072,\"maxTokens\":131072,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:workers-ai/@cf/zai-org/glm-5.2\":{\"id\":\"workers-ai/@cf/zai-org/glm-5.2\",\"name\":\"Glm 5.2\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":1.4,\"output\":4.4,\"cacheRead\":0.26,\"cacheWrite\":0},\"contextWindow\":262144,\"maxTokens\":256000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:workers-ai/@cf/zai-org/glm-5.3\":{\"id\":\"workers-ai/@cf/zai-org/glm-5.3\",\"name\":\"Glm 5.3\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":1.4,\"output\":4.4,\"cacheRead\":0.26,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:workers-ai/@cf/zai-org/glm-5.3-flash\":{\"id\":\"workers-ai/@cf/zai-org/glm-5.3-flash\",\"name\":\"Glm 5.3 Flash\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/compat\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.15,\"output\":0.5,\"cacheRead\":0.03,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsReasoningEffort\":false,\"maxTokensField\":\"max_tokens\",\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"}}"),
 	"openai-responses": /*#__PURE__*/ JSON.parse("{\"chat:gpt-4.1\":{\"id\":\"gpt-4.1\",\"name\":\"GPT-4.1\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":false,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":2,\"output\":8,\"cacheRead\":0.5,\"cacheWrite\":0},\"contextWindow\":1047576,\"maxTokens\":32768,\"compat\":{\"supportsStrictMode\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-4.1-mini\":{\"id\":\"gpt-4.1-mini\",\"name\":\"GPT-4.1 mini\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":false,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.4,\"output\":1.6,\"cacheRead\":0.1,\"cacheWrite\":0},\"contextWindow\":1047576,\"maxTokens\":32768,\"compat\":{\"supportsStrictMode\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-4.1-nano\":{\"id\":\"gpt-4.1-nano\",\"name\":\"GPT-4.1 nano\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":false,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.1,\"output\":0.4,\"cacheRead\":0.025,\"cacheWrite\":0},\"contextWindow\":1000000,\"maxTokens\":32768,\"compat\":{\"supportsStrictMode\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-4o\":{\"id\":\"gpt-4o\",\"name\":\"GPT-4o\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":false,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":1.25,\"output\":5,\"cacheRead\":0.625,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":16384,\"compat\":{\"supportsStrictMode\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-4o-mini\":{\"id\":\"gpt-4o-mini\",\"name\":\"GPT-4o mini\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":false,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.075,\"output\":0.3,\"cacheRead\":0.0375,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":16384,\"compat\":{\"supportsStrictMode\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5\":{\"id\":\"gpt-5\",\"name\":\"GPT-5\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":1.25,\"output\":10,\"cacheRead\":0.125,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":\"minimal\",\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":null,\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5-mini\":{\"id\":\"gpt-5-mini\",\"name\":\"GPT-5 Mini\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.25,\"output\":2,\"cacheRead\":0.025,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":\"minimal\",\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":null,\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5-nano\":{\"id\":\"gpt-5-nano\",\"name\":\"GPT-5 Nano\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.05,\"output\":0.4,\"cacheRead\":0.005,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":\"minimal\",\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":null,\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.1\":{\"id\":\"gpt-5.1\",\"name\":\"GPT-5.1\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":1.25,\"output\":10,\"cacheRead\":0.125,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":null,\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.4\":{\"id\":\"gpt-5.4\",\"name\":\"GPT-5.4\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":2.5,\"output\":15,\"cacheRead\":0.25,\"cacheWrite\":0},\"contextWindow\":1000000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.4-mini\":{\"id\":\"gpt-5.4-mini\",\"name\":\"GPT-5.4 mini\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.75,\"output\":4.5,\"cacheRead\":0.075,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.4-nano\":{\"id\":\"gpt-5.4-nano\",\"name\":\"GPT-5.4 nano\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.2,\"output\":1.25,\"cacheRead\":0.02,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.4-pro\":{\"id\":\"gpt-5.4-pro\",\"name\":\"GPT-5.4 Pro\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":30,\"output\":180,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":1000000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":null,\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.5\":{\"id\":\"gpt-5.5\",\"name\":\"GPT-5.5\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":5,\"output\":30,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":1000000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.5-pro\":{\"id\":\"gpt-5.5-pro\",\"name\":\"GPT-5.5 Pro\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":30,\"output\":180,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":1000000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":null,\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":null},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.6-luna\":{\"id\":\"gpt-5.6-luna\",\"name\":\"GPT-5.6 Luna\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.2,\"output\":1.2,\"cacheRead\":0.02,\"cacheWrite\":0.25,\"tiers\":[{\"inputTokensAbove\":272000,\"input\":0.4,\"output\":1.8,\"cacheRead\":0.04,\"cacheWrite\":0.5}]},\"contextWindow\":1050000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":\"max\"},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.6-sol\":{\"id\":\"gpt-5.6-sol\",\"name\":\"GPT-5.6 Sol\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":4,\"output\":20,\"cacheRead\":0.4,\"cacheWrite\":5,\"tiers\":[{\"inputTokensAbove\":272000,\"input\":8,\"output\":30,\"cacheRead\":0.8,\"cacheWrite\":10}]},\"contextWindow\":1050000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":\"max\"},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-5.6-terra\":{\"id\":\"gpt-5.6-terra\",\"name\":\"GPT-5.6 Terra\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":2,\"output\":12,\"cacheRead\":0.2,\"cacheWrite\":2.5,\"tiers\":[{\"inputTokensAbove\":272000,\"input\":4,\"output\":18,\"cacheRead\":0.4,\"cacheWrite\":5}]},\"contextWindow\":1050000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":\"max\"},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-6-astra\":{\"id\":\"gpt-6-astra\",\"name\":\"GPT-6 Astra\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":10,\"output\":50,\"cacheRead\":1,\"cacheWrite\":12.5,\"tiers\":[{\"inputTokensAbove\":272000,\"input\":20,\"output\":75,\"cacheRead\":2,\"cacheWrite\":25}]},\"contextWindow\":1050000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":\"max\"},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-6-luna\":{\"id\":\"gpt-6-luna\",\"name\":\"GPT-6 Luna\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.1,\"output\":0.5,\"cacheRead\":0.01,\"cacheWrite\":0.125,\"tiers\":[{\"inputTokensAbove\":272000,\"input\":0.2,\"output\":0.75,\"cacheRead\":0.02,\"cacheWrite\":0.25}]},\"contextWindow\":1050000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":\"none\",\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":\"max\"},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-6-sol\":{\"id\":\"gpt-6-sol\",\"name\":\"GPT-6 Sol\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":2,\"output\":10,\"cacheRead\":0.2,\"cacheWrite\":2.5,\"tiers\":[{\"inputTokensAbove\":272000,\"input\":4,\"output\":15,\"cacheRead\":0.4,\"cacheWrite\":5}]},\"contextWindow\":1050000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":\"none\",\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":\"max\"},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:gpt-6.1-sol\":{\"id\":\"gpt-6.1-sol\",\"name\":\"GPT-6.1 Sol\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":2,\"output\":10,\"cacheRead\":0.1,\"cacheWrite\":2.5,\"tiers\":[{\"inputTokensAbove\":272000,\"input\":4,\"output\":15,\"cacheRead\":0.2,\"cacheWrite\":5}]},\"contextWindow\":1050000,\"maxTokens\":128000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":\"xhigh\",\"max\":\"max\"},\"compat\":{\"supportsStrictMode\":true,\"supportsOpenAIGrammarTools\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:o3\":{\"id\":\"o3\",\"name\":\"o3\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":2,\"output\":8,\"cacheRead\":0.5,\"cacheWrite\":0},\"contextWindow\":200000,\"maxTokens\":100000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":null,\"max\":null},\"compat\":{\"supportsStrictMode\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:o3-mini\":{\"id\":\"o3-mini\",\"name\":\"o3-mini\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":1.1,\"output\":4.4,\"cacheRead\":0.55,\"cacheWrite\":0},\"contextWindow\":200000,\"maxTokens\":100000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":null,\"max\":null},\"compat\":{\"supportsStrictMode\":true},\"type\":\"chat\"},\"chat:o4-mini\":{\"id\":\"o4-mini\",\"name\":\"o4-mini\",\"api\":\"openai-responses\",\"provider\":\"cloudflare-ai-gateway\",\"baseUrl\":\"https://gateway.ai.cloudflare.com/v1/{CLOUDFLARE_ACCOUNT_ID}/{CLOUDFLARE_GATEWAY_ID}/openai\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":1.1,\"output\":4.4,\"cacheRead\":0.275,\"cacheWrite\":0},\"contextWindow\":200000,\"maxTokens\":100000,\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":null,\"max\":null},\"compat\":{\"supportsStrictMode\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"}}")
 };
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-ai-gateway.models.js
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-ai-gateway.models.js
 var CLOUDFLARE_AI_GATEWAY_MODELS = flattenChatModelCatalog("cloudflare-ai-gateway", cloudflare_ai_gateway_default);
 flattenImageModelCatalog("cloudflare-ai-gateway", cloudflare_ai_gateway_default);
 flattenClassifierModelCatalog("cloudflare-ai-gateway", cloudflare_ai_gateway_default);
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/providers/data/cloudflare-workers-ai.json
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/providers/data/cloudflare-workers-ai.json
 var cloudflare_workers_ai_default = {
 	"cloudflare-workers-ai-system-one": {
 		"classifier:@cf/cloudflare/clef": {
@@ -65381,17 +65414,17 @@ var cloudflare_workers_ai_default = {
 	},
 	"openai-completions": /*#__PURE__*/ JSON.parse("{\"chat:@cf/deepseek-ai/deepseek-v4-flash-0731\":{\"id\":\"@cf/deepseek-ai/deepseek-v4-flash-0731\",\"name\":\"DeepSeek V4 Flash 0731\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.44,\"output\":1.32,\"cacheRead\":0.014,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true,\"requiresReasoningContentOnAssistantMessages\":true,\"thinkingFormat\":\"deepseek\"},\"thinkingLevelMap\":{\"minimal\":null,\"low\":null,\"medium\":null,\"high\":\"high\",\"max\":\"max\"},\"type\":\"chat\"},\"chat:@cf/deepseek-ai/deepseek-v4-pro-0813\":{\"id\":\"@cf/deepseek-ai/deepseek-v4-pro-0813\",\"name\":\"DeepSeek V4 Pro 0813\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":1.32,\"output\":3.96,\"cacheRead\":0.044,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true,\"requiresReasoningContentOnAssistantMessages\":true,\"thinkingFormat\":\"deepseek\"},\"thinkingLevelMap\":{\"minimal\":null,\"low\":null,\"medium\":null,\"high\":\"high\",\"max\":\"max\"},\"type\":\"chat\"},\"chat:@cf/deepseek-ai/deepseek-v4.1-flash-1017\":{\"id\":\"@cf/deepseek-ai/deepseek-v4.1-flash-1017\",\"name\":\"Deepseek V4.1 Flash 1017\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.3,\"output\":1.2,\"cacheRead\":0.006,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true,\"requiresReasoningContentOnAssistantMessages\":true,\"thinkingFormat\":\"deepseek\"},\"thinkingLevelMap\":{\"minimal\":null,\"low\":null,\"medium\":null,\"high\":\"high\",\"max\":\"max\"},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:@cf/google/gemma-4-26b-a4b-it\":{\"id\":\"@cf/google/gemma-4-26b-a4b-it\",\"name\":\"Gemma 4 26B A4B IT\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.1,\"output\":0.3,\"cacheRead\":0.05,\"cacheWrite\":0},\"contextWindow\":256000,\"maxTokens\":16384,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:@cf/ibm-granite/granite-4.0-h-micro\":{\"id\":\"@cf/ibm-granite/granite-4.0-h-micro\",\"name\":\"Granite 4.0 H Micro\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":false,\"input\":[\"text\"],\"cost\":{\"input\":0.017,\"output\":0.112,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":131000,\"maxTokens\":131000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:@cf/meta/llama-3.3-70b-instruct-fp8-fast\":{\"id\":\"@cf/meta/llama-3.3-70b-instruct-fp8-fast\",\"name\":\"Llama 3.3 70B Instruct fp8 Fast\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":false,\"input\":[\"text\"],\"cost\":{\"input\":0.293,\"output\":2.253,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":24000,\"maxTokens\":24000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:@cf/meta/llama-4-scout-17b-16e-instruct\":{\"id\":\"@cf/meta/llama-4-scout-17b-16e-instruct\",\"name\":\"Llama 4 Scout 17B 16E Instruct\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":false,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.27,\"output\":0.85,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":131000,\"maxTokens\":16384,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:@cf/mistralai/mistral-small-3.1-24b-instruct\":{\"id\":\"@cf/mistralai/mistral-small-3.1-24b-instruct\",\"name\":\"Mistral Small 3.1 24B Instruct\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":false,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.351,\"output\":0.555,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":128000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:@cf/moonshotai/kimi-k2.6\":{\"id\":\"@cf/moonshotai/kimi-k2.6\",\"name\":\"Kimi K2.6\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.95,\"output\":4,\"cacheRead\":0.16,\"cacheWrite\":0},\"contextWindow\":262144,\"maxTokens\":256000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"thinkingLevelMap\":{\"off\":\"none\",\"minimal\":null,\"low\":null,\"medium\":null,\"high\":\"high\",\"xhigh\":null,\"max\":null},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:@cf/moonshotai/kimi-k2.7-code\":{\"id\":\"@cf/moonshotai/kimi-k2.7-code\",\"name\":\"Kimi K2.7 Code\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.95,\"output\":4,\"cacheRead\":0.19,\"cacheWrite\":0},\"contextWindow\":262144,\"maxTokens\":262144,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:@cf/nvidia/nemotron-3-120b-a12b\":{\"id\":\"@cf/nvidia/nemotron-3-120b-a12b\",\"name\":\"Nemotron 3 Super 120B\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.5,\"output\":1.5,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":256000,\"maxTokens\":256000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":null,\"high\":\"high\",\"xhigh\":null,\"max\":null},\"type\":\"chat\"},\"chat:@cf/openai/gpt-oss-120b\":{\"id\":\"@cf/openai/gpt-oss-120b\",\"name\":\"GPT OSS 120B\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.35,\"output\":0.75,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":16384,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":null,\"max\":null},\"type\":\"chat\"},\"chat:@cf/openai/gpt-oss-20b\":{\"id\":\"@cf/openai/gpt-oss-20b\",\"name\":\"GPT OSS 20B\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.2,\"output\":0.3,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":128000,\"maxTokens\":16384,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":\"high\",\"xhigh\":null,\"max\":null},\"type\":\"chat\"},\"chat:@cf/qwen/qwen3-30b-a3b-fp8\":{\"id\":\"@cf/qwen/qwen3-30b-a3b-fp8\",\"name\":\"Qwen3 30B A3b fp8\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.0509,\"output\":0.335,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":32768,\"maxTokens\":32768,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:@cf/qwen/qwen3.8-27b\":{\"id\":\"@cf/qwen/qwen3.8-27b\",\"name\":\"Qwen3.8 27B\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.45,\"output\":3.2,\"cacheRead\":0.05,\"cacheWrite\":0},\"contextWindow\":262144,\"maxTokens\":262144,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":\"medium\",\"high\":null,\"xhigh\":\"xhigh\",\"max\":null},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"},\"chat:@cf/zai-org/glm-4.7-flash\":{\"id\":\"@cf/zai-org/glm-4.7-flash\",\"name\":\"GLM-4.7-Flash\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":0.0605,\"output\":0.4,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":131072,\"maxTokens\":131072,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"type\":\"chat\"},\"chat:@cf/zai-org/glm-5.2\":{\"id\":\"@cf/zai-org/glm-5.2\",\"name\":\"Glm 5.2\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":1.4,\"output\":4.4,\"cacheRead\":0.26,\"cacheWrite\":0},\"contextWindow\":262144,\"maxTokens\":256000,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"thinkingLevelMap\":{\"off\":\"none\",\"minimal\":null,\"low\":null,\"medium\":null,\"high\":\"high\",\"xhigh\":null,\"max\":\"max\"},\"type\":\"chat\"},\"chat:@cf/zai-org/glm-5.3\":{\"id\":\"@cf/zai-org/glm-5.3\",\"name\":\"Glm 5.3\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\"],\"cost\":{\"input\":1.4,\"output\":4.4,\"cacheRead\":0.26,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":null,\"high\":\"high\",\"xhigh\":null,\"max\":\"max\"},\"type\":\"chat\"},\"chat:@cf/zai-org/glm-5.3-flash\":{\"id\":\"@cf/zai-org/glm-5.3-flash\",\"name\":\"Glm 5.3 Flash\",\"api\":\"openai-completions\",\"provider\":\"cloudflare-workers-ai\",\"baseUrl\":\"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1\",\"reasoning\":true,\"input\":[\"text\",\"image\"],\"cost\":{\"input\":0.15,\"output\":0.5,\"cacheRead\":0.03,\"cacheWrite\":0},\"contextWindow\":1048576,\"maxTokens\":1048576,\"compat\":{\"supportsStore\":false,\"supportsDeveloperRole\":false,\"supportsStrictMode\":true,\"supportsLongCacheRetention\":false,\"sendSessionAffinityHeaders\":true},\"thinkingLevelMap\":{\"off\":null,\"minimal\":null,\"low\":\"low\",\"medium\":null,\"high\":\"high\",\"xhigh\":null,\"max\":\"max\"},\"inputLimits\":{\"images\":{\"resize\":{\"maxWidth\":2000,\"maxHeight\":2000,\"maxBytes\":4718592,\"jpegQuality\":80}}},\"type\":\"chat\"}}")
 };
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-workers-ai.models.js
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-workers-ai.models.js
 var CLOUDFLARE_WORKERS_AI_MODELS = flattenChatModelCatalog("cloudflare-workers-ai", cloudflare_workers_ai_default);
 flattenImageModelCatalog("cloudflare-workers-ai", cloudflare_workers_ai_default);
 var CLOUDFLARE_WORKERS_AI_CLASSIFIER_MODELS = flattenClassifierModelCatalog("cloudflare-workers-ai", cloudflare_workers_ai_default);
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.lazy.js
-var openAICompletionsApi = () => lazyApi(() => import("./assets/openai-completions-jrmxaQjF.js"));
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.lazy.js
-var anthropicMessagesApi = () => lazyApi(() => import("./assets/anthropic-messages-0Nm_xjPl.js").then((n) => n.t));
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.lazy.js
-var openAIResponsesApi = () => lazyApi(() => import("./assets/openai-responses-DHrlglv3.js"));
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-auth.js
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.lazy.js
+var openAICompletionsApi = () => lazyApi(() => import("./assets/openai-completions-D5HfyfsM.js"));
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.lazy.js
+var anthropicMessagesApi = () => lazyApi(() => import("./assets/anthropic-messages-DvzXsHhw.js").then((n) => n.t));
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.lazy.js
+var openAIResponsesApi = () => lazyApi(() => import("./assets/openai-responses-CTOztYwd.js"));
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-auth.js
 var CLOUDFLARE_API_KEY = "CLOUDFLARE_API_KEY";
 var CLOUDFLARE_ACCOUNT_ID$1 = "CLOUDFLARE_ACCOUNT_ID";
 var CLOUDFLARE_GATEWAY_ID$1 = "CLOUDFLARE_GATEWAY_ID";
@@ -65481,7 +65514,7 @@ function cloudflareAIGatewayAuth() {
 		}
 	};
 }
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-stream.js
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-stream.js
 var CLOUDFLARE_ACCOUNT_ID = "CLOUDFLARE_ACCOUNT_ID";
 var CLOUDFLARE_GATEWAY_ID = "CLOUDFLARE_GATEWAY_ID";
 function resolveCloudflareModel(model, env) {
@@ -65506,7 +65539,7 @@ function cloudflareStreams(streams) {
 function cloudflareClassifier(classifier) {
 	return { classify: (model, context, options) => classifier.classify(resolveCloudflareModel(model, options?.env), context, options) };
 }
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-ai-gateway.js
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-ai-gateway.js
 function cloudflareAIGatewayProvider() {
 	return createProvider({
 		id: "cloudflare-ai-gateway",
@@ -65520,9 +65553,9 @@ function cloudflareAIGatewayProvider() {
 		}
 	});
 }
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.lazy.js
-var cloudflareWorkersAISystemOneApi = () => ({ classify: async (model, context, options) => (await import("./assets/cloudflare-workers-ai-system-one-Bnuq8_eV.js")).classify(model, context, options) });
-// ../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-workers-ai.js
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.lazy.js
+var cloudflareWorkersAISystemOneApi = () => ({ classify: async (model, context, options) => (await import("./assets/cloudflare-workers-ai-system-one-Dp27TuXN.js")).classify(model, context, options) });
+// ../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-workers-ai.js
 function cloudflareWorkersAIProvider() {
 	return createProvider({
 		id: "cloudflare-workers-ai",
@@ -65533,7 +65566,7 @@ function cloudflareWorkersAIProvider() {
 		classifiers: { "cloudflare-workers-ai-system-one": cloudflareClassifier(cloudflareWorkersAISystemOneApi()) }
 	});
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/builtin-providers-C5FpT9g1.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/builtin-providers-C5FpT9g1.mjs
 var DEFAULT_SESSION_NAME = "default";
 var Harness = class Harness {
 	/**
@@ -66179,7 +66212,7 @@ async function resolveSandbox(id, sandbox) {
 	}
 	throw new Error("[flue] Invalid sandbox option composed by the agent function.");
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/sql-attachment-store-BSCfEKhu.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/sql-attachment-store-BSCfEKhu.mjs
 var ATTACHMENT_CHUNK_BYTE_LENGTH = 524288;
 function ensureSqlAttachmentTable(sql) {
 	migrateFlueSqlSchema(sql, () => {
@@ -66309,7 +66342,7 @@ function sqlBytes(value) {
 	if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
 	throw new TypeError("Persisted attachment bytes are not binary data.");
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/agent-coordinator-f9gHF-F5.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/agent-coordinator-f9gHF-F5.mjs
 /**
 * Wrap a store-initialization failure so it survives the Durable Object
 * boundary. These wrappers run in the DO constructor: the throw tunnels
@@ -67150,7 +67183,7 @@ function isAbortRequest(request, agentName, instanceName) {
 	if (n < 4) return false;
 	return segments[n - 1] === "abort" && decodeURIComponent(segments[n - 2]) === instanceName && decodeURIComponent(segments[n - 3]) === agentName;
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/telemetry-B4lelQYf.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/telemetry-B4lelQYf.mjs
 /**
 * Structural, in-band content truncation — the safety net behind
 * `contentAttribute()` and, via the exported `truncateContent`, the helper
@@ -67648,7 +67681,7 @@ var CONTENT_ATTR = {
 	/** @deprecated No longer emitted; see `FLUE_TELEMETRY_EXTENSION_REVISION` 5. */
 	toolResultRaw: "flue.tool.call.result"
 };
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/tracing-DzRNi3UR.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/tracing-DzRNi3UR.mjs
 /**
 * Cloudflare environment context injection.
 *
@@ -68315,7 +68348,7 @@ function toolKey(value) {
 		value.toolCallId
 	]);
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/cloudflare/internal.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/cloudflare/internal.mjs
 /**
 * Build the final (possibly extension-wrapped) Durable Object class for one
 * agent module.
@@ -68458,7 +68491,7 @@ function dispatchAdmissionError(input, status, rejection) {
 	}
 	return /* @__PURE__ */ new Error(`[flue] dispatch() target agent "${input.agent}" rejected durable admission with status ${status}.`);
 }
-// ../../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextprotocol+sd_399e261b49cfd66124fbe3eb9675d475/node_modules/@flue/runtime/dist/cloudflare/workers-ai-provider.mjs
+// ../node_modules/.pnpm/@flue+runtime@2.3.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextprotocol+sd_41ccb5b8090cce9e6d42ad1224830e37/node_modules/@flue/runtime/dist/cloudflare/workers-ai-provider.mjs
 /**
 * Request preparation for the Anthropic binding client — the stand-in for the
 * Anthropic SDK client that pi-ai's `anthropic-messages` protocol drives.
@@ -68748,7 +68781,7 @@ function streamCloudflareWorkersAi(ai, binding, model, context, options) {
 		};
 		let response;
 		try {
-			const { convertMessages } = await import("./assets/openai-completions-jrmxaQjF.js");
+			const { convertMessages } = await import("./assets/openai-completions-D5HfyfsM.js");
 			const payload = {
 				messages: convertMessages(model, context, {
 					...WORKERS_AI_COMPAT,
@@ -69037,7 +69070,7 @@ function streamCloudflareResponsesAi(ai, binding, model, context, options) {
 			endedCleanly: false
 		};
 		try {
-			const [{ convertResponsesMessages, convertResponsesTools, processResponsesStream }, { clampOpenAIPromptCacheKey }] = await Promise.all([import("./assets/openai-responses-shared-BgVmcCAA.js"), import("./assets/openai-prompt-cache-De5CgTDI.js")]);
+			const [{ convertResponsesMessages, convertResponsesTools, processResponsesStream }, { clampOpenAIPromptCacheKey }] = await Promise.all([import("./assets/openai-responses-shared-8FS6g1dQ.js"), import("./assets/openai-prompt-cache-BOSbDmVS.js")]);
 			const responsesModel = toResponsesGatewayModel(model);
 			const supportsAdditionalTools = responsesModel.compat?.supportsAdditionalTools === true;
 			const supportsToolSearch = responsesModel.compat?.supportsToolSearch === true;

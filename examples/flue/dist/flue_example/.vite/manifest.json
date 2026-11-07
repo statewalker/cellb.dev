@@ -1,154 +1,154 @@
 {
-  "../../node_modules/.pnpm/@anthropic-ai+sdk@0.129.0_zod@4.6.7/node_modules/@anthropic-ai/sdk/tools/agent-toolset/node.mjs": {
-    "file": "assets/node-Caq5z5QK.js",
+  "../node_modules/.pnpm/@anthropic-ai+sdk@0.129.0_zod@4.6.7/node_modules/@anthropic-ai/sdk/tools/agent-toolset/node.mjs": {
+    "file": "assets/node-B93jz6Zs.js",
     "name": "node",
-    "src": "../../node_modules/.pnpm/@anthropic-ai+sdk@0.129.0_zod@4.6.7/node_modules/@anthropic-ai/sdk/tools/agent-toolset/node.mjs",
+    "src": "../node_modules/.pnpm/@anthropic-ai+sdk@0.129.0_zod@4.6.7/node_modules/@anthropic-ai/sdk/tools/agent-toolset/node.mjs",
     "isDynamicEntry": true,
     "imports": [
-      "_node-B4j-fgsJ.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js"
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js",
+      "_node-C5mwujyv.js"
     ]
   },
-  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js": {
-    "file": "assets/anthropic-messages-0Nm_xjPl.js",
+  "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js": {
+    "file": "assets/anthropic-messages-DvzXsHhw.js",
     "name": "anthropic-messages",
-    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js",
+    "src": "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js",
     "isDynamicEntry": true,
     "imports": [
       "_rolldown-runtime-DQp2zzRu.js",
-      "_models-CzbUlNE1.js",
-      "_json-parse-BCl4j9Gq.js",
-      "_simple-options-rCVmfX1V.js",
-      "_provider-retry-CFUHzQ9h.js",
-      "_transform-messages-niVPG_iW.js"
+      "_models-82ZuVgDk.js",
+      "_provider-retry-qkK0j5Wq.js",
+      "_json-parse-C5itvf2E.js",
+      "_simple-options-BZbAN1Y_.js",
+      "_transform-messages-OuqS3NYA.js"
     ],
     "dynamicImports": [
-      "_node-B4j-fgsJ.js",
-      "../../node_modules/.pnpm/@anthropic-ai+sdk@0.129.0_zod@4.6.7/node_modules/@anthropic-ai/sdk/tools/agent-toolset/node.mjs"
+      "_node-C5mwujyv.js",
+      "../node_modules/.pnpm/@anthropic-ai+sdk@0.129.0_zod@4.6.7/node_modules/@anthropic-ai/sdk/tools/agent-toolset/node.mjs"
     ]
   },
-  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.js": {
-    "file": "assets/cloudflare-workers-ai-system-one-Bnuq8_eV.js",
+  "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.js": {
+    "file": "assets/cloudflare-workers-ai-system-one-Dp27TuXN.js",
     "name": "cloudflare-workers-ai-system-one",
-    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.js",
+    "src": "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.js",
     "isDynamicEntry": true,
     "imports": [
-      "_models-CzbUlNE1.js",
-      "_provider-retry-CFUHzQ9h.js",
-      "_error-body-wbW0Aj7-.js"
+      "_models-82ZuVgDk.js",
+      "_provider-retry-qkK0j5Wq.js",
+      "_error-body-B-5evQ38.js"
     ]
   },
-  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js": {
-    "file": "assets/openai-completions-jrmxaQjF.js",
+  "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js": {
+    "file": "assets/openai-completions-D5HfyfsM.js",
     "name": "openai-completions",
-    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js",
+    "src": "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js",
     "isDynamicEntry": true,
     "imports": [
-      "_models-CzbUlNE1.js",
-      "_json-parse-BCl4j9Gq.js",
-      "_simple-options-rCVmfX1V.js",
-      "_provider-retry-CFUHzQ9h.js",
-      "_transform-messages-niVPG_iW.js",
-      "_openai-B6Lk23Y0.js",
-      "_error-body-wbW0Aj7-.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js",
-      "_hash-D4zDouWq.js"
+      "_openai-B7ewF6o4.js",
+      "_models-82ZuVgDk.js",
+      "_error-body-B-5evQ38.js",
+      "_hash-CHZZYqqi.js",
+      "_provider-retry-qkK0j5Wq.js",
+      "_json-parse-C5itvf2E.js",
+      "_simple-options-BZbAN1Y_.js",
+      "_transform-messages-OuqS3NYA.js",
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js"
     ]
   },
-  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js": {
-    "file": "assets/openai-prompt-cache-De5CgTDI.js",
+  "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js": {
+    "file": "assets/openai-prompt-cache-BOSbDmVS.js",
     "name": "openai-prompt-cache",
-    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js",
+    "src": "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js",
     "isDynamicEntry": true
   },
-  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js": {
-    "file": "assets/openai-responses-shared-BgVmcCAA.js",
+  "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js": {
+    "file": "assets/openai-responses-shared-8FS6g1dQ.js",
     "name": "openai-responses-shared",
-    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js",
+    "src": "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js",
     "isDynamicEntry": true,
     "imports": [
-      "_models-CzbUlNE1.js",
-      "_json-parse-BCl4j9Gq.js",
-      "_transform-messages-niVPG_iW.js",
-      "_hash-D4zDouWq.js"
+      "_models-82ZuVgDk.js",
+      "_hash-CHZZYqqi.js",
+      "_json-parse-C5itvf2E.js",
+      "_transform-messages-OuqS3NYA.js"
     ]
   },
-  "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js": {
-    "file": "assets/openai-responses-DHrlglv3.js",
+  "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js": {
+    "file": "assets/openai-responses-CTOztYwd.js",
     "name": "openai-responses",
-    "src": "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js",
+    "src": "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js",
     "isDynamicEntry": true,
     "imports": [
-      "_models-CzbUlNE1.js",
-      "_simple-options-rCVmfX1V.js",
-      "_provider-retry-CFUHzQ9h.js",
-      "_transform-messages-niVPG_iW.js",
-      "_openai-B6Lk23Y0.js",
-      "_error-body-wbW0Aj7-.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js"
+      "_openai-B7ewF6o4.js",
+      "_models-82ZuVgDk.js",
+      "_error-body-B-5evQ38.js",
+      "_provider-retry-qkK0j5Wq.js",
+      "_simple-options-BZbAN1Y_.js",
+      "_transform-messages-OuqS3NYA.js",
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js",
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js"
     ]
   },
-  "../../node_modules/.pnpm/mimetext@3.0.28/node_modules/mimetext/dist/mimetext.node.es.js": {
-    "file": "assets/mimetext.node.es-DLC8KomI.js",
+  "../node_modules/.pnpm/mimetext@3.0.28/node_modules/mimetext/dist/mimetext.node.es.js": {
+    "file": "assets/mimetext.node.es-Ct5IW9dc.js",
     "name": "mimetext.node.es",
-    "src": "../../node_modules/.pnpm/mimetext@3.0.28/node_modules/mimetext/dist/mimetext.node.es.js",
+    "src": "../node_modules/.pnpm/mimetext@3.0.28/node_modules/mimetext/dist/mimetext.node.es.js",
     "isDynamicEntry": true,
     "imports": [
       "_rolldown-runtime-DQp2zzRu.js"
     ]
   },
-  "_error-body-wbW0Aj7-.js": {
-    "file": "assets/error-body-wbW0Aj7-.js",
+  "_error-body-B-5evQ38.js": {
+    "file": "assets/error-body-B-5evQ38.js",
     "name": "error-body"
   },
-  "_hash-D4zDouWq.js": {
-    "file": "assets/hash-D4zDouWq.js",
+  "_hash-CHZZYqqi.js": {
+    "file": "assets/hash-CHZZYqqi.js",
     "name": "hash"
   },
-  "_json-parse-BCl4j9Gq.js": {
-    "file": "assets/json-parse-BCl4j9Gq.js",
+  "_json-parse-C5itvf2E.js": {
+    "file": "assets/json-parse-C5itvf2E.js",
     "name": "json-parse",
     "imports": [
       "_rolldown-runtime-DQp2zzRu.js"
     ]
   },
-  "_models-CzbUlNE1.js": {
-    "file": "assets/models-CzbUlNE1.js",
+  "_models-82ZuVgDk.js": {
+    "file": "assets/models-82ZuVgDk.js",
     "name": "models"
   },
-  "_node-B4j-fgsJ.js": {
-    "file": "assets/node-B4j-fgsJ.js",
+  "_node-C5mwujyv.js": {
+    "file": "assets/node-C5mwujyv.js",
     "name": "node",
     "imports": [
       "_rolldown-runtime-DQp2zzRu.js"
     ]
   },
-  "_openai-B6Lk23Y0.js": {
-    "file": "assets/openai-B6Lk23Y0.js",
+  "_openai-B7ewF6o4.js": {
+    "file": "assets/openai-B7ewF6o4.js",
     "name": "openai",
     "imports": [
       "_rolldown-runtime-DQp2zzRu.js"
     ]
   },
-  "_provider-retry-CFUHzQ9h.js": {
-    "file": "assets/provider-retry-CFUHzQ9h.js",
+  "_provider-retry-qkK0j5Wq.js": {
+    "file": "assets/provider-retry-qkK0j5Wq.js",
     "name": "provider-retry"
   },
   "_rolldown-runtime-DQp2zzRu.js": {
     "file": "assets/rolldown-runtime-DQp2zzRu.js",
     "name": "rolldown-runtime"
   },
-  "_simple-options-rCVmfX1V.js": {
-    "file": "assets/simple-options-rCVmfX1V.js",
+  "_simple-options-BZbAN1Y_.js": {
+    "file": "assets/simple-options-BZbAN1Y_.js",
     "name": "simple-options",
     "imports": [
       "_rolldown-runtime-DQp2zzRu.js",
-      "_models-CzbUlNE1.js"
+      "_models-82ZuVgDk.js"
     ]
   },
-  "_transform-messages-niVPG_iW.js": {
-    "file": "assets/transform-messages-niVPG_iW.js",
+  "_transform-messages-OuqS3NYA.js": {
+    "file": "assets/transform-messages-OuqS3NYA.js",
     "name": "transform-messages"
   },
   "virtual:cloudflare/worker-entry": {
@@ -158,17 +158,17 @@
     "isEntry": true,
     "imports": [
       "_rolldown-runtime-DQp2zzRu.js",
-      "_models-CzbUlNE1.js",
-      "_json-parse-BCl4j9Gq.js"
+      "_models-82ZuVgDk.js",
+      "_json-parse-C5itvf2E.js"
     ],
     "dynamicImports": [
-      "../../node_modules/.pnpm/mimetext@3.0.28/node_modules/mimetext/dist/mimetext.node.es.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js",
-      "../../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.88_@modelcontextpro_db479a38ccb39f9d10e156b0123729f4/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js"
+      "../node_modules/.pnpm/mimetext@3.0.28/node_modules/mimetext/dist/mimetext.node.es.js",
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js",
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js",
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js",
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/cloudflare-workers-ai-system-one.js",
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js",
+      "../node_modules/.pnpm/@earendil-works+pi-ai@1.4.0_@aws-sdk+credential-provider-node@3.972.92_@modelcontextpro_43adf67fbd45a1f1520e92e8e83e4e1c/node_modules/@earendil-works/pi-ai/dist/api/openai-prompt-cache.js"
     ]
   }
 }
