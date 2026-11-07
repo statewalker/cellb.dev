@@ -89,6 +89,8 @@ export default defineConfig({
       "entry/index.html",
       "peers/index.html",
       "entry/entry-worker.ts",
+      "load-project/index.html",
+      "load-project/load-worker.ts",
       "shards/index.html",
       "shards/shard-worker.ts",
       "tabs/index.html",

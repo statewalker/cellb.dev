@@ -1,8 +1,14 @@
 import { ServerWebSocket } from "@statewalker/webrun-http-browser/sw";
-import { checkClose } from "./frames.js";
+import { checkClose, type Frame } from "./frames.js";
 
-/** Server ends accepted in this realm and not yet closed (see `CfWebSocket.goAway`). */
-const acceptedEnds = new Set<CfWebSocket>();
+/**
+ * Server ends of this realm that a client may be waiting on, not yet closed: the accepted ones,
+ * and those whose client end was handed over (see `CfWebSocket.goAway`).
+ */
+const serverEnds = new Set<CfWebSocket>();
+
+/** What `ServerWebSocket` keeps of the frames that reached an end before `accept()`. */
+type QueueOf = { _queue: Frame[] };
 
 /**
  * Cloudflare Workers' server-side WebSocket (one end of a WebSocketPair), on
@@ -15,7 +21,7 @@ const acceptedEnds = new Set<CfWebSocket>();
  * - the heartbeat watch starts with the client's first ping and keeps that period: a pair's ends
  *   used in one realm never ping, and a tab that closes turns hidden (announcing a longer period)
  *   on its way out;
- * - attachments, `peer`, `hibernatable`, and `goAway` for the ends accepted in this realm.
+ * - attachments, `peer`, `hibernatable`, and `goAway` for the server ends of this realm.
  *
  * Hibernation (`ctx.acceptWebSocket`) is a later prototype.
  */
@@ -27,7 +33,8 @@ export class CfWebSocket extends ServerWebSocket {
   extensions: string | null = null;
   #attachment: unknown;
 
-  constructor(port: MessagePort) {
+  /** `queued`: frames the end received before `port` reached it, delivered first (a 101's). */
+  constructor(port: MessagePort, queued: Frame[] = []) {
     super(port, {
       watch: "first-ping",
       heartbeatPeriod: "first",
@@ -39,6 +46,8 @@ export class CfWebSocket extends ServerWebSocket {
     // workerd's server ends have no url or subprotocol of their own.
     Object.defineProperty(this, "url", { value: null, writable: true, configurable: true });
     Object.defineProperty(this, "protocol", { value: null, writable: true, configurable: true });
+    // Ahead of anything from the port, which reaches this end in a later task.
+    if (queued.length) (this as unknown as QueueOf)._queue.unshift(...queued);
   }
 
   /** The other end of the WebSocketPair (the runtime checks how the server end was accepted). */
@@ -53,7 +62,7 @@ export class CfWebSocket extends ServerWebSocket {
     } catch {
       throw new TypeError("This WebSocket end was handed to a client; it cannot be accepted.");
     }
-    acceptedEnds.add(this);
+    serverEnds.add(this);
   }
 
   override send(data: string | ArrayBuffer | ArrayBufferView): void {
@@ -66,7 +75,7 @@ export class CfWebSocket extends ServerWebSocket {
   }
 
   protected override _onClosed(): void {
-    acceptedEnds.delete(this);
+    serverEnds.delete(this);
     super._onClosed();
   }
 
@@ -78,13 +87,15 @@ export class CfWebSocket extends ServerWebSocket {
   }
 
   /**
-   * Closes every server end accepted in this realm with 1001 (going away). A shard worker that
-   * hands its cells to another tab does it before it stops, so that clients reconnect at once
-   * instead of noticing through the heartbeat; Worker code cannot send 1001 itself (`close`).
+   * Closes every server end of this realm with 1001 (going away): the accepted ones, and those
+   * whose client end was handed over but which were never accepted. A shard worker that hands
+   * its cells to another tab does it before it stops, and an isolate before it is terminated,
+   * so that clients reconnect at once instead of noticing through the heartbeat; Worker code
+   * cannot send 1001 itself (`close`).
    */
   static goAway(reason = "moving to another worker"): void {
-    for (const ws of acceptedEnds) {
-      acceptedEnds.delete(ws);
+    for (const ws of serverEnds) {
+      serverEnds.delete(ws);
       if (ws.readyState >= 2) continue;
       ws._startClose(1001, reason);
     }
@@ -163,15 +174,40 @@ export class StandardWebSocketPair extends WebSocketPair {
 }
 
 /**
+ * Detaches the CLIENT end returned in a 101 response: its own port, and the frames the server
+ * sent before the response was handed over (partyserver greets in onConnect, before it returns
+ * the 101), which reached this end and wait in its queue. A holder that replays them
+ * (`new CfWebSocket(port, frames)`) needs no relay. Only when this end itself sent frames not
+ * yet acknowledged does `detach()` keep a relay (it absorbs their acknowledgements); the frames
+ * then travel through it.
+ */
+export function takeClientEnd(ws: CfWebSocket): { port: MessagePort; frames: Frame[] } {
+  const frames = ws.bufferedAmount === 0 ? (ws as unknown as QueueOf)._queue.splice(0) : [];
+  let port: MessagePort;
+  try {
+    port = ws.detach(); // with its queue emptied: the end's own port
+  } catch {
+    (ws as unknown as QueueOf)._queue.unshift(...frames);
+    throw new TypeError("WebSocket end already handed over");
+  }
+  // Its server end now has a client waiting, accepted or not: `goAway` must reach it.
+  const server = ws.peer;
+  if (server && server.readyState < 2) serverEnds.add(server);
+  return { port, frames };
+}
+
+/**
  * Detaches the transport of the CLIENT end returned in a 101 response, so the
- * runtime can hand the raw MessagePort to the real client (transferable).
+ * runtime can hand the raw MessagePort to the real client (transferable). Frames the server
+ * sent before the hand-over go to the new holder first, then the rest (ServerWebSocket.detach
+ * relays them).
  */
 export function takeClientPort(ws: CfWebSocket): MessagePort {
-  // Frames the server sent before the response was handed over (partyserver greets in
-  // onConnect, before it returns the 101) reached this end and wait in its queue: the new holder
-  // gets them first, then the rest (ServerWebSocket.detach).
   try {
-    return ws.detach();
+    const port = ws.detach();
+    const server = ws.peer;
+    if (server && server.readyState < 2) serverEnds.add(server);
+    return port;
   } catch {
     throw new TypeError("WebSocket end already handed over");
   }

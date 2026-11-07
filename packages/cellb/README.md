@@ -24,7 +24,7 @@ mix celld nodes, cellb nodes and browsers.
 
 ```sh
 npm install @statewalker/cellb
-npm install esbuild   # for loadNodeProject and bundleWorkerForBrowser (an optional peer dependency)
+npm install esbuild   # for loadProject and cellb build on Node (an optional peer dependency)
 ```
 
 The package has three entry points, one per platform, and two more for bundling. Published, it is
@@ -37,8 +37,8 @@ worker is started that way (checked with a Vite build, see `scripts/pack-check.m
 | Import | What it gives |
 |---|---|
 | `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes, and the errors embedders catch |
-| `@statewalker/cellb/node` | `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
-| `@statewalker/cellb/browser` | `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
+| `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
+| `@statewalker/cellb/browser` | `loadProject` (a `cellb build` folder by URL), `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
 | `@statewalker/cellb/site` | `createProjectSite`: a project's sources compiled in the browser and served by an in-browser HTTP server (`browserProjectRuntime({ site })`). Needs the optional peer dependencies `@statewalker/webrun-modules` and `@statewalker/webrun-site-builder`; the site is hosted in a ServiceWorker with `@statewalker/webrun-site-host`, also an optional peer |
 | `@statewalker/cellb/host-modules` | for bundlers other than cellb's own (webrun-bundler in a browser, say): the sources of `cloudflare:workers`, `node:*` and the Workers globals as cellb's realms provide them (`cellbHostModule`, `CELLS_GLOBALS_MODULE`) |
 | `@statewalker/cellb/isolate-worker` | the Dedicated Worker that runs a Worker-Loader Worker in a realm of its own (`isolateScript`) |
@@ -55,6 +55,49 @@ runtime answers requests with 503, and an object's code still running fails with
 `ObjectClosedError` when it uses its storage or another object.
 
 ## Examples
+
+### One project loader for Node and browsers
+
+`loadProject(source, options)` has the same name and options in both entry points:
+
+```ts
+// Node: a folder with wrangler.json(c), its `main` bundled with esbuild
+import { loadProject } from "@statewalker/cellb/node";
+const project = await loadProject("./counter", { data: "./data" });
+
+// Browser, in a Dedicated Worker: the URL of a folder written by `cellb build`
+import { loadProject } from "@statewalker/cellb/browser";
+const project = await loadProject("/apps/counter/", { data: "counter" });
+
+// Both
+const res = await project.fetch(new Request("http://localhost/increment?name=alpha"));
+project.unsupported; // configuration cellb does not run
+await project.close();
+```
+
+A browser loads a project built ahead of time, on Node:
+
+```sh
+npx cellb build ./counter --out public/apps/counter
+```
+
+The folder holds `wrangler.json`, `worker.js` (`main` bundled for browsers, with nodejs_compat
+when the flags ask for it), `assets/` (the files of `assets.directory`) and `cellb.json`, the
+manifest that lists the assets, since a static host cannot list a folder. Any static host serves
+it; Node loads it too.
+
+- `source`: Node takes a folder (built or not), a `file:` or `http(s):` URL of a built folder, or
+  a FilesApi holding either; a browser takes the URL of a built folder or a FilesApi holding one.
+- `data`: where cells keep their data. On Node, a directory (SQLite files, and the project's files
+  under `<data>/files`); without it, memory. In a browser, an OPFS name: the SQLite pool `<data>`
+  and the files directory `<data>-files` (default: the project's `name`).
+- `bucket`: a fleet bucket, as `loadNodeProject`'s `storage` (a `CellStorage`) and
+  `browserProjectRuntime`'s `bucket` (a `BrowserBucket`).
+- `ai`: the Workers AI endpoint. `sqlite3` (browser): a SQLite WASM module, if the caller has one
+  (default: `@sqlite.org/sqlite-wasm`). `isolateScript` (browser): where Worker Loader code runs,
+  the package's own isolate worker by default, `false` for this realm.
+
+`loadNodeProject` and `browserProjectRuntime`, below, stay as the lower-level calls.
 
 ### A Worker and a Durable Object in Node
 
