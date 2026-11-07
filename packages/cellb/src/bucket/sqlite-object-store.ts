@@ -1,10 +1,8 @@
-import { createRequire } from "node:module";
+import { requireNodeSqlite } from "../adapters/node-sqlite-module.js";
 import type { ObjectAttributes, ObjectStore } from "./object-store.js";
 import { PreconditionFailedError } from "./object-store.js";
 
-const { DatabaseSync } = createRequire(import.meta.url)(
-  "node:sqlite",
-) as typeof import("node:sqlite");
+const { DatabaseSync } = requireNodeSqlite();
 
 /**
  * celld dev's local bucket: `<project>/.celld/dev/objects.sqlite3` (objects(key, body, etag
