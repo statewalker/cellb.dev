@@ -84,7 +84,8 @@ does not protect.
 - Functions, `RpcTarget`s and stubs pass by reference into and out of it (in `env`, `props`,
   arguments and results), as on workerd. celld refuses them.
 - A call's result is an RpcPromise: `stub.a().b()` sends `b` before `a()` settles.
-- Its Durable Object classes run inside its realm as facets ([Durable Object facets](durable-object-facets.md)).
+- Its Durable Object classes run inside its realm as facets ([Durable Object
+  facets](durable-object-facets.md)).
 - An uncaught exception in it is logged, and it keeps running.
 
 ## How it is checked
@@ -101,8 +102,8 @@ projects, and workerd's own Worker Loader tests (`wd-worker-loader`), on Node an
   on a channel of its own with all its headers, so a loaded Worker or its facet can accept
   WebSockets, as partyserver does in `test/p36-partyserver.test.ts`. A 101 answer hands the host
   the socket's own MessagePort, so its frames go straight to the isolate and open sockets do not
-  use up the isolate's multiplexed ports (at most 4,096 at once, set by
-  `globalThis.__cellbMaxPorts`). When the runtime closes, the isolate's sockets are closed with
+  use up the isolate's multiplexed ports (4,096 at most by default, which
+  `globalThis.__cellbMaxPorts` overrides). When the runtime closes, the isolate's sockets are closed with
   code 1001 before the isolate ends. [Benchmarks](../../bench/README.md) has the numbers.
 - **Some of workerd's Worker Loader features are missing**: `WorkerCode.compatibilityFlags`,
   `abortIsolateDynamic*`, the props of `getDurableObjectClass(name, { props })`, and

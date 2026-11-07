@@ -3,7 +3,8 @@
 A Durable Object class is a project's stateful code. Each object is a **cell**, a single SQLite
 database that is owned, logged and moved as a unit ([Glossary](../../CONTEXT.md)). CellB stores a cell
 exactly as celld does, so the same object can be served by celld, then by CellB in Node, then by a
-browser, and back ([celld compatibility](../celld-compatibility.md#the-same-cell-is-stored-the-same-way)).
+browser, and back ([celld
+compatibility](../celld-compatibility.md#the-same-cell-is-stored-the-same-way)).
 
 ```jsonc
 {
@@ -57,8 +58,8 @@ gate holds back a reply until the commit it depends on is durable. These guarant
 and in browsers, with every kind of storage ([Ownership & durability](../ownership-and-durability.md)).
 
 `ctx.storage.sql.exec()` is synchronous and returns rows at once, as on Cloudflare, because both
-SQLite drivers (`node:sqlite`, and SQLite WASM on OPFS) are synchronous underneath. Alarms are kept in the
-cell (`_cf_ALARM`) and published in celld's wake index on a fleet bucket.
+SQLite drivers (`node:sqlite`, and SQLite WASM on OPFS) are synchronous underneath. Alarms are kept
+in the cell (`_cf_ALARM`) and published in celld's wake index on a fleet bucket.
 
 ## Who owns a cell depends on where it runs
 

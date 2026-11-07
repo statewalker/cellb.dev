@@ -8,11 +8,11 @@ package is private, since it is a test of CellB and not a library.
 ## Why it exists
 
 Flue builds each agent as a Durable Object on Cloudflare's Agents SDK. The result is a large, real
-Worker that CellB did not write. It reads `env` from `cloudflare:workers` while its module is evaluated,
-imports `cloudflare:email` and bare Node.js built-in names, writes SQL with internal names in string
-literals, and commits several times within one event. CellB's own tests check each of these alone
-(`packages/cellb/test/p13-agents-sdk-host.test.ts`); this app checks them together, as a real
-Agents SDK app uses them.
+Worker that CellB did not write. It reads `env` from `cloudflare:workers` while its module is
+evaluated, imports `cloudflare:email` and bare Node.js built-in names, writes SQL with internal
+names in string literals, and commits several times within one event. CellB's own tests check each
+of these on its own (`packages/cellb/test/p13-agents-sdk-host.test.ts`); this app checks them
+together, the way a real Agents SDK app uses them.
 
 ## How to use it
 
@@ -23,7 +23,8 @@ pnpm test:browser       # vite build, then Playwright in Chromium
 ```
 
 `vite build` runs `flue()` and `@cloudflare/vite-plugin` and writes `dist/flue_example/`, which
-holds a Worker module, one generated Durable Object class per agent, and a `wrangler.json`. The tests load that
+holds a Worker module, one generated Durable Object class per agent, and a `wrangler.json`. The
+tests load that
 output with `loadNodeProject` from `@statewalker/cellb/node` and talk to it with Flue's own client,
 `@flue/sdk`.
 
@@ -41,7 +42,8 @@ What `test/flue-on-cellb.test.ts` proves:
    sends to the `ai` endpoint, with the Workers AI id mapped to the endpoint's model.
 
 What `test/agents-websocket.test.ts` proves with a plain Agents SDK app (`test/agents/`, bundled the
-way wrangler bundles it): over WebSockets, `onConnect` and `onMessage` run, each connection keeps its own
+way wrangler bundles it): over WebSockets, `onConnect` and `onMessage` run, each connection keeps
+its own
 state (partyserver keeps it in the socket's attachment), and `broadcast` reaches every socket.
 
 What `test/browser/flue-in-browser.spec.ts` proves, with the same build run in Chromium:
@@ -103,14 +105,16 @@ const reply = await client.read(await client.send({ message: { kind: "user", bod
 
 The fake model (`test/fake-llm.ts`, built on `@statewalker/fake-openai`) listens on a port the OS
 picks. Each test gets its own `memoryObjectStore()` as the fleet bucket, copies the build to a
-temporary directory, and points its `LLM_BASE_URL` var at the fake. Nothing is shared between runs, so parallel runs in other worktrees
+temporary directory, and points its `LLM_BASE_URL` var at the fake. Nothing is shared between runs,
+so parallel runs in other worktrees
 do not collide, and nothing needs celld or RustFS. The browser test uses the same fake (it answers
 CORS preflights, since the worker's origin is the Vite server's) and a fresh OPFS pool per run.
 
 ### Decisions a reader would otherwise undo
 
 - **Two providers.** The app registers its own OpenAI-compatible provider (`local`, in
-  `src/app.ts`), and `flue({ providers: ["cloudflare"] })` adds Flue's `cloudflare` provider, which calls the Workers
+  `src/app.ts`), and `flue({ providers: ["cloudflare"] })` adds Flue's `cloudflare` provider, which
+  calls the Workers
   AI binding (`ai` in `wrangler.jsonc`, migration `v2` for the `cloud` agent). On CellB that
   binding is served by the host's `ai` endpoint, and the tests point both providers at the fake
   model.

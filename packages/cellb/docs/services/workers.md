@@ -2,8 +2,8 @@
 
 A Worker is a project's `main` module. Its `fetch` handler answers the requests the runtime
 receives. CellB loads a project from its wrangler configuration (`wrangler.jsonc` plus its `main`)
-without changes. In Node, `loadNodeProject` bundles `main` with esbuild, as `celld deploy` does; in a
-browser, `browserProjectRuntime` runs it in a worker. A project with `assets` and no `main` is a
+without changes. In Node, `loadNodeProject` bundles `main` with esbuild, as `celld deploy` does; in
+a browser, `browserProjectRuntime` runs it in a worker. A project with `assets` and no `main` is a
 static site ([Static assets](static-assets.md)).
 
 ```jsonc
@@ -41,14 +41,14 @@ answers with celld's recording ([Conformance](../conformance.md)).
 
 ## Node and browsers give a Worker different globals
 
-- **In Node the project's Worker shares the host's realm and process.** `process.env` is the host's
-  (under `nodejs_compat`, the project's text `vars` are added to it where the host has not set
-  them), and code that writes to `globalThis` affects the whole runtime
-  ([Security & isolation](../security.md)).
-- **In a browser, `process.env` holds the project's text `vars`** under `nodejs_compat`, from
-  compatibility date 2025-04-01 as on workerd. `node:fs`
-  and `node:os` load with no host behind them (`existsSync` is false, `os.cpus()` is empty); other
-  Node.js modules without a browser polyfill load as stubs that throw when called.
+- **In Node the project's Worker shares the host's realm and process.** `process.env` is the
+  host's, and code that writes to `globalThis` affects the whole runtime
+  ([Security & isolation](../security.md)). Under `nodejs_compat`, the project's text `vars` are
+  added to `process.env` wherever the host has not already set them.
+- **In a browser, `process.env` holds the project's text `vars`** under `nodejs_compat` (from
+  compatibility date 2025-04-01, as on workerd). `node:fs` and `node:os` load with no host behind
+  them (`existsSync` is false, `os.cpus()` is empty). Other Node.js modules without a browser
+  polyfill load as stubs that throw when called.
 - **Firefox has no streaming request body.** CellB gives Worker code a `request.body` that reads the
   whole body first. If the Worker forwards it as the body of another request, Firefox sends the text
   `[object ReadableStream]` ([Gaps](../gaps.md#firefox-and-webkit)).
@@ -63,5 +63,6 @@ celld's `hello`, `webapi`, `router` and `body` examples, and CellB's `worker-det
 - **Configuration CellB does not support is reported in `createProjectRuntime(...).unsupported`**
   instead of being silently ignored. This covers service bindings to other scripts,
   `durable_objects.bindings[].script_name`, `migrations.renamed_classes`, `containers` and
-  compatibility flags CellB does not know. Browser tabs log it as `cellb: project … shard …: unsupported: …`.
+  compatibility flags CellB does not know. Browser tabs log it as
+  `cellb: project … shard …: unsupported: …`.
 - **Python Workers do not run**, because CellB does not include Pyodide.

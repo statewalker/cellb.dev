@@ -1,7 +1,8 @@
 # Benchmarks
 
 CellB's numbers for durability, speed and density, measured the way
-[celld.dev](https://celld.dev) reports celld's. Each scenario runs in a child process of its own and imports the built
+[celld.dev](https://celld.dev) reports celld's. Each scenario runs in a child process of its own
+and imports the built
 package (`dist/`), as a user of the published package would. The browser half runs the same
 Worker in a Dedicated Worker in Chromium.
 
@@ -35,7 +36,8 @@ reads them.
 - **HTTP goes through a `node:http` bridge.** CellB's runtime is a `(Request) ⇒ Response` handler,
   so the HTTP row includes converting Node's request and response to Fetch objects.
 - **Failover time is mostly the node lease.** A second node may take a cell only after the first
-  one's lease expires (10 s by default, `leaseTtlMs`); the measured failover is that wait plus the restore.
+  one's lease expires (10 s by default, `leaseTtlMs`); the measured failover is that wait plus the
+  restore.
 - **Browser timers are coarse.** A Dedicated Worker's `performance.now()` has about 0.1 ms
   resolution, so sub-millisecond browser rows round to 0 or 0.1.
 

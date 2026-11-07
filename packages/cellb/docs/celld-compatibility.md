@@ -126,7 +126,7 @@ CellB follows celld, including its deviations from Cloudflare, with these except
 | A nested `dir/index.html` | redirected to `dir/` and then not served (a celld bug) | served, as on Cloudflare; the comparison omits that request |
 | Asset paths ending in `/`, except the root | 404 (a celld bug) | as on Cloudflare; unit-tested instead |
 | `SELECT` from `_cf_METADATA` | reports `.scope` | reports `.key` |
-| A column named `_cf_col`, a string literal `'_cf_x'`, `ALTER TABLE … RENAME TO _cf_t2` | allowed | rejected |
+| A column named `_cf_col`, `ALTER TABLE … RENAME TO _cf_t2` | allowed | rejected |
 | `new Response("text")` | no `Content-Type` | `text/plain;charset=UTF-8`, as Fetch adds it; aligned in the comparison |
 | R2 ETags in `celld dev` | a store generation number | the store's etag; compared by type |
 | `storage.put()` of a `ctx.exports.X({ props })` stub or class handle | refused (`function () {} could not be cloned.`) | stored as a V8 host object, as on workerd; celld cannot read it back |

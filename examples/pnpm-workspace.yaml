@@ -1,7 +1,8 @@
 # The examples: apps that use cellb as its users do, from npm, at a released range
 # ("@statewalker/cellb": "~0.1.0"). A workspace of their own, outside cellb's (../), with its
 # own lockfile, so a change to cellb reaches them only through a release: Dependabot raises the
-# range, and the nightly canary (.github/workflows/examples-canary.yml) runs them against main.
+# range. .github/workflows/examples.yml, run by hand, runs them on the release or, with
+# `cellb: packed`, on cellb as this checkout would publish it.
 packages:
   - "*"
 
