@@ -150,14 +150,23 @@ describe("P36 partyserver", () => {
   }, 60_000);
 
   it("a fresh node continues the room and activates the extension from its storage", async () => {
-    // A socket still open into the extension's isolate hears 1001 when the runtime closes.
-    const open = await socket("/ext/notes");
-    const closed = Promise.race([
-      open.closed,
-      new Promise((r) => setTimeout(() => r("no close within 5 s"), 5_000)),
-    ]);
+    // Sockets still open into an isolate hear 1001 when the runtime closes, well before the
+    // heartbeat would notice (1006): those the extension greeted before its 101 was handed over
+    // (the greeting rides in the 101), and one whose server end was never accepted.
+    const open = [
+      ...(await Promise.all(Array.from({ length: 20 }, () => socket("/ext/notes")))),
+      await socket("/no-accept"),
+    ];
+    const closed = Promise.all(
+      open.map((s) =>
+        Promise.race([
+          s.closed,
+          new Promise((r) => setTimeout(() => r("no close within 5 s"), 5_000)),
+        ]),
+      ),
+    );
     await runtime.close();
-    expect(await closed).toBe(1001);
+    expect(await closed).toEqual(open.map(() => 1001));
     runtime = await start();
     expect(await get("/parties/room/lobby")).toMatchObject({ n: 1, ticks: 1 });
     expect(await get("/ext/notes")).toEqual({ plugin: "facet:notes", activations: 2, requests: 2 });
