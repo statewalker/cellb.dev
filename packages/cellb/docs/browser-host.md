@@ -219,8 +219,11 @@ shard worker                                          LTX store worker (one per 
 - **Compaction.** Once a cell has `compactAfter` files (default 64), or once the files after the
   snapshot hold more than half of it (and at least 1 MiB), the store writes a new snapshot beside
   the old files. It streams the snapshot, so only a run of pages and the index are in memory, and
-  swaps the files between two requests. It checks the origin's free space first and skips the
-  compaction if there is no room for the new snapshot.
+  swaps the files between two requests. The swap moves the snapshot into place first and then
+  removes the files it replaces, so a swap cut short (a closed tab, a lost connection) leaves a
+  cell that opens from the snapshot, and the next open removes the leftovers. It checks the free
+  space first (on OPFS, the origin's estimate) and skips the compaction if there is no room for
+  the new snapshot.
 - **One writer per cell.** The store holds a Web Lock per cell, named after the directory and
   the cell, while the cell is open. A store that wants a cell held by another tab or worker waits
   up to 20 s, since on a reload the previous page lets go a moment later. Then it fails the
@@ -232,6 +235,53 @@ shard worker                                          LTX store worker (one per 
 
 EmDash's site and its package store run on it in examples/astro-in-browser. A 64 MiB cell
 compacts with about 4 MB in memory (`test/p30-ltx-pages.test.ts`).
+
+##### On the app's own FilesApi
+
+The cells' files can live on any FilesApi the app opens **before** it starts the shard workers:
+a folder on the user's disk (File System Access), memory, OPFS, a key/value store, S3… A FilesApi
+instance cannot be posted to a worker, so the app hands it over in one of three ways
+(`filesApiPort`, `serveLtxStore` and `serveFilesApi` are exported from `@statewalker/cellb/browser`):
+
+```ts
+const files = await openBrowserFilesApi({ /* showDirectoryPicker, a handle kept in IDB */ });
+
+// 1. The FilesApi stays where the app opened it, served over a port; the shard's store worker
+//    runs the store (LZ4, compaction) and calls the FilesApi by message. A port is used up by
+//    one runtime: a new `filesApiPort` per shard worker (and per restart of one).
+const { port } = filesApiPort(files);
+shard.postMessage({ bucket: { ltx: "my-project", node, files: { port } } }, [port]);
+
+// 2. The store itself runs here, on the instance (no FilesApi messages); the shard's VFS sends
+//    it its reads and commits. Its work (LZ4, compaction) then shares this thread. One store
+//    per shard worker; `await store.close()` when the worker ends, or its successor's store
+//    waits 20 s for the cells' Web Locks and then fails.
+const store = serveLtxStore(files, { lockScope: "my-project" });
+shard.postMessage({ bucket: { ltx: "my-project", node, ltxStore: { sab: store.sab, port: store.port } } }, [store.port]);
+
+// 3. The store worker builds the FilesApi itself from a module and cloneable arguments (an
+//    FSA directory handle, S3 settings): `export default (args) => FilesApi`, and optionally
+//    `export function room(args)` for its free bytes. The URL must load as is in a worker: a
+//    self-contained ES module (bundled with its imports, e.g. served from `public/`).
+bucket: { ltx: "my-project", node, files: { module: "/my-files.js", args } }
+```
+
+A bundler does not process the module of way 3: Vite, for one, copies
+`new URL("./my-files.js", import.meta.url)` as an asset, bare imports and all, which the worker
+then cannot resolve. Bundle that module on its own, or use way 1.
+
+`ltx` then names the storage: it is the scope of the cells' Web Locks, so two stores of one
+name never write a cell at once. The free-space check before a compaction only knows OPFS: on a
+FilesApi over a port it is skipped, and `serveLtxStore` and module FilesApis take their own
+`room`. The FilesApi must answer a ranged `read` with exactly the bytes asked, `stats` with the
+size, take a streamed `write`, and `move` a file (atomically where it can: on S3 or a KV store a
+move is a copy and a delete). The RPC client never runs in the shard worker, which blocks on the
+shared buffer and could not receive answers; it runs in the store worker. The VFS numbers its
+requests and the store tags each answer with its request's number, so the late answer to a
+request the VFS gave up on (its 30 s wait, a slow remote FilesApi) is not read as the next
+one's. All three ways are tested
+in Chromium (`e2e-browser/ltx-files.spec.ts`) and, with the shared buffer awaited instead of
+blocked on, in Node (`test/p39-files-rpc.test.ts`, `test/p40-ltx-store-files.test.ts`).
 
 #### A project at the origin's root: `root`
 

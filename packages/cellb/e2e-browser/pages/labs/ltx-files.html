@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8" /><title>LTX on the app's FilesApi</title></head>
+<body>
+<script type="module">
+  import { BrowserFilesApi } from "@statewalker/webrun-files-browser";
+  // The app opens its own FilesApi FIRST (in memory: nothing OPFS-specific), then starts shard
+  // workers on it: `?store=page` runs the LTX store on this page (serveLtxStore);
+  // `?store=module` lets the store worker build it (files: { module, args }); else each shard's
+  // store worker reaches the FilesApi through a port (filesApiPort).
+  import { MemFilesApi } from "@statewalker/webrun-files-mem";
+  import { filesApiPort, serveLtxStore } from "../../../src/ltx/ltx-host.ts";
+
+  const mode = new URLSearchParams(location.search).get("store");
+  const onPage = mode === "page";
+  // ?store=module: the store worker builds its FilesApi from a module and a directory handle
+  // (a fresh OPFS directory here; the page reads the same directory to check the files).
+  const dir =
+    mode === "module"
+      ? await (await navigator.storage.getDirectory()).getDirectoryHandle(`ltx-files-${Date.now().toString(36)}`, { create: true })
+      : undefined;
+  const files = dir ? new BrowserFilesApi({ rootHandle: dir }) : new MemFilesApi();
+  window.__shard = (sql) => new Promise((resolve) => {
+    const w = new Worker(new URL("./ltx-files-shard.ts", import.meta.url), { type: "module" });
+    let done = () => {};
+    w.onmessage = (e) => { w.terminate(); done(); resolve(e.data); };
+    w.onerror = (e) => { w.terminate(); done(); resolve({ ok: false, error: e.message }); };
+    if (dir) {
+      const module = new URL("./ltx-files-module.ts", import.meta.url).href;
+      w.postMessage({ files: { module, args: { dir } }, sql });
+    } else if (onPage) {
+      const s = serveLtxStore(files, { lockScope: "app-files" });
+      done = () => s.close();
+      w.postMessage({ ltxStore: { sab: s.sab, port: s.port }, sql }, [s.port]);
+    } else {
+      const p = filesApiPort(files);
+      done = () => p.close();
+      w.postMessage({ files: { port: p.port }, sql }, [p.port]);
+    }
+  });
+  window.__files = async () => {
+    const out = [];
+    for await (const e of files.list("/", { recursive: true })) if (e.kind === "file") out.push(e.path);
+    return out;
+  };
+  document.body.dataset.ready = "true";
+</script>
+</body>
+</html>

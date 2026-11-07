@@ -35,6 +35,7 @@ export {
 } from "./core/runtime.js";
 export { shardOf } from "./core/shard.js";
 export { DurableObjectState } from "./core/state.js";
+export { type FilesRpcOptions, rpcFilesClient, serveFilesApi } from "./ltx/files-rpc.js";
 export * from "./ports.js";
 export { parseJsonc } from "./project/jsonc.js";
 export {
