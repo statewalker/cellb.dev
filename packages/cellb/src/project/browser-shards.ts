@@ -217,8 +217,14 @@ function throughRouter(
       try {
         return await svc.fetch(keepUpgrade(req, new Request(moved, { headers })));
       } catch (err) {
-        // The words Worker code has always seen for it (CellRouter's).
-        if (err instanceof Error && err.name === "LinkLostError")
+        // The words Worker code has always seen for it (CellRouter's), for a call the
+        // ServiceWorker lost in flight only: a call that never left (no link, the handler
+        // closed) keeps the package's words, as it was certainly not applied.
+        if (
+          err instanceof Error &&
+          err.name === "LinkLostError" &&
+          err.message.startsWith("The ServiceWorker was lost while this call was in flight")
+        )
           throw new Error(
             "The router was lost while this call was in flight; it may or may not have been applied",
           );

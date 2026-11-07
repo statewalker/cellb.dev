@@ -131,6 +131,14 @@ every tab: joinProjectShards({ name, shards: 4, spawn, config, code, serviceWork
                  (SwHttpAdapter.attachWorker, serveHttpInWorker)
 ```
 
+`installProjectRouter` starts webrun-http-browser's dispatcher, which makes the ServiceWorker
+`skipWaiting()` on install and `clients.claim()` on activate: a new version takes over the open
+pages at once instead of waiting for them to close. A tab that joins must be inside the
+ServiceWorker's scope and controlled by it; one that is not is claimed, and `joinProjectShards`
+rejects (`ServiceWorkerControlError`) if that fails within 30 s, after a hard reload say. A request
+to a project no tab has ever served goes to the network as the page sent it; one to a project whose
+tabs have all closed is answered 503.
+
 Every tab of the origin sends requests to `<basePath><name>/…`; the ServiceWorker passes them,
 with their URL unchanged (as a Worker on a Cloudflare route sees them; `stripBase: true` gives
 the Worker `/…` instead), to a shard worker, wherever it runs. The tabs split the shards evenly:

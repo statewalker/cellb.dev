@@ -70,7 +70,10 @@ or container on a server.
 - **A public endpoint mounted on `cellsHttpHandler` lets clients address any object directly** with
   `x-cellb*` headers. Mount `runtime.fetch` (or `CellRouter.ingress`, which strips those headers) on
   public ingress, and `cellsHttpHandler` only on internal links. `installProjectRouter` strips them
-  from the pages' requests and sockets before they reach the shards.
+  (in any letter case) from the pages' requests and sockets before they reach the shards. That
+  guards against what a page sends, not against a page: the router trusts every same-origin page.
+  Any of them can attach a handler of its own (webrun-http-browser's adapter), claim a shard's
+  slot, and send it requests with any headers. Serve only code you trust on the origin.
 - **A loaded Worker on a browser site without `isolateScript` is not isolated at all**: it shares
   the project's realm and module registry. Pass `isolateScript` (the package ships
   `@statewalker/cellb/isolate-worker`) whenever loaded code is not your own.

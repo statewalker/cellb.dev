@@ -186,6 +186,16 @@ test("sockets: from the page to the Worker, and from the Worker to a Room in ano
       forged,
     ] as const),
   ).not.toMatch(/x-cellb/);
+  // Nor through webrun-http-browser's own socket call, with the names in another letter case
+  // (the upgrade's Headers lowercase them only after the router filtered them).
+  const shouted = forged.map(([k, v]) => [k.toUpperCase(), v] as [string, string]);
+  expect(
+    await page.evaluate(([p, m, h]) => (window as any).__socket(p, m, undefined, h, "package"), [
+      "/ws-headers",
+      "?",
+      shouted,
+    ] as const),
+  ).not.toMatch(/x-cellb/);
 });
 
 test("stripBase: the Worker sees the path under the project's base", async ({ page }) => {
@@ -194,6 +204,15 @@ test("stripBase: the Worker sees the path under the project's base", async ({ pa
   const name = `strip-${Date.now().toString(36)}`;
   await openTab(page, { name, shards: 1, ...project }, "?strip=1");
   expect((await request(page, "/path")).body).toBe("/path");
+});
+
+test("stripBase cuts the project's name as the URL spells it", async ({ page }) => {
+  test.setTimeout(120_000);
+  const project = await routerProject("one");
+  // `@` stays as it is in a URL's path, and `encodeURIComponent` would escape it.
+  const name = `strip@${Date.now().toString(36)}`;
+  await openTab(page, { name, shards: 1, ...project }, "?strip=1");
+  expect((await request(page, "/path", undefined, name)).body).toBe("/path");
 });
 
 test("without stripBase the Worker sees the URL the page asked for", async ({ page }) => {

@@ -13,7 +13,9 @@ What cellb adds is unchanged:
 
 `installProjectRouter` returns `{ dispatcher }` instead of `{ routers }`. Nothing read `routers`.
 
-A request to a project that no tab has ever served now goes to the network. Before, it waited for a shard for up to 15 s, then answered 503. A root project's host page still covers navigations no tab serves.
+A request to a project that no tab has ever served now goes to the network, as the page sent it. Before, it waited for a shard for up to 15 s, then answered 503. A root project's host page still covers navigations no tab serves. A project whose tabs have all closed still answers 503.
+
+The ServiceWorker that runs `installProjectRouter` now calls `skipWaiting()` on install and `clients.claim()` on activate (webrun-http-browser's dispatcher does), so a new version takes over open pages at once. A tab must be controlled by it to join: `joinProjectShards` asks the worker to claim the page and rejects with a `ServiceWorkerControlError` if that fails within 30 s. It now uses the given worker's registration, so a page outside the worker's scope fails with that error rather than waiting forever.
 
 `CellRouter`, `createShardWorker` and `shardRouting` stay, for hosts other than a ServiceWorker (Node).
 

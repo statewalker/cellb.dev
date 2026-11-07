@@ -61,7 +61,12 @@ export interface ProjectTabsOptions {
   ai?: BrowserProjectOptions["ai"];
   /** Each shard is its own fleet node, `<node>-s<shard>`. */
   bucket?: BrowserBucket;
-  /** The active ServiceWorker that runs `installProjectRouter`. */
+  /**
+   * The active ServiceWorker that runs `installProjectRouter`. This page must be inside its scope
+   * and controlled by it (webrun-http-browser's adapter asks the worker to claim the page if it
+   * is not, and rejects with a `ServiceWorkerControlError` after 30 s if that fails: after a hard
+   * reload, say).
+   */
   serviceWorker: () => Promise<ServiceWorker>;
   /** Called whenever the shards this tab runs change. */
   onChange?: (owned: number[]) => void;
@@ -136,10 +141,17 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
   // The tab's side of the ServiceWorker's router (webrun-http-browser): it attaches this tab's
   // shard workers under the project's key, and attaches them again whenever the ServiceWorker
   // asks (after a restart). The page itself attaches no handler the router would pick.
-  await opts.serviceWorker();
+  const worker = await opts.serviceWorker();
+  // The given worker's registration, not `navigator.serviceWorker.ready` (that is this page's
+  // scope's registration, and never settles for a page outside every scope).
+  const registration = (await navigator.serviceWorker.getRegistrations()).find((r) =>
+    [r.active, r.waiting, r.installing].includes(worker),
+  );
+  if (!registration)
+    throw new Error(`cellb: no registration holds the ServiceWorker ${worker.scriptURL}`);
   const adapter = new SwHttpAdapter({
     key: opts.name,
-    registration: await navigator.serviceWorker.ready,
+    registration,
     id: `tab:${tabId}`,
   });
   await adapter.start();
@@ -229,6 +241,8 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
         again = false;
         if (closed) return;
         const present = await tabs();
+        // close() may have run while `tabs()` was answering: take nothing after it.
+        if (closed) return;
         for (let shard = 0; shard < opts.shards; shard++) {
           const mine = shardOwner(shard, present) === tabId;
           const h = held.get(shard);
@@ -321,14 +335,21 @@ export function installProjectRouter(
     !url.pathname.startsWith(base) &&
     !(opts.root.passthrough ?? []).some((p) => url.pathname.startsWith(p));
 
-  /** `<base><name>/<rest>` → the project's name and the Worker's path `/<rest>`. */
-  const split = (url: URL): { name: string; path: string } | undefined => {
-    if (opts.root && atRoot(url)) return { name: opts.root.name, path: url.pathname };
+  /**
+   * `<base><name>/<rest>` → the project's name, the Worker's path `/<rest>`, and `<base><name>` as
+   * the URL spells it (`prefix`: what `stripBase` cuts, so a name the URL leaves unescaped, `a@b`,
+   * or escapes where it need not, `%61pp`, is cut as written).
+   */
+  const split = (url: URL): { name: string; path: string; prefix: string } | undefined => {
+    if (opts.root && atRoot(url)) return { name: opts.root.name, path: url.pathname, prefix: "" };
     if (url.origin !== sw.location.origin || !url.pathname.startsWith(base)) return undefined;
     const rest = url.pathname.slice(base.length);
     const slash = rest.indexOf("/");
-    const name = decodeURIComponent(slash < 0 ? rest : rest.slice(0, slash));
-    return name ? { name, path: slash < 0 ? "/" : rest.slice(slash) } : undefined;
+    const raw = slash < 0 ? rest : rest.slice(0, slash);
+    const name = decodeURIComponent(raw);
+    return name
+      ? { name, path: slash < 0 ? "/" : rest.slice(slash), prefix: `${base}${raw}` }
+      : undefined;
   };
 
   const isShard = (h: HandlerInfo) => typeof (h.meta as { shard?: unknown })?.shard === "number";
@@ -367,7 +388,9 @@ export function installProjectRouter(
     failure: (request, failure) => failed(request, failure),
     // Pages may not address objects or shards directly: no control headers on their sockets.
     socketHeaders: (headers, from) =>
-      from === "page" ? headers?.filter(([name]) => !name.startsWith("x-cellb")) : headers,
+      from === "page"
+        ? headers?.filter(([name]) => !name.toLowerCase().startsWith("x-cellb"))
+        : headers,
   });
   dispatcher.start();
 
@@ -383,9 +406,7 @@ export function installProjectRouter(
             ? new Error(`${what} has no tab running it`)
             : (failure.error as Error);
     if (request.headers.get(H.kind) !== null) return errorResponse(error, 503);
-    return new Response(`cellb: ${(error as Error)?.message ?? error}`, {
-      status: failure.kind === "gone" ? 404 : 503,
-    });
+    return new Response(`cellb: ${(error as Error)?.message ?? error}`, { status: 503 });
   };
 
   const askForLinks = async (name: string) => {
@@ -407,20 +428,29 @@ export function installProjectRouter(
   };
 
   /** Headers for a request the router sends on: no control headers from the page, its base. */
-  const routed = (req: Request, name: string, root: boolean): Headers => {
+  const routed = (req: Request, prefix: string, root: boolean): Headers => {
     // Headers only: a Request built from `req` would take its body.
     const headers = new Headers(req.headers);
     for (const h of Object.values(H)) if (h !== H.cookie) headers.delete(h);
-    if (opts.stripBase && !root) headers.set(H.base, `${base}${encodeURIComponent(name)}`);
+    if (opts.stripBase && !root) headers.set(H.base, prefix);
     return headers;
   };
 
   /** A request to project `name`, with the page's cookies in and the Worker's out. */
-  const serve = async (name: string, req: Request, root: boolean): Promise<Response> => {
+  const serve = async (
+    { name, prefix }: { name: string; prefix: string },
+    req: Request,
+    root: boolean,
+  ): Promise<Response> => {
     try {
+      // A project no tab has ever served is not the router's: the page's own request goes to the
+      // network, as if there were no router (not the copy below, with the page's cookies in a
+      // header and a streamed body).
+      await dispatcher.ready;
+      if (!dispatcher.serves(name)) return await fetch(req);
       const headers = await withPageCookies(
         sw,
-        new Request(req.url, { headers: routed(req, name, root) }),
+        new Request(req.url, { headers: routed(req, prefix, root) }),
       );
       const res = await dispatcher.dispatch(
         new Request(req.url, {
@@ -451,14 +481,14 @@ export function installProjectRouter(
       e.respondWith(
         runningShards(project.name, opts.root?.hostWaitMs ?? 2_000).then((running) =>
           running
-            ? serve(project.name, req, root)
+            ? serve(project, req, root)
             : Response.redirect(
                 `${new URL(hostPage, url.origin).href}?next=${encodeURIComponent(`${url.pathname}${url.search}`)}`,
                 302,
               ),
         ),
       );
-    else e.respondWith(serve(project.name, req, root));
+    else e.respondWith(serve(project, req, root));
   });
 
   // A page's socket (`serviceWorkerConnector`): routed as a fetch would be, without the page's
@@ -477,8 +507,7 @@ export function installProjectRouter(
           const project = split(httpUrl);
           if (!project) throw new Error(`not a project URL: ${m.url}`);
           const headers: [string, string][] = [];
-          if (opts.stripBase && !atRoot(httpUrl))
-            headers.push([H.base, `${base}${encodeURIComponent(project.name)}`]);
+          if (opts.stripBase && !atRoot(httpUrl)) headers.push([H.base, project.prefix]);
           const { port, protocol } = await dispatcher.connectWebSocket(
             `${httpUrl}`,
             m.protocols ?? [],

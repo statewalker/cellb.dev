@@ -82,22 +82,45 @@ Object.assign(window, {
    * A socket to the project through the ServiceWorker: sends `message`, returns the first reply.
    * `headers`: what the page asks the ServiceWorker to put on the upgrade (a forged one, say).
    */
-  __socket: async (path: string, message: string, project = name, headers?: [string, string][]) => {
+  __socket: async (
+    path: string,
+    message: string,
+    project = name,
+    headers?: [string, string][],
+    via: "cellb" | "package" = "cellb",
+  ) => {
     type Answer = { ok: boolean; port?: MessagePort; protocol?: string; error?: string };
     const WS = createWebSocketClass(
-      headers
-        ? async (url, protocols) => {
+      headers && via === "package"
+        ? // webrun-http-browser's own socket call, which the dispatcher answers for any page of
+          // the origin, with the header names exactly as given.
+          async (url, protocols) => {
             const { port1, port2 } = new MessageChannel();
-            const answer = new Promise<Answer>((r) => (port1.onmessage = (e) => r(e.data)));
+            const answer = new Promise<{
+              result?: { port: MessagePort; protocol?: string };
+              error?: unknown;
+            }>((r) => (port1.onmessage = (e) => r(e.data)));
             navigator.serviceWorker.controller?.postMessage(
-              { type: "cells-ws", url, protocols, headers },
+              { type: "webrun-http:ws-connect", params: { url, protocols, headers } },
               [port2],
             );
-            const a = await answer;
-            if (!a.ok || !a.port) throw new Error(a.error ?? "refused");
-            return { port: a.port, protocol: a.protocol ?? "" };
+            const { result, error } = await answer;
+            if (error || !result) throw new Error(String((error as Error)?.message ?? error));
+            return { port: result.port, protocol: result.protocol ?? "" };
           }
-        : serviceWorkerConnector(),
+        : headers
+          ? async (url, protocols) => {
+              const { port1, port2 } = new MessageChannel();
+              const answer = new Promise<Answer>((r) => (port1.onmessage = (e) => r(e.data)));
+              navigator.serviceWorker.controller?.postMessage(
+                { type: "cells-ws", url, protocols, headers },
+                [port2],
+              );
+              const a = await answer;
+              if (!a.ok || !a.port) throw new Error(a.error ?? "refused");
+              return { port: a.port, protocol: a.protocol ?? "" };
+            }
+          : serviceWorkerConnector(),
     );
     const ws = new WS(
       new URL(`/tabs/app/${project}${path}`, location.href).href.replace(/^http/, "ws"),
