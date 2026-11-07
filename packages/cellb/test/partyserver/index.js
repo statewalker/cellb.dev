@@ -60,9 +60,27 @@ const REFUSER = `export default {
   },
 };`;
 
+// A loaded Worker that answers 101 and never accepts its server end.
+const NO_ACCEPT = `const kept = [];
+export default {
+  fetch() {
+    const [client, server] = Object.values(new WebSocketPair());
+    kept.push(server);
+    return new Response(null, { status: 101, webSocket: client });
+  },
+};`;
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === "/no-accept")
+      return env.LOADER.get("no-accept", () => ({
+        compatibilityDate: "2026-01-01",
+        mainModule: "no-accept.js",
+        modules: { "no-accept.js": NO_ACCEPT },
+      }))
+        .getEntrypoint()
+        .fetch(request);
     if (url.pathname === "/schedule") {
       await env.SCHEDULER.getByName("main").scheduleTask({
         description: "tick",
