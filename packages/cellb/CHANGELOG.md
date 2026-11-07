@@ -8,7 +8,12 @@
   
   A compaction now moves its new snapshot into place before it removes the files it replaces. It removed them first, so a compaction cut short between the two steps (a closed tab) left only the `.tmp` snapshot, which the next open deleted, and the cell with it. A cell whose compaction stopped after the move opens from the snapshot, and the files it covers are removed.
   
-  Two fixes in the LTX store, older than this release: after a compaction's swap, the store reopened the cell outside its request queue, so a commit made meanwhile could be dropped from the reopened view and the next commit wrote over its file (that transaction lost); the reopen now happens in the queue. And the VFS took any answer in the shared buffer for its current request: the late answer to a request it had given up on (after 30 s) was read as the next request's (wrong pages); requests are now numbered and answers tagged. A commit the VFS gave up on (SQLite rolled it back) was still written and kept by the store; it is now dropped, whether a newer request has come or the commit finished too close to the VFS's deadline. A snapshot file that does not open (a move done as a copy, cut short) is skipped, so the cell is read from the files it was made from.
+  Fixes in the LTX store for bugs present in earlier releases:
+
+  - After a compaction's swap, the store reopened the cell outside its request queue, so a commit made meanwhile could be dropped from the reopened view, and the next commit then wrote over its file (that transaction lost). The reopen now happens in the queue.
+  - The VFS took any answer in the shared buffer for its current request: the late answer to a request it had given up on (after 30 s) was read as the next request's (wrong pages). Requests are now numbered and answers tagged.
+  - A commit the VFS gave up on (SQLite rolled it back) was still written and kept by the store. It is now dropped, whether a newer request has come or the commit finished too close to the VFS's deadline.
+  - A snapshot file that does not open (a move done as a copy, cut short) is skipped, so the cell is read from the files it was made from.
 
 ## 0.5.2
 
