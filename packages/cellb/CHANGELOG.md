@@ -1,5 +1,13 @@
 # @statewalker/cellb
 
+## 0.5.1
+
+### Patch Changes
+
+- Release of the changes since the last published version:
+  
+  - exports changed
+
 ## 0.5.0
 
 ### Minor Changes
