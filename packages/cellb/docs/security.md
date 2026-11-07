@@ -69,7 +69,8 @@ or container on a server.
 
 - **A public endpoint mounted on `cellsHttpHandler` lets clients address any object directly** with
   `x-cellb*` headers. Mount `runtime.fetch` (or `CellRouter.ingress`, which strips those headers) on
-  public ingress, and `cellsHttpHandler` only on internal links.
+  public ingress, and `cellsHttpHandler` only on internal links. `installProjectRouter` strips them
+  from the pages' requests and sockets before they reach the shards.
 - **A loaded Worker on a browser site without `isolateScript` is not isolated at all**: it shares
   the project's realm and module registry. Pass `isolateScript` (the package ships
   `@statewalker/cellb/isolate-worker`) whenever loaded code is not your own.

@@ -17,6 +17,11 @@ export const H = {
   upgrade: "x-cellb-upgrade", // `Upgrade` is hop-by-hop: dropped by the HTTP/1.1 wire, carried here
   wsProtocol: "x-cellb-ws-protocol", // `Sec-WebSocket-Protocol` is forbidden in browser Requests
   shard: "x-cellb-shard", // the shard that owns the target, as the sending shard computed it
+  // A call between shards through a ServiceWorker goes to `http://cellb.internal/<project>/`
+  // (the router's key for it): the url the caller asked for travels here.
+  url: "x-cellb-url",
+  // stripBase: the prefix the router keeps in the url (its key) for the Worker to cut off.
+  base: "x-cellb-base",
   // Ingress from a browser (a ServiceWorker): `Cookie` is forbidden in browser Requests and
   // `Set-Cookie` in browser Responses, so the page's cookies travel here, and the Worker's
   // Set-Cookie values come back URI-encoded and comma-separated (browser-cookies.ts).
