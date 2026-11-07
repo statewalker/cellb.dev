@@ -1,8 +1,9 @@
 # KV
 
-`env.<BINDING>` of a `kv_namespaces` entry: `get`, `put`, `delete` and the rest of Workers KV. CellB
-runs celld's own KV code (`services/kv.js`, vendored unchanged), so values, limits and error
-messages are celld's, and a namespace's data moves between celld and CellB with its cell.
+Each `kv_namespaces` entry gives the Worker an `env.<BINDING>` with `get`, `put`, `delete` and the
+rest of the Workers KV API. CellB runs celld's own KV code (celld's `services/kv.js`, vendored as
+`vendor/celld/kv.js` with only an export added), so values, limits and error messages are celld's,
+and a namespace's data moves between celld and CellB with its cell.
 
 ```jsonc
 {
@@ -49,15 +50,16 @@ and run by the conformance suite on Node and in Chromium.
 
 A namespace lives in a cell `__KvNamespace:<id>`. Its key does not depend on the script, so every
 project in a fleet that names the same namespace id reads the same data, as on celld. Values above
-1 MiB are kept outside the cell, in a FilesApi (celld: the fleet bucket), through celld's own
-prepare / put / get / sweep protocol. The limits are celld's (`celld_logic::kv`'s constants).
+1 MiB are kept outside the cell in a FilesApi (on celld, the fleet bucket), using celld's own
+prepare / put / get / sweep protocol. The limits are the constants of celld's `celld_logic::kv`:
+keys up to 512 bytes, values up to 25 MiB, metadata up to 1 KiB.
 
 ## How it is checked
 
-celld's `kv` example and CellB's `kv-values` and `kv-details` projects, on Node and in Chromium;
-`e2e/p11f-celld-one-bucket.test.ts` moves a namespace's data celld → CellB → celld through one
-bucket.
+celld's `kv` example and CellB's `kv-values` and `kv-details` projects, on Node and in Chromium.
+`e2e/p11f-celld-one-bucket.test.ts` moves a namespace's data from celld to CellB and back through
+one bucket.
 
 ## What breaks
 
-Errors carry celld's messages: `KV_ERROR: …`.
+Errors carry celld's messages, such as `KV_ERROR: …`.

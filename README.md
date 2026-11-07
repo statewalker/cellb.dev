@@ -14,13 +14,15 @@ workerd's Durable Object tests run on the real celld, are recorded, and are repl
 Node and in Chromium (70 scenarios; 5 are judged by workerd instead, where cellb passes stubs by
 reference as workerd does, and 6 are known differences, listed in
 [`packages/cellb/docs/gaps.md`](packages/cellb/docs/gaps.md)).
+Each scenario has a page on [cellb.dev/examples](https://cellb.dev/examples) that runs it in your
+browser and shows cellb's answers next to the recorded ones.
 
 | Feature | celld 0.6.3 | cellb, Node | cellb, browsers | How cellb is checked |
 |---|---|---|---|---|
 | Workers (stateless handlers) | supported | yes | yes | `hello`, `webapi`, `router`, `body` |
 | Durable Objects / cells | supported | yes, same storage format | yes, same storage format | `counter`, `rpc`, `alarm`, workerd's tests; cells cross celld ↔ cellb |
 | Durable Object facets | supported | yes | yes | `facets`, `facets-api` |
-| KV | supported | yes (celld's code) | yes | `kv`, `kv-values` |
+| KV | supported | yes (celld's code) | yes | `kv`, `kv-details` |
 | Queues | supported | yes (celld's code) | yes | `queues`, `queues-api` |
 | D1 | supported | yes (Miniflare's simulator) | yes | `d1`, D1 migrations |
 | R2 | supported | yes, celld's bucket layout | yes | `r2`, `r2-api`, `r2-advanced` |

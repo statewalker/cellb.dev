@@ -47,15 +47,15 @@ unchanged and run by the conformance suite on Node and in Chromium.
 
 ## In a browser, a WebSocket is a MessagePort
 
-A ServiceWorker cannot intercept WebSockets, so in a browser pages and objects get a `WebSocket`
-class whose frames travel over MessagePorts ([ADR 0006](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0006-websockets-over-messageports.md)).
-The `WebSocket` global of Worker code is workerd's, built over the host's: its prototype carries
-`serializeAttachment` and `deserializeAttachment`, which partyserver and the Agents SDK use.
+A ServiceWorker cannot intercept WebSockets, so in a browser, pages and objects get a `WebSocket`
+class whose frames travel over MessagePorts. The `WebSocket` global that Worker code sees is
+workerd's version, built on top of the host's class. Its prototype carries `serializeAttachment` and
+`deserializeAttachment`, which partyserver and the Agents SDK use.
 
 ## Where CellB matches workerd or celld
 
-- Either end of a `WebSocketPair` may `send()` before `accept()` (celld queues the frame; workerd
-  refuses).
+- Either end of a `WebSocketPair` may `send()` before `accept()`, as on celld, which queues the
+  frame. workerd refuses it.
 - `WebSocketPair` ends start with `binaryType` `"blob"` when the project sets
   `websocket_standard_binary_type`, `"arraybuffer"` otherwise. `webSocketMessage()` of a
   hibernatable socket always receives an `ArrayBuffer`.
@@ -68,10 +68,10 @@ tests (`wd-websocket-*`), on Node and in Chromium.
 
 ## What breaks
 
-- **A class that extends the `WebSocket` global gets a host socket**, not an instance of itself:
-  `new WebSocket(url)` returns the host's own client socket.
-- **A request whose `Upgrade` header vanished** is answered as a plain request (typically
-  `426 Upgrade Required`): a link that rebuilds requests must carry `Upgrade` across
-  ([architecture.md](../architecture.md#what-breaks)).
+- **A class that extends the `WebSocket` global gets a host socket instead of an instance of
+  itself.** `new WebSocket(url)` returns the host's own client socket.
+- **A request that lost its `Upgrade` header on the way** is answered as a plain request
+  (typically with `426 Upgrade Required`). A link that rebuilds requests must keep `Upgrade`
+  ([Architecture](../architecture.md#what-breaks)).
 - Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone
   surrogates in a close reason (the `wd-websocket-constructor-gaps` known gap).

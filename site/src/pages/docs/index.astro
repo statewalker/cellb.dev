@@ -4,10 +4,11 @@ import Badge from "@/components/ui/Badge.astro";
 import Docs from "@/layouts/Docs.astro";
 import { docHref } from "@/lib/docs";
 import { REPO } from "@/lib/site";
+import cellb from "../../../../packages/cellb/package.json";
 ---
 
 <Docs title="Getting started" description="Run a Worker and its Durable Objects with CellB in Node and in a browser.">
-  <Badge variant="brand" class="mb-4">@statewalker/cellb 0.1 · on npm</Badge>
+  <Badge variant="brand" class="mb-4">@statewalker/cellb {cellb.version} · on npm</Badge>
   <h1>Getting started</h1>
   <p>
     CellB (<code>@statewalker/cellb</code>) is a Durable Objects runtime written in TypeScript. It
@@ -132,5 +133,7 @@ console.log(unsupported); // configuration CellB does not support, e.g. []`}
     <li><a href="/docs/how-it-works">How it works</a>: the core, the ports, ownership and durability.</li>
     <li><a href={docHref("packages/cellb/docs/browser-host.md")}>Running in a browser</a>: the four topologies, from one worker to shards shared by tabs.</li>
     <li><a href={docHref("packages/cellb/docs/gaps.md")}>Gaps</a>: what CellB does not do yet.</li>
+    <li><a href="/examples">Examples</a>: every project CellB is tested with, ready to run in this browser.</li>
+    <li><a href="/docs/from-sources">Running from sources</a>: TypeScript and npm imports compiled in the browser, with no build step.</li>
   </ul>
 </Docs>

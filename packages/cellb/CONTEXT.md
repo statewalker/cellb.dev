@@ -1,8 +1,8 @@
 # CellB
 
 CellB runs Workers and their Durable Objects, as Cloudflare and celld define them, in a browser and
-in Node. This glossary fixes what each word means here, where the same word means different things
-elsewhere.
+in Node. This glossary pins down what each term means in CellB, because several of them mean
+something different elsewhere.
 
 ## Language
 
@@ -18,17 +18,18 @@ A Worker together with its wrangler configuration, assets and bindings, as celld
 _Avoid_: site, app
 
 **Script name**:
-The `name` of a project's configuration; it is part of every object id the project derives, so a
-project renamed is a new set of cells and the old ones stay under their old keys.
+The `name` in a project's configuration. It is part of every object id the project derives, so a
+renamed project gets a new set of cells, and the old ones stay under their old keys.
 
 **Loaded Worker**:
 Code a running Worker hands to a Worker Loader binding at run time.
 _Avoid_: dynamic worker, child worker
 
 **Isolate**:
-The separate realm one loaded Worker runs in: its own globals, its own environment, and calls to it
-copied across a message boundary. Unlike Cloudflare and celld, it is a thread or a Dedicated Worker,
-not a V8 isolate, and the project's own Worker does not run in one.
+The separate realm one loaded Worker runs in, with its own globals and its own environment; calls
+to it are copied across a message boundary. Unlike on Cloudflare and celld, it is a worker thread
+(Node) or a Dedicated Worker (a browser, when the host gives an `isolateScript`) instead of a V8
+isolate, and the project's own Worker does not run in one.
 _Avoid_: sandbox, V8 isolate
 
 **Parent runtime**:
@@ -166,8 +167,8 @@ _Avoid_: shard lease, ownership (for this lock)
 A Web Lock a shard worker holds only so that the router learns at once when that worker dies.
 
 **Self-fencing**:
-A node stopping to acknowledge writes once its node lease could have lapsed, before anyone else may
-take its cells.
+A node stops acknowledging writes once its node lease could have lapsed, before any other node is
+allowed to take its cells.
 
 **Hand-over**:
 A cell moving from one owner to the next, the new owner continuing from the durable log.

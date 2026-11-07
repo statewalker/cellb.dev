@@ -1,12 +1,12 @@
 # Gaps
 
 This is the list of what CellB does not do yet, or does differently from celld, as of the current
-code. Each entry says what you see. When a gap closes, its entry goes, in the same commit.
+code. Each entry says what you see. When a gap closes, its entry is removed in the same commit.
 
 ## Recorded celld behaviours CellB does not reproduce
 
 Each is a `knownGap` scenario in `conformance/scenarios.ts`: the Node suite expects it to differ
-from the celld golden, and turns red when it stops differing ([conformance.md](conformance.md)).
+from the celld golden, and turns red when it stops differing ([Conformance](conformance.md)).
 
 | Scenario | What differs |
 |---|---|
@@ -22,7 +22,7 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 - Functions, `RpcTarget`s and stubs pass by reference through a stub (`cross` in
   `src/core/handles.ts`) and into or out of a loaded Worker's isolate, in its `env`, `props`,
   arguments and results (`src/isolate/protocol.ts`). celld refuses them; these cases are judged
-  against workerd ([conformance.md](conformance.md#where-cellb-follows-workerd-instead)).
+  against workerd ([Conformance](conformance.md#where-cellb-follows-workerd-instead)).
 - **A call on a stub returns an RpcPromise**, as on workerd: `stub.a().b()` and
   `await stub.a().x.y` work before `a()` settles. Across an isolate's port `b` is sent at once,
   naming `a`'s pending answer; in one realm, and to an object on another node, `b` runs once `a()`
@@ -45,87 +45,93 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 
 ## Firefox and WebKit
 
-`pnpm e2e:firefox` runs the browser suite in Firefox; `pnpm e2e` stays on Chromium. (`pnpm e2e:webkit`
-is wired, but WebKit is not run: see the last item.)
+`pnpm e2e:firefox` runs the browser suite in Firefox, and `pnpm e2e` stays on Chromium. A
+`pnpm e2e:webkit` script exists, but WebKit is not run (see the last item below).
 Module ServiceWorkers, OPFS synchronous access handles (the sahpool VFS), Web Locks and module
 Dedicated Workers all work in Firefox 157, and the whole suite passes there. What differs
-([browser-host.md](browser-host.md#firefox-and-webkit)):
+([Running in a browser](browser-host.md#firefox-and-webkit)):
 
-- **Firefox has no `Request.body`; CellB gives it one, read whole.** `createCellRuntime` installs a
+- **Firefox has no `Request.body`, so CellB adds one that reads the whole body.** `createCellRuntime` installs a
   `request.body` that reads the body with `arrayBuffer()` on its first read, so Worker code gets a
   `ReadableStream`, but the whole body is in memory before the first chunk. Firefox stores a
   `ReadableStream` given as a request body as the text `[object ReadableStream]`, so Worker code
   that forwards one (`new Request(url, { body: request.body })`, `fetch(url, { body: … })`) sends
   that text. Use `await request.arrayBuffer()`, or the request itself, as the body.
-- **WebKit is not run, and is not a target for now:** Playwright's WebKit needs the system
+- **WebKit is not run, and is not a target for now.** Playwright's WebKit needs the system
   `libavif16` (`libavif.so.16`), which this host lacks.
 
 ## Other gaps
 
 - **Configuration CellB does not support** is reported in `createProjectRuntime(...).unsupported`,
-  not silently ignored: `migrations.renamed_classes`, `durable_objects.bindings[].script_name`,
-  service bindings to other scripts, the Workers AI binding (`ai`) when the host names no
-  OpenAI-compatible endpoint for it, cron triggers without a `scheduled()` handler, and
+  instead of being silently ignored: `migrations.renamed_classes`,
+  `durable_objects.bindings[].script_name`, `containers`, service bindings to other scripts, the
+  Workers AI binding (`ai`) when the host names no OpenAI-compatible endpoint for it, queue
+  consumers without a `queue()` handler, cron triggers without a `scheduled()` handler, and
   compatibility flags it does not know. Renaming a Flue agent renames its class, so it needs
   `renamed_classes`. Browser tabs log it (`cellb: project … shard …: unsupported: …`).
 - **`process.env` holds the project's text `vars` in a browser only.** workerd fills it under
   nodejs_compat from compatibility date 2025-04-01; a browser host does, but a Node host shares
   its real `process` with the Worker, so there the embedder sets what the code reads.
-- **`waitUntil` of `cloudflare:workers` runs in the runtime's background** until `drain()`, not
-  tied to the event that called it (nothing cancels an event's work after its response here).
+- **`waitUntil` of `cloudflare:workers` runs in the runtime's background** until `drain()`. It is
+  not tied to the event that called it, since nothing in CellB cancels an event's work after its
+  response.
 - **`node:crypto` in a browser has no signature checks.** `createPublicKey` returns a `KeyObject`
-  (type and DER/PEM export) and `verify`/`createVerify` throw: a synchronous check needs a
-  pure-JS implementation. `node:module`'s `require` serves only the built-ins CellB polyfills.
+  (type and DER/PEM export), but `verify` and `createVerify` throw, because a synchronous check
+  would need a pure-JS implementation. `node:module`'s `require` serves only the built-ins CellB polyfills.
 - **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
   embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
-  image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.
+  image, speech and classification models throw. `options.gateway` is ignored, and
+  `env.AI.gateway()` throws.
 - **`env` and `exports` of `cloudflare:workers` are empty in a Worker loaded into a site
-  project's realm.** Every project gets its own, and a loaded Worker gets its own (its
-  `WorkerCode.env`, and stubs of its own entrypoints) on Node, in a browser bundle's realm, and in
-  an isolate (`isolateScript`). On an in-browser site without `isolateScript` the project and its
-  loaded Workers share the realm's module registry: its `cloudflare:workers` entry answers by the
-  module that asks (a loaded Worker's proxy is a module under `<site>loaded/`, found on the
-  stack), and gives loaded code empty objects; anything else that reads the entry gets the
-  project's.
+  project's realm.** Every project gets its own. A loaded Worker gets its own too (its
+  `WorkerCode.env` and stubs of its own entrypoints) on Node, in a browser bundle's realm, and in
+  an isolate (`isolateScript`). On an in-browser site without `isolateScript`, the project and its
+  loaded Workers share the realm's module registry. Its `cloudflare:workers` entry then answers
+  according to the module that asks: it finds a loaded Worker's proxy (a module under
+  `<site>loaded/`) on the stack and gives that code empty objects, and anything else that reads
+  the entry gets the project's.
 - **`cloudflare:email` only loads.** It exists so code that imports it at top level (the Agents SDK)
-  starts, on Node and in browser bundles; building an `EmailMessage` throws `cloudflare:email is not
-  supported by CellB`. An in-browser site provides it too.
+  starts, on Node and in browser bundles. Building an `EmailMessage` throws `cloudflare:email is
+  not supported by cellb`. An in-browser site provides the module too.
 - **`node:fs` and `node:os` in a browser have no host behind them.** With nodejs_compat a browser
   bundle gets `node:fs` whose calls fail with `ENOENT` (`existsSync` is false) and `node:os` with
-  fixed answers (`EOL` is `"\n"`, no CPUs, no memory); they let libraries that probe for files load.
+  fixed answers (`EOL` is `"\n"`, no CPUs, no memory), so that libraries that probe for files can
+  load.
   Other Node.js modules without a browser polyfill (`node:child_process`, `node:readline`, …) load
   as stubs whose exports throw when called, as wrangler's nodejs_compat stubs do on Cloudflare.
 - **`AsyncLocalStorage` in a browser carries its stores only through code it can see.** The
-  `node:async_hooks` polyfill keeps each `run()` to its synchronous part and makes continuations
-  carry their stores (`Promise.prototype.then`, timers, `queueMicrotask`); a native `await` bypasses
-  `then`, so with nodejs_compat `await` is lowered to generators: by `bundleWorkerForBrowser`
-  (esbuild) in a bundle, by `createProjectSite` (`lowerAwait`, after webrun-modules) in a site's
-  modules. Both then answer as on Node (test/async-context-worker.ts, 16 objects at once). Not
-  lowered: async generators' own awaits, async functions that use `super` or `new.target` (on a
-  site; esbuild lowers those too), and top-level await; code there resumes in no store after an
-  `await`, rather than in another event's. In a browser with TC39 AsyncContext (Stage 2, shipped
-  by none yet) the polyfill is a layer over `AsyncContext.Variable` and `Snapshot` instead, sites
-  lower nothing (`bundleWorkerForBrowser` takes `lowerAwait: false`), and the engine carries the
-  stores through native awaits as workerd and celld do; `enterWith()` throws there
-  (test/p18 runs it on an AsyncContext made of Node's own). Event listeners (`addEventListener`, MessagePort
-  `onmessage`) do not carry stores, on Node either.
+  `node:async_hooks` polyfill limits each `run()` to its synchronous part and makes continuations
+  carry their stores (`Promise.prototype.then`, timers, `queueMicrotask`). A native `await`
+  bypasses `then`, so with nodejs_compat `await` is lowered to generators. In a bundle,
+  `bundleWorkerForBrowser` does this with esbuild; in a site's modules, `createProjectSite` does it
+  with `lowerAwait`, after webrun-modules. Both then behave as on Node
+  (`test/async-context-worker.ts` checks 16 objects at once). Some code is not lowered: the awaits
+  of async generators, async functions that use `super` or `new.target` (on a site only; esbuild
+  lowers those too), and top-level await. Such code resumes in no store after an `await`, rather
+  than in another event's store. In a browser with TC39 AsyncContext (Stage 2, not shipped by any
+  browser yet), the polyfill is a layer over `AsyncContext.Variable` and `Snapshot` instead. Sites
+  then lower nothing (`bundleWorkerForBrowser` takes `lowerAwait: false`), and the engine carries
+  the stores through native awaits as workerd and celld do. `enterWith()` throws there
+  (`test/p18-native-async-context.test.ts` runs this on an AsyncContext built from Node's own).
+  Event listeners (`addEventListener`, MessagePort `onmessage`) do not carry stores, on Node
+  either.
 - **An object's events start in the async context the runtime was made in.** A call to an object
   is a new event, as on Cloudflare: the callee (and its constructor) does not see the caller's
   `AsyncLocalStorage` stores. Where Cloudflare has none, CellB has the stores that were current
-  when `createCellRuntime` ran, so a host can scope a whole runtime (test/p09 attributes each
-  scenario's logs this way). On Node this needs `process.getBuiltinModule` (Node 22.3 and later);
+  when `createCellRuntime` ran, so a host can scope a whole runtime
+  (`test/p09-celld-conformance.test.ts` attributes each scenario's logs this way). On Node this needs `process.getBuiltinModule` (Node 22.3 and later);
   in a browser it goes through CellB's `node:async_hooks` polyfill.
-- **A browser runtime is one thread, and OPFS writes are its cost.** Its cells interleave, and
-  each commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool
+- **A browser runtime is one thread, and OPFS writes take most of its time.** Its cells
+  interleave, and each commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool
   call, two model turns) makes 21 commits (155 when commits ended with each microtask); in this
   repository's CI-like container an OPFS write costs about 0.75 ms whatever its size, and those
-  writes are about 80% of the worker's time. For parallel threads, spread the project over
-  several workers (`startProjectShards`): 32 Flue conversations take 16 s on one worker and 11 s on
-  four there, where four workers writing OPFS at once slow each other's writes. With
-  `joinProjectShards`, the tabs of an origin share the shards (an even split, moved as tabs come
-  and go); placement of cells within the shards stays by hash. Opening a cell reserves
-  room in the OPFS pool first and the pool grows on demand; a database or journal that SQLite
-  creates mid-event (`SAH pool is full`) can still fail if a burst outruns the background growth.
+  writes are about 80% of the worker's time. To use more threads, spread the project over
+  several workers (`startProjectShards`). There, 32 Flue conversations take 16 s on one worker and
+  11 s on four, because four workers writing OPFS at once slow each other down. With
+  `joinProjectShards`, the tabs of an origin share the shards, split evenly and moved as tabs come
+  and go, while cells are still placed in shards by hash. Opening a cell reserves room in the OPFS
+  pool first, and the pool grows on demand. A database or journal that SQLite creates mid-event
+  can still fail with `SAH pool is full` if a burst outruns the background growth.
 - **The `WebSocket` global of Worker code is workerd's, built over the host's.** Its prototype is
   the server-side socket's (`serializeAttachment`, `deserializeAttachment`: partyserver and the
   Agents SDK reach attachments through it), it has the `READY_STATE_*` statics, and `instanceof`
@@ -134,14 +140,14 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   itself. Its `Request` global carries `Upgrade` and `Sec-WebSocket-*` into copies of a request,
   which a browser's `new Request()` drops; the host's own requests count as instances of it.
 - **The upstream Worker Loader export `inheritGlobalOutbound` is left out** of the vendored run.
-  `WorkerCode.globalOutbound` itself is implemented (`null` blocks `fetch`; a Fetcher redirects
-  it, in the host's realm and in an isolate, where the request crosses back to the host), matches
-  celld in the `runtime-api` project, and passes `overrideGlobalOutbound` in `wd-worker-loader`.
-  `inheritGlobalOutbound` stays out for good: it needs the test Worker's own `globalOutbound`, a
-  `.wd-test` setting with no wrangler equivalent, so on celld and CellB it would fetch
-  `https://example.com` for real.
-- **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked, then
-  written; two tabs using it at once can both win.
+  `WorkerCode.globalOutbound` itself is implemented: `null` blocks `fetch`, and a Fetcher
+  redirects it, both in the host's realm and in an isolate, where the request crosses back to the
+  host. It matches celld in the `runtime-api` project and passes `overrideGlobalOutbound` in
+  `wd-worker-loader`. `inheritGlobalOutbound` stays out for good. It needs the test Worker's own
+  `globalOutbound`, a `.wd-test` setting with no wrangler equivalent, so on celld and CellB it
+  would fetch `https://example.com` for real.
+- **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked first and
+  written afterwards, so two tabs using it at once can both win.
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.
 - **The input gate does not hold timers, as on celld.** A timer set before
   `blockConcurrencyWhile()` fires while its callback runs; workerd holds it until the callback
@@ -149,11 +155,11 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   judge, so this stays (following workerd would need a `judge: "workerd"` reason of the stub kind).
   workerd's input gate also defers outbound `fetch` completions while storage is in flight; CellB
   does not, and what celld does there is not recorded.
-- **celld examples not run:** `python` (Pyodide Python Workers: CellB runs no Python), `wasm`
-  (needs the Rust toolchain to build), `container` and `sandbox` (Docker or Podman; a `containers`
-  config is reported in `unsupported`). `pi` and `opencode` need a model on the network as celld
-  ships them; `examples/agents` runs both, adapted to take their model from an endpoint in
-  their vars, against a fake OpenAI-compatible model.
+- **Some celld examples are not run.** These are `python` (Pyodide Python Workers, and CellB runs
+  no Python), `wasm` (it needs the Rust toolchain to build), and `container` and `sandbox` (they
+  need Docker or Podman; a `containers` config is reported in `unsupported`). As celld ships them,
+  `pi` and `opencode` need a model on the network. `examples/agents` runs both against a fake
+  OpenAI-compatible model, adapted to take their model from an endpoint in their vars.
 - **The LTX store's room check is a hint.** Before a compaction it compares the cell's size with
   `navigator.storage.estimate()`, which overstates the room in a Playwright (off-the-record)
   context, where OPFS lives in memory with its own limit. A write past the limit still fails
@@ -161,9 +167,9 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **The LTX log of fleet buckets keeps each cell's pages in memory.** `ltxLog`
   (`src/bucket/ltx-log.ts`, behind `celldBucket` and `filesApiLtxLog`) holds the pages it last
   wrote per cell; `bucket: { ltx }` reads a cell page by page instead.
-- **The workspace runs CellB from its TypeScript sources**, the published package from `dist/`
-  (`publishConfig.exports`). `scripts/pack-check.mjs`, in CI, checks the built package; a change
-  that only breaks the build shows there, not in the workspace's tests.
+- **The workspace runs CellB from its TypeScript sources**, while the published package runs from
+  `dist/` (`publishConfig.exports`). `scripts/pack-check.mjs` checks the built package in CI, so a
+  change that only breaks the build shows up there and not in the workspace's tests.
 
 ## Out of scope, on purpose
 

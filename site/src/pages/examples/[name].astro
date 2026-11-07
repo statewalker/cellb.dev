@@ -1,0 +1,154 @@
+---
+import CodeBlock from "@/components/CodeBlock.astro";
+import Icon from "@/components/Icon.astro";
+import Badge from "@/components/ui/Badge.astro";
+import Button from "@/components/ui/Button.astro";
+import Card from "@/components/ui/Card.astro";
+import Tabs from "@/components/ui/Tabs.astro";
+import Base from "@/layouts/Base.astro";
+import {
+  type Example,
+  exampleHref,
+  examples,
+  integration,
+  LOADER_ISSUE,
+  ORIGIN_LABEL,
+} from "@/lib/examples";
+
+export function getStaticPaths() {
+  return examples.map((example) => ({ params: { name: example.name }, props: { example } }));
+}
+
+const { example: e } = Astro.props as { example: Example };
+const lang = (path: string) =>
+  path.endsWith(".jsonc")
+    ? "jsonc"
+    : path.endsWith(".json")
+      ? "json"
+      : path.endsWith(".html")
+        ? "html"
+        : path.endsWith(".ts")
+          ? "ts"
+          : /(^|\/)_(headers|redirects)$/.test(path)
+            ? "txt"
+            : "js";
+// The Worker first, then its configuration, then the rest (assets, vendored test files).
+const files = [...e.files].sort(
+  (a, b) =>
+    (a.path === "index.js" ? 0 : a.path.startsWith("wrangler") ? 1 : 2) -
+      (b.path === "index.js" ? 0 : b.path.startsWith("wrangler") ? 1 : 2) ||
+    a.path.localeCompare(b.path),
+);
+const code = integration(e);
+const judge = e.judge === "workerd" ? "workerd" : "celld";
+const sameProject = examples.filter((x) => x.project === e.project && x.name !== e.name);
+const sourceLabel =
+  e.origin === "celld"
+    ? `denoland/celld · examples/${e.project}`
+    : `statewalker/cellb.dev · conformance/${e.origin === "cellb" ? "projects" : "workerd-tests"}/${e.project}`;
+---
+
+<Base title={`${e.name} · CellB examples`} description={e.about}>
+  <section class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <nav class="font-mono text-sm text-muted-foreground">
+      <a href="/examples" class="hover:text-foreground">examples</a> / <span class="text-foreground">{e.name}</span>
+    </nav>
+    <div class="mt-4 max-w-3xl space-y-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="font-mono text-3xl font-semibold tracking-tight">{e.name}</h1>
+        <Badge variant="brand">{ORIGIN_LABEL[e.origin]}</Badge>
+        {e.knownGap && <Badge variant="outline">known difference</Badge>}
+        {e.judge === "workerd" && <Badge variant="outline">judged by workerd</Badge>}
+      </div>
+      <p class="text-muted-foreground">{e.about}</p>
+      <p class="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+        <a href={e.source} class="inline-flex items-center gap-1 text-primary hover:underline">
+          <Icon name="github" class="size-4" /> {sourceLabel}
+        </a>
+        {e.upstream && (
+          <a href={e.upstream} class="inline-flex items-center gap-1 text-primary hover:underline">
+            <Icon name="externalLink" class="size-3" /> the test in cloudflare/workerd
+          </a>
+        )}
+      </p>
+      {e.knownGap && (
+        <p class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+          A known difference, so the answers below are expected to differ: {e.knownGap}.
+        </p>
+      )}
+      {e.judge === "workerd" && (
+        <p class="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          CellB passes Durable Object stubs by reference, as workerd does, where celld copies them.
+          The answers below are compared with workerd's run of the same project. {e.workerdDiffers}
+        </p>
+      )}
+      {sameProject.length > 0 && (
+        <p class="text-sm text-muted-foreground">
+          The same project, other requests:{" "}
+          {sameProject.map((x, i) => (
+            <>{i > 0 && ", "}<a href={exampleHref(x.name)} class="font-mono text-primary hover:underline">{x.name}</a></>
+          ))}
+        </p>
+      )}
+    </div>
+
+    <div class="mt-10 grid gap-8 lg:grid-cols-[1.15fr_1fr] lg:items-start [&>*]:min-w-0">
+      <Tabs labels={files.map((f) => f.path)}>
+        {files.map((f, i) => (
+          <CodeBlock slot={`tab-${i}`} title={`${e.project}/${f.path}`} class="max-h-[36rem]" lang={lang(f.path)} code={f.text} />
+        ))}
+      </Tabs>
+
+      <Card class="overflow-hidden" data-run data-name={e.name} data-project={e.project} data-judge={judge} data-recorded={JSON.stringify(e.recorded)}>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+          <p class="font-medium">Run it in this tab</p>
+          <Button size="sm" data-run-button>
+            Run <Icon name="arrowRight" />
+          </Button>
+        </div>
+        <div class="space-y-3 p-5 text-sm">
+          <p class="text-muted-foreground">
+            The button loads the project, already bundled for browsers, into a Dedicated Worker and
+            runs it on CellB with SQLite WASM on OPFS. Then it sends the requests below and puts
+            each answer next to the one {judge} gave to the same request.
+            {e.seconds > 0 && <> The run takes about {e.seconds} s, as the script waits for timers to fire.</>}
+            {e.needsServer && <> The project talks to a small reference server, which runs inside the worker here.</>}
+          </p>
+          <ol class="space-y-1 font-mono text-xs" data-run-steps>
+            {e.steps.map((s) => <li class="truncate" title={s}>{s}</li>)}
+          </ol>
+          <p class="font-mono text-xs text-muted-foreground" data-run-status></p>
+        </div>
+        <div data-run-results></div>
+      </Card>
+    </div>
+
+    <div class="mt-14 grid gap-8 lg:grid-cols-[0.8fr_1.2fr] [&>*]:min-w-0">
+      <div class="space-y-3">
+        <h2 class="text-2xl font-semibold tracking-tight">Run it in your app</h2>
+        <p class="text-muted-foreground">
+          The same project folder runs in Node and in a browser. Node reads the folder and bundles the
+          Worker on load. A browser loads the Worker already bundled, so the folder is built once,
+          ahead of time.
+        </p>
+        <p class="text-sm text-muted-foreground">
+          <code class="font-mono">loadProject</code> and <code class="font-mono">cellb build</code> are
+          proposed in <a href={LOADER_ISSUE} class="text-primary hover:underline">issue #67</a> and not
+          released yet. The "today" tabs do the same with the functions CellB has now; this page uses
+          the browser one.
+        </p>
+      </div>
+      <Tabs labels={["Node", "Browser", "Node, today", "Browser, today"]}>
+        <CodeBlock slot="tab-0" title="node.ts" lang="ts" code={code.node} />
+        <CodeBlock slot="tab-1" title="worker.ts" lang="ts" code={code.browser} />
+        <CodeBlock slot="tab-2" title="node.ts" lang="ts" code={code.nodeToday} />
+        <CodeBlock slot="tab-3" title="worker.ts" lang="ts" code={code.browserToday} />
+      </Tabs>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { renderRun } from "../../examples/page";
+  document.querySelectorAll<HTMLElement>("[data-run]").forEach(renderRun);
+</script>

@@ -1,8 +1,8 @@
 # Security and isolation
 
-CellB is a library: the embedder decides what code it runs and where. This page says what CellB
-isolates, what it leaves shared, and what each setting exposes, so that the boundary is a choice and
-not an assumption. Terms are those of [CONTEXT.md](../CONTEXT.md).
+CellB is a library, and the embedder decides what code it runs and where. This page says what
+CellB isolates, what it leaves shared, and what each setting exposes, so that you can choose the
+boundary instead of assuming one. Terms are those of the [Glossary](../CONTEXT.md).
 
 ## The project's own Worker is trusted code
 
@@ -42,7 +42,7 @@ What that realm does **not** take away:
   Worker have no timeout, and one that never returns holds its caller.
 
 Running untrusted code needs more than CellB gives: an opaque-origin iframe or a separate origin in
-a browser (out of CellB's scope, [gaps.md](gaps.md#out-of-scope-on-purpose)), a separate process
+a browser (out of CellB's scope, [Gaps](gaps.md#out-of-scope-on-purpose)), a separate process
 or container on a server.
 
 ## What an origin's pages share
@@ -50,30 +50,32 @@ or container on a server.
 - **Cookies passed through `installProjectRouter` are readable by the page and are all `Path=/`.**
   Browsers drop `Cookie` and `Set-Cookie` from the requests and responses that script builds, so the
   router stores the Worker's cookies with the Cookie Store API; cookies written by script cannot be
-  `HttpOnly` ([browser-host.md](browser-host.md#what-breaks)).
+  `HttpOnly` ([Running in a browser](browser-host.md#what-breaks)).
 - **Cells in OPFS belong to the origin.** Any page or worker of the origin can open the same storage.
 
 ## What a fleet bucket's credentials grant
 
 - **A page's S3 credentials are visible to its user.** A browser node signs each request itself, so
   its key is in the page, with a same-origin proxy too. Give it a key limited to the bucket and
-  prefix ([browser-host.md](browser-host.md)).
+  prefix ([Running in a browser](browser-host.md)).
 - **Bucket access is fleet access.** The fleet's peer secret is an object in the bucket
   (`fleet/peer-auth.json`); CellB reads it from there to authenticate celld's peer requests. A key
   that can read the fleet's prefix can read that secret.
-- **Peer requests are authenticated** (Node): `startCelldPeerServer` checks each one with the fleet's
-  HMAC-SHA-256 secret, within ±30 s, against a nonce replay cache, for this node
-  ([celld-compatibility.md](celld-compatibility.md#a-mixed-fleet-cellb-as-a-celld-peer-node)).
+- **Peer requests are authenticated** (Node). `startCelldPeerServer` accepts a request only if it
+  is signed with the fleet's HMAC-SHA-256 secret, carries a timestamp within ±30 s and a nonce not
+  seen before, and is addressed to this node
+  ([celld compatibility](celld-compatibility.md#a-mixed-fleet-cellb-as-a-celld-peer-node)).
 
 ## What breaks
 
 - **A public endpoint mounted on `cellsHttpHandler` lets clients address any object directly** with
   `x-cellb*` headers. Mount `runtime.fetch` (or `CellRouter.ingress`, which strips those headers) on
   public ingress, and `cellsHttpHandler` only on internal links. `installProjectRouter` strips them
-  (in any letter case) from the pages' requests and sockets before they reach the shards. That
-  guards against what a page sends, not against a page: the router trusts every same-origin page.
-  Any of them can attach a handler of its own (webrun-http-browser's adapter), claim a shard's
-  slot, and send it requests with any headers. Serve only code you trust on the origin.
-- **A loaded Worker on a browser site without `isolateScript` is not isolated at all**: it shares
+  (in any letter case) from the pages' requests and sockets before they reach the shards. This
+  protects against what a page sends, but not against a hostile page, because the router trusts
+  every same-origin page. Any of them can attach a handler of its own (webrun-http-browser's
+  adapter), claim a shard's slot, and send it requests with any headers. Serve only code you trust
+  on the origin.
+- **A loaded Worker on a browser site without `isolateScript` is not isolated at all.** It shares
   the project's realm and module registry. Pass `isolateScript` (the package ships
   `@statewalker/cellb/isolate-worker`) whenever loaded code is not your own.
