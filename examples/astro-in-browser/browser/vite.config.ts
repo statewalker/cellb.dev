@@ -93,8 +93,9 @@ export default defineConfig(({ command }) => ({
   // A production build replaces `globalThis.process.env` with `{}`, which makes cellb's
   // `Object.assign(globalThis.process.env, vars)` in the shard worker a no-op: the built Worker
   // then reads no `vars` from process.env (EmDash: "Set siteUrl or EMDASH_SITE_URL").
-  // `vite build` only: the dev server evaluates each define in its client (`/@vite/env`) on the
-  // host page, where `globalThis.process` is undefined, and the page fails before it starts.
+  // `vite build` only: the dev server evaluates each define in its client (`/@vite/env`), loaded
+  // by the host page and by every module worker before their code runs, where
+  // `globalThis.process` is undefined: they would fail before they start.
   define: command === "build" ? { "globalThis.process.env": "globalThis.process.env" } : {},
   // `vite build`: the two host pages, their workers and the apps' sources under
   // dist/static/__cellb/ (the base); scripts/build-static.mjs adds the ServiceWorker.

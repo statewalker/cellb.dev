@@ -107,7 +107,7 @@ crashes at 2.5 GB.
   build rewrites `globalThis.process.env` to `{}`, which empties CellB's
   `Object.assign(globalThis.process.env, vars)` in the shard worker; `browser/vite.config.ts`
   defines it back to itself for `vite build` only (the dev server does not rewrite it, and its
-  client evaluates every define on the host page, which has no `process`).
+  client evaluates every define in the host page and its workers, which have no `process` yet).
 - **`Could not resolve "…": Failed to fetch`** in a cold build is a download from the npm
   registry that failed. Building again downloads only the packages still missing.
 
