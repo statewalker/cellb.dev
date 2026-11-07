@@ -27,4 +27,8 @@ export type {
   LoadProjectOptions,
   ProjectSource,
 } from "./project/built-project.js";
+export type {
+  CompiledProject,
+  ProjectCompiler,
+} from "./project/source-project.js";
 export { serviceWorkerConnector } from "./ws/sw-connector.js";

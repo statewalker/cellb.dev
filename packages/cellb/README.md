@@ -38,8 +38,9 @@ worker is started that way (checked with a Vite build, see `scripts/pack-check.m
 |---|---|
 | `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes, and the errors embedders catch |
 | `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
-| `@statewalker/cellb/browser` | `loadProject` (a `cellb build` folder by URL), `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
-| `@statewalker/cellb/site` | `createProjectSite`: a project's sources compiled in the browser and served by an in-browser HTTP server (`browserProjectRuntime({ site })`). Needs the optional peer dependencies `@statewalker/webrun-modules` and `@statewalker/webrun-site-builder`; the site is hosted in a ServiceWorker with `@statewalker/webrun-site-host`, also an optional peer |
+| `@statewalker/cellb/browser` | `loadProject` (a `cellb build` folder by URL, or sources with a compiler), `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
+| `@statewalker/cellb/site` | `createProjectSite`: a project's sources compiled in the browser and served by an in-browser HTTP server (`browserProjectRuntime({ site })`); `siteCompiler` for `loadProject`, and `siteHostOverPort` / `hostSitesForWorker` to host a worker's site from its page. Needs the optional peer dependencies `@statewalker/webrun-modules`, `@statewalker/webrun-site-builder` and `@statewalker/webrun-site-host` (the ServiceWorker host) |
+| `@statewalker/cellb/bundle` | `bundleCompiler`: a project's sources bundled in the browser for `loadProject`, with webrun-bundler on esbuild-wasm. Needs the optional peer dependency `@statewalker/webrun-bundler`; the caller passes esbuild-wasm, initialized |
 | `@statewalker/cellb/host-modules` | for bundlers other than cellb's own (webrun-bundler in a browser, say): the sources of `cloudflare:workers`, `node:*` and the Workers globals as cellb's realms provide them (`cellbHostModule`, `CELLS_GLOBALS_MODULE`) |
 | `@statewalker/cellb/isolate-worker` | the Dedicated Worker that runs a Worker-Loader Worker in a realm of its own (`isolateScript`) |
 
@@ -87,7 +88,10 @@ manifest that lists the assets, since a static host cannot list a folder. Any st
 it; Node loads it too.
 
 - `source`: Node takes a folder (built or not), a `file:` or `http(s):` URL of a built folder, or
-  a FilesApi holding either; a browser takes the URL of a built folder or a FilesApi holding one.
+  a FilesApi holding either; a browser takes the URL of a built folder or a FilesApi holding one,
+  or, with `compile`, a FilesApi holding the sources.
+- `compile` (browser): how a source folder becomes code, below. Without it, a browser loads only
+  `cellb build` folders.
 - `data`: where cells keep their data. On Node, a directory (SQLite files, and the project's files
   under `<data>/files`); without it, memory. In a browser, an OPFS name: the SQLite pool `<data>`
   and the files directory `<data>-files` (default: the project's `name`).
@@ -98,6 +102,34 @@ it; Node loads it too.
   the package's own isolate worker by default, `false` for this realm.
 
 `loadNodeProject` and `browserProjectRuntime`, below, stay as the lower-level calls.
+
+### Sources in a browser: `compile`
+
+A browser compiles a project's sources (`wrangler.jsonc` and `main` at the root of a FilesApi,
+`package.json`, assets) when `loadProject` is given a compiler. The compilers come from their own
+entry points, so a plain `loadProject` ships neither:
+
+```ts
+// One ES module, bundled by webrun-bundler on esbuild-wasm. npm packages come from the project's
+// node_modules, else the npm registry, at package.json's ranges.
+import * as esbuild from "esbuild-wasm";
+import { bundleCompiler } from "@statewalker/cellb/bundle";
+await esbuild.initialize({ wasmURL });
+const project = await loadProject(files, { data: "app", compile: bundleCompiler({ esbuild }) });
+
+// Modules compiled one by one by webrun-modules, served from the page's ServiceWorker (a change
+// recompiles one module). A Dedicated Worker cannot register a ServiceWorker: its page hosts the
+// site, with hostSitesForWorker(worker).
+import { siteCompiler, siteHostOverPort } from "@statewalker/cellb/site";
+const project = await loadProject(files, {
+  data: "app",
+  compile: siteCompiler({ host: siteHostOverPort(self) }),
+});
+```
+
+Both lower `await` for nodejs_compat as `cellb build` does (AsyncLocalStorage follows
+continuations), and take `cloudflare:workers`, the Workers globals and `node:*` from the runtime.
+A source folder loads from a FilesApi only: a static host cannot list it.
 
 ### A Worker and a Durable Object in Node
 
@@ -305,9 +337,11 @@ Queues, Workflows, …) in [docs/services/](docs/services/). What is isolated, a
   `webrun-http-browser` — the HTTP links over MessagePorts, the WebSocket client and its frames.
 - Optional peers, for `@statewalker/cellb/site` only: `webrun-modules` (compiles a project's
   sources in the browser; it brings lightningcss-wasm and @jspm/core, about 30 MB),
-  `webrun-site-builder` (the in-browser HTTP server), and `webrun-site-host`, which the
-  embedder's own ServiceWorker code uses to host it (cellb does not import it). Projects that run a
-  bundle (`{ bundle }`) need none of them, and their builds emit none of their assets.
+  `webrun-site-builder` (the in-browser HTTP server), and `webrun-site-host` (hosts it in a
+  ServiceWorker: `siteCompiler`, `hostSitesForWorker`). Projects that run a bundle (`{ bundle }`)
+  need none of them, and their builds emit none of their assets.
+- Optional peer, for `@statewalker/cellb/bundle` only: `webrun-bundler` (with esbuild-wasm, which
+  the caller passes in).
 - `worker-timers` — unthrottled heartbeat timers on a page's main thread.
 - `buffer`, `events`, `util`, `assert`, `path-browserify` — `nodejs_compat` in browsers.
 

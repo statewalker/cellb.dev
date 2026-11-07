@@ -14,6 +14,7 @@ import {
   builtConfig,
 } from "./built-project.js";
 import { readAssetDirectory, readWranglerConfig } from "./node-project.js";
+import { hasNodeCompat } from "./wrangler.js";
 
 export interface BuildProjectOptions {
   /**
@@ -38,8 +39,7 @@ export async function buildProject(
   const config = readWranglerConfig(dir);
   if (!config.main && !config.assets)
     throw new Error("wrangler config has neither `main` nor `assets`");
-  const flags = config.compatibility_flags ?? [];
-  const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
+  const nodeCompat = hasNodeCompat(config);
   const code = config.main
     ? await bundleWorkerForBrowser(resolve(dir, config.main), {
         nodeCompat,

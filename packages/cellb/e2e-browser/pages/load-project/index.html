@@ -3,16 +3,20 @@
 <title>cellb — loadProject in a browser</title>
 <body>
   <script type="module">
-    // One fresh Dedicated Worker per run: loads a `cellb build` folder and fetches `paths`.
+    import { hostSitesForWorker } from "@statewalker/cellb/site";
+
+    // One fresh Dedicated Worker per run: loads a `cellb build` folder (or sources, compiled)
+    // and fetches `paths`. The page hosts the sites the worker's `siteCompiler` asks for.
     window.__loadProject = (args) =>
       new Promise((resolve) => {
         const w = new Worker(new URL("./load-worker.ts", import.meta.url), { type: "module" });
+        hostSitesForWorker(w);
         const { port1, port2 } = new MessageChannel();
         port1.onmessage = (e) => {
           resolve(e.data);
           w.terminate();
         };
-        w.onerror = (e) => resolve({ ok: false, error: e.message });
+        w.onerror = (e) => resolve({ ok: false, error: `${e.message} at ${e.filename}:${e.lineno}` });
         w.postMessage(args, [port2]);
       });
     document.body.dataset.ready = "true";

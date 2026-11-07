@@ -21,6 +21,7 @@
     "./node": "./src/node.ts",
     "./browser": "./src/browser.ts",
     "./site": "./src/site.ts",
+    "./bundle": "./src/bundle.ts",
     "./host-modules": "./src/project/host-modules.ts",
     "./isolate-worker": "./src/isolate/isolate-worker.ts"
   },
@@ -49,6 +50,10 @@
       "./site": {
         "types": "./dist/site.d.ts",
         "default": "./dist/site.js"
+      },
+      "./bundle": {
+        "types": "./dist/bundle.d.ts",
+        "default": "./dist/bundle.js"
       },
       "./host-modules": {
         "types": "./dist/project/host-modules.d.ts",
@@ -106,12 +111,16 @@
     "ws": "catalog:"
   },
   "peerDependencies": {
+    "@statewalker/webrun-bundler": "^0.1.1",
     "@statewalker/webrun-modules": "catalog:",
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",
     "esbuild": ">=0.25"
   },
   "peerDependenciesMeta": {
+    "@statewalker/webrun-bundler": {
+      "optional": true
+    },
     "@statewalker/webrun-modules": {
       "optional": true
     },
@@ -128,12 +137,14 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@sparticuz/chromium": "^153.0.0",
+    "@statewalker/webrun-bundler": "^0.1.1",
     "@statewalker/webrun-modules": "catalog:",
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "esbuild": "^0.28.0",
+    "esbuild-wasm": "0.28.2",
     "html-rewriter-wasm": "^0.4.1",
     "miniflare": "4.20260730.0",
     "partyserver": "0.5.10",

@@ -8,44 +8,33 @@ import { files } from "../../from-sources/project";
 const WEBRUN_SITES = "https://github.com/statewalker/webrun-sites/tree/main/packages";
 
 const bundlerCode = `import * as esbuild from "esbuild-wasm";
-import { bundle, npmPackages } from "@statewalker/webrun-bundler";
-import { CELLS_GLOBALS_MODULE, cellbHostModule } from "@statewalker/cellb/host-modules";
-import { browserProjectRuntime } from "@statewalker/cellb/browser";
+import { loadProject } from "@statewalker/cellb/browser";
+import { bundleCompiler } from "@statewalker/cellb/bundle";
 
 await esbuild.initialize({ wasmURL: "/esbuild.wasm" });
 
-const { code } = await bundle({
-  esbuild,
-  files,                       // a FilesApi with the project: memory, OPFS, a folder the user picked
-  entry: "/src/index.ts",
-  packages: npmPackages(),     // bare imports from the npm registry, at package.json's ranges
-  modules: cellbHostModule,    // cloudflare:workers and node:* as CellB provides them
-  inject: [CELLS_GLOBALS_MODULE], // the runtime's Response, WebSocketPair…
-  conditions: ["workerd", "worker", "browser"],
+// files: a FilesApi with the project (wrangler.jsonc, main, package.json, assets):
+// memory, OPFS, a folder the user picked
+const project = await loadProject(files, {
+  data: "my-app",              // the OPFS names of its cells and files
+  compile: bundleCompiler({ esbuild }), // npm packages from node_modules, else the registry
+});
+const res = await project.fetch(new Request("http://localhost/hello/ada"));`;
+
+const modulesCode = `// In a Dedicated Worker: the browser imports the Worker from the page's site, module by module
+import { loadProject } from "@statewalker/cellb/browser";
+import { siteCompiler, siteHostOverPort } from "@statewalker/cellb/site";
+
+const project = await loadProject(files, {
+  data: "my-app",
+  compile: siteCompiler({ host: siteHostOverPort(self) }), // the page hosts the site
 });
 
-const { runtime } = await browserProjectRuntime({
-  config,                      // the parsed wrangler.jsonc
-  code: { bundle: code },
-  sqlite3, pool: "my-app", filesDir: "my-app-files",
-});`;
+// On the page: mounts in the ServiceWorker (/sw-worker.js) the sites the worker asks for
+import { hostSitesForWorker } from "@statewalker/cellb/site";
 
-const modulesCode = `// On the page: an HTTP server inside the browser, mounted by a ServiceWorker
-import { HostedSiteBuilder } from "@statewalker/webrun-site-host";
-import { createProjectSite } from "@statewalker/cellb/site";
-
-const site = await new HostedSiteBuilder()
-  .setSiteKey("my-app")
-  .setHandler(createProjectSite({ projectFiles })) // projectFiles: a FilesApi with the sources
-  .build();
-// site.baseUrl is now e.g. https://example.com/my-app/
-
-// In a Dedicated Worker: the browser imports the Worker from that server, module by module
-const { runtime } = await browserProjectRuntime({
-  config,
-  code: { site: site.baseUrl },
-  sqlite3, pool: "my-app", filesDir: "my-app-files",
-});`;
+const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
+hostSitesForWorker(worker);`;
 ---
 
 <Docs title="Running from sources" description="How CellB runs a Workers project from its TypeScript sources and npm imports, in the browser, without building it first.">
@@ -90,6 +79,8 @@ const { runtime } = await browserProjectRuntime({
     modules for <code>nodejs_compat</code>, and a <code>cells:globals</code> module whose exports
     replace globals such as <code>Response</code> and <code>WebSocketPair</code>. The bundle
     then goes to <code>browserProjectRuntime</code> exactly as one built on Node would.
+    <code>loadProject</code> does all of this when it is given <code>bundleCompiler</code>
+    (<code>@statewalker/cellb/bundle</code>).
   </p>
   <CodeBlock lang="ts" title="worker.ts" code={bundlerCode} />
   <p>
@@ -117,7 +108,9 @@ const { runtime } = await browserProjectRuntime({
     The module server needs to answer requests the browser makes, so it runs behind a ServiceWorker:
     webrun-site-builder turns it into a site (<code>createProjectSite</code> adds the routes CellB
     needs, Worker Loader code included), and webrun-site-host mounts that site under a path of the
-    page's origin.
+    page's origin. <code>loadProject</code> with <code>siteCompiler</code>
+    (<code>@statewalker/cellb/site</code>) does the same from a Dedicated Worker, which cannot
+    register a ServiceWorker itself: the page hosts the site for it.
   </p>
   <CodeBlock lang="ts" title="page.ts, worker.ts" code={modulesCode} />
   <p>

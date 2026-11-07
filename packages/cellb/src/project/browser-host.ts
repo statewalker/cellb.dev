@@ -24,6 +24,7 @@ import { type WorkerScope, workerScope } from "./worker-scope.js";
 import * as workersGlobals from "./workers-globals-module.js";
 import {
   createProjectRuntime,
+  hasNodeCompat,
   loadTimeEnv,
   populatesProcessEnv,
   processEnvOf,
@@ -225,7 +226,7 @@ async function importWorkerCode(
   scope: WorkerScope,
 ): Promise<WorkerModule> {
   const flags = config.compatibility_flags ?? [];
-  const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
+  const nodeCompat = hasNodeCompat(config);
   if (nodeCompat) {
     installNodeGlobals();
     // node:* for bundles built with cellbHostModule (another bundler than bundleWorkerForBrowser);
