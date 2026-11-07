@@ -106,7 +106,8 @@ crashes at 2.5 GB.
   the static build only, means the built Worker saw no `vars` in `process.env`. A Vite production
   build rewrites `globalThis.process.env` to `{}`, which empties CellB's
   `Object.assign(globalThis.process.env, vars)` in the shard worker; `browser/vite.config.ts`
-  defines it back to itself.
+  defines it back to itself for `vite build` only (the dev server does not rewrite it, and its
+  client evaluates every define in the host page and its workers, which have no `process` yet).
 - **`Could not resolve "…": Failed to fetch`** in a cold build is a download from the npm
   registry that failed. Building again downloads only the packages still missing.
 
