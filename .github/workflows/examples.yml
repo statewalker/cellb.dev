@@ -8,18 +8,12 @@ name: examples
 # push or pull request waits on them. With `cellb: packed` they run instead on cellb as this
 # checkout would publish it: packages/cellb packed, and the tarball installed in place of the
 # release, which says whether the next release breaks an example.
-#
-# examples/astro-in-browser links @statewalker/webrun-bundler from a sibling checkout of
-# webrun-sites: both repositories are checked out side by side.
 on:
   workflow_dispatch:
     inputs:
       cellb:
         description: "`released` (the examples' lockfile) or `packed` (packages/cellb of this ref)"
         default: released
-      webrun-sites-ref:
-        description: webrun-sites branch, tag or commit
-        default: main
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.cellb || 'released' }}-${{ github.ref }}
@@ -71,23 +65,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: cellb.dev
-      - uses: actions/checkout@v7
-        with:
-          repository: statewalker/webrun-sites
-          ref: ${{ inputs.webrun-sites-ref || 'main' }}
-          path: webrun-sites
       - uses: pnpm/action-setup@v6
         with:
           package_json_file: cellb.dev/examples/package.json
       - uses: actions/setup-node@v7
         with:
           node-version-file: cellb.dev/.nvmrc
-      - name: webrun-bundler and the workspace packages it imports (their packages export dist/)
-        working-directory: webrun-sites
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm --filter "@statewalker/webrun-bundler..." build
-
       - name: Install (cellb as released)
         if: (inputs.cellb || 'released') == 'released'
         run: pnpm install --frozen-lockfile

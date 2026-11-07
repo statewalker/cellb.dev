@@ -48,13 +48,10 @@ host tab (browser/host.ts, emdash.html or index.html)
 
 ## How to use it
 
-`examples/astro-in-browser` links `@statewalker/webrun-bundler` from a sibling checkout of
-[webrun-sites](https://github.com/statewalker/webrun-sites) (`../../../webrun-sites`), whose
-`dist/` must be built:
+`@statewalker/webrun-bundler` and CellB come from npm, like the other packages:
 
 ```
-cd ../../../webrun-sites && pnpm install && pnpm --filter "@statewalker/webrun-bundler..." build
-cd - && pnpm --dir .. install  # the examples' workspace (examples/; cellb from npm)
+pnpm --dir .. install          # the examples' workspace (examples/)
 pnpm dev:browser              # Vite; open http://localhost:<port>/__cellb/emdash.html (or /__cellb/)
 pnpm test                     # the builder on Node: the small app, EmDash's config and build
 pnpm test:browser             # every Playwright spec in test/browser (long; see below)

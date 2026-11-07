@@ -63,7 +63,7 @@ site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tok
 Two pnpm workspaces. The root one (`pnpm-workspace.yaml`) holds cellb and the website. The
 examples are private apps in a workspace of their own (`examples/pnpm-workspace.yaml`, its own
 lockfile) and use cellb as its users do: `@statewalker/cellb` from npm, at a released range
-(`~0.1.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
+(`~0.3.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
 cellb reaches the examples through a release: Dependabot raises the range, and its pull request
 runs them. Cellb's own storage labs (`ltx-lab`, `sqlite-lab`) are in
 `packages/cellb/e2e-browser`.
@@ -96,8 +96,7 @@ The examples, in `examples/` (`pnpm install` there: they have their own lockfile
 3. `cd emdash && pnpm test && pnpm test:browser`: EmDash built by Astro, on cellb in Node and as a
    static site in Chromium.
 4. `cd astro-in-browser && pnpm test`: the in-browser builder on Node;
-   `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab. It
-   links `@statewalker/webrun-bundler` from a sibling checkout of webrun-sites (see its README).
+   `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab.
 
 To try the examples on cellb as it is in this checkout, before a release: pack it
 (`pnpm --dir packages/cellb pack`) and add to `examples/pnpm-workspace.yaml`
