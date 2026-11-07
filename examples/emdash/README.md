@@ -27,9 +27,10 @@ pnpm test:browser         # build:static, then Playwright in Chromium against a 
 pnpm dev:browser          # builds the app and its ServiceWorker, then the host page under Vite
 ```
 
-Astro needs Node.js ≥ 22.23.4. The static build is published at https://cellb-emdash.httpeers.net
-(`.github/workflows/examples-publish.yml`, run by hand). Open `http://127.0.0.1:8080/` (`serve:static`) or the URL Vite
-prints (`dev:browser`, `http://localhost:5173/__cellb/` by default): the first visit loads the host
+Astro needs Node.js ≥ 22.23.4 (`engines`); the repository's `.nvmrc` and CI use Node 24. The
+static build is published at https://cellb-emdash.httpeers.net
+(`.github/workflows/examples-publish.yml`, run by hand). Open `http://127.0.0.1:8080/`
+(`serve:static`) or the URL Vite prints (`dev:browser`, `http://localhost:5173/__cellb/` by default): the first visit loads the host
 page (`/__cellb/`), which starts the site; every other path of the origin is then the EmDash site,
 and `/_emdash/admin` its setup wizard. Keep the host tab open while you use the site.
 
