@@ -14,6 +14,7 @@ import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
 import type { CellRuntimeOptions, WorkerModule } from "../core/runtime.js";
 import { browserIsolatedLoader } from "../isolate/browser.js";
+import type { LtxStoreFiles } from "../ltx/ltx-page-server.js";
 import { installAsyncContext } from "../node-compat/async_hooks.js";
 import { installNodeGlobals } from "../node-compat/install.js";
 import { browserModuleLoader } from "./browser-modules.js";
@@ -80,10 +81,18 @@ export type BrowserBucket =
       leaseTtlMs?: number;
       compactAfter?: number;
       /**
-       * The cells' FilesApi in the store worker: OPFS through synchronous handles (default,
-       * `opfs-sync`), OPFS through its asynchronous API (`opfs`), or memory (nothing kept).
+       * The cells' FilesApi in the store worker. A preset on OPFS directory `ltx`: synchronous
+       * handles (default, `opfs-sync`), OPFS's asynchronous API (`opfs`), or memory (nothing
+       * kept). Or the app's own FilesApi, opened before cellb starts: `{ port }` from
+       * `filesApiPort(files)` (served where the app opened it), or `{ module, args }` (built in
+       * the store worker). `ltx` then names the storage (the scope of the cells' Web Locks).
        */
-      files?: "opfs" | "opfs-sync" | "memory";
+      files?: LtxStoreFiles;
+      /**
+       * A store already running elsewhere (`serveLtxStore(files)`, on the page): no store
+       * worker; the VFS sends its reads and commits there. `files` is then ignored.
+       */
+      ltxStore?: { sab: SharedArrayBuffer; port: MessagePort };
     }
   | { store: ObjectStore; node: string; leaseTtlMs?: number };
 
@@ -139,24 +148,54 @@ async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
 }
 
 /**
- * Cells on the LTX VFS: a store worker owns the OPFS directory; each cell is a SQLite database
- * whose main file is its LTX files, read page by page (src/adapters/ltx-vfs.ts).
+ * Cells on the LTX VFS: each cell is a SQLite database whose main file is its LTX files, read
+ * page by page (src/adapters/ltx-vfs.ts) from a store: a store worker of this worker's own (on
+ * OPFS, memory, or the app's FilesApi through a port or a module), or a store the app runs
+ * elsewhere (`ltxStore`).
  */
-async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number, files?: string) {
-  const store = new Worker(
-    new URL("../ltx/ltx-store-worker.ts", import.meta.url) /* `.js` in dist/ (scripts/build.mjs) */,
-    { type: "module" },
-  );
-  const sab = new SharedArrayBuffer(8 + 16 * 65536); // room for a read-ahead run of 64 KiB pages
-  // Wait until the store worker runs before any synchronous call: a nested worker is started
-  // (its script fetched) through this worker's event loop, which Atomics.wait would block.
-  const ready = new Promise<void>((resolve, reject) => {
-    store.addEventListener("message", (e) => e.data?.op === "ready" && resolve(), { once: false });
-    store.addEventListener("error", (e) => reject(new Error(`ltx store worker: ${e.message}`)));
-  });
-  store.postMessage({ op: "init", sab, dir, compactAfter, files });
-  await ready;
-  const { name } = installLtxVfs(sqlite3, { sab, post: (m) => store.postMessage(m) });
+export async function ltxOpener(
+  sqlite3: unknown,
+  dir: string,
+  compactAfter?: number,
+  files?: LtxStoreFiles,
+  ltxStore?: { sab: SharedArrayBuffer; port: MessagePort },
+) {
+  let sab: SharedArrayBuffer;
+  let post: (m: unknown) => void;
+  let release: () => void;
+  if (ltxStore) {
+    // The store runs elsewhere (serveLtxStore): only the VFS here.
+    sab = ltxStore.sab;
+    const port = ltxStore.port;
+    post = (m) => port.postMessage(m);
+    release = () => port.close();
+  } else {
+    const store = new Worker(
+      new URL(
+        "../ltx/ltx-store-worker.ts",
+        import.meta.url,
+      ) /* `.js` in dist/ (scripts/build.mjs) */,
+      { type: "module" },
+    );
+    sab = new SharedArrayBuffer(8 + 16 * 65536); // room for a read-ahead run of 64 KiB pages
+    // Wait until the store worker runs before any synchronous call: a nested worker is started
+    // (its script fetched) through this worker's event loop, which Atomics.wait would block.
+    const ready = new Promise<void>((resolve, reject) => {
+      store.addEventListener("message", (e) => {
+        if (e.data?.op === "ready") resolve();
+        else if (e.data?.op === "failed")
+          reject(new Error(`ltx store worker: ${e.data.error as string}`));
+      });
+      store.addEventListener("error", (e) => reject(new Error(`ltx store worker: ${e.message}`)));
+    });
+    // A port to the app's FilesApi moves on to the store worker.
+    const transfer = files && typeof files === "object" && "port" in files ? [files.port] : [];
+    store.postMessage({ op: "init", sab, dir, compactAfter, files }, transfer);
+    await ready;
+    post = (m) => store.postMessage(m);
+    release = () => store.terminate();
+  }
+  const { name } = installLtxVfs(sqlite3, { sab, post });
   const s3 = sqlite3 as { oo1: { DB: new (o: Record<string, unknown>) => any } };
   const open = (cellKey: string) => {
     const db = new s3.oo1.DB({ filename: cellKey, vfs: name, flags: "c" });
@@ -166,9 +205,7 @@ async function ltxOpener(sqlite3: unknown, dir: string, compactAfter?: number, f
     return new WasmSqliteDriver(db, undefined, undefined, (sqlite3 as { capi: never }).capi);
   };
   return Object.assign(open, {
-    release() {
-      store.terminate();
-    },
+    release,
     reserve: async (n: number) => n,
   });
 }
@@ -252,7 +289,13 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
   // With an IndexedDB bucket, cells live in memory and in the bucket's logs (no OPFS pool).
   const openSql =
     opts.bucket && "ltx" in opts.bucket
-      ? await ltxOpener(opts.sqlite3, opts.bucket.ltx, opts.bucket.compactAfter, opts.bucket.files)
+      ? await ltxOpener(
+          opts.sqlite3,
+          opts.bucket.ltx,
+          opts.bucket.compactAfter,
+          opts.bucket.files,
+          opts.bucket.ltxStore,
+        )
       : opts.bucket && "idb" in opts.bucket
         ? Object.assign(wasmMemoryOpener(opts.sqlite3 as never), {
             release() {},

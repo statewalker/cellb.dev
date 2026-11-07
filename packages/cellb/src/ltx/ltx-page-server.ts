@@ -28,6 +28,34 @@ async function room(): Promise<number | undefined> {
   return quota === undefined ? undefined : quota - usage;
 }
 
+/**
+ * Where the store's FilesApi comes from. An instance cannot cross to this worker, so it is:
+ * - a preset by name, on OPFS directory `dir`: "opfs-sync" (default: synchronous handles; each
+ *   file written under a temporary name and moved into place, so a file being written is never
+ *   read), "opfs" (OPFS's asynchronous API), "memory" (nothing kept);
+ * - `{ port }`: a FilesApi served elsewhere (`serveFilesApi`, on the page or in a worker of
+ *   the app's own): File System Access, IndexedDB, S3, anything;
+ * - `{ module, args }`: a module this worker imports, whose default export (or
+ *   `createFilesApi`) builds the FilesApi here from `args` (structured-cloneable: a
+ *   FileSystemDirectoryHandle, S3 settings…), and whose optional `room(args)` says the free
+ *   bytes there.
+ */
+export type LtxStoreFiles =
+  | "opfs"
+  | "opfs-sync"
+  | "memory"
+  | { port: MessagePort }
+  | { module: string; args?: unknown };
+
+export interface LtxStoreInit {
+  op: "init";
+  sab: SharedArrayBuffer;
+  /** The OPFS directory of a preset; else the name of the storage (the Web Locks' scope). */
+  dir: string;
+  compactAfter?: number;
+  files?: LtxStoreFiles;
+}
+
 export interface LtxStoreMessage {
   op: "meta" | "read" | "readRun" | "commit" | "stats";
   cell: string;
@@ -50,6 +78,13 @@ export function ltxCellStore(
      * stores of two directories (two projects in one tab) do not take each other's locks.
      */
     lockScope?: string;
+    /**
+     * Free bytes where the files are, checked before a compaction writes its snapshot beside
+     * the files it replaces; undefined: unknown, compact anyway. Defaults to this origin's
+     * storage estimate, which is right for OPFS only: give another FilesApi its own (or
+     * `async () => undefined`).
+     */
+    room?: () => Promise<number | undefined>;
   } = {},
 ) {
   const ctl = new Int32Array(sab, 0, 2);
@@ -89,6 +124,8 @@ export function ltxCellStore(
    * fails instead. (Across machines, celld's epochs and ownership records do this.)
    */
   const owned = new Set<string>();
+  /** Ends the held Web Locks (`close()`). */
+  const releases: (() => void)[] = [];
   const own = async (dir: string) => {
     const locks = (globalThis.navigator as { locks?: LockManager } | undefined)?.locks;
     if (!locks || owned.has(dir)) return;
@@ -101,7 +138,7 @@ export function ltxCellStore(
           { signal: AbortSignal.timeout(20_000) },
           () => {
             resolve(true);
-            return new Promise<void>(() => {}); // held while this store lives
+            return new Promise<void>((release) => releases.push(release)); // until close()
           },
         )
         .catch(() => resolve(false));
@@ -115,7 +152,12 @@ export function ltxCellStore(
       const first = !owned.has(dir);
       await own(dir);
       const paths = await list(dir, first);
-      cells.set(cell, paths.length ? await openPagedCell(files, paths) : undefined);
+      const opened = paths.length ? await openPagedCell(files, paths) : undefined;
+      // An interrupted compaction's leftovers, which its snapshot covers: their space back.
+      if (first && opened?.superseded.length)
+        for (const p of opened.superseded) await files.remove(p).catch(() => false);
+      if (opened) opened.superseded = [];
+      cells.set(cell, opened);
     }
     return cells.get(cell);
   };
@@ -158,7 +200,7 @@ export function ltxCellStore(
       // The new snapshot exists beside the files it replaces until the swap: without the room
       // for it, the compaction would only fill the disk (and fail the commits after it).
       const needed = pageBytes(c);
-      const free = await room();
+      const free = await (opts.room ?? room)();
       if (free !== undefined && free < needed * 1.25 + (64 << 20)) {
         console.warn(
           `cellb ltx-store: ${cell}: no compaction, ${Math.round(free / 1e6)} MB free for a snapshot of up to ${Math.round(needed / 1e6)} MB`,
@@ -177,8 +219,12 @@ export function ltxCellStore(
       await new Promise<void>((resolve, reject) => {
         queue = queue.then(async () => {
           try {
-            for (const p of replaced) await files.remove(p);
+            // The snapshot in place FIRST, then the files it replaces removed: stopped between
+            // the two (a closed tab, a lost connection to a remote FilesApi), the cell still
+            // opens from the snapshot (openPagedCell skips the files it covers). The other
+            // order could leave only the `.tmp`, which the next open deletes: the cell lost.
             await files.move(tmp, final);
+            for (const p of replaced) await files.remove(p);
             cells.delete(cell);
             resolve();
           } catch (err) {
@@ -324,6 +370,16 @@ export function ltxCellStore(
      * own turn there to swap the files); answers the cell's file count after. */
     compact: (cell: string) => compact(cell),
     stats,
+    /**
+     * Stops the store: its Web Locks released (another store may open its cells), its open
+     * cells forgotten. A store in a worker of its own ends with the worker instead.
+     */
+    close() {
+      clearInterval(watchdog);
+      for (const release of releases.splice(0)) release();
+      owned.clear();
+      cells.clear();
+    },
     /** The paths of a cell's current files. */
     files: async (cell: string) => (await cellOf(cell))?.files.map((f) => f.path) ?? [],
   };
