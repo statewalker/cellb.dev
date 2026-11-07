@@ -272,4 +272,66 @@ describe("the LTX store on the app's FilesApi", () => {
     const call2 = caller(sab, (m) => second.handle(m));
     await expectPages(call2, 2);
   });
+
+  it("does not keep a commit the VFS gave up on", async () => {
+    const files = new MemFilesApi();
+    let hold = false;
+    let entered!: () => void;
+    let release!: () => void;
+    const inWrite = new Promise<void>((r) => (entered = r));
+    const gate = new Promise<void>((r) => (release = r));
+    const slow: FilesApi = Object.assign(Object.create(files), {
+      async write(path: string, content: AsyncIterable<Uint8Array>) {
+        if (hold) {
+          hold = false;
+          entered();
+          await gate;
+        }
+        return files.write(path, content);
+      },
+    });
+    const sab = new SharedArrayBuffer(8 + 16 * 65536);
+    const store = ltxCellStore(slow, sab, { autoCompact: false, room: async () => undefined });
+    cleanups.push(() => void store.close());
+    const call = caller(sab, (m) => store.handle(m));
+    await commitMany(call, 2);
+    // A commit stalls on the storage; the VFS gives up (SQLite rolls it back) and goes on.
+    hold = true;
+    call.abandon({
+      op: "commit",
+      pageSize: PAGE,
+      pageCount: 9,
+      pages: [[9, page(99)]],
+    });
+    await inWrite;
+    const meta = call({ op: "meta" });
+    release();
+    expect(JSON.parse(new TextDecoder().decode(await meta))).toEqual({
+      pageSize: PAGE,
+      pageCount: 3,
+    });
+    expect(await ltxFiles(files)).not.toContain("0000000000000003-0000000000000003.ltx");
+    await commitMany(call, 1, 2); // takes TXID 3 itself
+    await expectPages(call, 2);
+  });
+
+  it("does not keep a commit finished too late for the VFS to still be waiting", async () => {
+    const files = new MemFilesApi();
+    const sab = new SharedArrayBuffer(8 + 16 * 65536);
+    const store = ltxCellStore(files, sab, { autoCompact: false, room: async () => undefined });
+    cleanups.push(() => void store.close());
+    const call = caller(sab, (m) => store.handle(m));
+    await commitMany(call, 2);
+    await expect(
+      call({
+        op: "commit",
+        pageSize: PAGE,
+        pageCount: 9,
+        pages: [[9, page(99)]],
+        until: Date.now() + 500, // inside the store's one-second margin: too late
+      } as Omit<LtxStoreMessage, "cell">),
+    ).rejects.toThrow(/not kept/);
+    expect(await ltxFiles(files)).toHaveLength(2);
+    await expectPages(call, 1);
+  });
 });

@@ -187,13 +187,15 @@ export async function openPagedCell(files: FilesApi, paths: string[]): Promise<P
     ),
   );
   const opened: LtxPages[] = [];
+  const skipped: unknown[] = [];
   for (const r of settled) {
     if ("f" in r) opened.push(r.f);
     // A snapshot that does not open (a compaction's move done as a copy, cut short): the
     // files it was made from are all still there, so the cell is read from them.
-    else if (/(^|\/)0{15}1-[0-9a-f]{16}\.ltx$/.test(r.p))
+    else if (/(^|\/)0{15}1-[0-9a-f]{16}\.ltx$/.test(r.p)) {
       console.warn(`cellb ltx: skipping ${r.p}, which does not open:`, r.error);
-    else throw r.error;
+      skipped.push(r.error);
+    } else throw r.error;
   }
   // By maxTXID; at the same maxTXID, a snapshot (minTXID 1) after the incremental file it
   // folded in: a compaction interrupted between writing its snapshot and removing the files it
@@ -213,7 +215,8 @@ export async function openPagedCell(files: FilesApi, paths: string[]): Promise<P
   opened.forEach((f, i) => {
     if (f.header.minTXID === 1n) snapshotAt = i;
   });
-  if (snapshotAt < 0) throw new Error("ltx: no snapshot among the cell's files");
+  // No other snapshot to read the cell from: the skipped one's own error is the reason.
+  if (snapshotAt < 0) throw skipped[0] ?? new Error("ltx: no snapshot among the cell's files");
   const chain = opened.slice(snapshotAt);
   /** Files the newest snapshot covers (left by an interrupted compaction): not read. */
   const superseded = opened.slice(0, snapshotAt).map((f) => f.path);

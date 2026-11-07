@@ -128,6 +128,7 @@ export function ltxCellStore(
   const releases: (() => void)[] = [];
   /** Set by `close()`: no request served, no lock taken, no swap made after it. */
   let closed = false;
+  const closing = new AbortController();
   const own = async (dir: string) => {
     if (closed) throw new Error("ltx: the store is closed");
     const locks = (globalThis.navigator as { locks?: LockManager } | undefined)?.locks;
@@ -138,7 +139,7 @@ export function ltxCellStore(
       void locks
         .request(
           `cellb-ltx:${opts.lockScope ?? ""}:${dir}`,
-          { signal: AbortSignal.timeout(20_000) },
+          { signal: AbortSignal.any([AbortSignal.timeout(20_000), closing.signal]) },
           () => {
             resolve(true);
             // Held until close(); one granted after close() (a request was waiting) goes at once.
@@ -175,6 +176,13 @@ export function ltxCellStore(
    * late answer instead of reading it as the next one's.
    */
   let answering = 0;
+  /**
+   * The number of the newest request received (set as it arrives, before its turn in the
+   * queue). The VFS has one request in flight unless it gave up on one, so a request whose
+   * number is not the newest was abandoned: not served, and a commit not kept (SQLite rolled
+   * that transaction back when the VFS reported the failure).
+   */
+  let newestSeq: number | undefined;
   const answer = (bytes: Uint8Array, state = 1) => {
     payload.set(bytes);
     ctl[1] = bytes.length;
@@ -226,6 +234,7 @@ export function ltxCellStore(
         );
         return c.files.length;
       }
+      if (closed) throw new Error("ltx: the store closed during a compaction");
       const frozen = await openPagedCell(files, replaced);
       const final = `${dir}/${ltxFileName(1n, frozen.maxTXID)}`;
       const tmp = `${final}.tmp`;
@@ -275,8 +284,11 @@ export function ltxCellStore(
 
   return {
     /** Answers one request of a VFS (requests are served in order). */
-    handle(msg: LtxStoreMessage & { seq?: number }) {
+    handle(msg: LtxStoreMessage & { seq?: number; until?: number }) {
+      if (msg.seq !== undefined) newestSeq = msg.seq;
+      const abandoned = () => msg.seq !== undefined && msg.seq !== newestSeq;
       queue = queue.then(async () => {
+        if (abandoned()) return;
         answering = msg.seq ?? 0;
         if (closed) return answer(enc.encode("ltx: the store is closed"), 2);
         Object.assign(current, {
@@ -350,6 +362,15 @@ export function ltxCellStore(
               ),
             );
             const t1 = performance.now();
+            // Given up on while it was written (a newer request came), or written too late
+            // for the VFS to still be waiting (its `until`, less a second for the append and
+            // the answer): not a transaction of the cell, since SQLite rolled it back.
+            const late = msg.until !== undefined && Date.now() > msg.until - 1000;
+            if (abandoned() || late) {
+              await files.remove(path).catch(() => false);
+              if (abandoned()) return;
+              throw new Error(`ltx: commit of ${msg.cell} took too long; not kept`);
+            }
             stage("append");
             // The first commit is the snapshot; later ones extend the overlay by one file.
             if (c) await c.append(path, { header: { flags: 2, ...header }, index: written.index });
@@ -400,6 +421,7 @@ export function ltxCellStore(
      */
     async close() {
       closed = true;
+      closing.abort(); // a request waiting for a cell's Web Lock stops waiting
       // What is under way ends first (a compaction's swap is refused), then the locks go.
       await Promise.allSettled([queue, ...compacting.values()]);
       await queue.catch(() => {});

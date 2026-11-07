@@ -52,15 +52,20 @@ export function installLtxVfs(
     seq = (seq % 0x1fffffff) + 1;
     Atomics.store(ctl, 0, 0);
     const t = performance.now();
-    channel.post({ ...msg, seq });
+    // `until` (wall clock, which both threads share): a commit the store could only finish
+    // near it is not kept, since this worker may already have given up on it.
+    channel.post({ ...msg, seq, until: Date.now() + 30_000 });
     // A store that never answers (a worker that failed to load) must not freeze this worker.
     const deadline = t + 30_000;
     let word = 0;
     for (;;) {
       const left = deadline - performance.now();
-      if (left <= 0 || Atomics.wait(ctl, 0, 0, left) === "timed-out")
-        throw new Error(`ltx store: no answer to ${String(msg.op)} in 30 s`);
+      if (left > 0) Atomics.wait(ctl, 0, 0, left);
       word = Atomics.load(ctl, 0);
+      // Out of time: unless this request's answer is there now, it is abandoned (the store
+      // does not keep a commit past `until`, nor serve a request once a newer one came).
+      if (performance.now() >= deadline && word >>> 2 !== seq)
+        throw new Error(`ltx store: no answer to ${String(msg.op)} in 30 s`);
       if (word >>> 2 === seq) break;
       // An answer to an earlier request (given up on): not this one's; wait on.
       Atomics.compareExchange(ctl, 0, word, 0);

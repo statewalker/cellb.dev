@@ -122,6 +122,15 @@ describe("FilesApi over a MessagePort (files-rpc)", () => {
     ).rejects.toThrow();
   });
 
+  it("forwards a streamed read's signal", async () => {
+    const { files, client } = remote();
+    await files.write("/s.txt", [enc.encode("abc")]);
+    const ac = new AbortController();
+    expect(await text(client.read("/s.txt", { signal: ac.signal }))).toBe("abc");
+    ac.abort();
+    await expect(text(client.read("/s.txt", { signal: ac.signal }))).rejects.toThrow();
+  });
+
   it("rejects with the serving side's error", async () => {
     const failing = Object.assign(new MemFilesApi(), {
       async stats(): Promise<never> {
