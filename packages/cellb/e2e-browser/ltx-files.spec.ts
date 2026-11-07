@@ -3,8 +3,8 @@ import { expect, test } from "@playwright/test";
 // The app's own FilesApi (in memory on the page), opened before cellb's workers start: cells on
 // the LTX VFS write their LTX files into it, and a later shard worker reads them back, with
 // the store in a worker of its own (the FilesApi over a port) or on the page.
-for (const store of ["worker", "page"] as const)
-  test(`LTX cells on the app's FilesApi (store on the ${store})`, async ({ page }) => {
+for (const store of ["worker", "page", "module"] as const)
+  test(`LTX cells on the app's FilesApi (${store})`, async ({ page }) => {
     await page.goto(`/labs/ltx-files.html?store=${store}`);
     await page.waitForFunction(() => document.body.dataset.ready === "true");
     const first = await page.evaluate(() =>

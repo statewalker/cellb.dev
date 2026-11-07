@@ -7,7 +7,7 @@ import { ltxOpener } from "../../../src/project/browser-host.ts";
 
 self.onmessage = async (e: MessageEvent) => {
   const { files, ltxStore, sql } = e.data as {
-    files?: { port: MessagePort };
+    files?: { port: MessagePort } | { module: string; args?: unknown };
     ltxStore?: { sab: SharedArrayBuffer; port: MessagePort };
     sql: string[];
   };
