@@ -2,8 +2,9 @@
 //
 //   src/generated/examples.json        one entry per scenario: its sources, requests and the
 //                                      responses celld (or workerd) recorded
-//   public/examples/<project>.json     the project ready for a browser: its wrangler config, its
-//                                      `main` bundled by bundleWorkerForBrowser, its asset files
+//   public/built/<project>/            the project as `cellb build` writes it (buildProject):
+//                                      wrangler.json, worker.js, assets/ and cellb.json, which the
+//                                      pages load with the browser's loadProject
 //   public/vendor/sqlite-vec/          SQLite WASM with sqlite-vec, for the `vectordb` example
 //
 // Run by `pnpm dev` and `pnpm build` (predev, prebuild) with tsx, which reads cellb's TypeScript
@@ -14,6 +15,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -25,11 +27,7 @@ import {
   type Step,
   scenarios,
 } from "../../packages/cellb/conformance/scenarios.ts";
-import { bundleWorkerForBrowser } from "../../packages/cellb/src/project/browser-bundle.ts";
-import {
-  readAssetDirectory,
-  readWranglerConfig,
-} from "../../packages/cellb/src/project/node-project.ts";
+import { buildProject } from "../../packages/cellb/src/project/build.ts";
 
 const SITE = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CONFORMANCE = resolve(SITE, "../packages/cellb/conformance");
@@ -129,25 +127,11 @@ for (const f of ["sqlite3.mjs", "sqlite3.wasm"])
   copyFileSync(join(vec, f), join(SITE, "public/vendor/sqlite-vec", f));
 
 const bundles = new Map<string, Promise<void>>();
-mkdirSync(join(SITE, "public/examples"), { recursive: true });
+rmSync(join(SITE, "public/built"), { recursive: true, force: true });
 mkdirSync(join(SITE, "src/generated"), { recursive: true });
 
 async function writeBundle(project: string, dir: string) {
-  const config = readWranglerConfig(dir);
-  const nodeCompat = (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
-  const code = config.main
-    ? await bundleWorkerForBrowser(resolve(dir, config.main), { nodeCompat })
-    : null;
-  const assets: [string, string][] = config.assets?.directory
-    ? [...readAssetDirectory(resolve(dir, config.assets.directory))].map(([p, b]) => [
-        p,
-        Buffer.from(b).toString("base64"),
-      ])
-    : [];
-  writeFileSync(
-    join(SITE, "public/examples", `${project}.json`),
-    JSON.stringify({ name: project, config, code, assets }),
-  );
+  await buildProject(dir, join(SITE, "public/built", project));
 }
 
 const entries = [];

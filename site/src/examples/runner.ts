@@ -1,12 +1,10 @@
 /// <reference lib="webworker" />
-// Runs one example in its Dedicated Worker (started by run-worker.ts): the project as
-// scripts/build-examples.ts bundled it, on cellb's browser host (SQLite WASM on OPFS), with the
-// requests of its conformance scenario. The page compares the answers with the ones celld recorded.
+// Runs one example in its Dedicated Worker (started by run-worker.ts): loadProject loads the
+// project as scripts/build-examples.ts built it (`cellb build`, at /built/<project>/) and runs it on
+// CellB (SQLite WASM on OPFS); then the worker sends the requests of its conformance scenario. The page compares the answers with the ones celld recorded.
 
-import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { createWebSocketClass, type WranglerConfig } from "@statewalker/cellb";
-import { browserProjectRuntime } from "@statewalker/cellb/browser";
-import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url";
+import { loadProject } from "@statewalker/cellb/browser";
 import {
   formatLog,
   normalizeLogs,
@@ -16,13 +14,6 @@ import {
   withContentLength,
 } from "../../../packages/cellb/conformance/scenarios";
 import { REFERENCE_SERVER } from "./reference-server";
-
-export interface ExampleBundle {
-  name: string;
-  config: WranglerConfig;
-  code: string | null;
-  assets: [string, string][];
-}
 
 export type RunMessage =
   | { type: "request"; label: string }
@@ -59,27 +50,18 @@ for (const m of ["log", "info", "warn", "error", "debug"] as const) {
   };
 }
 
-export async function handle(e: MessageEvent<{ scenario: string; bundle: ExampleBundle }>) {
-  const { scenario: name, bundle } = e.data;
+export async function handle(e: MessageEvent<{ scenario: string; url: string }>) {
+  const { scenario: name, url } = e.data;
   const run = `${PREFIX}${Date.now().toString(36)}`;
   try {
     await removeLeftovers();
-    const vec = bundle.config.compatibility_flags?.includes("sqlite_vec");
-    // sqlite_vec needs a SQLite WASM build with sqlite-vec compiled in.
-    const sqlite3 = vec
+    // sqlite_vec needs a SQLite WASM build with sqlite-vec compiled in; loadProject's default
+    // SQLite WASM has none.
+    const config = (await (await fetch(new URL("wrangler.json", url))).json()) as WranglerConfig;
+    const sqlite3 = config.compatibility_flags?.includes("sqlite_vec")
       ? await ((await import(/* @vite-ignore */ VEC_MODULE)).default as () => Promise<unknown>)()
-      : await (sqlite3InitModule as (o: object) => Promise<unknown>)({ print() {}, printErr() {} });
-    const host = await browserProjectRuntime({
-      config: bundle.config,
-      code: { bundle: bundle.code },
-      isolateScript: new URL(isolateWorker, import.meta.url),
-      sqlite3,
-      pool: run,
-      filesDir: `${run}-files`,
-      assetFiles: new Map(
-        bundle.assets.map(([p, b64]) => [p, Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))]),
-      ),
-    });
+      : undefined;
+    const host = await loadProject(url, { data: run, sqlite3 });
     const { runtime } = host;
     const WS = createWebSocketClass((url, p) => runtime.connectWebSocket(url, p));
     const target: Target = {

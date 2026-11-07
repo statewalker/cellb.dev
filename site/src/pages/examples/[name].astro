@@ -6,14 +6,7 @@ import Button from "@/components/ui/Button.astro";
 import Card from "@/components/ui/Card.astro";
 import Tabs from "@/components/ui/Tabs.astro";
 import Base from "@/layouts/Base.astro";
-import {
-  type Example,
-  exampleHref,
-  examples,
-  integration,
-  LOADER_ISSUE,
-  ORIGIN_LABEL,
-} from "@/lib/examples";
+import { type Example, exampleHref, examples, integration, ORIGIN_LABEL } from "@/lib/examples";
 
 export function getStaticPaths() {
   return examples.map((example) => ({ params: { name: example.name }, props: { example } }));
@@ -108,8 +101,10 @@ const sourceLabel =
         </div>
         <div class="space-y-3 p-5 text-sm">
           <p class="text-muted-foreground">
-            The button loads the project, already bundled for browsers, into a Dedicated Worker and
-            runs it on CellB with SQLite WASM on OPFS. Then it sends the requests below and puts
+            The button starts a Dedicated Worker that loads the project with
+            <code class="font-mono">loadProject</code>, from the folder
+            <code class="font-mono">cellb build</code> made when this site was built, and runs it
+            on CellB with SQLite WASM on OPFS. Then it sends the requests below and puts
             each answer next to the one {judge} gave to the same request.
             {e.seconds > 0 && <> The run takes about {e.seconds} s, as the script waits for timers to fire.</>}
             {e.needsServer && <> The project talks to a small reference server, which runs inside the worker here.</>}
@@ -127,22 +122,17 @@ const sourceLabel =
       <div class="space-y-3">
         <h2 class="text-2xl font-semibold tracking-tight">Run it in your app</h2>
         <p class="text-muted-foreground">
-          The same project folder runs in Node and in a browser. Node reads the folder and bundles the
-          Worker on load. A browser loads the Worker already bundled, so the folder is built once,
-          ahead of time.
-        </p>
-        <p class="text-sm text-muted-foreground">
-          <code class="font-mono">loadProject</code> and <code class="font-mono">cellb build</code> are
-          proposed in <a href={LOADER_ISSUE} class="text-primary hover:underline">issue #67</a> and not
-          released yet. The "today" tabs do the same with the functions CellB has now; this page uses
-          the browser one.
+          The same project folder runs in Node and in a browser, through one function,
+          <code class="font-mono text-sm">loadProject</code>. Node reads the folder and bundles the
+          Worker as it loads it. A browser loads the folder that
+          <code class="font-mono text-sm">cellb build</code> wrote ahead of time: this page does
+          exactly that when you press Run.
         </p>
       </div>
-      <Tabs labels={["Node", "Browser", "Node, today", "Browser, today"]}>
+      <Tabs labels={["Node", "Browser", "Build for browsers"]}>
         <CodeBlock slot="tab-0" title="node.ts" lang="ts" code={code.node} />
         <CodeBlock slot="tab-1" title="worker.ts" lang="ts" code={code.browser} />
-        <CodeBlock slot="tab-2" title="node.ts" lang="ts" code={code.nodeToday} />
-        <CodeBlock slot="tab-3" title="worker.ts" lang="ts" code={code.browserToday} />
+        <CodeBlock slot="tab-2" title="shell" lang="sh" code={code.build} />
       </Tabs>
     </div>
   </section>

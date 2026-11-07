@@ -22,7 +22,7 @@ pages' data; `pnpm --filter @statewalker/cellb-site examples` runs it alone.
 | `src/components/` | Header, Footer, Logo, ThemeToggle, CodeBlock (Shiki + copy), HeroVisual, LiveDemo, Showcase, Stats |
 | `src/layouts/` | `Base` (theme bootstrap, header/footer) and `Docs` (sidebar) |
 | `src/pages/` | Home, `/docs` (getting started), `/docs/how-it-works`, `/docs/from-sources`, `/docs/[...slug]` (the repository's Markdown), `/examples` and `/examples/<name>` |
-| `scripts/build-examples.ts` | Generates the example pages' data from `packages/cellb/conformance`: `src/generated/examples.json` (sources, requests, recorded answers) and `public/examples/<project>.json` (the project bundled for browsers). Both are generated, not committed |
+| `scripts/build-examples.ts` | Generates the example pages' data from `packages/cellb/conformance`: `src/generated/examples.json` (sources, requests, recorded answers) and `public/built/<project>/` (each project as `cellb build` writes it). Both are generated, not committed |
 | `src/examples/` | The example pages' runner: `run-worker.ts` runs a project in a Dedicated Worker, `reference-server.ts` stands in for the reference server two examples call, `page.ts` compares the answers |
 | `src/from-sources/` | The live demo of `/docs/from-sources`: a Hono project bundled in the browser by webrun-bundler and run on CellB |
 | `scripts/check-examples.mjs` | Opens every example page of `dist/` in Chromium, presses Run, and fails on an unexpected difference (run in `site.yml`) |
@@ -52,8 +52,9 @@ Examples: `/examples/<name>` has one page per conformance scenario (the 70 of
 `packages/cellb/conformance/scenarios.ts`). Each shows the project's files, links to its source
 (celld's repository for celld's examples), and runs it on CellB in a Dedicated Worker of the page,
 then puts each answer next to the one celld (or workerd) recorded. The names in the homepage's
-comparison table link to these pages. The snippets under "Run it in your app" use `loadProject`,
-the loader proposed in issue #67, next to today's functions.
+comparison table link to these pages. Each project is built
+with `buildProject` (the `cellb build` command) into `public/built/<project>/`, and the page's
+worker loads it with the browser's `loadProject`, as the "Run it in your app" snippets show.
 
 Docs: `/docs` (getting started: install, entry points, Node, browser, fleet) and
 `/docs/how-it-works` (ports, request path, gates, ownership, durability, loaded Workers) are

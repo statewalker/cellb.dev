@@ -33,10 +33,7 @@ export const ORIGIN_LABEL: Record<Example["origin"], string> = {
   workerd: "workerd's test",
 };
 
-/** The issue that proposes `loadProject` for Node and browsers. */
-export const LOADER_ISSUE = "https://github.com/statewalker/cellb.dev/issues/67";
-
-/** How to run a project, in the proposed API and in today's. */
+/** How to run a project in an app, as these pages run it in the browser. */
 export function integration(e: Example) {
   const first = e.steps.find((s) => /^[A-Z]+ \//.test(s));
   const path = first ? first.split(" ")[1].replace(/\{[^}]+\}/g, "") : "/";
@@ -51,39 +48,16 @@ const project = await loadProject("./${dir}", { data: "./data" });
 const res = await project.fetch(${req});
 console.log(res.status, await res.text());
 await project.close();`,
+    build: `# Once, on your machine or in CI: the folder a browser loads
+npx cellb build ./${dir} --out public/built/${dir}`,
     browser: `// In a Dedicated Worker
 import { loadProject } from "@statewalker/cellb/browser";
 
-// The same folder, built once for browsers: npx cellb build ./${dir} --out public/${dir}
-const project = await loadProject("/${dir}/", { data: "${dir}" });
+// The folder cellb build wrote, served by any static host (this page loads /built/${dir}/)
+const project = await loadProject("/built/${dir}/", { data: "${dir}" });
 
 const res = await project.fetch(${req});
 console.log(res.status, await res.text());
 await project.close();`,
-    nodeToday: `import { MemFilesApi } from "@statewalker/webrun-files-mem";
-import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
-
-const { runtime } = await loadNodeProject("./${dir}", {
-  openSql: nodeSqliteOpener("./data"), // one SQLite file per Durable Object
-  files: new MemFilesApi(),
-});
-const res = await runtime.fetch(${req});
-await runtime.close();`,
-    browserToday: `// In a Dedicated Worker. ${dir}.json holds the parsed wrangler.jsonc, the Worker bundled
-// on Node with bundleWorkerForBrowser, and the asset files (this page loads /examples/${dir}.json).
-import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { browserProjectRuntime } from "@statewalker/cellb/browser";
-
-const { config, code, assets } = await (await fetch("/examples/${dir}.json")).json();
-const { runtime, close } = await browserProjectRuntime({
-  config,
-  code: { bundle: code },
-  assetFiles: new Map(assets.map(([path, b64]) => [path, Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))])),
-  sqlite3: await sqlite3InitModule(),
-  pool: "${dir}", // the OPFS pool of the Durable Objects' databases
-  filesDir: "${dir}-files",
-});
-const res = await runtime.fetch(${req});
-await close();`,
   };
 }

@@ -1,4 +1,4 @@
-// The "Run it in this tab" panel of an example page: loads the bundled project, runs it in a
+// The "Run it in this tab" panel of an example page: loads the built project, runs it in a
 // Dedicated Worker (run-worker.ts) and shows each answer next to the recorded one.
 import {
   alignBrowserDifferences,
@@ -92,7 +92,6 @@ export function renderRun(root: HTMLElement) {
     const started = performance.now();
     try {
       status.textContent = "loading the project…";
-      const bundle = await (await fetch(`/examples/${project}.json`)).json();
       const w = new Worker(new URL("./run-worker.ts", import.meta.url), { type: "module" });
       worker = w;
       status.textContent = "starting CellB…";
@@ -103,7 +102,7 @@ export function renderRun(root: HTMLElement) {
           else if (m.data.type === "error") reject(new Error(m.data.error));
           else resolve(m.data);
         };
-        w.postMessage({ scenario: name, bundle });
+        w.postMessage({ scenario: name, url: new URL(`/built/${project}/`, location.href).href });
       });
       const ours = alignBrowserDifferences(
         alignDocumentedDifferences(done.transcript as Exchange[], recorded.transcript),

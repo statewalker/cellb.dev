@@ -11,15 +11,14 @@ import Card from "@/components/ui/Card.astro";
 import Tabs from "@/components/ui/Tabs.astro";
 import Base from "@/layouts/Base.astro";
 import { docHref } from "@/lib/docs";
-import { exampleByName, exampleHref, LOADER_ISSUE } from "@/lib/examples";
+import { exampleByName, exampleHref } from "@/lib/examples";
 import { REPO, repoFile } from "@/lib/site";
 import counterCode from "../../../packages/cellb/conformance/celld-examples/counter/index.js?raw";
 import counterTabs from "../demo/counter/tabs.ts?raw";
 import counterWrangler from "../demo/counter/wrangler.jsonc?raw";
 
 // --- Code samples ----------------------------------------------------------
-// loadProject is the loader proposed in issue #67 (LOADER_ISSUE); the other samples use the
-// functions CellB exports today (packages/cellb/README.md).
+// From packages/cellb/README.md: loadProject in both entry points, and a fleet node.
 
 const nodeExample = `import { loadProject } from "@statewalker/cellb/node";
 
@@ -40,39 +39,18 @@ const res = await project.fetch(new Request("http://localhost/increment?name=a")
 console.log(await res.json()); // {"n":1,…}, from SQLite in this origin's OPFS
 await project.close();`;
 
-const todayExample = `// Node
-const { runtime } = await loadNodeProject("./counter", {
-  openSql: nodeSqliteOpener("./data"),
-  files: new MemFilesApi(),
-});
-
-// Browser, in a Dedicated Worker: the Worker bundled ahead of time (bundleWorkerForBrowser)
-const { config, code } = await (await fetch("/counter.json")).json();
-const { runtime } = await browserProjectRuntime({
-  config,
-  code: { bundle: code },
-  sqlite3: await sqlite3InitModule(),
-  pool: "counter",
-  filesDir: "counter-files",
-});
-
-await runtime.fetch(new Request("http://localhost/increment?name=a"));`;
-
 const fleetExample = `import { celldBucket, s3ObjectStore } from "@statewalker/cellb";
-import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
-import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import { loadProject } from "@statewalker/cellb/node";
 
-// The same project on the bucket celld nodes use
-const { runtime } = await loadNodeProject("./counter", {
-  openSql: nodeSqliteOpener(), // each cell is restored from the bucket on first use
-  files: new MemFilesApi(),
-  storage: celldBucket(s3ObjectStore({ endpoint, bucket, region, accessKeyId, secretAccessKey }), {
+// The same project, on the bucket celld nodes use: each cell is restored from it on first use
+const project = await loadProject("./counter", {
+  bucket: celldBucket(s3ObjectStore({ endpoint, bucket, region, accessKeyId, secretAccessKey }), {
     node: "cellb-1",
   }),
 });
 
-await runtime.fetch(new Request("http://localhost/increment?name=a"));
-await runtime.close(); // releases the cells, so celld can take them at once`;
+await project.fetch(new Request("http://localhost/increment?name=a"));
+await project.close(); // releases the cells, so celld can take them at once`;
 
 // --- Content ---------------------------------------------------------------
 
@@ -498,17 +476,15 @@ const lifecycle = [
           </ul>
         </div>
         <div class="space-y-3">
-          <Tabs labels={["Node", "Browser", "Today's API", "Fleet with celld"]}>
+          <Tabs labels={["Node", "Browser", "Fleet with celld"]}>
             <CodeBlock slot="tab-0" title="node.ts" lang="ts" code={nodeExample} />
             <CodeBlock slot="tab-1" title="worker.ts" lang="ts" code={browserExample} />
-            <CodeBlock slot="tab-2" title="node.ts, worker.ts" lang="ts" code={todayExample} />
-            <CodeBlock slot="tab-3" title="node.ts" lang="ts" code={fleetExample} />
+            <CodeBlock slot="tab-2" title="node.ts" lang="ts" code={fleetExample} />
           </Tabs>
           <p class="text-sm text-muted-foreground">
-            <code class="font-mono">loadProject</code> and <code class="font-mono">cellb build</code>,
-            one loader for both platforms, are proposed in{" "}
-            <a href={LOADER_ISSUE} class="text-primary hover:underline">issue #67</a>. Until they
-            ship, the "Today's API" tab does the same.
+            A browser loads the folder <code class="font-mono">cellb build</code> writes: the
+            wrangler configuration, the Worker bundled for browsers, and the assets. Any static
+            host can serve it. Every <a href="/examples" class="text-primary hover:underline">example page</a> runs its project this way.
           </p>
         </div>
       </div>

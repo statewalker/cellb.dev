@@ -63,7 +63,7 @@ site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tok
 Two pnpm workspaces. The root one (`pnpm-workspace.yaml`) holds cellb and the website. The
 examples are private apps in a workspace of their own (`examples/pnpm-workspace.yaml`, its own
 lockfile) and use cellb as its users do: `@statewalker/cellb` from npm, at a released range
-(`~0.3.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
+(`~0.5.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
 cellb reaches the examples through a release: Dependabot raises the range, and its pull request
 runs them. Cellb's own storage labs (`ltx-lab`, `sqlite-lab`) are in
 `packages/cellb/e2e-browser`.
