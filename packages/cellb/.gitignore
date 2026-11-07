@@ -4,3 +4,4 @@ e2e-browser/pages/public/vendor
 test-results
 playwright-report
 dist
+e2e-browser/pages/public/built

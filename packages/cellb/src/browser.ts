@@ -5,6 +5,7 @@ export {
   type BrowserProjectOptions,
   browserProjectRuntime,
 } from "./project/browser-host.js";
+export { type BrowserLoadProjectOptions, loadProject } from "./project/browser-load.js";
 export {
   type ProjectShards,
   serveProjectShard,
@@ -18,4 +19,9 @@ export {
   type ServiceWorkerScope,
   shardOwner,
 } from "./project/browser-tabs.js";
+export type {
+  LoadedProject,
+  LoadProjectOptions,
+  ProjectSource,
+} from "./project/built-project.js";
 export { serviceWorkerConnector } from "./ws/sw-connector.js";

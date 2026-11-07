@@ -21,7 +21,15 @@ import * as workersModule from "./cloudflare-workers.js";
 import { siteModuleLoader, workersHostRegistry } from "./site-loader.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import * as workersGlobals from "./workers-globals-module.js";
-import { createProjectRuntime, loadTimeEnv, type WranglerConfig } from "./wrangler.js";
+import {
+  createProjectRuntime,
+  loadTimeEnv,
+  populatesProcessEnv,
+  processEnvOf,
+  type WranglerConfig,
+} from "./wrangler.js";
+
+export { populatesProcessEnv, processEnvOf };
 
 /**
  * Where a browser-hosted project keeps its cells when they must outlive the page or move to
@@ -95,9 +103,11 @@ export interface BrowserProjectOptions {
   /**
    * A Dedicated Worker script that serves one loaded Worker (`serveIsolate`): Worker Loader
    * code then runs isolated, one Dedicated Worker per loaded Worker, as celld's isolates.
-   * The package ships one: `@statewalker/cellb/isolate-worker`.
+   * The package ships one: `@statewalker/cellb/isolate-worker`. A function instead starts the
+   * Dedicated Worker itself (`() => new Worker(new URL(…, import.meta.url), { type: "module" })`,
+   * a form bundlers follow).
    */
-  isolateScript?: URL;
+  isolateScript?: URL | (() => Worker);
   /** An initialized SQLite WASM module (`@sqlite.org/sqlite-wasm`). */
   sqlite3: unknown;
   /** OPFS sahpool name for this host's SQLite files (one pool per worker). */
@@ -289,25 +299,4 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       openSql.release(); // the pool's files, for the next worker that opens it
     },
   };
-}
-
-/**
- * workerd fills `process.env` with the project's text `vars` under nodejs_compat from
- * compatibility date 2025-04-01 (`nodejs_compat_populate_process_env`), unless
- * `nodejs_compat_do_not_populate_process_env` is set. Frameworks read their settings there
- * (EmDash's `EMDASH_SITE_URL`, for one).
- */
-export function populatesProcessEnv(config: WranglerConfig): boolean {
-  const flags = config.compatibility_flags ?? [];
-  if (!flags.some((f) => f.startsWith("nodejs_compat"))) return false;
-  if (flags.includes("nodejs_compat_do_not_populate_process_env")) return false;
-  if (flags.includes("nodejs_compat_populate_process_env")) return true;
-  return (config.compatibility_date ?? "") >= "2025-04-01";
-}
-
-/** The text `vars` of a project, as `process.env` holds them. */
-export function processEnvOf(config: WranglerConfig): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [k, v] of Object.entries(config.vars ?? {})) if (typeof v === "string") env[k] = v;
-  return env;
 }
