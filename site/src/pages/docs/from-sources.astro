@@ -1,0 +1,238 @@
+---
+import CodeBlock from "@/components/CodeBlock.astro";
+import Docs from "@/layouts/Docs.astro";
+import { docHref } from "@/lib/docs";
+import { repoFile } from "@/lib/site";
+import { files } from "../../from-sources/project";
+
+const WEBRUN_SITES = "https://github.com/statewalker/webrun-sites/tree/main/packages";
+
+const bundlerCode = `import * as esbuild from "esbuild-wasm";
+import { bundle, npmPackages } from "@statewalker/webrun-bundler";
+import { CELLS_GLOBALS_MODULE, cellbHostModule } from "@statewalker/cellb/host-modules";
+import { browserProjectRuntime } from "@statewalker/cellb/browser";
+
+await esbuild.initialize({ wasmURL: "/esbuild.wasm" });
+
+const { code } = await bundle({
+  esbuild,
+  files,                       // a FilesApi with the project: memory, OPFS, a folder the user picked
+  entry: "/src/index.ts",
+  packages: npmPackages(),     // bare imports from the npm registry, at package.json's ranges
+  modules: cellbHostModule,    // cloudflare:workers and node:* as CellB provides them
+  inject: [CELLS_GLOBALS_MODULE], // the runtime's Response, WebSocketPair…
+  conditions: ["workerd", "worker", "browser"],
+});
+
+const { runtime } = await browserProjectRuntime({
+  config,                      // the parsed wrangler.jsonc
+  code: { bundle: code },
+  sqlite3, pool: "my-app", filesDir: "my-app-files",
+});`;
+
+const modulesCode = `// On the page: an HTTP server inside the browser, mounted by a ServiceWorker
+import { HostedSiteBuilder } from "@statewalker/webrun-site-host";
+import { createProjectSite } from "@statewalker/cellb/site";
+
+const site = await new HostedSiteBuilder()
+  .setSiteKey("my-app")
+  .setHandler(createProjectSite({ projectFiles })) // projectFiles: a FilesApi with the sources
+  .build();
+// site.baseUrl is now e.g. https://example.com/my-app/
+
+// In a Dedicated Worker: the browser imports the Worker from that server, module by module
+const { runtime } = await browserProjectRuntime({
+  config,
+  code: { site: site.baseUrl },
+  sqlite3, pool: "my-app", filesDir: "my-app-files",
+});`;
+---
+
+<Docs title="Running from sources" description="How CellB runs a Workers project from its TypeScript sources and npm imports, in the browser, without building it first.">
+  <h1>Running apps from their sources</h1>
+  <p>
+    A Workers project is usually bundled before it runs: <code>wrangler deploy</code> and
+    <code>celld deploy</code> do it on your machine, and the example pages of this site load
+    bundles made when the site was built. In a browser, CellB can also start from the sources
+    themselves: TypeScript files that import npm packages by name, as you write them in an editor.
+    The compiling happens in the browser, when the project is loaded.
+  </p>
+  <p>
+    Two packages do this compiling, in two different ways. Both come from the{" "}
+    <a href="https://github.com/statewalker/webrun-sites">webrun-sites</a> repository and read the
+    project through a <code>FilesApi</code> (a small file system interface with implementations for
+    memory, OPFS, a folder the user picked, S3 and Node), so the sources can live anywhere.
+  </p>
+  <ul>
+    <li><a href={`${WEBRUN_SITES}/webrun-bundler`}>webrun-bundler</a> builds one bundle, in a worker, with esbuild-wasm.</li>
+    <li><a href={`${WEBRUN_SITES}/webrun-modules`}>webrun-modules</a> builds nothing ahead: it compiles each module when the browser asks for it.</li>
+  </ul>
+
+  <h2>webrun-bundler: one bundle, made in the browser</h2>
+  <p>
+    esbuild compiles to WebAssembly, so it runs in a Dedicated Worker. But esbuild-wasm cannot
+    read files by itself. webrun-bundler is an esbuild plugin that does the reading: it resolves each
+    import (relative paths, <code>package.json</code> <code>exports</code> and
+    <code>imports</code>, <code>index</code> files) and loads the file from the FilesApi. Packages
+    come from a <code>node_modules</code> folder in the FilesApi if there is one, and otherwise
+    from the npm registry: the tarball is downloaded, unpacked in memory and read like any other
+    folder, at the version range the importing <code>package.json</code> declares.
+  </p>
+  <p>
+    TypeScript, JSX and CommonJS are converted in that one esbuild pass, and the source maps of
+    published packages are kept, so a stack trace points into the package's own sources.
+  </p>
+  <p>
+    To run the bundle on CellB, the bundler needs to know which modules CellB provides itself.
+    <code>@statewalker/cellb/host-modules</code> gives their sources:
+    <code>cloudflare:workers</code> (CellB's <code>DurableObject</code>,
+    <code>WorkerEntrypoint</code> and the project's <code>env</code>), the <code>node:*</code>
+    modules for <code>nodejs_compat</code>, and a <code>cells:globals</code> module whose exports
+    replace globals such as <code>Response</code> and <code>WebSocketPair</code>. The bundle
+    then goes to <code>browserProjectRuntime</code> exactly as one built on Node would.
+  </p>
+  <CodeBlock lang="ts" title="worker.ts" code={bundlerCode} />
+  <p>
+    The <a href={docHref("examples/astro-in-browser/README.md")}>Astro built in a tab</a> example
+    uses this to build EmDash, a whole Astro CMS, in a browser tab, and then serves it on CellB.
+  </p>
+
+  <h2>webrun-modules: no bundle, a module server</h2>
+  <p>
+    webrun-modules takes the opposite approach. It is a module server: a
+    <code>(Request) ⇒ Response</code> handler that answers each module URL with that file turned
+    into browser ESM. A TypeScript file is transpiled when it is requested. A bare import such as
+    <code>"hono"</code> is rewritten to a local URL like <code>/hono@4.6.3/dist/index.js</code>,
+    and the first request for it downloads the package from npm and caches the converted files in a
+    FilesApi. After that nothing comes from a third party, and the cache works offline.
+  </p>
+  <p>
+    Because the result is plain URLs, the browser's own module loader does the rest: CellB calls
+    <code>import()</code> on the project's <code>main</code>, and the browser fetches every module
+    it imports. Modules the host provides are not files: webrun-modules serves a small proxy module
+    for each of them, which reads the real object from the realm that imports it. That is how
+    <code>cloudflare:workers</code> and the Workers globals reach CellB's runtime.
+  </p>
+  <p>
+    The module server needs to answer requests the browser makes, so it runs behind a ServiceWorker:
+    webrun-site-builder turns it into a site (<code>createProjectSite</code> adds the routes CellB
+    needs, Worker Loader code included), and webrun-site-host mounts that site under a path of the
+    page's origin.
+  </p>
+  <CodeBlock lang="ts" title="page.ts, worker.ts" code={modulesCode} />
+  <p>
+    CellB's browser test suite runs every conformance project this way, from its sources
+    (<a href={repoFile("packages/cellb/e2e-browser/site-projects.spec.ts")}>site-projects.spec.ts</a>).
+  </p>
+
+  <h2>Which one to use</h2>
+  <table>
+    <thead><tr><th></th><th>webrun-bundler</th><th>webrun-modules</th></tr></thead>
+    <tbody>
+      <tr><td>What it makes</td><td>One ES module, the whole project</td><td>One URL per module, compiled on request</td></tr>
+      <tr><td>Needs</td><td>esbuild-wasm (about 14 MB of WebAssembly) in a worker</td><td>A ServiceWorker on the page's origin</td></tr>
+      <tr><td>First start</td><td>All the work at once: a full build</td><td>Spread out: modules compile as they are imported</td></tr>
+      <tr><td>After an edit</td><td>Rebuild the bundle</td><td>Only the changed file is compiled again</td></tr>
+      <tr><td>The result</td><td>A file you can store, ship and load elsewhere, in Node too</td><td>Lives in the page's module server</td></tr>
+      <tr><td>Used by</td><td>Astro built in a tab, the example below</td><td><code>createProjectSite</code>, CellB's site-projects tests</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Try it</h2>
+  <p>
+    The project below is a Hono app with a Durable Object, written in TypeScript. The button sends
+    the three files to a Dedicated Worker, which bundles them with webrun-bundler (fetching Hono
+    from npm, at the range in <code>package.json</code>) and starts the bundle on CellB with SQLite
+    WASM on OPFS. You can edit <code>src/index.ts</code> and build again.
+  </p>
+
+  <div class="not-prose my-6 space-y-3" data-sources>
+    <div class="overflow-hidden rounded-xl border">
+      <div class="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
+        <span class="font-mono text-xs text-muted-foreground">hello-hono/src/index.ts</span>
+        <button type="button" data-sources-build class="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+          Build and run
+        </button>
+      </div>
+      <textarea data-sources-file="src/index.ts" spellcheck="false" rows="26" class="block w-full resize-y bg-code p-4 font-mono text-[13px] leading-6 text-code-foreground outline-none">{files["src/index.ts"]}</textarea>
+    </div>
+    <details class="rounded-xl border px-4 py-2 text-sm">
+      <summary class="cursor-pointer font-mono text-xs text-muted-foreground">wrangler.jsonc, package.json</summary>
+      <textarea data-sources-file="wrangler.jsonc" spellcheck="false" rows="10" class="mt-2 block w-full rounded-md bg-code p-3 font-mono text-[12px] leading-5 text-code-foreground outline-none">{files["wrangler.jsonc"]}</textarea>
+      <textarea data-sources-file="package.json" spellcheck="false" rows="7" class="my-2 block w-full rounded-md bg-code p-3 font-mono text-[12px] leading-5 text-code-foreground outline-none">{files["package.json"]}</textarea>
+    </details>
+    <form data-sources-form class="flex gap-2">
+      <div class="flex h-9 min-w-0 flex-1 items-center rounded-md border bg-background px-3 font-mono text-sm">
+        <span class="text-muted-foreground">GET</span>
+        <input name="path" value="/hello/ada" class="ml-2 min-w-0 flex-1 bg-transparent outline-none" autocomplete="off" spellcheck="false" aria-label="Request path" />
+      </div>
+      <button type="submit" disabled data-sources-send class="inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium hover:bg-accent disabled:opacity-50">Send</button>
+    </form>
+    <ol data-sources-log class="min-h-24 space-y-1 rounded-xl border bg-muted/40 p-4 font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">
+      <li>Nothing built yet.</li>
+    </ol>
+  </div>
+  <p>
+    Each name in <code>/hello/:name</code> is its own Durable Object with its own database. The
+    sources of this demo are in the site's repository:{" "}
+    <a href={repoFile("site/src/from-sources/worker.ts")}>worker.ts</a> and{" "}
+    <a href={repoFile("site/src/from-sources/project.ts")}>project.ts</a>.
+  </p>
+</Docs>
+
+<script>
+  import type { FromWorker, ToWorker } from "../../from-sources/worker";
+
+  const root = document.querySelector<HTMLElement>("[data-sources]")!;
+  const build = root.querySelector<HTMLButtonElement>("[data-sources-build]")!;
+  const send = root.querySelector<HTMLButtonElement>("[data-sources-send]")!;
+  const form = root.querySelector<HTMLFormElement>("[data-sources-form]")!;
+  const logEl = root.querySelector<HTMLElement>("[data-sources-log]")!;
+  let worker: Worker | undefined;
+
+  const log = (text: string, cls = "") => {
+    const li = document.createElement("li");
+    li.textContent = text;
+    li.className = cls;
+    logEl.append(li);
+  };
+  const post = (m: ToWorker) => worker!.postMessage(m);
+
+  function start() {
+    worker = new Worker(new URL("../../from-sources/worker.ts", import.meta.url), { type: "module" });
+    worker.onmessage = (e: MessageEvent<FromWorker>) => {
+      const m = e.data;
+      if (m.type === "log") log(m.text);
+      else if (m.type === "built") {
+        build.disabled = false;
+        send.disabled = false;
+        log("Ready: send a request.", "text-foreground");
+      } else if (m.type === "response")
+        log(`${m.status} ${m.contentType ?? ""}  ${m.body}`, "text-foreground whitespace-pre-wrap");
+      else {
+        build.disabled = false;
+        log(`Error: ${m.error}`, "text-destructive whitespace-pre-wrap");
+      }
+    };
+  }
+
+  build.addEventListener("click", () => {
+    if (!worker) start();
+    build.disabled = true;
+    send.disabled = true;
+    logEl.replaceChildren();
+    log("Building…");
+    const files: Record<string, string> = {};
+    root.querySelectorAll<HTMLTextAreaElement>("[data-sources-file]").forEach((t) => {
+      files[t.dataset.sourcesFile!] = t.value;
+    });
+    post({ type: "build", files });
+  });
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const path = String(new FormData(form).get("path") ?? "/");
+    log(`GET ${path}`);
+    post({ type: "fetch", path: path.startsWith("/") ? path : `/${path}` });
+  });
+</script>

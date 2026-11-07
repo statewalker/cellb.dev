@@ -1,0 +1,62 @@
+---
+import Badge from "@/components/ui/Badge.astro";
+import Card from "@/components/ui/Card.astro";
+import Base from "@/layouts/Base.astro";
+import { type Example, exampleHref, examples } from "@/lib/examples";
+
+const groups: { origin: Example["origin"]; title: string; body: string }[] = [
+  {
+    origin: "celld",
+    title: "celld's examples",
+    body: "The example projects in celld's repository, copied without changes. Each page links to the project in denoland/celld.",
+  },
+  {
+    origin: "cellb",
+    title: "CellB's probe projects",
+    body: "Projects written for CellB's conformance tests, for the API celld's examples do not reach: limits, errors, edge cases. They run on celld as well, and celld's answers are the expected ones.",
+  },
+  {
+    origin: "workerd",
+    title: "workerd's tests",
+    body: "Durable Object tests from Cloudflare's workerd repository, run inside a Worker on celld and on CellB.",
+  },
+];
+---
+
+<Base title="Examples · CellB" description="Every project CellB is checked against, runnable in your browser next to the answers celld recorded.">
+  <section class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+    <div class="max-w-3xl space-y-3">
+      <p class="font-mono text-sm text-primary">// examples</p>
+      <h1 class="text-4xl font-semibold tracking-tight">Run every example in your browser</h1>
+      <p class="text-muted-foreground">
+        These are the {examples.length} request scripts CellB is tested with. Each one ran on celld,
+        and its answers were recorded. On each page you can run the same project on CellB in this
+        tab and compare the answers line by line. The projects are bundled when the site is built,
+        so a run starts in a second or two.
+      </p>
+    </div>
+    {groups.map((g) => {
+      const list = examples.filter((e) => e.origin === g.origin);
+      return (
+        <div id={g.origin} class="mt-12 scroll-mt-20">
+          <h2 class="text-2xl font-semibold tracking-tight">{g.title}</h2>
+          <p class="mt-2 max-w-3xl text-sm text-muted-foreground">{g.body}</p>
+          <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {list.map((e) => (
+              <a href={exampleHref(e.name)} class="group">
+                <Card class="h-full p-4 transition-colors group-hover:border-primary/40">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-mono text-sm font-medium">{e.name}</span>
+                    {e.knownGap && <Badge variant="outline">known difference</Badge>}
+                    {e.judge === "workerd" && <Badge variant="outline">judged by workerd</Badge>}
+                  </div>
+                  <p class="mt-2 line-clamp-3 text-sm text-muted-foreground">{e.about}</p>
+                </Card>
+              </a>
+            ))}
+          </div>
+        </div>
+      );
+    })}
+  </section>
+</Base>

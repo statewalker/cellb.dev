@@ -19,9 +19,10 @@ on:
       - "site/**"
       # The "By the numbers" section reads the recorded benchmark runs at build time.
       - "packages/cellb/bench/results/**"
-      # The demo runs cellb from source on celld's counter example.
+      # The demo and the example pages run cellb from source on the conformance projects, and the
+      # example pages show their recorded answers (site/scripts/build-examples.ts).
       - "packages/cellb/src/**"
-      - "packages/cellb/conformance/celld-examples/counter/**"
+      - "packages/cellb/conformance/**"
       # Rendered as /docs/… pages (site/src/lib/docs.ts).
       - "packages/cellb/docs/**/*.md"
       - "packages/cellb/CONTEXT.md"
@@ -37,7 +38,7 @@ on:
       - "site/**"
       - "packages/cellb/bench/results/**"
       - "packages/cellb/src/**"
-      - "packages/cellb/conformance/celld-examples/counter/**"
+      - "packages/cellb/conformance/**"
       - "packages/cellb/docs/**/*.md"
       - "packages/cellb/CONTEXT.md"
       - "packages/cellb/bench/README.md"
@@ -72,6 +73,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build
         run: pnpm --filter @statewalker/cellb-site build
+      # Every example page, run in Chromium as a visitor runs it (about two minutes: `cron` waits
+      # for its trigger).
+      - run: pnpm --filter @statewalker/cellb-site exec playwright install --with-deps chromium
+      - name: Example pages
+        run: pnpm --filter @statewalker/cellb-site check:examples
 
       - name: Publish to https://${{ env.SITE_DOMAIN }}
         if: github.event_name != 'pull_request'

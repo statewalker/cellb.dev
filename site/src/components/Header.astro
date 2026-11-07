@@ -1,5 +1,6 @@
 ---
 import { REPO } from "@/lib/site";
+import cellb from "../../../packages/cellb/package.json";
 import Icon from "./Icon.astro";
 import Logo from "./Logo.astro";
 import ThemeToggle from "./ThemeToggle.astro";
@@ -9,6 +10,7 @@ const path = Astro.url.pathname;
 const nav = [
   { href: "/docs", label: "Docs" },
   { href: "/docs/how-it-works", label: "How it works" },
+  { href: "/examples", label: "Examples" },
   { href: "/#use-cases", label: "Use cases" },
   { href: "/#numbers", label: "Numbers" },
   { href: "/#compare", label: "vs celld" },
@@ -18,7 +20,7 @@ const nav = [
 <header class="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
   <div class="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:px-6">
     <Logo />
-    <Badge variant="outline" class="hidden font-mono text-[10px] sm:inline-flex">v0.1 · on npm</Badge>
+    <Badge variant="outline" class="hidden font-mono text-[10px] sm:inline-flex">v{cellb.version} · on npm</Badge>
     <nav class="hidden items-center gap-5 text-sm md:flex">
       {nav.map((item) => (
         <a

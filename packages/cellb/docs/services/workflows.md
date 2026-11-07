@@ -1,9 +1,9 @@
 # Workflows
 
-A `WorkflowEntrypoint` class whose `run(event, step)` is made of durable steps
-(`step.do`, `step.sleep`, `step.waitForEvent`), and a binding to create and inspect instances.
-CellB runs celld's own workflow engine (vendored unchanged), so an instance's state is celld's and a
-running or sleeping instance can move between celld and CellB.
+A Workflow is a `WorkflowEntrypoint` class whose `run(event, step)` is made of durable steps
+(`step.do`, `step.sleep`, `step.waitForEvent`), plus a binding to create and inspect instances.
+CellB runs celld's own workflow engine, vendored unchanged, so an instance's state has celld's
+format and a running or sleeping instance can move between celld and CellB.
 
 ```jsonc
 {
@@ -68,11 +68,11 @@ Each instance is a cell `__Workflow.<script>:<id>` holding celld's records (`__w
 per completed step, V8-serialized) and an alarm that wakes it for its next step. A completed step's
 result is stored, so a resumed instance does not run it again.
 
-`e2e/p11f-celld-one-bucket.test.ts` takes one instance across three runtimes through one bucket: its
-first step runs on celld, the step after its sleep on CellB, the step after its event on celld
-again, and none runs twice.
+`e2e/p11f-celld-one-bucket.test.ts` takes one instance across three runtimes through one bucket.
+Its first step runs on celld, the step after its sleep runs on CellB, and the step after its event
+runs on celld again. No step runs twice.
 
 ## How it is checked
 
 celld's `workflow` example and CellB's `workflow-api` project, on Node and in Chromium, and the
-celld → CellB → celld trip above.
+round trip through celld and CellB described above.

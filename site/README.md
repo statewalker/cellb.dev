@@ -7,7 +7,11 @@ sibling of [celld.dev](https://celld.dev). It is static; `dist/` can go to any s
 pnpm install                   # at the repository root
 pnpm --filter @statewalker/cellb-site dev      # http://localhost:4321
 pnpm --filter @statewalker/cellb-site build    # static output in site/dist/
+pnpm --filter @statewalker/cellb-site check:examples   # runs every example page in Chromium
 ```
+
+`dev` and `build` first run `scripts/build-examples.ts` (with tsx), which writes the example
+pages' data; `pnpm --filter @statewalker/cellb-site examples` runs it alone.
 
 ## Structure
 
@@ -17,7 +21,11 @@ pnpm --filter @statewalker/cellb-site build    # static output in site/dist/
 | `src/components/ui/` | shadcn-style primitives as Astro components: Button, Badge, Card |
 | `src/components/` | Header, Footer, Logo, ThemeToggle, CodeBlock (Shiki + copy), HeroVisual, LiveDemo, Showcase, Stats |
 | `src/layouts/` | `Base` (theme bootstrap, header/footer) and `Docs` (sidebar) |
-| `src/pages/` | Home, `/docs` (getting started), `/docs/how-it-works`, `/docs/[...slug]` (the repository's Markdown) |
+| `src/pages/` | Home, `/docs` (getting started), `/docs/how-it-works`, `/docs/from-sources`, `/docs/[...slug]` (the repository's Markdown), `/examples` and `/examples/<name>` |
+| `scripts/build-examples.ts` | Generates the example pages' data from `packages/cellb/conformance`: `src/generated/examples.json` (sources, requests, recorded answers) and `public/built/<project>/` (each project as `cellb build` writes it). Both are generated, not committed |
+| `src/examples/` | The example pages' runner: `run-worker.ts` runs a project in a Dedicated Worker, `reference-server.ts` stands in for the reference server two examples call, `page.ts` compares the answers |
+| `src/from-sources/` | The live demo of `/docs/from-sources`: a Hono project bundled in the browser by webrun-bundler and run on CellB |
+| `scripts/check-examples.mjs` | Opens every example page of `dist/` in Chromium, presses Run, and fails on an unexpected difference (run in `site.yml`) |
 | `src/lib/docs.ts` | Which repository Markdown files become which `/docs/…` pages; the sidebar and `docHref` read it |
 | `public/showcase/` | Screenshots from the examples' own test runs (`examples/emdash`, `examples/astro-in-browser`) |
 | `components.json` | shadcn CLI config, so React shadcn components can be added later (`@astrojs/react` + `npx shadcn add …`) |
@@ -35,10 +43,18 @@ The copy is drawn from this repository: the root README, `packages/cellb/README.
 | Use cases | IDE-class apps (VS Code/Theia-style plugin hosts), AI agents as DOs, sandboxed agent-written code, local-first apps, apps for people and agents, Workers without native binaries | examples/flue, examples/agents, Worker Loader docs |
 | Real apps | EmDash in a tab from static files; EmDash built from source in a tab; Flue, pi, opencode | examples/*/README.md |
 | Code | Node, browser and fleet examples (tabs) | package README |
-| Comparison | The full celld 0.6.3 / cellb Node / cellb browsers table, with 70/5/6 scenario counts | root README |
+| Comparison | The full celld 0.6.3 / cellb Node / cellb browsers table, with 70/5/6 scenario counts | root README; each check links to its example page (`src/lib/examples.ts`) |
 | Life of a cell | Take → run → log → move | ownership-and-durability.md |
 | By the numbers | celld.dev's rows (durability, speed, density and cost) for cellb on Node and Chromium, with footnotes | `packages/cellb/bench/results/*.json`, imported at build time |
 | Demo | celld's `counter` example, unchanged, on cellb shared by every open tab (`joinProjectShards`: the tabs split the project's shards, each a Dedicated Worker with SQLite WASM on OPFS; a ServiceWorker at `/cellb-demo-sw.js`, bundled by `integrations/demo-service-worker.mjs`, routes `/demo/counter/…` to the tab that runs the cell). `src/demo/counter/`: wrangler.jsonc and tabs.ts are shown beside it | browser-host.md, conformance/celld-examples/counter |
+
+Examples: `/examples/<name>` has one page per conformance scenario (the 70 of
+`packages/cellb/conformance/scenarios.ts`). Each shows the project's files, links to its source
+(celld's repository for celld's examples), and runs it on CellB in a Dedicated Worker of the page,
+then puts each answer next to the one celld (or workerd) recorded. The names in the homepage's
+comparison table link to these pages. Each project is built
+with `buildProject` (the `cellb build` command) into `public/built/<project>/`, and the page's
+worker loads it with the browser's `loadProject`, as the "Run it in your app" snippets show.
 
 Docs: `/docs` (getting started: install, entry points, Node, browser, fleet) and
 `/docs/how-it-works` (ports, request path, gates, ownership, durability, loaded Workers) are

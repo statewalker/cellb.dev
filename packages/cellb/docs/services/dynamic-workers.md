@@ -1,6 +1,6 @@
 # Dynamic Workers (Worker Loader)
 
-A `worker_loaders` binding runs code handed over at run time:
+A `worker_loaders` binding runs code that is handed over at run time.
 `env.LOADER.get(id, () => ({ compatibilityDate, mainModule, modules, env, … }))` returns a Worker
 whose entrypoints the caller uses as stubs. CellB runs each loaded Worker in a realm of its own.
 
@@ -58,8 +58,8 @@ export default {
 ```
 
 This is celld's `dynamic-worker-tails` example ([conformance/celld-examples/dynamic-worker-tails](../../conformance/celld-examples/dynamic-worker-tails/index.js)),
-copied unchanged and run by the conformance suite on Node and in Chromium: the loaded Worker's
-`console.log` reaches the Tail Worker named in `tails`.
+copied unchanged and run by the conformance suite on Node and in Chromium. The loaded Worker's
+`console.log` output reaches the Tail Worker named in `tails`.
 
 ## Where a loaded Worker runs
 
@@ -69,21 +69,23 @@ copied unchanged and run by the conformance suite on Node and in Chromium: the l
 | Browser, with `isolateScript` | a Dedicated Worker per loaded Worker (`@statewalker/cellb/isolate-worker`) |
 | Browser, without `isolateScript` | the realm of the project's worker, not isolated |
 
-In its own realm, a loaded Worker does not see the project's globals, and its `env` is what its
-`WorkerCode` declares: plain values are copied, bindings become stubs whose calls go back to the
-parent runtime. What this isolation does and does not protect is in [security.md](../security.md).
+In its own realm, a loaded Worker does not see the project's globals, and its `env` holds only what
+its `WorkerCode` declares. Plain values are copied, and bindings become stubs whose calls go back to
+the parent runtime. [Security & isolation](../security.md) explains what this isolation does and
+does not protect.
 
 ## What a loaded Worker can do
 
-- Modules are source (`js`), `text`, `json` or `wasm` bytes.
+- Modules can be source code (`js`), `text`, `json` or `wasm` bytes.
 - `globalOutbound: null` makes its global `fetch()` throw; a Fetcher as `globalOutbound` receives
   its fetches instead.
 - Its `ctx.exports` holds its own `WorkerEntrypoint` classes; `getEntrypoint(name, { props })`
   passes `props` to `ctx.props`.
 - Functions, `RpcTarget`s and stubs pass by reference into and out of it (in `env`, `props`,
-  arguments and results), as on workerd; celld refuses them.
+  arguments and results), as on workerd. celld refuses them.
 - A call's result is an RpcPromise: `stub.a().b()` sends `b` before `a()` settles.
-- Its Durable Object classes run as [facets](durable-object-facets.md), inside its realm.
+- Its Durable Object classes run inside its realm as facets ([Durable Object
+  facets](durable-object-facets.md)).
 - An uncaught exception in it is logged, and it keeps running.
 
 ## How it is checked
@@ -93,18 +95,19 @@ projects, and workerd's own Worker Loader tests (`wd-worker-loader`), on Node an
 
 ## What breaks
 
-- **A `data` module is refused**, as celld refuses it:
+- **A `data` module is refused**, as on celld, with
   `worker loader: module "x" must be a string or wasm bytes`.
-- **Hop-by-hop request headers do not reach it** (`Connection`, `TE`, `Keep-Alive`): a fetch into
-  a loaded Worker crosses as HTTP/1.1. A WebSocket upgrade is the exception: it crosses on a
-  channel of its own with all its headers, so a loaded Worker or its facet can accept WebSockets
-  (partyserver does, test/p36). A 101 answer hands the host the socket's own MessagePort: its
-  frames go straight to the isolate, and open sockets take none of the isolate's multiplexed
-  ports (at most 4,096 at once, `globalThis.__cellbMaxPorts`). When the runtime closes, the
-  isolate's sockets close with 1001 before it ends (bench/README.md has the numbers).
+- **Hop-by-hop request headers (`Connection`, `TE`, `Keep-Alive`) do not reach it**, because a
+  fetch into a loaded Worker crosses as HTTP/1.1. A WebSocket upgrade is the exception. It crosses
+  on a channel of its own with all its headers, so a loaded Worker or its facet can accept
+  WebSockets, as partyserver does in `test/p36-partyserver.test.ts`. A 101 answer hands the host
+  the socket's own MessagePort, so its frames go straight to the isolate and open sockets do not
+  use up the isolate's multiplexed ports (4,096 at most by default, which
+  `globalThis.__cellbMaxPorts` overrides). When the runtime closes, the isolate's sockets are closed with
+  code 1001 before the isolate ends. [Benchmarks](../../bench/README.md) has the numbers.
 - **Some of workerd's Worker Loader features are missing**: `WorkerCode.compatibilityFlags`,
   `abortIsolateDynamic*`, the props of `getDurableObjectClass(name, { props })`, and
-  `inheritGlobalOutbound` ([gaps.md](../gaps.md)).
+  `inheritGlobalOutbound` ([Gaps](../gaps.md)).
 - **Stubs do not cross to another node.** Arguments to an object owned by another tab, worker or
-  peer are V8-serialized; a function, `RpcTarget` or stub among them is refused with
+  peer are V8-serialized, and a function, `RpcTarget` or stub among them is refused with
   `DataCloneError: Functions, RpcTargets and stubs cannot be sent to another node: …`.

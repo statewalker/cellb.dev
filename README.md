@@ -14,13 +14,15 @@ workerd's Durable Object tests run on the real celld, are recorded, and are repl
 Node and in Chromium (70 scenarios; 5 are judged by workerd instead, where cellb passes stubs by
 reference as workerd does, and 6 are known differences, listed in
 [`packages/cellb/docs/gaps.md`](packages/cellb/docs/gaps.md)).
+Each scenario has a page on [cellb.dev/examples](https://cellb.dev/examples) that runs it in your
+browser and shows cellb's answers next to the recorded ones.
 
 | Feature | celld 0.6.3 | cellb, Node | cellb, browsers | How cellb is checked |
 |---|---|---|---|---|
 | Workers (stateless handlers) | supported | yes | yes | `hello`, `webapi`, `router`, `body` |
 | Durable Objects / cells | supported | yes, same storage format | yes, same storage format | `counter`, `rpc`, `alarm`, workerd's tests; cells cross celld ↔ cellb |
 | Durable Object facets | supported | yes | yes | `facets`, `facets-api` |
-| KV | supported | yes (celld's code) | yes | `kv`, `kv-values` |
+| KV | supported | yes (celld's code) | yes | `kv`, `kv-details` |
 | Queues | supported | yes (celld's code) | yes | `queues`, `queues-api` |
 | D1 | supported | yes (Miniflare's simulator) | yes | `d1`, D1 migrations |
 | R2 | supported | yes, celld's bucket layout | yes | `r2`, `r2-api`, `r2-advanced` |
@@ -61,7 +63,7 @@ site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tok
 Two pnpm workspaces. The root one (`pnpm-workspace.yaml`) holds cellb and the website. The
 examples are private apps in a workspace of their own (`examples/pnpm-workspace.yaml`, its own
 lockfile) and use cellb as its users do: `@statewalker/cellb` from npm, at a released range
-(`~0.1.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
+(`~0.5.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
 cellb reaches the examples through a release: Dependabot raises the range, and its pull request
 runs them. Cellb's own storage labs (`ltx-lab`, `sqlite-lab`) are in
 `packages/cellb/e2e-browser`.
@@ -94,8 +96,7 @@ The examples, in `examples/` (`pnpm install` there: they have their own lockfile
 3. `cd emdash && pnpm test && pnpm test:browser`: EmDash built by Astro, on cellb in Node and as a
    static site in Chromium.
 4. `cd astro-in-browser && pnpm test`: the in-browser builder on Node;
-   `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab. It
-   links `@statewalker/webrun-bundler` from a sibling checkout of webrun-sites (see its README).
+   `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab.
 
 To try the examples on cellb as it is in this checkout, before a release: pack it
 (`pnpm --dir packages/cellb pack`) and add to `examples/pnpm-workspace.yaml`

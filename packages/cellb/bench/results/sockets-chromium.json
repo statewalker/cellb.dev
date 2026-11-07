@@ -1,58 +1,58 @@
 {
-  "date": "2026-11-06",
+  "date": "2026-11-07",
   "runs": 3,
   "median": {
     "rttP50Ms": 0.09999999997671694,
     "rttP95Ms": 0.2000000000698492,
-    "rttP99Ms": 0.5,
-    "msgsPerSec64B": 18918,
-    "mbPerSec64B": 1.2,
-    "msgsPerSec1KiB": 16021,
-    "mbPerSec1KiB": 15.6,
-    "msgsPerSec64KiB": 1827,
-    "mbPerSec64KiB": 114.2,
+    "rttP99Ms": 0.40000000002328306,
+    "msgsPerSec64B": 13935,
+    "mbPerSec64B": 0.9,
+    "msgsPerSec1KiB": 12455,
+    "mbPerSec1KiB": 12.2,
+    "msgsPerSec64KiB": 1314,
+    "mbPerSec64KiB": 82.1,
     "concurrentSockets": 1500,
-    "concurrentOpenMs": 1311
+    "concurrentOpenMs": 988
   },
   "all": [
     {
       "rttP50Ms": 0.09999999997671694,
-      "rttP95Ms": 0.2999999999301508,
-      "rttP99Ms": 0.5,
-      "msgsPerSec64B": 18918,
-      "mbPerSec64B": 1.2,
-      "msgsPerSec1KiB": 15733,
-      "mbPerSec1KiB": 15.4,
-      "msgsPerSec64KiB": 2023,
-      "mbPerSec64KiB": 126.4,
+      "rttP95Ms": 0.2000000000698492,
+      "rttP99Ms": 0.39999999990686774,
+      "msgsPerSec64B": 12128,
+      "mbPerSec64B": 0.7,
+      "msgsPerSec1KiB": 12455,
+      "mbPerSec1KiB": 12.2,
+      "msgsPerSec64KiB": 1338,
+      "mbPerSec64KiB": 83.6,
       "concurrentSockets": 1500,
-      "concurrentOpenMs": 1081
+      "concurrentOpenMs": 939
     },
     {
       "rttP50Ms": 0.09999999997671694,
       "rttP95Ms": 0.2000000000698492,
       "rttP99Ms": 0.40000000002328306,
-      "msgsPerSec64B": 22439,
-      "mbPerSec64B": 1.4,
-      "msgsPerSec1KiB": 16021,
-      "mbPerSec1KiB": 15.6,
-      "msgsPerSec64KiB": 1827,
-      "mbPerSec64KiB": 114.2,
+      "msgsPerSec64B": 13935,
+      "mbPerSec64B": 0.9,
+      "msgsPerSec1KiB": 12026,
+      "mbPerSec1KiB": 11.7,
+      "msgsPerSec64KiB": 1138,
+      "mbPerSec64KiB": 71.1,
       "concurrentSockets": 1500,
-      "concurrentOpenMs": 1311
+      "concurrentOpenMs": 988
     },
     {
-      "rttP50Ms": 0.09999999997671694,
+      "rttP50Ms": 0.10000000009313226,
       "rttP95Ms": 0.2000000000698492,
-      "rttP99Ms": 0.6000000000931323,
-      "msgsPerSec64B": 16428,
-      "mbPerSec64B": 1,
-      "msgsPerSec1KiB": 16335,
-      "mbPerSec1KiB": 16,
-      "msgsPerSec64KiB": 1813,
-      "mbPerSec64KiB": 113.3,
+      "rttP99Ms": 0.40000000002328306,
+      "msgsPerSec64B": 18339,
+      "mbPerSec64B": 1.1,
+      "msgsPerSec1KiB": 14972,
+      "mbPerSec1KiB": 14.6,
+      "msgsPerSec64KiB": 1314,
+      "mbPerSec64KiB": 82.1,
       "concurrentSockets": 1500,
-      "concurrentOpenMs": 1317
+      "concurrentOpenMs": 1266
     }
   ]
 }

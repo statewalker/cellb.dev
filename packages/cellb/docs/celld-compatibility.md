@@ -23,7 +23,7 @@ identical, how it is checked, and where the two still differ. The pinned celld v
 | WebSockets, hibernation | supported | yes | yes, over MessagePorts | `wsecho`, `wsclient`, `wd-websocket-*` (celld fails `wd-websocket-hibernation`, CellB passes it) |
 | Vectorize-style search | example | yes | yes | `vectordb` |
 | Workers AI (`ai` binding) | no binding (the `pi` example builds its own adapter) | yes, on an OpenAI-compatible endpoint the host names | yes | `p14-workers-ai`, Flue's `cloud` agent |
-| Python Workers (Pyodide) | supported | no, out of scope ([gaps.md](gaps.md)) | no | not run |
+| Python Workers (Pyodide) | supported | no, out of scope ([Gaps](gaps.md)) | no | not run |
 | Containers | experimental (Docker or Podman) | no; reported in `unsupported` | no | not run |
 | Agent frameworks: Flue, pi, opencode | examples (`pi`, `opencode` need the network) | yes, offline against a fake model | Flue | `examples/flue`, `examples/agents` |
 
@@ -31,14 +31,14 @@ identical, how it is checked, and where the two still differ. The pinned celld v
 
 A project that runs on celld (`wrangler.jsonc` plus its `main`) loads unchanged with
 `loadNodeProject` or `browserProjectRuntime`. The conformance corpus runs every project on both and
-compares transcripts and user logs ([conformance.md](conformance.md)). Behaviours that only show in
+compares transcripts and user logs ([Conformance](conformance.md)). Behaviours that only show in
 those transcripts, and that CellB matches:
 
 - An uncaught error answers `500`, `content-type: application/json`, body
   `Worker failed: rejected: <name>: <message>`. A handler returning something other than a
   `Response` is sent as its text with status 200.
 - An inbound request has `request.cf` set to `{}`.
-- A promise the Worker leaves rejected is the Worker's affair, never the host's: celld ignores it,
+- A promise the Worker leaves rejected concerns the Worker, not the host. celld ignores it and
   workerd logs it. On Node, where the Worker shares the host's process, CellB sends it to
   `onUnhandledRejection` (default: one line on stderr, outside the Worker's console) instead of the
   process's `unhandledRejection` listeners.
@@ -60,7 +60,7 @@ those transcripts, and that CellB matches:
 
 | Layer | celld | CellB |
 |---|---|---|
-| Object ids | namespace key `cells:v1:<len(script)>:<script>:<class>`; id = HMAC(SHA-256(key), name)[0..16] ‖ HMAC(key, first half)[0..16] | the same bytes ([ADR 0008](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0008-synchronous-idfromname.md)) |
+| Object ids | namespace key `cells:v1:<len(script)>:<script>:<class>`; key = SHA-256(namespace key); id = HMAC(key, name)[0..16] ‖ HMAC(key, first half)[0..16] | the same bytes, computed synchronously |
 | Fleet-wide namespaces | KV, D1 and Queues use keys that do not depend on the script | the same |
 | Internal tables | `_cf_KV(scope, k, v)`, `_cf_ALARM`, `_cf_METADATA(scope, actor_name)`, `_cf_FACETS`, `_cf_WAKE` and their triggers | the same DDL, plus CellB's own `_cf_LOG` (the changeset log's sequence) |
 | Stored values | V8 serialization, version 15 | a TypeScript V8 serializer, byte-identical to Node's on the tested corpus |
@@ -68,9 +68,11 @@ those transcripts, and that CellB matches:
 | Generations | one per owner epoch, starting with a snapshot at TXID 1; restore reads the newest | the same |
 | Facets | a database and LTX stream each, at `cells/<root>/facets/<SHA-256(name)[0..16] hex>/ltx/…`, the root's epoch | the same; rows are rescoped to the current run on open |
 | Object names | `_cf_METADATA.actor_name` restored as `ctx.id.name` when woken by id | the same |
-| Ownership | `own.json` CAS per cell, `nodes/<node>.json` per node, `wake/` index, waker role | the same ([ownership-and-durability.md](ownership-and-durability.md)) |
+| Ownership | `own.json` CAS per cell, `nodes/<node>.json` per node, `wake/` index, waker role | the same ([Ownership & durability](ownership-and-durability.md)) |
 
-[ADR 0001](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0001-celld-storage-format-is-native.md) records why this is CellB's only format.
+This is CellB's only format. A cell moves between celld and CellB through one bucket in both
+directions without conversion. A converted cell would no longer be byte-identical, and restore
+bugs would hide in the converter.
 
 ## Bindings keep celld's storage
 
@@ -90,7 +92,10 @@ by `put` and by multipart upload cross both ways with their metadata.
 Without a fleet bucket, R2 keeps its objects in the project's FilesApi. Queues default
 `max_concurrency` to celld's ceiling, 250.
 
-[ADR 0002](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0002-vendored-celld-javascript.md) records why the vendored code is not rewritten.
+The vendored code is not rewritten, so that a queue, a workflow instance or a KV namespace that
+celld wrote continues on CellB, and back. Miniflare's simulators differ from celld in error
+messages, limits and listing, and store nothing in celld's layout. Its D1 simulator is the
+exception: celld's D1 cell has the same layout, so CellB uses it.
 
 ## A mixed fleet: CellB as a celld peer (Node)
 
@@ -98,14 +103,15 @@ celld nodes reach a cell's owner through celld's peer protocol (version 5). Cell
 sides on Node:
 
 - `startCelldPeerServer({ runtime, store, node })` serves `GET /peer/tunnel` (`Upgrade:
-  celld-tunnel`, kinds `do` and `rpc`) and `/peer/probe`. Requests are checked with the fleet's
-  HMAC-SHA-256 secret (`fleet/peer-auth.json`), within ±30 s, against a nonce replay cache, for this
-  node. A node that does not own the cell answers `409` with `x-cells-route-error: stale-owner`.
+  celld-tunnel`, kinds `do` and `rpc`) and `/peer/probe`. Each request must be signed with the
+  fleet's HMAC-SHA-256 secret (`fleet/peer-auth.json`), carry a timestamp within ±30 s and a nonce
+  not seen before, and be addressed to this node. A node that does not own the cell answers `409`
+  with `x-cells-route-error: stale-owner`.
 - `bucket.advertise(addr)` puts the server's address in the node record, so celld routes requests for
-  CellB's cells to it. The probe key is an Ed25519 key; `celld diagnose --peer <node>` reports the
-  CellB node as a signed direct probe.
+  CellB's cells to it. The probe key is an Ed25519 key, and `celld diagnose --peer <node>` reports
+  the CellB node as a signed direct probe.
 - `celldPeers({ store, node })`, passed as `peers`, routes a CellB Worker's calls for a celld-owned
-  cell through the tunnel, fetch, RPC (V8-serialized) and WebSockets alike.
+  cell through the tunnel. That covers fetch, RPC (V8-serialized) and WebSockets.
 
 CellB is never a log follower and does not accept capacity hand-off (`/peer/handoff`): it
 acknowledges a write only once it is in the bucket, and its node record reports zero placement
@@ -120,11 +126,11 @@ CellB follows celld, including its deviations from Cloudflare, with these except
 | A nested `dir/index.html` | redirected to `dir/` and then not served (a celld bug) | served, as on Cloudflare; the comparison omits that request |
 | Asset paths ending in `/`, except the root | 404 (a celld bug) | as on Cloudflare; unit-tested instead |
 | `SELECT` from `_cf_METADATA` | reports `.scope` | reports `.key` |
-| A column named `_cf_col`, a string literal `'_cf_x'`, `ALTER TABLE … RENAME TO _cf_t2` | allowed | rejected |
+| A column named `_cf_col`, `ALTER TABLE … RENAME TO _cf_t2` | allowed | rejected |
 | `new Response("text")` | no `Content-Type` | `text/plain;charset=UTF-8`, as Fetch adds it; aligned in the comparison |
 | R2 ETags in `celld dev` | a store generation number | the store's etag; compared by type |
 | `storage.put()` of a `ctx.exports.X({ props })` stub or class handle | refused (`function () {} could not be cloned.`) | stored as a V8 host object, as on workerd; celld cannot read it back |
-| An `RpcTarget`, function or stub passed through a stub, or into a loaded Worker's `env`, `props` or arguments | refused (`RPC stubs cannot cross isolate boundaries yet.`, `function () {} could not be cloned.`, `Worker Loader env supports only Service Binding capabilities.`) | passed by reference, as on workerd; judged against workerd's recording ([conformance.md](conformance.md#where-cellb-follows-workerd-instead)) |
+| An `RpcTarget`, function or stub passed through a stub, or into a loaded Worker's `env`, `props` or arguments | refused (`RPC stubs cannot cross isolate boundaries yet.`, `function () {} could not be cloned.`, `Worker Loader env supports only Service Binding capabilities.`) | passed by reference, as on workerd; judged against workerd's recording ([Conformance](conformance.md#where-cellb-follows-workerd-instead)) |
 
 A Durable Object that keeps out of `_cf_` names sees no difference in the stricter rows.
 
@@ -133,11 +139,11 @@ A Durable Object that keeps out of `_cf_` names sees no difference in the strict
 - **celld reports `ltx file corrupted`** on files another writer produced with header flags 0 and
   zero rolling checksums. CellB writes `NO_CHECKSUM` whenever both checksums are 0; a writer that
   does not cannot hand cells to celld.
-- **celld takes over a cell a live CellB node owns.** That happens only when the node record has no
-  address or misses a field celld decodes; celld then treats the owner as dead. CellB always writes a
-  complete record with an address.
+- **celld takes over a cell that a live CellB node owns.** That happens only when the node record
+  has no address or lacks a field celld decodes, because celld then treats the owner as dead. CellB
+  always writes a complete record with an address.
 - **celld logs `celld ownership record lost`, and CellB throws `OwnershipRecordLostError`**: see
-  [ownership-and-durability.md](ownership-and-durability.md#what-breaks). `celld dev` with a lost
+  [Ownership & durability](ownership-and-durability.md#what-breaks). `celld dev` with a lost
   record reports it and never becomes ready.
 - **An R2 multipart upload opened on one runtime cannot be finished on the other.** celld keeps an
   open upload in its node's memory and answers `R2 multipart upload <id> is not open on this node:
@@ -149,5 +155,5 @@ A Durable Object that keeps out of `_cf_` names sees no difference in the strict
   script name. The old cells are still in the bucket, under their old keys.
 - **Node's HTTP server rejects celld's inner RPC requests** with `400`: they carry no `Host` header.
   `startCelldPeerServer` accepts them; another server in front must too.
-- **`celld diagnose --peer` reports the probe as failed** on a platform whose WebCrypto lacks Ed25519:
-  the node record then carries a random key that cannot sign.
+- **`celld diagnose --peer` reports the probe as failed** on a platform whose WebCrypto lacks
+  Ed25519. The node record then carries a random key that cannot sign.

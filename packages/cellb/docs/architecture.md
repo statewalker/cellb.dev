@@ -2,7 +2,7 @@
 
 CellB is one runtime core that does not know where it runs, plus adapters for each platform. This
 page shows the layers, the path of a request, and where each `src` directory sits. Words such as
-*cell*, *owner* and *epoch* are defined in [CONTEXT.md](../CONTEXT.md).
+*cell*, *owner* and *epoch* are defined in the [Glossary](../CONTEXT.md).
 
 ## One core, ports for everything that differs
 
@@ -26,10 +26,10 @@ supplies:
 
 | Port | What it is | Implementations |
 |---|---|---|
-| `OpenCellSql` → `SyncSqlDriver` | a synchronous SQLite database per cell | `nodeSqliteOpener` (node:sqlite), `sahpoolOpener` (SQLite WASM on OPFS), `wasmMemoryOpener` (SQLite WASM in memory), the LTX VFS (`bucket: { ltx }`: SQLite WASM reading a cell's LTX files page by page, [browser-host.md](browser-host.md)) |
+| `OpenCellSql` → `SyncSqlDriver` | a synchronous SQLite database per cell | `nodeSqliteOpener` (node:sqlite), `sahpoolOpener` (SQLite WASM on OPFS), `wasmMemoryOpener` (SQLite WASM in memory), the LTX VFS (`bucket: { ltx }`: SQLite WASM reading a cell's LTX files page by page, [Running in a browser](browser-host.md)) |
 | `CellStorage` | durability, backup, ownership and R2 objects, as one bundle the runtime closes | `celldBucket` (a fleet bucket), `filesApiLtxLog`, `filesApiChangeLog`; `filesApiBackup` for its `backup` part |
 | `Lease` | per-cell ownership with an epoch and a "lost" signal | `celldBucket(...).ownership` |
-| `ObjectStore` | a bucket with conditional writes | `s3ObjectStore`, `sqliteObjectStore` (celld dev's local store), `memoryObjectStore`, `filesApiObjectStore` |
+| `ObjectStore` | a bucket with conditional writes | `s3ObjectStore`, `sqliteObjectStore` (celld dev's local store), `memoryObjectStore`, `filesApiObjectStore`, `idbObjectStore` (IndexedDB) |
 | `Clock` | timers, injectable in tests | `systemClock` |
 | `ValueCodec` | how KV values are stored | V8 serialization (the only codec) |
 
@@ -38,11 +38,11 @@ Cloudflare. Both drivers are synchronous underneath (node:sqlite, and the SQLite
 Dedicated Worker), so no async layer sits in between. The LTX VFS is the one exception inside:
 its reads block the shard worker on a SharedArrayBuffer while a store worker reads the page.
 
-A driver may answer `inTransaction()` (node:sqlite's `isTransaction`, SQLite WASM's
+A driver can implement `inTransaction()` (node:sqlite's `isTransaction`, SQLite WASM's
 `sqlite3_get_autocommit`). After a failed statement, `SqlStorage` uses it to tell an ordinary
-error from one after which SQLite rolled the whole transaction back (an I/O error, a full disk):
-a rolled-back transaction that had only read fails the statement alone, one that had written
-fails its commit, and the object resets, as on workerd.
+error from one that made SQLite roll back the whole transaction, such as an I/O error or a full
+disk. If that transaction had only read, just the statement fails. If it had written, its commit
+fails and the object resets, as on workerd.
 
 ## The path of a request
 
@@ -60,7 +60,7 @@ Request ─► runtime.fetch ─► Worker's fetch(req, env, ctx)
 - A stub is a Proxy: `fetch` goes to the object's `fetch` handler, any other property is an RPC
   call. Arguments and results are structured-cloned, as between isolates.
 - Every event for a cell goes through its object host's `deliver()`: the input gate, the implicit
-  transaction, and the output gate wrap it (see [ownership-and-durability.md](ownership-and-durability.md)).
+  transaction, and the output gate wrap it (see [Ownership & durability](ownership-and-durability.md)).
 - Everything a remote caller can do with a runtime is HTTP, served by one handler,
   `cellsHttpHandler(runtime)`. Internal requests carry `x-cellb*` control headers (`describe`,
   `fetch`, `rpc`); a request without them is ingress. `remoteRuntime(send)` is the client side of
@@ -76,18 +76,20 @@ triggers, Worker Loaders and service bindings to the script's own entrypoints. I
 does not support in `unsupported` instead of ignoring it. The hosts differ only in how they load
 `main` and what they pass as `host`:
 
-- `loadNodeProject(dir, host)` bundles `main` with esbuild and runs it in the Node process; loaded
+- `loadNodeProject(dir, host)` bundles `main` with esbuild and runs it in the Node process. Loaded
   Workers run in worker threads. The bundle's `cloudflare:workers` also exports the project's own
-  `env` and `exports` (the configuration's `vars` while the module is evaluated, the runtime's
-  objects once it exists), as code built for Cloudflare reads them at top level; a loaded Worker's
-  reads its own (its `WorkerCode.env`, and stubs of its own entrypoints); `cloudflare:email`
-  loads but cannot send; under `nodejs_compat`, bare built-in names (`path`) are Node's modules.
+  `env` and `exports`, because code built for Cloudflare reads them at top level. While the module
+  is evaluated they hold the configuration's `vars`, and once the runtime exists they hold its
+  objects. A loaded Worker reads its own instead: its `WorkerCode.env` and stubs of its own
+  entrypoints.
+  `cloudflare:email` loads but cannot send. Under `nodejs_compat`, bare built-in names such as
+  `path` resolve to Node's modules.
 - `browserProjectRuntime(opts)` imports a browser bundle or modules served by the in-browser HTTP
-  server; loaded Workers run in Dedicated Workers. See [browser-host.md](browser-host.md).
+  server; loaded Workers run in Dedicated Workers. See [Running in a browser](browser-host.md).
 
 KV, Queues and Workflows run celld's own JavaScript, vendored unchanged in `vendor/celld/`. D1 runs
 Miniflare's D1 simulator with workerd's D1 client, vendored in `vendor/miniflare/`. See
-[celld-compatibility.md](celld-compatibility.md).
+[celld compatibility](celld-compatibility.md).
 
 ## Loaded Workers run in a realm of their own
 
@@ -97,19 +99,19 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
 - Plain values in its `env` are copied; anything that cannot be cloned (a stub, a binding) becomes a
   stub whose calls go back to the parent runtime.
 - Calls cross the port with `@statewalker/webrun-rpc` (`callPort`/`listenPort` on a multiplexed
-  port, no timeout); an error thrown on one side arrives on the other with its own properties
-  (`name`, `message`, `code`, …). A call's result is an RpcPromise: a call on it is sent at once,
-  naming the pending answer (promise pipelining).
+  port, with no timeout). An error thrown on one side arrives on the other with its own properties
+  (`name`, `message`, `code`, …). A call returns an RpcPromise, and a call made on that result is
+  sent at once, naming the pending answer (promise pipelining).
 - A fetch into the isolate gets a port of its own and crosses as HTTP/1.1 with streamed bodies
-  (the cells-http wire of `src/transport/port.ts`): the first chunk of a response arrives while the
-  loaded Worker is still producing the rest.
+  (the cells-http wire of `src/transport/port.ts`), so the first chunk of a response arrives while
+  the loaded Worker is still producing the rest.
 - Its modules are source (`js`), `text`, `json` or `wasm` bytes. A `data` module is refused, as
-  celld refuses it: `worker loader: module "x" must be a string or wasm bytes`.
-- `globalOutbound: null` makes the isolate's `fetch` throw; a Fetcher redirects it: the isolate
-  opens a fetch port back to the parent, which calls the Fetcher.
-- Its `ctx.exports` holds its own `WorkerEntrypoint` classes, each a stub
-  (`ctx.exports.Alt.greet()`) or called with `{ props }`; `getEntrypoint(name, { props })` props
-  reach `ctx.props` inside the isolate.
+  celld refuses it, with `worker loader: module "x" must be a string or wasm bytes`.
+- `globalOutbound: null` makes the isolate's `fetch` throw. A Fetcher redirects it instead: the
+  isolate opens a fetch port back to the parent, which calls the Fetcher.
+- Its `ctx.exports` holds its own `WorkerEntrypoint` classes. Each one can be used as a stub
+  (`ctx.exports.Alt.greet()`) or called with `{ props }`. The props given to
+  `getEntrypoint(name, { props })` reach `ctx.props` inside the isolate.
 - Durable Object classes of loaded code (facets) run inside the isolate, with their own SQLite; their
   commits are logged through the parent's storage, in Node and in a browser. Under the root's lease
   the isolate rebuilds a facet's database from that storage when it opens, as the root does.
@@ -122,7 +124,7 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
 | `src/core` | core | runtime, namespaces and stubs, ids, object hosts, input/output gates, SQL and KV storage, alarms, celld's internal schema |
 | `src/ports.ts` | core | the port interfaces and `CellStorage` |
 | `src/adapters` | platform | SQL drivers (node:sqlite, SQLite WASM, the WASM page hook, the LTX VFS), FilesApi logs and backups |
-| `src/bucket` | storage | object stores (S3, SQLite, memory, FilesApi), the LTX writer, `celldBucket` |
+| `src/bucket` | storage | object stores (S3, SQLite, memory, FilesApi, IndexedDB), the LTX writer, `celldBucket` |
 | `src/ltx` | storage | the LTX v3 codec (LZ4, CRC-64, xxHash32); page reads over a FilesApi, the streaming writer and compaction (`ltx-pages`); the store a VFS talks to (`ltx-page-server`, `ltx-store-worker`) and its OPFS files (`opfs-sync-files`) |
 | `src/v8` | storage | V8 serialization in TypeScript, for platforms without `v8.serialize` |
 | `src/transport` | links | the HTTP surface (`cellsHttpHandler`, `remoteRuntime`) and links over ports |
@@ -135,21 +137,22 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
 | `src/node-compat` | projects | `node:*` modules for `nodejs_compat` in browsers |
 | `src/miniflare-compat` | projects | the shims that run Miniflare's vendored D1 simulator |
 
-The three entry points select by platform: `src/index.ts` (isomorphic), `src/node.ts`,
-`src/browser.ts`. Importing the isomorphic entry point loads no `node:` module; a test guards that.
+There are three entry points, one per platform: `src/index.ts` (isomorphic), `src/node.ts` and
+`src/browser.ts`. Importing the isomorphic entry point loads no `node:` module, and a test checks
+that.
 
 ## What breaks
 
 - **A function, `RpcTarget` or stub sent to an object on another node is refused** with
   `DataCloneError: Functions, RpcTargets and stubs cannot be sent to another node: …`. Within one
   runtime, and into or out of a loaded Worker's isolate, they pass by reference, as on workerd
-  (celld refuses them). See [gaps.md](gaps.md#stubs-pass-by-reference-as-on-workerd-except-between-nodes).
+  (celld refuses them). See [Gaps](gaps.md#stubs-pass-by-reference-as-on-workerd-except-between-nodes).
 - **The project's own Worker sees the host's globals.** Only loaded Workers are isolated; code that
   writes to `globalThis` in the main Worker affects the whole runtime.
 - **A public endpoint mounted on `cellsHttpHandler` lets clients address any object directly** with
   `x-cellb*` headers. Mount `runtime.fetch` (or `CellRouter.ingress`, which strips the headers) on
   public ingress, and `cellsHttpHandler` only on internal links.
-- **A request whose `Upgrade` header vanished.** `Upgrade` is hop-by-hop on the HTTP/1.1 wire and a
-  forbidden header in browser `Request`s; across links it travels as `x-cellb-upgrade`. A link that
+- **A request loses its `Upgrade` header.** `Upgrade` is hop-by-hop on the HTTP/1.1 wire and a
+  forbidden header in browser `Request`s, so across links it travels as `x-cellb-upgrade`. A link that
   rebuilds requests without `withUpgrade` hands the Worker a plain request, and the Worker answers
   it as one (typically `426 Upgrade Required`) instead of opening a WebSocket.

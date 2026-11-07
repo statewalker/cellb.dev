@@ -18,11 +18,15 @@ const sections = [
     items: [
       { href: "/docs", label: "Getting started" },
       { href: "/docs/how-it-works", label: "How it works" },
+      { href: "/docs/from-sources", label: "Running from sources" },
     ],
   },
   { heading: "Services", items: servicePages.map(navItem) },
   { heading: "Reference", items: referencePages.map(navItem) },
-  { heading: "Examples", items: examplePages.map(navItem) },
+  {
+    heading: "Examples",
+    items: [{ href: "/examples", label: "All runnable examples" }, ...examplePages.map(navItem)],
+  },
 ];
 ---
 

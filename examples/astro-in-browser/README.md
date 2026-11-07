@@ -1,12 +1,13 @@
 # @statewalker/astro-in-browser-example
 
-An Astro SSR app built from its sources **inside a browser tab** and run there on CellB: Astro's
-compiler and esbuild as WebAssembly, packages from the npm registry, the built Worker in CellB's
-shards with its Durable Objects on CellB's LTX storage. Two apps are built this way: a small Astro
-app (`app/`) and [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare` template
+An Astro SSR app built from its sources **inside a browser tab** and run there on CellB. Astro's
+compiler and esbuild run as WebAssembly, packages come from the npm registry, and the built Worker
+runs in CellB's shards with its Durable Objects on CellB's LTX storage. Two apps are built this way,
+a small Astro app (`app/`) and [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare`
+template
 (`../emdash`), which brings `astro.config.mjs`, its integrations, 225 routes, React islands, D1,
 R2, KV and a cron trigger. The same builder runs on Node, and its output runs on CellB in Node too.
-The package is private: it is a test of CellB and of webrun-bundler, not a library.
+The package is private, since it is a test of CellB and of webrun-bundler and not a library.
 
 ## How it fits together
 
@@ -26,31 +27,31 @@ host tab (browser/host.ts, emdash.html or index.html)
       R2 included) on the LTX storage (bucket: { ltx: "<app>-ltx" })
 ```
 
-- **Packages** go through the package store by default: a missing package is downloaded once,
+- **Packages** go through the package store by default. A missing package is downloaded once,
   and the build's lock (`/locks/<app>.json`) lets the next build prefetch every package from the
-  store, with no download. `?memory` keeps them in the builder's memory instead, fetched from the
+  store without downloading anything. `?memory` keeps them in the builder's memory instead, fetched
+  from the
   registry on every build.
 - **The project's own Worker entry.** When `wrangler.jsonc` names a `main` (EmDash's
-  `src/worker.ts`: `scheduled()` for its cron trigger, `PluginBridge`), it is the bundle's entry,
+  `src/worker.ts`, with `scheduled()` for its cron trigger and `PluginBridge`), it is the bundle's
+  entry,
   with `@astrojs/cloudflare/entrypoints/server` and `astro/app/entrypoint` backed by the build's
   app.
 - **Memory.** esbuild's WebAssembly memory grows during a bundle and is released only with its
-  worker, so the builder restarts it after the server bundle and after the client bundles. With no
-  output source map, webrun-bundler does not inline the packages' own maps (EmDash's server bundle:
-  58.9 → 27.0 MB of input). The server bundle is minified, names kept.
-- **Cells on LTX files.** Each Durable Object is SQLite read page by page from its LTX files in
-  OPFS through a store worker (CellB's `bucket: { ltx }`, see
-  `packages/cellb/docs/browser-host.md`).
+  worker, so the builder restarts it after the server bundle and after the client bundles. When no
+  output source map is asked for, webrun-bundler does not inline the packages' own maps, which
+  takes EmDash's server bundle from 58.9 MB to 27.0 MB of input. The server bundle is minified, with
+  names kept.
+- **Cells on LTX files.** Each Durable Object is a SQLite database read page by page from its LTX
+  files in OPFS through a store worker (CellB's `bucket: { ltx }`; see
+  [Running in a browser](../../packages/cellb/docs/browser-host.md)).
 
 ## How to use it
 
-`examples/astro-in-browser` links `@statewalker/webrun-bundler` from a sibling checkout of
-[webrun-sites](https://github.com/statewalker/webrun-sites) (`../../../webrun-sites`), whose
-`dist/` must be built:
+`@statewalker/webrun-bundler` and CellB come from npm, like the other packages:
 
 ```
-cd ../../../webrun-sites && pnpm install && pnpm --filter "@statewalker/webrun-bundler..." build
-cd - && pnpm --dir .. install  # the examples' workspace (examples/; cellb from npm)
+pnpm --dir .. install          # the examples' workspace (examples/)
 pnpm dev:browser              # Vite; open http://localhost:<port>/__cellb/emdash.html (or /__cellb/)
 pnpm test                     # the builder on Node: the small app, EmDash's config and build
 pnpm test:browser             # every Playwright spec in test/browser (long; see below)
@@ -70,11 +71,11 @@ pools instead of the LTX storage. Network access to registry.npmjs.org is needed
 
 | Spec (`test/browser/`) | What it proves |
 |---|---|
-| `build-in-browser.spec.ts` | the small app is built in the tab (about 5 s) and served by CellB |
-| `emdash-in-browser.spec.ts` | EmDash built in the tab through the package store (cold: ~320 downloads; then a reload, warm: 0), run on the LTX storage, seeded, its pages and hydrated admin rendered, exported as a ZIP and served from disk. `EMDASH_STORE=0`: packages in memory. `EMDASH_HEAP=1`: memory of every realm. Fails on skipped component scripts, unsupported configuration and LTX store failures |
-| `emdash-admin-in-browser.spec.ts` | on the build made in the tab: EmDash's setup wizard, a passkey account, a post with a featured image in R2, published; the post after a reload of the host tab (a new build); a second host tab taking the shard over when the first closes |
-| `pkgstore-probe.spec.ts` | the package store alone, then under concurrent 5–20 MB PUTs, ranged GETs and compaction, with an integrity pass (`PKGSTORE_PACKS=80 PKGSTORE_CONCURRENCY=8` runs past the context's storage: only PUTs may fail) |
-| `cells-lab`, `*-probe` | a lab of the storage choices for shards, and probes (see each file's header). The labs of CellB's storage internals (`ltx-lab`, `sqlite-lab`) are in CellB: `packages/cellb/e2e-browser/probes` |
+| `build-in-browser.spec.ts` | the small app is built in the tab (in about 5 s) and served by CellB |
+| `emdash-in-browser.spec.ts` | EmDash is built in the tab through the package store (about 320 downloads cold, then none after a reload), run on the LTX storage and seeded; its pages and hydrated admin render, and it is exported as a ZIP and served from disk. `EMDASH_STORE=0` keeps packages in memory, and `EMDASH_HEAP=1` reports the memory of every realm. The spec fails on skipped component scripts, unsupported configuration and LTX store failures |
+| `emdash-admin-in-browser.spec.ts` | on the build made in the tab, runs EmDash's setup wizard, creates a passkey account and publishes a post with a featured image in R2; reads the post back after a reload of the host tab (a new build); checks that a second host tab takes the shard over when the first closes |
+| `pkgstore-probe.spec.ts` | the package store alone, then under concurrent 5–20 MB PUTs, ranged GETs and compaction, with an integrity pass (`PKGSTORE_PACKS=80 PKGSTORE_CONCURRENCY=8` goes past the context's storage, and then only PUTs may fail) |
+| `cells-lab`, `*-probe` | a lab of the storage choices for shards, and probes (see each file's header). The labs of CellB's storage internals (`ltx-lab`, `sqlite-lab`) are in `packages/cellb/e2e-browser/probes` |
 
 On Node: `npx tsx scripts/trace-build.mts emdash` builds EmDash with the builder and writes a trace
 (`traces/emdash/`); `npx tsx scripts/run-node.mts` then runs that bundle on CellB in Node with D1,
@@ -95,11 +96,13 @@ crashes at 2.5 GB.
 
 ## What will surprise you
 
-- **`Error processing $media https://images.unsplash.com/…`** without network access to Unsplash:
-  the template's seed downloads its sample images; the posts are created without them.
-- **"Owner of cell shard 0 was lost"** for a request in flight when the tab running the shard
-  closes. Another host tab takes the shard over; a reload succeeds.
-- **The first build in a fresh browser is the slow one**: every package is downloaded and stored.
+- **`Error processing $media https://images.unsplash.com/…`** appears without network access to
+  Unsplash. The template's seed downloads its sample images, and the posts are created without
+  them.
+- **"Owner of cell shard 0 was lost"** is the answer to a request in flight when the tab running
+  the shard closes. Another host tab takes the shard over, and a reload succeeds.
+- **The first build in a fresh browser is the slow one**, because every package is downloaded and
+  stored.
   Clearing the site's storage clears the package store too.
 - **Sandboxed plugins are off**, as in the template (`worker_loaders` is commented out).
 - **`Set siteUrl or EMDASH_SITE_URL before running production setup`** from EmDash's setup, on

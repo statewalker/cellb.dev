@@ -112,12 +112,6 @@ export default defineConfig(({ command }) => ({
   server: {
     strictPort: true,
     headers: { "Service-Worker-Allowed": "/" },
-    // webrun-bundler is linked from a webrun-sites checkout (with its module-type fix).
-    fs: {
-      allow: [
-        searchForWorkspaceRoot(resolve(import.meta.dirname, "..")),
-        resolve(import.meta.dirname, "../../../../webrun-sites"),
-      ],
-    },
+    fs: { allow: [searchForWorkspaceRoot(resolve(import.meta.dirname, ".."))] },
   },
 }));

@@ -73,19 +73,20 @@ unchanged and run by the conformance suite on Node and in Chromium.
 
 - A facet of loaded code runs inside that loaded Worker's realm ([Dynamic Workers](dynamic-workers.md)),
   with its own SQLite.
-- Its commits are logged through the parent's storage: a database and an LTX stream per facet, at
-  `cells/<root>/facets/<SHA-256(name)[0..16] hex>/ltx/…`, under the root's epoch, as on celld.
-- When the facet opens, under the root's lease, its database is rebuilt from that storage, as the
-  root's is; its rows are rescoped to the current run.
+- Its commits are logged through the parent's storage, as on celld. Each facet has its own
+  database and LTX stream at `cells/<root>/facets/<SHA-256(name)[0..16] hex>/ltx/…`, written under
+  the root's epoch.
+- When the facet opens under the root's lease, its database is rebuilt from that storage, the same
+  way the root's is, and its rows are rescoped to the current run.
 
 ## A facet's own id
 
-`ctx.facets.get(name, () => ({ class, id }))` gives the facet that `id` as its `ctx.id`, for
-classes of loaded code too: partyserver's `this.name` is the facet's id's name, not its parent's.
-Storage stays the facet's, by its name, either way.
+`ctx.facets.get(name, () => ({ class, id }))` gives the facet that `id` as its `ctx.id`, also for
+classes from loaded code. partyserver's `this.name` is then the name of the facet's id instead of
+its parent's. Either way, the facet's storage is still found by the facet's name.
 
 ## How it is checked
 
-celld's `facets` example and CellB's `facets-api` project, on Node and in Chromium; partyserver
-Servers loaded at run time and run as facets, over HTTP and WebSockets (`test/p36-partyserver`,
-`e2e-browser/partyserver.spec.ts`).
+celld's `facets` example and CellB's `facets-api` project, on Node and in Chromium. partyserver
+Servers are also loaded at run time and run as facets, over HTTP and WebSockets
+(`test/p36-partyserver.test.ts`, `e2e-browser/partyserver.spec.ts`).
