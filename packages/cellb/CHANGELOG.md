@@ -1,5 +1,33 @@
 # @statewalker/cellb
 
+## 0.4.0
+
+### Minor Changes
+
+- bfa1873: The router of a project shared by tabs (`installProjectRouter` / `joinProjectShards` / `serveProjectShard`) now runs on webrun-http-browser's ServiceWorker dispatcher. The ServiceWorker no longer keeps a `CellRouter` per project. A tab attaches its shard workers with the package's adapter; a shard serves with `serveHttpInWorker` and reaches the other shards through `http://cellb.internal/<project>/`. Re-linking after a ServiceWorker restart, owner liveness, wake, keep-alive and drain on hand-over are the package's.
+  
+  What cellb adds is unchanged:
+  
+  - the project urls: `basePath`, a root project with `passthrough` and the host page, and `stripBase`;
+  - the page's cookies in and the Worker's `Set-Cookie` out;
+  - no `x-cellb*` control headers from pages, on fetches or sockets;
+  - calls between shards routed to the shard that owns the object, failing with `ShardOwnerLostError` when its owner is lost.
+  
+  `installProjectRouter` returns `{ dispatcher }` instead of `{ routers }`. Nothing read `routers`.
+  
+  A request to a project that no tab has ever served now goes to the network, as the page sent it. Before, it waited for a shard for up to 15 s, then answered 503. A root project's host page still covers navigations no tab serves. A project whose tabs have all closed still answers 503.
+  
+  The ServiceWorker that runs `installProjectRouter` now calls `skipWaiting()` on install and `clients.claim()` on activate (webrun-http-browser's dispatcher does), so a new version takes over open pages at once. A tab must be controlled by it to join: `joinProjectShards` asks the worker to claim the page and rejects with a `ServiceWorkerControlError` if that fails within 30 s. It now uses the given worker's registration, so a page outside the worker's scope fails with that error rather than waiting forever.
+  
+  `CellRouter`, `createShardWorker` and `shardRouting` stay, for hosts other than a ServiceWorker (Node).
+  
+  A root project under Vite's dev server needs Vite's own paths (`/@fs/`, `/@vite/`, `/node_modules/`…) in `passthrough`, because a controlled shard worker's module imports reach the ServiceWorker too. That was already the case.
+- 171a61f: The ends of a `WebSocketPair` are webrun-http-browser's `ServerWebSocket`, configured for workerd's semantics: either end may `send()` before `accept()`, a close without a code reports 1005, the heartbeat watch starts with the first ping, a closing end still delivers messages, and `goAway()` closes with 1001. The frame protocol over the MessagePort is the package's, so a page's `WebSocket` and a shard's socket speak the same protocol as any other webrun-http-browser server. The public API of `WebSocketPair` and its ends does not change.
+
+### Patch Changes
+
+- e0d29c2: A bucket's `close()` waits for a lease renewal that is already on its way to the bucket before it removes the node's lease record, and starts no renewal after. Before, such a renewal could write the record back after the delete, so the node's cells stayed "owned by a live node" until the lease ran out (10 s by default) and the next node could not take them over. The browser partyserver test now restarts on the default lease with no wait, where it used a 1 s lease that made it fence itself under load.
+
 ## 0.3.0
 
 ### Minor Changes
