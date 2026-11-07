@@ -59,17 +59,23 @@ BENCH_JSON=bench/results/sockets-chromium.json pnpm bench:browser socket
 
 A socket's frames used to be relayed over the isolate's multiplexed port. Now the socket's own
 MessagePort is transferred to the host, so frames go straight to the isolate. The `*-relay.json`
-files hold the runs from before that change, on the same machine (4 vCPUs, Node 22, headless
-Chromium):
+files hold the runs from before that change; the "port" columns are the current runs
+(`sockets-node.json`, `sockets-chromium.json`, with webrun-http-browser 0.12.2), on the same kind
+of machine (4 vCPUs, Node 22, headless Chromium):
 
 | Median of 3 runs | Node, relay | Node, port | Chromium, relay | Chromium, port |
 |---|---|---|---|---|
-| Echo round trip p50 / p99 (ms) | 0.14 / 0.98 | 0.10 / 0.65 | 0.2 / 1.6 | 0.1 / 0.5 |
-| 64 B messages per second | 22,946 | 32,515 | 10,421 | 18,918 |
-| 1 KiB messages per second | 17,793 | 29,364 | 8,734 | 16,021 |
-| 64 KiB throughput (MB/s) | 65 | 192 | 68 | 114 |
+| Echo round trip p50 / p99 (ms) | 0.14 / 0.98 | 0.09 / 0.52 | 0.2 / 1.6 | 0.1 / 0.3 |
+| 64 B messages per second | 22,946 | 41,075 | 10,421 | 19,988 |
+| 1 KiB messages per second | 17,793 | 32,665 | 8,734 | 15,917 |
+| 64 KiB throughput (MB/s) | 65 | 227 | 68 | 132 |
 | Sockets one isolate holds | 1,023 | 1,500 (all asked) | 1,023 | 1,500 (all asked) |
 
 Before the change, each open socket held one of the isolate multiplexer's ports, and there could be
 at most 1,024 of them at once (webrun-rpc's default), so the 1,024th socket was refused with an
 HTTP 500 to the upgrade.
+
+Each end of a socket counts every message's UTF-8 size, for `bufferedAmount` and for the byte
+acknowledgements its peer sends. Until webrun-http-browser 0.12.2 that count was a loop over the
+characters in JavaScript, about 0.26 ms per 64 KiB string, and it held 64 KiB echoes at about
+75 MB/s on Node. It now runs natively (`TextEncoder.encodeInto`).
