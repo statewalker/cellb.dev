@@ -134,9 +134,11 @@ describe("port links release their multiplexed ports", () => {
         }),
       );
     });
-    const held = await Promise.all(
-      Array.from({ length: MAX_PORTS }, () => send(new Request("http://x/"))),
-    );
+    // One at a time: each exchange holds one port, but while it opens it briefly takes a second
+    // (webrun-http-browser 0.12's pipelined bodies), so MAX_PORTS at once would hit the ceiling
+    // before all are held.
+    const held: Response[] = [];
+    for (let i = 0; i < MAX_PORTS; i++) held.push(await send(new Request("http://x/")));
     await expect(send(new Request("http://x/"))).rejects.toThrow(/maxPorts/);
     for (const res of held) await res.body?.cancel();
     await sleep(20);

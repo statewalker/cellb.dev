@@ -127,7 +127,7 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
 | `src/v8` | storage | V8 serialization in TypeScript, for platforms without `v8.serialize` |
 | `src/transport` | links | the HTTP surface (`cellsHttpHandler`, `remoteRuntime`) and links over ports |
 | `src/router` | browser placement | `CellRouter` and the shard worker |
-| `src/ws` | WebSockets | the WHATWG client, `WebSocketPair` and the 101 `Response` over MessagePorts, the control channel |
+| `src/ws` | WebSockets | the WHATWG client, `WebSocketPair` (its ends are webrun-http-browser's `ServerWebSocket` with workerd's semantics) and the 101 `Response` over MessagePorts, the control channel |
 | `src/project` | projects | wrangler loading for Node and browsers, the in-browser site, Workers globals (on Node also a workerd-like `MessageChannel`, whose idle ports do not keep the process alive), host modules for bundles made by other bundlers |
 | `src/bindings` | projects | assets, cache, cron, D1 migrations, HTMLRewriter, KV, Queues, R2, Workflows, Worker Loader |
 | `src/isolate` | projects | loaded Workers in their own realm (Node and browser) |

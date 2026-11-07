@@ -171,10 +171,10 @@ const mutants = [
     "p07",
   ],
   [
-    "ws: server does not echo the close handshake",
+    "ws: close() with no code sends 1000, not workerd's 1005",
     "src/ws/server.ts",
-    "    if (wasOpen)\n      this[kPort]!.postMessage(",
-    "    if (false)\n      this[kPort]!.postMessage(",
+    "      defaultCloseCode: 1005,",
+    "      defaultCloseCode: 1000,",
     "p07",
   ],
   [
@@ -199,10 +199,10 @@ const mutants = [
     "p07",
   ],
   [
-    "ws heartbeat: server never gives up",
+    "ws: a pair's end refuses send() before accept() (celld lets it)",
     "src/ws/server.ts",
-    "if (Date.now() - this.#lastPing > 3 * hb) this.#gone();",
-    "",
+    "      sendBeforeAccept: true,",
+    "      sendBeforeAccept: false,",
     "p07",
   ],
   [

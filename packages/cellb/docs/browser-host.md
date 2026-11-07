@@ -38,8 +38,9 @@ and WebKit.
   workers.
 - **A ServiceWorker cannot intercept WebSockets.** Pages and objects get a WebSocket class whose
   frames travel over MessagePorts ([ADR 0006](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0006-websockets-over-messageports.md)). The
-  class, the frames and the HTTP links over ports are `@statewalker/webrun-http-browser`'s; the
-  router is still cellb's ([ADR 0010](https://github.com/statewalker/cellb.dev/blob/922612ee1856b64e31d3b1d4f1d09e2c51261781/packages/cellb/docs/adr/0010-transport-and-webrun-http-browser.md) says why).
+  class, the frames, the HTTP links over ports and the tabs' router (`installProjectRouter`) are
+  `@statewalker/webrun-http-browser`'s; cellb gives the router its urls, its shard routing, the
+  page's cookies and its host page.
 - **Without an open page nothing runs.** No page means no Dedicated Worker and no SQLite. Cells that
   must stay reachable live on a fleet bucket that server nodes share.
 
@@ -119,14 +120,24 @@ serveProjectShard({ sqlite3: () => sqlite3InitModule({ print() {}, printErr() {}
 
 ```
 ServiceWorker: installProjectRouter(self, { basePath: "/app/" })
-  /app/<name>/…  ─► the project's CellRouter ─► the live shard with the fewest requests in flight
-  shard → shard  ─► the shard the sender named (x-cellb-shard)
+  a webrun-http-browser dispatcher; the key of a request is its project's name
+  /app/<name>/…                    ─► the live shard with the fewest requests in flight
+  http://cellb.internal/<name>/    ─► the shard the sender named (x-cellb-shard), shard → shard
 
 every tab: joinProjectShards({ name, shards: 4, spawn, config, code, serviceWorker })
   presence lock  cellb:<name>:tab:<joined-at>-<uuid>
   shard i        → tab (i mod n) of the n tabs present, oldest first; one Web Lock per shard
-  shard worker:  serveProjectShard({ sqlite3 }) — pool <name>-shard-i, linked to the router
+  shard worker:  serveProjectShard({ sqlite3 }) — pool <name>-shard-i, attached to the router
+                 (SwHttpAdapter.attachWorker, serveHttpInWorker)
 ```
+
+`installProjectRouter` starts webrun-http-browser's dispatcher, which makes the ServiceWorker
+`skipWaiting()` on install and `clients.claim()` on activate: a new version takes over the open
+pages at once instead of waiting for them to close. A tab that joins must be inside the
+ServiceWorker's scope and controlled by it; one that is not is claimed, and `joinProjectShards`
+rejects (`ServiceWorkerControlError`) if that fails within 30 s, after a hard reload say. A request
+to a project no tab has ever served goes to the network as the page sent it; one to a project whose
+tabs have all closed is answered 503.
 
 Every tab of the origin sends requests to `<basePath><name>/…`; the ServiceWorker passes them,
 with their URL unchanged (as a Worker on a Cloudflare route sees them; `stripBase: true` gives
@@ -150,16 +161,14 @@ runs 4 / 0 in one tab, 2 / 2 in two, 2 / 1 / 1 in three — more tabs, more proc
 - **The ServiceWorker restarts:** it asks the tabs for their shards' links again. The browser stops
   an idle ServiceWorker, and its ports die without telling anyone. A request to it starts it
   again, but a call that begins in a shard (an alarm, a timer, a WebSocket message) to an object
-  in another shard does not. So the router holds a Web Lock (`cellb:router:<uuid>`) while it
-  lives, and each shard watches it. When the lock is released, the shard drops its links, and its
-  next call into another shard waits: the shard asks its tab to post a message to the
-  ServiceWorker, which starts it again, and that call goes through once the links are back. A call
-  already in flight when the ServiceWorker stopped has lost its answer: it fails ("The router was
-  lost while this call was in flight"), and may or may not have been applied. To make that rare,
-  a shard with calls into other shards in flight keeps the ServiceWorker up: every 20 s its tab
-  posts a message to it, since those calls travel over MessagePorts and are no events to it
-  (Chromium stops a ServiceWorker after about 30 s without events). The ServiceWorker can still
-  stop (an update, a crash, memory pressure), so the failure stays.
+  in another shard does not. webrun-http-browser handles both: the router holds a Web Lock while
+  it lives, which each shard watches; a shard whose router is gone wakes the ServiceWorker through
+  its tab, and its next call goes through once the links are back. A call already in flight when
+  the ServiceWorker stopped has lost its answer: it fails ("The router was lost while this call
+  was in flight"), and may or may not have been applied. To make that rare, a shard with calls
+  into other shards in flight keeps the ServiceWorker up (they travel over MessagePorts and are no
+  events to it; Chromium stops a ServiceWorker after about 30 s without events). The
+  ServiceWorker can still stop (an update, a crash, memory pressure), so the failure stays.
 - **Tests of the idle timeout need a Chromium without Playwright's DevTools sessions:** Playwright
   attaches one to every ServiceWorker, which keeps it running. `e2e-browser/raw-chromium.ts` drives
   a separate Chromium over CDP, attached to its pages only.

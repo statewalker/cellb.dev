@@ -10,11 +10,18 @@
  * Placement is fixed by the cell id (no rebalancing), and a closed page takes its workers along:
  * for cells that must outlive a tab, use a fleet bucket (`bucket`), as for one worker.
  */
+import {
+  serveHttpInWorker,
+  type WorkerHttpService,
+  webSocketUpgradeResponse,
+} from "@statewalker/webrun-http-browser/sw";
+import { withUrl } from "../core/request-body.js";
+import type { CellRuntimeOptions } from "../core/runtime.js";
 import { shardOf } from "../core/shard.js";
-import { type ShardWorker, shardRouting } from "../router/shard-worker.js";
-import type { RemoteRuntime } from "../transport/cells-http.js";
+import { cellsHttpHandler, type RemoteRuntime } from "../transport/cells-http.js";
+import { H, keepUpgrade } from "../transport/cells-link.js";
 import { connectRuntime, linkOverPort, serveRuntime } from "../transport/port.js";
-import { CfWebSocket } from "../ws/server.js";
+import { CellsResponse, CfWebSocket, takeClientPort } from "../ws/server.js";
 import {
   type BrowserBucket,
   type BrowserProjectOptions,
@@ -23,15 +30,14 @@ import {
 
 const INIT = "cellb:shard";
 const CLOSE = "cellb:shard-close";
-/** A shard of a project shared by the tabs of an origin (`joinProjectShards`): linked to a router. */
+/**
+ * A shard of a project shared by the tabs of an origin (`joinProjectShards`): it serves through
+ * the ServiceWorker's router (webrun-http-browser's `serveHttpInWorker`), which the tab attaches
+ * it to, and reaches the other shards through it.
+ */
 export const TAB_INIT = "cellb:tab-shard";
-export const TAB_LINK = "cellb:tab-shard-link";
-/** The router the shard was just linked to: the Web Lock its ServiceWorker holds while alive. */
-export const TAB_WATCH = "cellb:tab-shard-watch";
-/** From a shard worker to its tab: a call waits for a router that is gone; wake the ServiceWorker. */
-export const SHARD_WAKE = "cellb:tab-shard-wake";
-/** From a shard worker to its tab: calls into other shards are in flight; keep the ServiceWorker up. */
-export const SHARD_KEEPALIVE = "cellb:tab-shard-keepalive";
+/** The host calls between shards go to through the router: `http://cellb.internal/<project>/`. */
+export const INTERNAL_ORIGIN = "http://cellb.internal";
 
 /** What a shard worker shared by tabs is told: no peers, it reaches them through the router. */
 export interface TabShardInit {
@@ -82,16 +88,14 @@ export function serveProjectShard(opts: {
     postMessage(message: unknown): void;
   };
   let host: Awaited<ReturnType<typeof browserProjectRuntime>> | undefined;
-  let routed: ShardWorker | undefined;
-  let releaseOwner: (() => void) | undefined;
-  let linkCount = 0; // TAB_LINKs so far: a router's watch drops only the links made for it
+  let service: WorkerHttpService | undefined;
   const sqlite3 = () =>
     typeof opts.sqlite3 === "function"
       ? (opts.sqlite3 as () => Promise<unknown>)()
       : Promise.resolve(opts.sqlite3);
   scope.addEventListener("message", async (e: MessageEvent) => {
     const type = (e.data as { type?: string } | undefined)?.type;
-    if (![INIT, CLOSE, TAB_INIT, TAB_LINK, TAB_WATCH].includes(type as string)) return;
+    if (![INIT, CLOSE, TAB_INIT].includes(type as string)) return;
     const reply = e.ports[0] as MessagePort;
     try {
       if (type === CLOSE) {
@@ -101,35 +105,16 @@ export function serveProjectShard(opts: {
           await host?.close();
         } finally {
           host = undefined;
-          routed = undefined;
-          releaseOwner?.(); // the router sees this shard's owner gone, even if closing failed
-          releaseOwner = undefined;
+          // The router sees this shard's owner gone (its owner lock), even if closing failed.
+          await service?.close().catch(() => {});
+          service = undefined;
         }
-        return reply.postMessage({ ok: true });
-      }
-      if (type === TAB_LINK) {
-        if (!routed) throw new Error("shard not started");
-        linkCount++;
-        await routed.link(e.ports[1], e.ports[2], e.ports[3]);
-        return reply.postMessage({ ok: true });
-      }
-      if (type === TAB_WATCH) {
-        // The lock is ours once the router's ServiceWorker is gone (the browser stops an idle one):
-        // its ports are dead, though nothing says so. A call that waits wakes it through the tab.
-        const linked = linkCount;
-        const shard = routed;
-        void navigator.locks.request(e.data.routerLock, () => {
-          if (linkCount === linked && routed === shard) shard?.unlink();
-        });
         return reply.postMessage({ ok: true });
       }
       if (type === TAB_INIT) {
         const init = e.data as TabShardInit;
-        const routing = shardRouting({
-          ...init,
-          onUnlinked: () => scope.postMessage({ type: SHARD_WAKE }),
-          keepAlive: () => scope.postMessage({ type: SHARD_KEEPALIVE }),
-        });
+        let ready!: (s: WorkerHttpService) => void;
+        const serviceReady = new Promise<WorkerHttpService>((r) => (ready = r));
         host = await browserProjectRuntime({
           config: init.config,
           code: init.code,
@@ -140,19 +125,15 @@ export function serveProjectShard(opts: {
           pool: init.pool,
           filesDir: init.filesDir,
           isolateScript: opts.isolateScript,
-          route: routing.route,
+          route: throughRouter(init, serviceReady),
         });
-        routed = routing.attach(host.runtime);
-        // A lock only this worker holds: the browser releases it the moment the worker or its tab
-        // dies, which tells the router its links are dead (MessagePorts report nothing).
-        const ownerLock = `cellb:${init.name}:owner:${init.shard}:${crypto.randomUUID()}`;
-        await new Promise<void>((held) => {
-          void navigator.locks.request(ownerLock, () => {
-            held();
-            return new Promise<void>((release) => (releaseOwner = release));
-          });
-        });
-        return reply.postMessage({ ok: true, ownerLock, unsupported: host.unsupported });
+        // Served through the ServiceWorker's router, which the tab attaches this worker to. The
+        // package keeps the link: an owner lock the router watches, re-linking after a restart,
+        // keep-alive while calls are in flight.
+        const handler = cellsHttpHandler(host.runtime, { passUpgrades: true });
+        service = serveHttpInWorker(async (req) => upgradeOverPort(await handler(req)));
+        ready(service);
+        return reply.postMessage({ ok: true, unsupported: host.unsupported });
       }
       const init = e.data as ShardInit;
       const links = new Map<number, (req: Request) => Promise<Response>>();
@@ -183,6 +164,74 @@ export function serveProjectShard(opts: {
       reply.postMessage({ ok: false, error: String((err as Error)?.stack ?? err) });
     }
   });
+}
+
+/**
+ * A 101 with a Workers WebSocket, as the ServiceWorker's router hands sockets over: the client
+ * end's port in webrun-http-browser's 101.
+ */
+function upgradeOverPort(res: Response): Response {
+  const ws = (res as Response & { webSocket?: CfWebSocket | null }).webSocket;
+  if (res.status !== 101 || !ws) return res;
+  return webSocketUpgradeResponse(
+    takeClientPort(ws),
+    res.headers.get("Sec-WebSocket-Protocol") ?? "",
+  );
+}
+
+/**
+ * The cells of other shards, through the ServiceWorker's router: a call goes to
+ * `http://cellb.internal/<project>/` (the router's key for the project) naming its shard, with the
+ * url it was made with in `H.url`; a socket opens through the router the same way.
+ */
+function throughRouter(
+  init: { name: string; shard: number; shards: number },
+  service: Promise<WorkerHttpService>,
+): NonNullable<CellRuntimeOptions["route"]> {
+  const target = `${INTERNAL_ORIGIN}/${encodeURIComponent(init.name)}/`;
+  return (_key, id) => {
+    const owner = shardOf(id.toString(), init.shards);
+    if (owner === init.shard) return undefined;
+    // `postVia` (the runtime's) adds the scheme header and rethrows error responses.
+    return async (req) => {
+      const svc = await service;
+      if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+        const protocols = (req.headers.get("sec-websocket-protocol") ?? "")
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean);
+        const headers: [string, string][] = [];
+        for (const [k, v] of req.headers) if (k.startsWith("x-cellb")) headers.push([k, v]);
+        headers.push([H.shard, String(owner)], [H.url, req.url]);
+        const { port, protocol } = await svc.connectWebSocket(target, protocols, headers);
+        return new CellsResponse(null, {
+          status: 101,
+          webSocket: new CfWebSocket(port),
+          headers: protocol ? { "Sec-WebSocket-Protocol": protocol } : {},
+        });
+      }
+      const moved = await withUrl(req, target);
+      const headers = new Headers(req.headers);
+      headers.set(H.shard, String(owner));
+      headers.set(H.url, req.url);
+      try {
+        return await svc.fetch(keepUpgrade(req, new Request(moved, { headers })));
+      } catch (err) {
+        // The words Worker code has always seen for it (CellRouter's), for a call the
+        // ServiceWorker lost in flight only: a call that never left (no link, the handler
+        // closed) keeps the package's words, as it was certainly not applied.
+        if (
+          err instanceof Error &&
+          err.name === "LinkLostError" &&
+          err.message.startsWith("The ServiceWorker was lost while this call was in flight")
+        )
+          throw new Error(
+            "The router was lost while this call was in flight; it may or may not have been applied",
+          );
+        throw err;
+      }
+    };
+  };
 }
 
 export interface ProjectShards {
