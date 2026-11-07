@@ -83,6 +83,20 @@ describe("readSourceProject", () => {
     );
   });
 
+  test("assets.directory as Node resolves it: '.', './public/'", async () => {
+    const files = new MemFilesApi();
+    await files.write("/site/index.html", [enc.encode("<h1>x</h1>")]);
+    const config = (directory: string) =>
+      enc.encode(JSON.stringify({ name: "x", assets: { directory } }));
+    await files.write("/wrangler.json", [config("./site/")]);
+    expect([...((await readSourceProject(files))?.assets?.keys() ?? [])]).toEqual(["/index.html"]);
+    await files.write("/wrangler.json", [config(".")]);
+    expect([...((await readSourceProject(files))?.assets?.keys() ?? [])].sort()).toEqual([
+      "/site/index.html",
+      "/wrangler.json",
+    ]);
+  });
+
   test("undefined for a folder with no wrangler config; an error for one with nothing to run", async () => {
     expect(await readSourceProject(new MemFilesApi())).toBeUndefined();
     const empty = new MemFilesApi();
@@ -139,4 +153,40 @@ describe("bundleCompiler", () => {
     expect((await hello("ada")).visits).toBe(2);
     expect(await (await project.fetch(req("/"))).text()).toBe("Try /hello/your-name");
   }, 60_000);
+
+  test("nodejs_compat: a node:* module without a polyfill loads, and fails only when used", async () => {
+    const files = new MemFilesApi();
+    const write = (p: string, t: string) => files.write(p, [enc.encode(t)]);
+    await write(
+      "/wrangler.json",
+      JSON.stringify({ name: "stub", main: "index.js", compatibility_flags: ["nodejs_compat"] }),
+    );
+    // Two classes named Foo: without keepNames, esbuild renames one of them (Foo2).
+    await write("/a.js", "export class Foo {}");
+    await write("/b.js", "export class Foo {}");
+    await write(
+      "/index.js",
+      `import { Socket } from "node:net";
+import net from "node:net";
+import { Foo as A } from "./a.js";
+import { Foo as B } from "./b.js";
+export default {
+  fetch() {
+    let error = "";
+    try { net.connect(); } catch (e) { error = e.message; }
+    let named = "";
+    try { new Socket(); } catch (e) { named = e.constructor.name; }
+    return Response.json({ names: [A.name, B.name], error, named });
+  },
+};`,
+    );
+    const { files: out } = await compiled(files);
+    const project = track(await loadProject(out));
+    expect(await (await project.fetch(req("/"))).json()).toEqual({
+      names: ["Foo", "Foo"],
+      error: "node:net.connect is not available in browsers (nodejs_compat)",
+      // A named import of a stub is undefined: it fails when used, never when loaded.
+      named: "TypeError",
+    });
+  });
 });

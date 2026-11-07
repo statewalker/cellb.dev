@@ -9,10 +9,9 @@
 import type { FilesApi } from "@statewalker/webrun-files";
 import type { AssetFiles } from "../bindings/assets.js";
 import { filesApiReader, readJson } from "./built-project.js";
-import type { WranglerConfig } from "./wrangler.js";
+import { hasNodeCompat, WRANGLER_FILES, type WranglerConfig } from "./wrangler.js";
 
-/** The configuration files a source folder may hold, in the order celld reads them. */
-export const WRANGLER_FILES = ["wrangler.jsonc", "wrangler.json"];
+export { hasNodeCompat, WRANGLER_FILES };
 
 /** A source project read from a FilesApi: what a compiler needs besides the files. */
 export interface SourceProject {
@@ -42,11 +41,6 @@ export interface ProjectCompiler {
   }): Promise<CompiledProject>;
 }
 
-/** Whether `config` asks for nodejs_compat. */
-export function hasNodeCompat(config: WranglerConfig): boolean {
-  return (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
-}
-
 /**
  * Reads a source folder at the root of `files`: its `wrangler.jsonc` (or `wrangler.json`) and the
  * files of its `assets.directory`. Undefined when there is no configuration.
@@ -62,11 +56,26 @@ export async function readSourceProject(files: FilesApi): Promise<SourceProject 
   if (!config.main && !config.assets)
     throw new Error("wrangler config has neither `main` nor `assets`");
   if (!config.assets?.directory) return { config };
-  const dir = `/${config.assets.directory.replace(/^\.?\/+/, "").replace(/\/+$/, "")}`;
+  const dir = folderPath(config.assets.directory);
+  const paths = await (reader.list as NonNullable<typeof reader.list>)(dir || "/");
   const assets: AssetFiles = new Map();
-  for (const path of await (reader.list as NonNullable<typeof reader.list>)(dir)) {
-    const bytes = await reader.bytes(`${dir}${path}`);
-    if (bytes) assets.set(path, bytes);
-  }
+  await Promise.all(
+    paths.map(async (path) => {
+      const bytes = await reader.bytes(`${dir}${path}`);
+      if (bytes) assets.set(path, bytes);
+    }),
+  );
   return { config, assets };
+}
+
+/**
+ * A folder of the project as a path from its root, "" for the root itself: "./public/" →
+ * "/public", "." → "", "a/../b" → "/b" (as `path.resolve` takes `assets.directory` on Node).
+ */
+function folderPath(dir: string): string {
+  const parts: string[] = [];
+  for (const part of dir.split("/"))
+    if (part === "..") parts.pop();
+    else if (part && part !== ".") parts.push(part);
+  return parts.map((p) => `/${p}`).join("");
 }

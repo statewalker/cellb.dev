@@ -49,11 +49,14 @@ export function bundleCompiler(options: BundleCompilerOptions): ProjectCompiler 
     kind: "bundle",
     async compile({ files, config, nodeCompat }) {
       if (!config.main) return { code: { bundle: null } };
-      // `node:*` only with nodejs_compat, which also takes a bare built-in name ("buffer") as one.
+      // `node:*` only with nodejs_compat, which also takes a bare built-in name ("buffer") as one
+      // when cellb has a polyfill for it. A `node:*` module without one is a stub that throws when
+      // used, as `cellb build` and wrangler's nodejs_compat do (libraries import such modules in
+      // code paths a Worker never takes).
       const modules = (spec: string) =>
         spec.startsWith("node:")
           ? nodeCompat
-            ? cellbHostModule(spec)
+            ? (cellbHostModule(spec) ?? nodeStub(spec))
             : undefined
           : (cellbHostModule(spec) ??
             (nodeCompat && !spec.includes(":") ? cellbHostModule(`node:${spec}`) : undefined));
@@ -67,8 +70,32 @@ export function bundleCompiler(options: BundleCompilerOptions): ProjectCompiler 
         conditions: options.conditions ?? ["workerd", "worker", "browser"],
         lowerAwait: options.lowerAwait ?? nodeCompat,
         sourcemap: false,
+        // Function names are observable (the npm assert polyfill reports its caller's name as
+        // the operator): bundling must not rename them, as in `cellb build`.
+        esbuildOptions: { keepNames: true },
       });
       return { code: { bundle: code } };
     },
   };
+}
+
+/**
+ * A Node.js module with no browser polyfill: CommonJS, so that every import links. Its default
+ * export answers any member with a function that throws when called (or extended). A named import
+ * is undefined (esbuild copies the members of a CommonJS module, and a stub cannot list them), so
+ * it fails when used, not when loaded. `cellb build` lists the members from Node itself; a browser
+ * cannot.
+ */
+function nodeStub(spec: string): string {
+  const what = JSON.stringify(spec);
+  return [
+    `const fail = (key) => { throw new Error(${what} + "." + key + " is not available in browsers (nodejs_compat)"); };`,
+    "module.exports = new Proxy(Object.create(null), {",
+    "  get(target, key) {",
+    '    if (typeof key === "symbol" || key === "then" || key === "__esModule") return undefined;',
+    "    if (!(key in target)) target[key] = function () { fail(String(key)); };",
+    "    return target[key];",
+    "  },",
+    "});",
+  ].join("\n");
 }

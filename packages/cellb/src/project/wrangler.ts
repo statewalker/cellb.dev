@@ -465,9 +465,17 @@ export function withResourceIds(config: WranglerConfig): WranglerConfig {
  * `nodejs_compat_do_not_populate_process_env` is set. Frameworks read their settings there
  * (EmDash's `EMDASH_SITE_URL`, for one).
  */
+/** Whether `config` asks for nodejs_compat (the flag, or a `nodejs_compat_*` one). */
+export function hasNodeCompat(config: WranglerConfig): boolean {
+  return (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
+}
+
+/** The configuration files of a project folder, in the order celld reads them. */
+export const WRANGLER_FILES = ["wrangler.jsonc", "wrangler.json"];
+
 export function populatesProcessEnv(config: WranglerConfig): boolean {
   const flags = config.compatibility_flags ?? [];
-  if (!flags.some((f) => f.startsWith("nodejs_compat"))) return false;
+  if (!hasNodeCompat(config)) return false;
   if (flags.includes("nodejs_compat_do_not_populate_process_env")) return false;
   if (flags.includes("nodejs_compat_populate_process_env")) return true;
   return (config.compatibility_date ?? "") >= "2025-04-01";

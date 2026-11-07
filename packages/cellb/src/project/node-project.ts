@@ -29,15 +29,17 @@ import { ownModule } from "./own-module.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import {
   createProjectRuntime,
+  hasNodeCompat,
   loadTimeEnv,
   type ProjectHost,
   type ProjectRuntime,
+  WRANGLER_FILES,
   type WranglerConfig,
 } from "./wrangler.js";
 
 /** Reads `wrangler.jsonc` / `wrangler.json` of a project directory (celld reads the same files). */
 export function readWranglerConfig(dir: string): WranglerConfig {
-  for (const name of ["wrangler.jsonc", "wrangler.json"]) {
+  for (const name of WRANGLER_FILES) {
     const p = join(dir, name);
     if (existsSync(p)) return parseJsonc(readFileSync(p, "utf8")) as WranglerConfig;
   }
@@ -243,7 +245,7 @@ export async function loadNodeProject(
   if (!config.main && !config.assets)
     throw new Error("wrangler config has neither `main` nor `assets`");
   const flags = config.compatibility_flags ?? [];
-  const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
+  const nodeCompat = hasNodeCompat(config);
   const standardBinaryType = flags.includes("websocket_standard_binary_type");
   // The module reads `env` from `cloudflare:workers` while it is evaluated, before the
   // runtime exists: until then the scope holds the configuration's vars (and `ai`).

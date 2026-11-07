@@ -53,7 +53,11 @@ async function build(sources: Record<string, string>) {
   const config = parseJsonc(sources["wrangler.jsonc"]) as WranglerConfig;
 
   t0 = performance.now();
-  await host?.close();
+  // The new project opens the same OPFS pool, so the old one closes first; a build that fails
+  // leaves none, and requests ask for a build rather than reach a closed project.
+  const previous = host;
+  host = undefined;
+  await previous?.close();
   host = await loadProject(files, { data: run, compile });
   post({
     type: "log",

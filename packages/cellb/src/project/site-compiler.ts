@@ -124,8 +124,14 @@ const once = (port: MessagePort, timeoutMs: number) =>
  */
 export function siteHostOverPort(
   control: SiteControl,
-  /** How long the page may take to host the site, or to stop it (default 30 s). */
-  { timeoutMs = 30_000 }: { timeoutMs?: number } = {},
+  /**
+   * How long the page may take to host the site (default 30 s; a ServiceWorker's first install
+   * can be slow), and to confirm it stopped one (default 2 s; the worker stops serving anyway).
+   */
+  {
+    timeoutMs = 30_000,
+    stopTimeoutMs = 2_000,
+  }: { timeoutMs?: number; stopTimeoutMs?: number } = {},
 ): SiteHost {
   return async (handler) => {
     const link = new MessageChannel();
@@ -136,15 +142,18 @@ export function siteHostOverPort(
     control.postMessage(request, [link.port2, reply.port2]);
     const { baseUrl, error } = await answered;
     if (!baseUrl) {
+      // A page that hosts the site after all finds this stop waiting for it, and takes the site
+      // down (its port stays open for that).
+      reply.port1.onmessage = null;
+      reply.port1.postMessage({ type: STOP_SITE });
       await stopServing();
-      reply.port1.close();
       throw new Error(`the page did not host the site: ${error}`);
     }
     return {
       baseUrl,
       stop: async () => {
-        // A page that is gone stops nothing: the worker stops serving all the same.
-        const stopped = once(reply.port1, timeoutMs);
+        // A page that does not answer stops nothing: the worker stops serving all the same.
+        const stopped = once(reply.port1, stopTimeoutMs);
         reply.port1.postMessage({ type: STOP_SITE });
         await stopped;
         reply.port1.close();
@@ -167,6 +176,8 @@ export function hostSitesForWorker(
     const req = e.data as HostSiteRequest | undefined;
     if (req?.type !== HOST_SITE) return;
     try {
+      // The worker may give up waiting (`timeoutMs`) and ask to stop before the site is up: the
+      // stop then waits on `reply` until the handler below reads it.
       const link = await linkOverPort(req.link);
       const builder = new HostedSiteBuilder().setHandler(link.send);
       if (options.serviceWorkerUrl) builder.setServiceWorkerUrl(options.serviceWorkerUrl);

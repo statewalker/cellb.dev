@@ -92,8 +92,8 @@ export async function loadProject(
         : `${where} has no ${BUILD_MANIFEST}: browsers load folders written by \`cellb build\` by URL (a source folder loads from a FilesApi, with \`compile\`)`,
     );
   try {
-    const release =
-      compiled?.close && (() => (compiled as CompiledProject).close?.() ?? Promise.resolve());
+    const close = compiled?.close?.bind(compiled);
+    const release = close && (() => close());
     return await run(built, compiled?.code ?? { bundle: built.code }, options, release);
   } catch (err) {
     await compiled?.close?.().catch(() => {});
