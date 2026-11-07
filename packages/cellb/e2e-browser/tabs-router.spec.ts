@@ -38,7 +38,7 @@ async function routerProject(tag: string) {
         if (path === "/clear-cookie")
           return new Response("cleared", { headers: { "Set-Cookie": "flavour=; Max-Age=0; Path=/" } });
         if (path === "/path") return new Response(u.pathname);
-        if (path.startsWith("/tabs/")) return new Response("root " + ${JSON.stringify(tag)} + ": " + path);
+        if (path.startsWith("/tabs/")) return new Response("root " + ${JSON.stringify(tag)} + ": " + path + u.search);
         if (path === "/ws-headers" && req.headers.get("upgrade") === "websocket") {
           const seen = [...req.headers].filter(([k]) => k.startsWith("x-")).map(([k, v]) => k + "=" + v);
           const [client, server] = Object.values(new WebSocketPair());
@@ -107,6 +107,12 @@ test("the page's cookies reach the Worker, and the Worker's Set-Cookie reaches t
   expect((await request(page, "/set-cookies")).body).toBe("set both");
   await expect.poll(() => page.evaluate(() => document.cookie)).toMatch(/(^|; )b=2(;|$)/);
   expect(await page.evaluate(() => document.cookie)).toMatch(/(^|; )a=1(;|$)/);
+  // The Expires survived the trip (its comma did not split the value): b is not a session cookie.
+  // (Chromium caps a cookie's lifetime at 400 days, so it expires then, not in 2037.)
+  const expires = await page.evaluate(
+    async () => (await (globalThis as any).cookieStore.get("b"))?.expires,
+  );
+  expect(expires).toBeGreaterThan(Date.now() + 30 * 86_400_000);
   expect((await request(page, "/clear-cookie")).body).toBe("cleared");
   await expect.poll(() => page.evaluate(() => document.cookie)).not.toContain("flavour=");
   const sent = (await request(page, "/cookie")).body;
@@ -166,6 +172,11 @@ test("sockets: from the page to the Worker, and from the Worker to a Room in ano
     ["x-cellb-binding", "ROOM"],
     ["x-cellb-target", `name:${roomIn(1)}`],
     ["x-cellb-shard", "1"],
+    ["x-cellb-method", "anything"],
+    ["x-cellb-proto", "https:"],
+    ["x-cellb-ws", "w1"],
+    ["x-cellb-upgrade", "websocket"],
+    ["x-cellb-cookie", "forged=1"],
     ["x-test", "kept"],
   ];
   expect(
@@ -202,9 +213,13 @@ test("a root project: the origin's other paths go to it unchanged, passthrough p
   await openTab(page, { name, shards: 1, ...project }, `?root=${name}&host=/tabs/host.html`);
   expect(await request(page, "/tabs/some/page?q=1")).toEqual({
     status: 200,
-    body: "root one: /tabs/some/page",
+    body: "root one: /tabs/some/page?q=1",
   });
   expect((await request(page, "/tabs/host.html")).body).toContain("host page");
+  // A navigation while a tab runs the project: served, not sent to the host page.
+  await page.goto("/tabs/landing");
+  expect(new URL(page.url()).pathname).toBe("/tabs/landing");
+  expect(await page.textContent("body")).toBe("root one: /tabs/landing");
 });
 
 test("a root project: a navigation no tab serves goes to the host page, with where it was going", async ({
@@ -213,7 +228,10 @@ test("a root project: a navigation no tab serves goes to the host page, with whe
   test.setTimeout(60_000);
   const name = `nobody-${Date.now().toString(36)}`;
   await page.goto(`/tabs/index.html?root=${name}&host=/tabs/host.html&wait=300`);
-  await page.waitForFunction(() => document.body.dataset.ready === "true");
+  await page.waitForFunction(
+    () => document.body.dataset.ready === "true" || document.body.dataset.error,
+  );
+  expect(await page.evaluate(() => document.body.dataset.error ?? null)).toBeNull();
   await page.goto("/tabs/somewhere?x=1");
   expect(new URL(page.url()).pathname).toBe("/tabs/host.html");
   expect(new URL(page.url()).searchParams.get("next")).toBe("/tabs/somewhere?x=1");

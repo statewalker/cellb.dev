@@ -19,7 +19,8 @@ installProjectRouter(self, {
         name: root,
         // The fixture's own files stay the page's, and so do Vite's: a controlled client (the
         // shard workers) sends every request to this worker, whatever its path, its module
-        // imports included.
+        // imports included. These are Vite's own paths: a Vite that adds another would send it
+        // to the root project, and only the root-mode tests would fail (hanging on that import).
         passthrough: [
           "/@fs/",
           "/@vite/",
