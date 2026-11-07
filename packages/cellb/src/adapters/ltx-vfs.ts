@@ -42,16 +42,36 @@ export function installLtxVfs(
   const payload = new Uint8Array(channel.sab, 8);
   const stats: LtxVfsStats = { reads: 0, cacheHits: 0, storeReads: 0, commits: 0, blockedMs: 0 };
 
+  /**
+   * Each request's number: the store tags its answer with it (state word = seq << 2 | state),
+   * so the late answer to a request this worker gave up on is not taken for the next one's.
+   */
+  let seq = 0;
   /** A request answered synchronously: blocks this worker until the store notifies. */
   const call = (msg: Record<string, unknown>): Uint8Array => {
+    seq = (seq % 0x1fffffff) + 1;
     Atomics.store(ctl, 0, 0);
     const t = performance.now();
-    channel.post(msg);
+    // `until` (wall clock, which both threads share): a commit the store could only finish
+    // near it is not kept, since this worker may already have given up on it.
+    channel.post({ ...msg, seq, until: Date.now() + 30_000 });
     // A store that never answers (a worker that failed to load) must not freeze this worker.
-    if (Atomics.wait(ctl, 0, 0, 30_000) === "timed-out")
-      throw new Error(`ltx store: no answer to ${String(msg.op)} in 30 s`);
+    const deadline = t + 30_000;
+    let word = 0;
+    for (;;) {
+      const left = deadline - performance.now();
+      if (left > 0) Atomics.wait(ctl, 0, 0, left);
+      word = Atomics.load(ctl, 0);
+      // Out of time: unless this request's answer is there now, it is abandoned (the store
+      // does not keep a commit past `until`, nor serve a request once a newer one came).
+      if (performance.now() >= deadline && word >>> 2 !== seq)
+        throw new Error(`ltx store: no answer to ${String(msg.op)} in 30 s`);
+      if (word >>> 2 === seq) break;
+      // An answer to an earlier request (given up on): not this one's; wait on.
+      Atomics.compareExchange(ctl, 0, word, 0);
+    }
     stats.blockedMs += performance.now() - t;
-    if (ctl[0] === 2) throw new Error(new TextDecoder().decode(payload.slice(0, ctl[1])));
+    if ((word & 3) === 2) throw new Error(new TextDecoder().decode(payload.slice(0, ctl[1])));
     return payload.slice(0, ctl[1]);
   };
   /** One open database (a cell): its size, its page cache, the current transaction's pages. */

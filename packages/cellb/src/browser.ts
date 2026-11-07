@@ -1,5 +1,8 @@
 export { sahpoolOpener } from "./adapters/wasm-sqlite.js";
 export { idbObjectStore } from "./bucket/idb-object-store.js";
+export { type FilesRpcOptions, rpcFilesClient, serveFilesApi } from "./ltx/files-rpc.js";
+export { filesApiPort, type ServeLtxStoreOptions, serveLtxStore } from "./ltx/ltx-host.js";
+export type { LtxStoreFiles } from "./ltx/ltx-page-server.js";
 export {
   type BrowserBucket,
   type BrowserProjectOptions,
