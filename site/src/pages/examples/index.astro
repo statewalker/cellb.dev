@@ -41,8 +41,9 @@ const groups: { origin: Example["origin"]; title: string; body: string }[] = [
     <div id="live-demos" class="mt-12 scroll-mt-20">
       <h2 class="text-2xl font-semibold tracking-tight">Live demos: whole apps in a tab</h2>
       <p class="mt-2 max-w-3xl text-sm text-muted-foreground">
-        Two Cloudflare apps CellB did not write, published as static files. The tab runs the
-        Worker, its Durable Objects, D1, KV and R2. Keep the host tab open while you use a site.
+        EmDash, a Cloudflare app CellB did not write, served from static files, and Astro apps
+        (EmDash among them) built from their sources in the tab. The tab runs the Worker, its
+        Durable Objects, D1, KV and R2. Keep the host tab open while you use a site.
       </p>
       <div class="mt-6 grid gap-3 sm:grid-cols-2">
         {Object.values(LIVE_DEMOS).map((d) => (

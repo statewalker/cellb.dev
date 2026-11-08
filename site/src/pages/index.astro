@@ -12,7 +12,7 @@ import Tabs from "@/components/ui/Tabs.astro";
 import Base from "@/layouts/Base.astro";
 import { docHref } from "@/lib/docs";
 import { exampleByName, exampleHref } from "@/lib/examples";
-import { REPO, repoFile } from "@/lib/site";
+import { LIVE_DEMOS, REPO, repoFile } from "@/lib/site";
 import counterCode from "../../../packages/cellb/conformance/celld-examples/counter/index.js?raw";
 import counterTabs from "../demo/counter/tabs.ts?raw";
 import counterWrangler from "../demo/counter/wrangler.jsonc?raw";
@@ -285,6 +285,7 @@ const useCases = [
     icon: "wifiOff",
     title: "Local-first apps",
     body: "Cells answer from OPFS inside the tab, with no network and no server: EmDash keeps publishing posts after its file server is stopped. Configure a fleet bucket and the same cells are logged in celld's format, so a server node can serve them when the tab is closed.",
+    link: { href: LIVE_DEMOS.emdash.href, label: "Try EmDash in your tab" },
   },
   {
     icon: "globe",
@@ -342,7 +343,7 @@ const lifecycle = [
         </p>
         <div class="flex flex-wrap gap-3">
           <Button href="/docs" size="lg">Get started <Icon name="arrowRight" /></Button>
-          <Button href="#compare" size="lg" variant="outline">Compare with celld</Button>
+          <Button href="#compare" size="lg" variant="outline">Supported services</Button>
         </div>
         <CodeBlock code="npm install @statewalker/cellb" class="max-w-md" />
       </div>
@@ -511,6 +512,11 @@ const lifecycle = [
           </div>
           <h3 class="font-medium">{u.title}</h3>
           <p class="mt-2 text-sm leading-6 text-muted-foreground">{u.body}</p>
+          {"link" in u && u.link && (
+            <a href={u.link.href} class="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline">
+              {u.link.label} <Icon name="externalLink" class="size-3" />
+            </a>
+          )}
         </Card>
       ))}
     </div>

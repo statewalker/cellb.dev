@@ -188,10 +188,11 @@ more cores.
 With `bucket: { idb: "<database>", node }`, a shard runs each cell's SQLite in memory and
 persists it through the bucket's page-level logs (LTX) in IndexedDB, whose conditional writes
 are atomic across tabs and workers. No OPFS SyncAccessHandle is opened, so nothing is exclusive
-to one worker. In [examples/astro-in-browser](../../../examples/astro-in-browser) ([live demo](https://cellb-astro.httpeers.net)) (`cells-lab.spec.ts`: 48 cells with 10 writes each,
-then a reload), 8 shards took 5.1 s against 9.1 s with OPFS pools, and 16 shards took 5.3 s
-against 8.9 s. Every cell read back after the reload. Reads after a restart are slower because
-they replay the log (1.4–2.2 s against 0.6–0.9 s).
+to one worker. In [examples/astro-in-browser](../../../examples/astro-in-browser)
+(`cells-lab.spec.ts`: 48 cells with 10 writes each, then a reload), 8 shards took 5.1 s against
+9.1 s with OPFS pools, and 16 shards took 5.3 s against 8.9 s. Every cell read back after the
+reload. Reads after a restart are slower because they replay the log (1.4–2.2 s against
+0.6–0.9 s). The example runs as a [live demo](https://cellb-astro.httpeers.net).
 
 #### Cells on LTX files in OPFS: `bucket: { ltx, node }`
 
