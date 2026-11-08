@@ -2,7 +2,10 @@
 import Badge from "@/components/ui/Badge.astro";
 import Card from "@/components/ui/Card.astro";
 import Base from "@/layouts/Base.astro";
+import Icon from "@/components/Icon.astro";
+import { docHref } from "@/lib/docs";
 import { type Example, exampleHref, examples } from "@/lib/examples";
+import { LIVE_DEMOS } from "@/lib/site";
 
 const groups: { origin: Example["origin"]; title: string; body: string }[] = [
   {
@@ -34,6 +37,24 @@ const groups: { origin: Example["origin"]; title: string; body: string }[] = [
         tab and compare the answers line by line. The projects are bundled when the site is built,
         so a run starts in a second or two.
       </p>
+    </div>
+    <div id="live-demos" class="mt-12 scroll-mt-20">
+      <h2 class="text-2xl font-semibold tracking-tight">Live demos: whole apps in a tab</h2>
+      <p class="mt-2 max-w-3xl text-sm text-muted-foreground">
+        Two Cloudflare apps CellB did not write, published as static files. The tab runs the
+        Worker, its Durable Objects, D1, KV and R2. Keep the host tab open while you use a site.
+      </p>
+      <div class="mt-6 grid gap-3 sm:grid-cols-2">
+        {Object.values(LIVE_DEMOS).map((d) => (
+          <Card class="flex h-full flex-col p-5">
+            <a href={d.href} class="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+              {d.title} <Icon name="externalLink" class="size-3" />
+            </a>
+            <p class="mt-2 flex-1 text-sm text-muted-foreground">{d.body}</p>
+            <a href={docHref(d.readme)} class="mt-3 text-sm text-primary hover:underline">How it is wired</a>
+          </Card>
+        ))}
+      </div>
     </div>
     {groups.map((g) => {
       const list = examples.filter((e) => e.origin === g.origin);

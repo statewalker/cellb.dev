@@ -2,7 +2,7 @@
 import CodeBlock from "@/components/CodeBlock.astro";
 import Docs from "@/layouts/Docs.astro";
 import { docHref } from "@/lib/docs";
-import { repoFile } from "@/lib/site";
+import { LIVE_DEMOS, repoFile } from "@/lib/site";
 import { files } from "../../from-sources/project";
 
 const WEBRUN_SITES = "https://github.com/statewalker/webrun-sites/tree/main/packages";
@@ -86,6 +86,8 @@ hostSitesForWorker(worker);`;
   <p>
     The <a href={docHref("examples/astro-in-browser/README.md")}>Astro built in a tab</a> example
     uses this to build EmDash, a whole Astro CMS, in a browser tab, and then serves it on CellB.
+    Try it: <a href={LIVE_DEMOS.astro.href}>the live demo</a> builds a small Astro app, or EmDash,
+    in your tab.
   </p>
 
   <h2>webrun-modules: no bundle, a module server</h2>

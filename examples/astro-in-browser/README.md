@@ -9,6 +9,10 @@ template
 R2, KV and a cron trigger. The same builder runs on Node, and its output runs on CellB in Node too.
 The package is private, since it is a test of CellB and of webrun-bundler and not a library.
 
+**Live demo: <https://cellb-astro.httpeers.net>**: pick the small app or EmDash, and the tab
+builds it and runs it. EmDash built ahead of time and served from static files:
+<https://cellb-emdash.httpeers.net> ([emdash](../emdash/README.md)).
+
 ## How it fits together
 
 ```
