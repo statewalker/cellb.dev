@@ -1,5 +1,6 @@
 ---
 import { docHref } from "@/lib/docs";
+import { LIVE_DEMOS } from "@/lib/site";
 import Icon from "./Icon.astro";
 import Card from "./ui/Card.astro";
 
@@ -10,6 +11,7 @@ const apps = [
     title: "A CMS in a tab, from static files",
     body: "EmDash, the Astro CMS, runs unchanged from its Cloudflare build: D1, KV sessions, R2 media, a cron trigger, passkeys. A plain file server hands the browser the files and is then stopped. The setup wizard, sign-in, editor and media library all keep working, and the post is still there after the tab is reopened.",
     href: docHref("examples/emdash/README.md"),
+    demo: LIVE_DEMOS.emdash.href,
   },
   {
     image: "/showcase/emdash-built-in-tab.png",
@@ -17,6 +19,7 @@ const apps = [
     title: "Built from source, in the same tab",
     body: "Astro's compiler and esbuild run as WebAssembly in workers, with packages from the npm registry kept in a package store that is itself a Durable Object. EmDash's 225 routes build in about 65–115 s on 4 CPUs and run on CellB at once, with their cells on LTX files in OPFS.",
     href: docHref("examples/astro-in-browser/README.md"),
+    demo: LIVE_DEMOS.astro.href,
   },
 ] as const;
 
@@ -50,9 +53,14 @@ const more = [
       <div class="space-y-2 p-6">
         <h3 class="font-medium">{a.title}</h3>
         <p class="text-sm leading-6 text-muted-foreground">{a.body}</p>
-        <a href={a.href} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-          How it is wired <Icon name="externalLink" class="size-3" />
-        </a>
+        <div class="flex flex-wrap gap-x-5 gap-y-1">
+          <a href={a.demo} class="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+            Open the live demo <Icon name="externalLink" class="size-3" />
+          </a>
+          <a href={a.href} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+            How it is wired <Icon name="externalLink" class="size-3" />
+          </a>
+        </div>
       </div>
     </Card>
   ))}

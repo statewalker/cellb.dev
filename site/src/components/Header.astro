@@ -11,9 +11,11 @@ const nav = [
   { href: "/docs", label: "Docs" },
   { href: "/docs/how-it-works", label: "How it works" },
   { href: "/examples", label: "Examples" },
-  { href: "/#use-cases", label: "Use cases" },
-  { href: "/#numbers", label: "Numbers" },
-  { href: "/#compare", label: "vs celld" },
+  { href: "/examples#live-demos", label: "Live demos" },
+  { href: "/#compare", label: "Supported" },
+  // Shown from `lg` only: below it the bar has room for the first five.
+  { href: "/#use-cases", label: "Use cases", wide: true },
+  { href: "/#numbers", label: "Numbers", wide: true },
 ];
 ---
 
@@ -26,7 +28,8 @@ const nav = [
         <a
           href={item.href}
           class:list={[
-            "transition-colors hover:text-foreground",
+            "whitespace-nowrap transition-colors hover:text-foreground",
+            "wide" in item && item.wide && "hidden lg:inline",
             path === item.href || (item.href !== "/docs" && path.startsWith(item.href))
               ? "text-foreground"
               : "text-muted-foreground",

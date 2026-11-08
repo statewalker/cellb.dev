@@ -12,7 +12,7 @@ import Tabs from "@/components/ui/Tabs.astro";
 import Base from "@/layouts/Base.astro";
 import { docHref } from "@/lib/docs";
 import { exampleByName, exampleHref } from "@/lib/examples";
-import { REPO, repoFile } from "@/lib/site";
+import { LIVE_DEMOS, REPO, repoFile } from "@/lib/site";
 import counterCode from "../../../packages/cellb/conformance/celld-examples/counter/index.js?raw";
 import counterTabs from "../demo/counter/tabs.ts?raw";
 import counterWrangler from "../demo/counter/wrangler.jsonc?raw";
@@ -285,6 +285,7 @@ const useCases = [
     icon: "wifiOff",
     title: "Local-first apps",
     body: "Cells answer from OPFS inside the tab, with no network and no server: EmDash keeps publishing posts after its file server is stopped. Configure a fleet bucket and the same cells are logged in celld's format, so a server node can serve them when the tab is closed.",
+    link: { href: LIVE_DEMOS.emdash.href, label: "Try EmDash in your tab" },
   },
   {
     icon: "globe",
@@ -342,7 +343,7 @@ const lifecycle = [
         </p>
         <div class="flex flex-wrap gap-3">
           <Button href="/docs" size="lg">Get started <Icon name="arrowRight" /></Button>
-          <Button href="#compare" size="lg" variant="outline">Compare with celld</Button>
+          <Button href="#compare" size="lg" variant="outline">Supported services</Button>
         </div>
         <CodeBlock code="npm install @statewalker/cellb" class="max-w-md" />
       </div>
@@ -377,126 +378,12 @@ const lifecycle = [
     </div>
   </section>
 
-  <!-- Where it runs -->
-  <section class="border-y bg-muted/30">
-    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-      <div class="max-w-2xl space-y-3">
-        <p class="font-mono text-sm text-primary">// where it runs</p>
-        <h2 class="text-3xl font-semibold tracking-tight">One core, three hosts</h2>
-        <p class="text-muted-foreground">
-          The runtime core knows nothing about its platform. Ports supply SQLite, storage, leases
-          and clocks; the package has one entry point per platform.
-        </p>
-      </div>
-      <div class="mt-10 grid gap-4 lg:grid-cols-3">
-        {hosts.map((h) => (
-          <Card class="flex flex-col p-6">
-            <div class="flex items-center gap-3">
-              <div class="inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Icon name={h.icon} />
-              </div>
-              <h3 class="font-medium">{h.title}</h3>
-            </div>
-            <code class="mt-4 self-start rounded-md bg-muted px-2 py-1 font-mono text-xs">{h.tag}</code>
-            <ul class="mt-4 space-y-2 text-sm text-muted-foreground">
-              {h.points.map((pt) => (
-                <li class="flex gap-2">
-                  <Icon name="check" class="mt-0.5 size-4 shrink-0 text-primary" />
-                  <span>{pt}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        ))}
-      </div>
-    </div>
-  </section>
-
-  <!-- Use cases -->
-  <section id="use-cases" class="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6">
-    <div class="max-w-2xl space-y-3">
-      <p class="font-mono text-sm text-primary">// use cases</p>
-      <h2 class="text-3xl font-semibold tracking-tight">Built for rich applications, people and agents</h2>
-      <p class="text-muted-foreground">
-        IDE-class tools, agent platforms and collaborative apps all need the same thing: many
-        small stateful services that run close to whoever uses them, human or machine.
-      </p>
-    </div>
-    <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {useCases.map((u) => (
-        <Card class="p-6 transition-colors hover:border-primary/40">
-          <div class="mb-4 inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon name={u.icon} />
-          </div>
-          <h3 class="font-medium">{u.title}</h3>
-          <p class="mt-2 text-sm leading-6 text-muted-foreground">{u.body}</p>
-        </Card>
-      ))}
-    </div>
-  </section>
-
-  <!-- Real apps -->
-  <section id="apps" class="border-y bg-muted/30 scroll-mt-20">
-    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-      <div class="max-w-3xl space-y-3">
-        <p class="font-mono text-sm text-primary">// real apps</p>
-        <h2 class="text-3xl font-semibold tracking-tight text-balance">
-          Large Cloudflare apps that CellB did not write, running in a tab
-        </h2>
-        <p class="text-muted-foreground">
-          The examples use CellB as its users do, from npm. A CI job, started by hand, also runs
-          them on CellB as the next release would publish it. Running them found gaps in CellB,
-          which are now closed.
-        </p>
-      </div>
-      <div class="mt-10">
-        <Showcase />
-      </div>
-    </div>
-  </section>
-
-  <!-- Code -->
-  <section>
-    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-      <div class="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] [&>*]:min-w-0">
-        <div class="space-y-3">
-          <p class="font-mono text-sm text-primary">// the code</p>
-          <h2 class="text-3xl font-semibold tracking-tight">Workers code you already have</h2>
-          <p class="text-muted-foreground">
-            A runtime is a plain <code class="font-mono text-sm">(Request) ⇒ Response</code>
-            handler. Mount it on <code class="font-mono text-sm">node:http</code>, a ServiceWorker
-            or a test. Wrangler projects load from the configuration celld deploys, and anything
-            CellB does not support is listed in <code class="font-mono text-sm">unsupported</code>
-            instead of being silently ignored.
-          </p>
-          <ul class="space-y-2 pt-2 text-sm text-muted-foreground">
-            <li class="flex gap-2"><Icon name="check" class="mt-0.5 size-4 shrink-0 text-primary" />Synchronous <code class="font-mono">ctx.storage.sql</code>, as on Cloudflare</li>
-            <li class="flex gap-2"><Icon name="check" class="mt-0.5 size-4 shrink-0 text-primary" />Stubs with fetch, RPC and promise pipelining</li>
-            <li class="flex gap-2"><Icon name="check" class="mt-0.5 size-4 shrink-0 text-primary" />Alarms, WebSockets, hibernation, facets</li>
-          </ul>
-        </div>
-        <div class="space-y-3">
-          <Tabs labels={["Node", "Browser", "Fleet with celld"]}>
-            <CodeBlock slot="tab-0" title="node.ts" lang="ts" code={nodeExample} />
-            <CodeBlock slot="tab-1" title="worker.ts" lang="ts" code={browserExample} />
-            <CodeBlock slot="tab-2" title="node.ts" lang="ts" code={fleetExample} />
-          </Tabs>
-          <p class="text-sm text-muted-foreground">
-            A browser loads the folder <code class="font-mono">cellb build</code> writes: the
-            wrangler configuration, the Worker bundled for browsers, and the assets. Any static
-            host can serve it. Every <a href="/examples" class="text-primary hover:underline">example page</a> runs its project this way.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- Comparison -->
   <section id="compare" class="scroll-mt-20 border-y bg-muted/30">
    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
     <div class="max-w-3xl space-y-3">
-      <p class="font-mono text-sm text-primary">// next to celld</p>
-      <h2 class="text-3xl font-semibold tracking-tight">celld is the judge</h2>
+      <p class="font-mono text-sm text-primary">// supported services, next to celld</p>
+      <h2 class="text-3xl font-semibold tracking-tight">Supported services, with celld as the judge</h2>
       <p class="text-muted-foreground">
         celld's examples, CellB's own probe projects and workerd's Durable Object tests run on the
         real celld, and their answers are recorded. CellB must give the same answers: in Node on
@@ -569,6 +456,129 @@ const lifecycle = [
       </a>
     </div>
    </div>
+  </section>
+
+  <!-- Where it runs -->
+  <section>
+    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div class="max-w-2xl space-y-3">
+        <p class="font-mono text-sm text-primary">// where it runs</p>
+        <h2 class="text-3xl font-semibold tracking-tight">One core, three hosts</h2>
+        <p class="text-muted-foreground">
+          The runtime core knows nothing about its platform. Ports supply SQLite, storage, leases
+          and clocks; the package has one entry point per platform.
+        </p>
+      </div>
+      <div class="mt-10 grid gap-4 lg:grid-cols-3">
+        {hosts.map((h) => (
+          <Card class="flex flex-col p-6">
+            <div class="flex items-center gap-3">
+              <div class="inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon name={h.icon} />
+              </div>
+              <h3 class="font-medium">{h.title}</h3>
+            </div>
+            <code class="mt-4 self-start rounded-md bg-muted px-2 py-1 font-mono text-xs">{h.tag}</code>
+            <ul class="mt-4 space-y-2 text-sm text-muted-foreground">
+              {h.points.map((pt) => (
+                <li class="flex gap-2">
+                  <Icon name="check" class="mt-0.5 size-4 shrink-0 text-primary" />
+                  <span>{pt}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Use cases -->
+  <section id="use-cases" class="scroll-mt-20 border-y bg-muted/30">
+   <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+    <div class="max-w-2xl space-y-3">
+      <p class="font-mono text-sm text-primary">// use cases</p>
+      <h2 class="text-3xl font-semibold tracking-tight">Built for rich applications, people and agents</h2>
+      <p class="text-muted-foreground">
+        IDE-class tools, agent platforms and collaborative apps all need the same thing: many
+        small stateful services that run close to whoever uses them, human or machine.
+      </p>
+    </div>
+    <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {useCases.map((u) => (
+        <Card class="p-6 transition-colors hover:border-primary/40">
+          <div class="mb-4 inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon name={u.icon} />
+          </div>
+          <h3 class="font-medium">{u.title}</h3>
+          <p class="mt-2 text-sm leading-6 text-muted-foreground">{u.body}</p>
+          {"link" in u && u.link && (
+            <a href={u.link.href} class="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline">
+              {u.link.label} <Icon name="externalLink" class="size-3" />
+            </a>
+          )}
+        </Card>
+      ))}
+    </div>
+   </div>
+  </section>
+
+  <!-- Real apps -->
+  <section id="apps" class="scroll-mt-20">
+    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div class="max-w-3xl space-y-3">
+        <p class="font-mono text-sm text-primary">// real apps</p>
+        <h2 class="text-3xl font-semibold tracking-tight text-balance">
+          Large Cloudflare apps that CellB did not write, running in a tab
+        </h2>
+        <p class="text-muted-foreground">
+          The examples use CellB as its users do, from npm. A CI job, started by hand, also runs
+          them on CellB as the next release would publish it. Running them found gaps in CellB,
+          which are now closed. The first two are published as{" "}
+          <a href="/examples#live-demos" class="text-primary hover:underline">live demos</a>: open
+          one and the app runs in your tab.
+        </p>
+      </div>
+      <div class="mt-10">
+        <Showcase />
+      </div>
+    </div>
+  </section>
+
+  <!-- Code -->
+  <section class="border-y bg-muted/30">
+    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div class="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] [&>*]:min-w-0">
+        <div class="space-y-3">
+          <p class="font-mono text-sm text-primary">// the code</p>
+          <h2 class="text-3xl font-semibold tracking-tight">Workers code you already have</h2>
+          <p class="text-muted-foreground">
+            A runtime is a plain <code class="font-mono text-sm">(Request) ⇒ Response</code>
+            handler. Mount it on <code class="font-mono text-sm">node:http</code>, a ServiceWorker
+            or a test. Wrangler projects load from the configuration celld deploys, and anything
+            CellB does not support is listed in <code class="font-mono text-sm">unsupported</code>
+            instead of being silently ignored.
+          </p>
+          <ul class="space-y-2 pt-2 text-sm text-muted-foreground">
+            <li class="flex gap-2"><Icon name="check" class="mt-0.5 size-4 shrink-0 text-primary" />Synchronous <code class="font-mono">ctx.storage.sql</code>, as on Cloudflare</li>
+            <li class="flex gap-2"><Icon name="check" class="mt-0.5 size-4 shrink-0 text-primary" />Stubs with fetch, RPC and promise pipelining</li>
+            <li class="flex gap-2"><Icon name="check" class="mt-0.5 size-4 shrink-0 text-primary" />Alarms, WebSockets, hibernation, facets</li>
+          </ul>
+        </div>
+        <div class="space-y-3">
+          <Tabs labels={["Node", "Browser", "Fleet with celld"]}>
+            <CodeBlock slot="tab-0" title="node.ts" lang="ts" code={nodeExample} />
+            <CodeBlock slot="tab-1" title="worker.ts" lang="ts" code={browserExample} />
+            <CodeBlock slot="tab-2" title="node.ts" lang="ts" code={fleetExample} />
+          </Tabs>
+          <p class="text-sm text-muted-foreground">
+            A browser loads the folder <code class="font-mono">cellb build</code> writes: the
+            wrangler configuration, the Worker bundled for browsers, and the assets. Any static
+            host can serve it. Every <a href="/examples" class="text-primary hover:underline">example page</a> runs its project this way.
+          </p>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- Lifecycle -->

@@ -4,6 +4,10 @@ The monorepo of **cellb** (`@statewalker/cellb`): an isomorphic Durable Objects 
 celld/Cloudflare-compatible surface. The same cells run in a browser (OPFS, ServiceWorker ingress),
 in Node, and alongside celld on one shared bucket.
 
+Live demos, each app running in your browser tab: [EmDash served from a
+tab](https://cellb-emdash.httpeers.net) and [Astro (EmDash included) built in the
+tab](https://cellb-astro.httpeers.net).
+
 ## What cellb does, next to celld
 
 [celld](https://github.com/denoland/celld) runs Cloudflare Workers projects on a fleet of servers
@@ -47,7 +51,9 @@ packages/cellb/        the runtime, its browser host, conformance corpus and doc
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
 examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
+                       (live: https://cellb-emdash.httpeers.net)
 examples/astro-in-browser/  Astro apps, EmDash included, built from their sources in a browser tab and run there on cellb
+                       (live: https://cellb-astro.httpeers.net)
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
 examples/landing/      the page of https://cellb-examples.httpeers.net, which links to the published examples
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)

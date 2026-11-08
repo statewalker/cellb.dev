@@ -4,6 +4,10 @@
 builds it for Cloudflare, run unchanged on CellB: in Node, and entirely in a browser tab served by
 any static file server. The package is private, since it is a test of CellB and not a library.
 
+**Live demo: <https://cellb-emdash.httpeers.net>**, EmDash served from static files and run in your
+tab. The same app built from its sources in the tab: <https://cellb-astro.httpeers.net>
+([astro-in-browser](../astro-in-browser/README.md)).
+
 ## Why it exists
 
 EmDash is a large, real Cloudflare app that CellB did not write. It is Astro's Cloudflare adapter
