@@ -1,0 +1,10 @@
+{
+  // A small Worker: Hono routes, a Durable Object with SQLite storage, and static assets.
+  // Its dependency (hono) is not installed: the platform's bundler fetches it.
+  "name": "hello-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-02-24",
+  "assets": { "directory": "./public" },
+  "durable_objects": { "bindings": [{ "name": "COUNTER", "class_name": "Counter" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Counter"] }]
+}

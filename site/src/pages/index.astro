@@ -13,44 +13,41 @@ import Base from "@/layouts/Base.astro";
 import { docHref } from "@/lib/docs";
 import { exampleByName, exampleHref } from "@/lib/examples";
 import { LIVE_DEMOS, REPO, repoFile } from "@/lib/site";
-import counterCode from "../../../packages/cellb/conformance/celld-examples/counter/index.js?raw";
+import counterCode from "../demo/counter/project/src/index.ts?raw";
+import counterWrangler from "../demo/counter/project/wrangler.jsonc?raw";
+import counterNode from "../demo/counter/serve-node.ts?raw";
+import counterShard from "../demo/counter/shard-worker.ts?raw";
+import counterSw from "../demo/counter/sw.ts?raw";
 import counterTabs from "../demo/counter/tabs.ts?raw";
-import counterWrangler from "../demo/counter/wrangler.jsonc?raw";
 
 // --- Code samples ----------------------------------------------------------
-// From packages/cellb/README.md: loadProject in both entry points, and a fleet node.
+// The demo's own files (src/demo/counter): the Durable Object, how Node serves it, and how a
+// browser wires it (ServiceWorker, shard workers, the page). The demo below runs exactly these;
+// scripts/check-snippets.mjs runs the Node one.
 
-const nodeExample = `import { loadProject } from "@statewalker/cellb/node";
+const browserExample = `// 1. Build the project once, for browsers (any static host serves the folder):
+//    npx cellb build ./project --out public/built/demo-counter
 
-// The folder celld deploys: wrangler.jsonc and the Worker's sources
-const project = await loadProject("./counter", { data: "./data" });
-
-const res = await project.fetch(new Request("http://localhost/increment?name=a"));
-console.log(await res.json()); // {"n":1,…}
-await project.close();`;
-
-const browserExample = `// In a Dedicated Worker
-import { loadProject } from "@statewalker/cellb/browser";
-
-// The same folder, built once: npx cellb build ./counter --out public/counter
-const project = await loadProject("/counter/", { data: "counter" });
-
-const res = await project.fetch(new Request("http://localhost/increment?name=a"));
-console.log(await res.json()); // {"n":1,…}, from SQLite in this origin's OPFS
-await project.close();`;
+// 2. sw.ts, the ServiceWorker: routes /demo/<project>/… to the tab that runs the object
+${counterSw.replace(/^\/\/\/ <reference[^\n]*\n/, "").replace(/^\/\/.*\n/gm, "")}
+// 3. shard-worker.ts, a Dedicated Worker: one shard of the project, SQLite WASM on OPFS
+${counterShard.replace(/^\/\/\/ <reference[^\n]*\n/, "").replace(/^\/\/.*\n/gm, "")}
+// 4. The page (tabs.ts): every open tab joins and the tabs split the shards
+${counterTabs.replace(/^\/\/.*\n/gm, "")}`;
 
 const fleetExample = `import { celldBucket, s3ObjectStore } from "@statewalker/cellb";
 import { loadProject } from "@statewalker/cellb/node";
 
-// The same project, on the bucket celld nodes use: each cell is restored from it on first use
-const project = await loadProject("./counter", {
+// The same project on the bucket celld nodes use: each object is restored from it on first use
+const project = await loadProject("./project", {
   bucket: celldBucket(s3ObjectStore({ endpoint, bucket, region, accessKeyId, secretAccessKey }), {
     node: "cellb-1",
   }),
 });
 
-await project.fetch(new Request("http://localhost/increment?name=a"));
-await project.close(); // releases the cells, so celld can take them at once`;
+const res = await project.fetch(new Request("http://localhost/?name=alice"));
+console.log(await res.json()); // {"name":"alice","n":…}, the count celld nodes see too
+await project.close(); // releases the objects, so celld can take them at once`;
 
 // --- Content ---------------------------------------------------------------
 
@@ -264,6 +261,51 @@ const dot: Record<Status, string> = {
   partial: "bg-amber-500",
   no: "bg-muted-foreground/40",
 };
+
+const tools = [
+  {
+    icon: "globe",
+    title: "ESM CDN",
+    body: "npm packages as ES modules from your own origin: resolved, downloaded once into a package store, transformed file by file (TypeScript, CommonJS, CSS) and served immutable. No install step, no third-party CDN at run time.",
+    api: "GET /npm/browser/react-dom@19/client?graph",
+    href: docHref("packages/esm-cdn/README.md"),
+  },
+  {
+    icon: "book",
+    title: "User code as ESM",
+    body: "A project's files, frozen into snapshots named by their hash and served one module at a time: TSX straight into the browser, npm imports bound to the CDN. For editors, playgrounds and agents that write code.",
+    api: "POST /p/<id>/snapshots → <base>~/index.html",
+    href: docHref("packages/esm-cdn/README.md"),
+  },
+  {
+    icon: "layers",
+    title: "Bundler",
+    body: "A project bundled with esbuild-wasm into one Worker that Wrangler, celld and CellB run as they get it: a download, a wrangler project, a Worker Loader payload. Small builds run in a Durable Object, large ones on a Node runner.",
+    api: "POST /builds → /b/<id>/project.zip",
+    href: docHref("packages/bundler/README.md"),
+  },
+  {
+    icon: "cpu",
+    title: "Astro builder",
+    body: "Astro sites built from their sources without Node or Vite: config and integrations, compiler-rs as WebAssembly, server and client bundles. EmDash's 225 routes build in a Durable Object; a small Astro app builds in your tab.",
+    api: "POST /builds (an astro.config.* project)",
+    href: docHref("packages/astro-builder/README.md"),
+  },
+  {
+    icon: "database",
+    title: "Notebooks",
+    body: "Markdown and Observable Notebook Kit documents compiled to live pages inside a Durable Object; their cells import d3, Plot and any npm package from the same origin.",
+    api: "POST /nb/<site>/build → /nb/<site>/<page>.html",
+    href: docHref("packages/notebooks/README.md"),
+  },
+  {
+    icon: "refresh",
+    title: "One build, every host",
+    body: "Each tool, and what it builds, runs unchanged on Wrangler (workerd), celld and CellB in Node, and the tools run in a browser tab too: checked end to end on each host, with Astro, EmDash and notebooks.",
+    api: "scripts/e2e.ts all",
+    href: "/docs/tools",
+  },
+] as const;
 
 const useCases = [
   {
@@ -523,6 +565,40 @@ const lifecycle = [
    </div>
   </section>
 
+  <!-- Tools -->
+  <section id="tools" class="scroll-mt-20">
+    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div class="max-w-3xl space-y-3">
+        <p class="font-mono text-sm text-primary">// tools</p>
+        <h2 class="text-3xl font-semibold tracking-tight text-balance">
+          The tools that build apps are Durable Object apps too
+        </h2>
+        <p class="text-muted-foreground">
+          An ESM CDN, a server for a project's own code, a bundler, an Astro builder and a notebook
+          compiler. Like any CellB project, they run on Wrangler, celld, Node and in a tab, and so
+          does what they build.
+        </p>
+      </div>
+      <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {tools.map((t) => (
+          <a href={t.href} class="block">
+            <Card class="h-full p-6 transition-colors hover:border-primary/40">
+              <div class="mb-4 inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon name={t.icon} />
+              </div>
+              <h3 class="font-medium">{t.title}</h3>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">{t.body}</p>
+              <p class="mt-3 font-mono text-xs text-muted-foreground">{t.api}</p>
+            </Card>
+          </a>
+        ))}
+      </div>
+      <div class="mt-8">
+        <Button href="/docs/tools" variant="outline">How the tools work <Icon name="arrowRight" class="size-4" /></Button>
+      </div>
+    </div>
+  </section>
+
   <!-- Real apps -->
   <section id="apps" class="scroll-mt-20">
     <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
@@ -553,10 +629,10 @@ const lifecycle = [
           <p class="font-mono text-sm text-primary">// the code</p>
           <h2 class="text-3xl font-semibold tracking-tight">Workers code you already have</h2>
           <p class="text-muted-foreground">
-            A runtime is a plain <code class="font-mono text-sm">(Request) ⇒ Response</code>
+            A runtime is a plain <code class="font-mono text-sm">(Request) ⇒ Response</code>{" "}
             handler. Mount it on <code class="font-mono text-sm">node:http</code>, a ServiceWorker
             or a test. Wrangler projects load from the configuration celld deploys, and anything
-            CellB does not support is listed in <code class="font-mono text-sm">unsupported</code>
+            CellB does not support is listed in <code class="font-mono text-sm">unsupported</code>{" "}
             instead of being silently ignored.
           </p>
           <ul class="space-y-2 pt-2 text-sm text-muted-foreground">
@@ -566,15 +642,19 @@ const lifecycle = [
           </ul>
         </div>
         <div class="space-y-3">
-          <Tabs labels={["Node", "Browser", "Fleet with celld"]}>
-            <CodeBlock slot="tab-0" title="node.ts" lang="ts" code={nodeExample} />
-            <CodeBlock slot="tab-1" title="worker.ts" lang="ts" code={browserExample} />
-            <CodeBlock slot="tab-2" title="node.ts" lang="ts" code={fleetExample} />
+          <Tabs labels={["Durable Object", "Node", "Browser", "Fleet with celld"]}>
+            <CodeBlock slot="tab-0" title="project/src/index.ts" class="h-[30rem]" lang="ts" code={counterCode} />
+            <CodeBlock slot="tab-1" title="serve-node.ts" class="h-[30rem]" lang="ts" code={counterNode} />
+            <CodeBlock slot="tab-2" title="sw.ts · shard-worker.ts · tabs.ts" class="h-[30rem]" lang="ts" code={browserExample} />
+            <CodeBlock slot="tab-3" title="fleet.ts" class="h-[30rem]" lang="ts" code={fleetExample} />
           </Tabs>
           <p class="text-sm text-muted-foreground">
-            A browser loads the folder <code class="font-mono">cellb build</code> writes: the
-            wrangler configuration, the Worker bundled for browsers, and the assets. Any static
-            host can serve it. Every <a href="/examples" class="text-primary hover:underline">example page</a> runs its project this way.
+            One project, <code class="font-mono">wrangler.jsonc</code> and its Worker, everywhere.
+            Node loads its folder. A browser loads the folder{" "}
+            <code class="font-mono">cellb build</code> writes, which any static host can serve, and wires it with a ServiceWorker and shard
+            workers. These are the files of the demo below, and every{" "}
+            <a href="/examples" class="text-primary hover:underline">example page</a> runs its
+            project the same way.
           </p>
         </div>
       </div>
@@ -626,22 +706,24 @@ const lifecycle = [
   <section id="demo" class="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6">
     <div class="max-w-3xl space-y-3">
       <p class="font-mono text-sm text-primary">// try it</p>
-      <h2 class="text-3xl font-semibold tracking-tight">celld's counter, running in your tabs</h2>
+      <h2 class="text-3xl font-semibold tracking-tight">A Durable Object, running in your tabs</h2>
       <p class="text-muted-foreground">
-        The <code class="font-mono text-sm">index.js</code> below is celld's{" "}
-        <code class="font-mono text-sm">counter</code> example, byte for byte. With its{" "}
-        <code class="font-mono text-sm">wrangler.jsonc</code>, cellb runs it in the browser, shared
+        The <code class="font-mono text-sm">Counter</code> below is Workers code as it is written
+        for Cloudflare: a class that extends <code class="font-mono text-sm">DurableObject</code>,
+        its count in the object's own SQLite, called over RPC. cellb runs it in the browser, shared
         by every tab of this site that has the page open: its shards run in Dedicated Workers of
-        those tabs, each Durable Object in SQLite WASM on OPFS. No server answers these requests.
+        those tabs, each object in SQLite WASM on OPFS. No server answers these requests.
       </p>
     </div>
     <div class="mt-10 grid gap-8 lg:grid-cols-[1.35fr_1fr] lg:items-start [&>*]:min-w-0">
       <div class="space-y-3">
         <!-- One height for every tab (tabs.ts scrolls), so switching tabs does not move the page. -->
-        <Tabs labels={["index.js", "wrangler.jsonc", "tabs.ts"]}>
-          <CodeBlock slot="tab-0" title="celld/examples/counter/index.js" class="h-[32rem]" lang="js" code={counterCode} />
-          <CodeBlock slot="tab-1" title="site/src/demo/counter/wrangler.jsonc" class="h-[32rem]" lang="jsonc" code={counterWrangler} />
+        <Tabs labels={["index.ts", "wrangler.jsonc", "tabs.ts", "sw.ts", "shard-worker.ts"]}>
+          <CodeBlock slot="tab-0" title="site/src/demo/counter/project/src/index.ts" class="h-[32rem]" lang="ts" code={counterCode} />
+          <CodeBlock slot="tab-1" title="site/src/demo/counter/project/wrangler.jsonc" class="h-[32rem]" lang="jsonc" code={counterWrangler} />
           <CodeBlock slot="tab-2" title="site/src/demo/counter/tabs.ts" class="h-[32rem]" lang="ts" code={counterTabs} />
+          <CodeBlock slot="tab-3" title="site/src/demo/counter/sw.ts" class="h-[32rem]" lang="ts" code={counterSw} />
+          <CodeBlock slot="tab-4" title="site/src/demo/counter/shard-worker.ts" class="h-[32rem]" lang="ts" code={counterShard} />
         </Tabs>
         <a href={docHref("packages/cellb/docs/browser-host.md")} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
           How a browser runs cells <Icon name="externalLink" class="size-3" />

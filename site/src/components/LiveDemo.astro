@@ -4,7 +4,7 @@ import Badge from "./ui/Badge.astro";
 import Button from "./ui/Button.astro";
 import Card from "./ui/Card.astro";
 
-// celld's `counter` example, run unchanged on cellb in this page (src/demo/celld-counter-worker.ts).
+// The demo's Counter (src/demo/counter/project), run on cellb in this page's tabs (tabs.ts).
 const names = ["default", "alice", "bob"];
 ---
 
@@ -12,7 +12,7 @@ const names = ["default", "alice", "bob"];
   <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
     <div class="flex items-center gap-2 font-mono text-sm">
       <span class="size-2 rounded-sm bg-primary"></span>
-      <span>celld/examples/<span class="text-primary">counter</span></span>
+      <span>demo/<span class="text-primary">counter</span></span>
     </div>
     <Badge variant="outline" class="font-mono" data-demo-role>not started</Badge>
   </div>
@@ -25,7 +25,7 @@ const names = ["default", "alice", "bob"];
           data-demo-send={name}
           class="group rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-60"
         >
-          <span class="block font-mono text-[11px] text-muted-foreground">idFromName</span>
+          <span class="block font-mono text-[11px] text-muted-foreground">getByName</span>
           <span class="block truncate font-mono text-xs">"{name}"</span>
           <span class="mt-1 block font-mono text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl" data-demo-n={name}>–</span>
           <span class="mt-1 inline-flex items-center gap-1 text-xs text-primary">
@@ -90,10 +90,11 @@ const names = ["default", "alice", "bob"];
     el.animate([{ color: "var(--primary)" }, { color: "inherit" }], { duration: 600 });
   };
 
-  // celld's counter has one operation, and it adds one: a tab cannot read a count without
+  // The counter has one operation, and it adds one: a tab cannot read a count without
   // changing it. Every change is an answer that some tab of this site receives, so the tabs keep
   // the last answer for each name here, show it on load, and see each other's ("storage" event).
-  const KEY = "cellb.dev:demo:counter:";
+  // v2: the demo's Counter keeps its count in SQL now; counts of the earlier demo are not shown.
+  const KEY = "cellb.dev:demo:counter:v2:";
   const remember = (name: string, n: number) => {
     try {
       localStorage.setItem(KEY + name, String(n));

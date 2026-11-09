@@ -1,5 +1,12 @@
 ---
-import { examplePages, pageHref, type RepoPage, referencePages, servicePages } from "@/lib/docs";
+import {
+  examplePages,
+  pageHref,
+  type RepoPage,
+  referencePages,
+  servicePages,
+  toolPages,
+} from "@/lib/docs";
 import Base from "./Base.astro";
 
 interface Props {
@@ -23,6 +30,10 @@ const sections = [
   },
   { heading: "Services", items: servicePages.map(navItem) },
   { heading: "Reference", items: referencePages.map(navItem) },
+  {
+    heading: "Tools",
+    items: [{ href: "/docs/tools", label: "CDN, bundler, builders" }, ...toolPages.map(navItem)],
+  },
   {
     heading: "Examples",
     items: [{ href: "/examples", label: "All runnable examples" }, ...examplePages.map(navItem)],

@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The composed platform: ESM CDN, user code as ESM, bundler, notebooks, and the package store.
+  // `npm run build` writes the per-host folders (dist/platform/workerd for Wrangler and celld,
+  // dist/platform/cellb for cellb); this file also runs directly with `wrangler dev`.
+  "name": "webrun-platform",
+  "main": "src/entries/platform.ts",
+  "compatibility_date": "2026-02-24",
+  "compatibility_flags": ["nodejs_compat"],
+  // workerd forbids compiling WebAssembly from bytes; cjs-module-lexer's pure-JS build avoids it.
+  "alias": { "cjs-module-lexer": "./node_modules/cjs-module-lexer/lexer.js" },
+  // Astro builds run their config in a Worker Loader isolate where the realm cannot evaluate code.
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "REGISTRY", "class_name": "PackageRegistry" },
+      { "name": "CDN", "class_name": "ModuleHost" },
+      { "name": "PROJECTS", "class_name": "Project" },
+      { "name": "BUILDS", "class_name": "BuildJob" },
+      { "name": "NOTEBOOKS", "class_name": "NotebookSite" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["PackageRegistry", "ModuleHost", "Project", "BuildJob"] },
+    { "tag": "v2", "new_sqlite_classes": ["NotebookSite"] }
+  ],
+  "vars": { "PACKUMENT_TTL_S": "600", "IN_OBJECT_BUILD_MAX_BYTES": "8000000" }
+}

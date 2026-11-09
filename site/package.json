@@ -12,7 +12,8 @@
     "dev": "tsx scripts/build-examples.ts && astro dev",
     "build": "tsx scripts/build-examples.ts && astro build",
     "preview": "astro preview",
-    "check:examples": "node scripts/check-examples.mjs"
+    "check:examples": "node scripts/check-examples.mjs",
+    "check:snippets": "node scripts/check-snippets.mjs"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.5",

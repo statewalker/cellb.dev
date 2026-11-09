@@ -1,0 +1,4 @@
+{
+  "extends": "../../tsconfig.platform.json",
+  "include": ["src", "test", "bin", "scripts", "../platform-core/src/types.d.ts"]
+}

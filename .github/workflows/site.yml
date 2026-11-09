@@ -27,6 +27,8 @@ on:
       - "packages/cellb/docs/**/*.md"
       - "packages/cellb/CONTEXT.md"
       - "packages/cellb/bench/README.md"
+      # The tools' pages (/docs/tools/…): the platform packages' READMEs.
+      - "packages/*/README.md"
       - "examples/*/README.md"
       - "package.json"
       - ".nvmrc"
@@ -42,6 +44,7 @@ on:
       - "packages/cellb/docs/**/*.md"
       - "packages/cellb/CONTEXT.md"
       - "packages/cellb/bench/README.md"
+      - "packages/*/README.md"
       - "examples/*/README.md"
       - "package.json"
       - ".nvmrc"
@@ -78,6 +81,9 @@ jobs:
       - run: pnpm --filter @statewalker/cellb-site exec playwright install --with-deps chromium
       - name: Example pages
         run: pnpm --filter @statewalker/cellb-site check:examples
+      # The home page's Durable Object code: serve-node.ts on Node, and the demo in Chromium.
+      - name: Home page code
+        run: pnpm --filter @statewalker/cellb-site check:snippets
 
       - name: Publish to https://${{ env.SITE_DOMAIN }}
         if: github.event_name != 'pull_request'

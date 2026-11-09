@@ -1,0 +1,14 @@
+// The demo's project: one Worker and one Durable Object class with SQLite storage.
+// cellb reads this file as wrangler and celld do. (The site does not type-check this folder:
+// check-snippets.mjs runs it, in Node and in the demo.)
+{
+  "name": "counter",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-02-24",
+  "durable_objects": {
+    // env.COUNTER: one Counter object per name (getByName)
+    "bindings": [{ "name": "COUNTER", "class_name": "Counter" }]
+  },
+  // SQLite-backed: in a browser, one database per object in OPFS; in Node, one file per object
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Counter"] }]
+}
