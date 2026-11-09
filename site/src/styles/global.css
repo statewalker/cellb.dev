@@ -160,6 +160,13 @@
   .prose-cell pre {
     @apply my-6 overflow-x-auto rounded-xl border px-4 py-4 font-mono text-[13px] leading-6;
   }
+  /* A CodeBlock is the frame already: its own <pre> gets no second border, margin or radius. */
+  .prose-cell .code-window {
+    @apply my-6;
+  }
+  .prose-cell .code-window pre {
+    @apply m-0 rounded-none border-0;
+  }
   .prose-cell :not(pre) > code {
     @apply font-mono text-[0.85em] rounded-md bg-muted px-1.5 py-0.5 text-foreground;
   }

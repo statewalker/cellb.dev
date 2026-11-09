@@ -12,7 +12,7 @@ interface Props {
 const { code, lang = "sh", title, class: className } = Astro.props;
 ---
 
-<div class:list={["group relative flex flex-col overflow-hidden rounded-xl border bg-code text-code-foreground", className]}>
+<div class:list={["code-window group relative flex flex-col overflow-hidden rounded-xl border bg-code text-code-foreground", className]}>
   {title && (
     <div class="flex items-center gap-2 border-b border-white/10 px-4 py-2 font-mono text-xs text-code-foreground/60">
       <span class="flex gap-1.5">
