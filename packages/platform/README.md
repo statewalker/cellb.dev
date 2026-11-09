@@ -258,6 +258,16 @@ Build each with its config in `deploy/`.
 
 ## What will surprise you
 
+- **Without `PLATFORM_TOKEN` the platform is open.** Anyone who can reach it can write projects,
+  run builds and fill its storage, and CORS allows every origin. That is for local development.
+  Before deploying it anywhere reachable, set `PLATFORM_TOKEN` (a secret: `wrangler secret put
+  PLATFORM_TOKEN`). Every request that writes or computes, and the runner's `input.zip`, then
+  needs `Authorization: Bearer <token>`. The runner sends it from `WEBRUN_PLATFORM_TOKEN`. Reads
+  (the CDN, snapshots, build outputs, notebook pages) stay public.
+- **An Astro project's config is the project's code.** On CellB and in browsers it runs in the
+  bundler's object, with that object's bindings in reach. On workerd and celld it runs in a
+  Worker Loader isolate of its own. Build only projects you trust on a CellB host.
+
 - **The apps call each other through Durable Object stubs within one script.** cellb and celld
   support no service bindings to other scripts. Split deployments (`deploy/*.jsonc`) contain
   every object they use.

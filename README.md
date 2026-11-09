@@ -81,7 +81,9 @@ lockfile) and use cellb as its users do: `@statewalker/cellb` from npm, at a rel
 (`~0.5.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
 cellb reaches the examples through a release: Dependabot raises the range, and its pull request
 runs them. Cellb's own storage labs (`ltx-lab`, `sqlite-lab`) are in
-`packages/cellb/e2e-browser`.
+`packages/cellb/e2e-browser`. The one exception is `examples/platform-demos`: it checks the platform as it is in this
+checkout (`packages/platform`'s build and scripts), so it needs the root workspace installed
+too.
 
 ## How to run it
 

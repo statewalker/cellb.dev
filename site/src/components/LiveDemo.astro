@@ -93,7 +93,8 @@ const names = ["default", "alice", "bob"];
   // The counter has one operation, and it adds one: a tab cannot read a count without
   // changing it. Every change is an answer that some tab of this site receives, so the tabs keep
   // the last answer for each name here, show it on load, and see each other's ("storage" event).
-  const KEY = "cellb.dev:demo:counter:";
+  // v2: the demo's Counter keeps its count in SQL now; counts of the earlier demo are not shown.
+  const KEY = "cellb.dev:demo:counter:v2:";
   const remember = (name: string, n: number) => {
     try {
       localStorage.setItem(KEY + name, String(n));

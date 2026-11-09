@@ -9,6 +9,7 @@
  *       platform's package store (`--platform`), else from the npm registry.
  *
  *   tsx bin/webrun-build.ts --runner <origin> [--once] [--wasm]
+ *       (WEBRUN_PLATFORM_TOKEN: the platform's PLATFORM_TOKEN, when it has one)
  *       claims queued builds from a platform (`POST /builds?tier=runner`), builds them and
  *       uploads the output.
  *
@@ -82,10 +83,16 @@ async function runLocal(dir: string) {
   console.log(JSON.stringify(result.stats));
 }
 
+/** The platform's token (PLATFORM_TOKEN there), from WEBRUN_PLATFORM_TOKEN here, if it has one. */
+const auth = (): Record<string, string> =>
+  process.env.WEBRUN_PLATFORM_TOKEN
+    ? { authorization: `Bearer ${process.env.WEBRUN_PLATFORM_TOKEN}` }
+    : {};
+
 async function runRunner(origin: string) {
   const esbuild = await loadEsbuild();
   for (;;) {
-    const claim = await fetch(`${origin}/builds/claim`, { method: "POST" });
+    const claim = await fetch(`${origin}/builds/claim`, { method: "POST", headers: auth() });
     if (claim.status === 204) {
       if (flag("once")) return;
       await new Promise((r) => setTimeout(r, 2000));
@@ -94,7 +101,8 @@ async function runRunner(origin: string) {
     const job = (await claim.json()) as { id: string; input: string; output: string };
     console.error(`[runner] claimed ${job.id}`);
     try {
-      const res = await fetch(job.input);
+      const res = await fetch(job.input, { headers: auth() });
+      if (!res.ok) throw new Error(`input of ${job.id}: ${res.status} ${await res.text()}`);
       const spec = JSON.parse(res.headers.get("x-build-spec") ?? "{}") as BuildSpec;
       const files = new MemFilesApi();
       for (const [p, b] of await unzip(new Uint8Array(await res.arrayBuffer())))
@@ -110,6 +118,7 @@ async function runRunner(origin: string) {
       const up = await fetch(job.output, {
         method: "PUT",
         headers: {
+          ...auth(),
           "x-build-stats": JSON.stringify({
             ...result.stats,
             ...(result.astro ? { astro: result.astro } : {}),
@@ -123,6 +132,7 @@ async function runRunner(origin: string) {
       console.error(`[runner] ${job.id}: failed`, e);
       await fetch(`${origin}/builds/${job.id}/fail`, {
         method: "POST",
+        headers: auth(),
         body: String((e as Error).stack ?? e),
       });
     }

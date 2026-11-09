@@ -9,7 +9,10 @@ if (project.unsupported.length) console.warn("unsupported:", project.unsupported
 
 createServer(async (req, res) => {
   const response = await project.fetch(new Request(`http://localhost${req.url}`));
-  res.writeHead(response.status, Object.fromEntries(response.headers));
+  const headers: Record<string, string | string[]> = Object.fromEntries(response.headers);
+  const cookies = response.headers.getSetCookie();
+  if (cookies.length) headers["set-cookie"] = cookies; // one header each, not merged
+  res.writeHead(response.status, headers);
   res.end(Buffer.from(await response.arrayBuffer()));
 }).listen(Number(process.argv[3] ?? 8787));
 

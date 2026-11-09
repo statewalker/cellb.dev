@@ -13,9 +13,39 @@ export const DEFAULT_REGISTRY = "https://registry.npmjs.org";
 
 /** The package name a registry path names: `/@scope/name`, `/@scope%2fname`, `/name/-/name-1.0.0.tgz`. */
 export function packageNameOf(path: string): string {
-  const p = decodeURIComponent(path.replace(/^\/+/, ""));
-  const [first, second] = p.split("/");
-  return first.startsWith("@") ? `${first}/${second}` : first;
+  return parseRegistryPath(path)?.name ?? "";
+}
+
+/** An npm package name: `name` or `@scope/name`, URL-safe characters only. */
+const NAME = /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/i; // legacy names have capitals (JSONStream)
+
+/**
+ * The two registry documents the package store serves, or `undefined` for anything else:
+ * `/<name>` (`/@scope%2fname` or `/@scope/name`) is the packument, `/<name>/-/<file>.tgz` a
+ * tarball. Other paths (`/react/latest`, `/react/18.2.0`) are refused: they are other documents,
+ * which must not be cached as the packument.
+ */
+export function parseRegistryPath(
+  path: string,
+):
+  | { name: string; kind: "packument" }
+  | { name: string; kind: "tarball"; file: string }
+  | undefined {
+  let p: string;
+  try {
+    p = decodeURIComponent(path.replace(/^\/+/, ""));
+  } catch {
+    return undefined;
+  }
+  const parts = p.split("/");
+  const scoped = parts[0]?.startsWith("@");
+  const name = scoped ? `${parts[0]}/${parts[1] ?? ""}` : (parts[0] ?? "");
+  const rest = parts.slice(scoped ? 2 : 1);
+  if (!NAME.test(name)) return undefined;
+  if (rest.length === 0) return { name, kind: "packument" };
+  if (rest.length === 2 && rest[0] === "-" && /^[a-z0-9][a-z0-9._~-]*\.tgz$/i.test(rest[1]))
+    return { name, kind: "tarball", file: rest[1] };
+  return undefined;
 }
 
 export function stub(ns: DurableObjectNamespace, name: string): DurableObjectStub {

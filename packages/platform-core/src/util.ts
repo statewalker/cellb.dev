@@ -18,6 +18,28 @@ export const CORS = {
   "access-control-allow-headers": "*",
 };
 
+/**
+ * Whether `request` may write or compute: always without a token configured, else with
+ * `Authorization: Bearer <token>`. Reads (GET, HEAD, OPTIONS) are public, except the paths in
+ * `privateReads` (a build's inputs are the user's sources).
+ */
+export function authorized(
+  request: Request,
+  token: string | undefined,
+  privateRead = false,
+): boolean {
+  if (!token) return true;
+  const read =
+    request.method === "GET" || request.method === "HEAD" || request.method === "OPTIONS";
+  if (read && !privateRead) return true;
+  const got = request.headers.get("authorization") ?? "";
+  const want = `Bearer ${token}`;
+  // Constant time over the expected length.
+  let diff = got.length ^ want.length;
+  for (let i = 0; i < want.length; i++) diff |= (got.charCodeAt(i) || 0) ^ want.charCodeAt(i);
+  return diff === 0;
+}
+
 export function withCors(res: Response): Response {
   const r = new Response(res.body, res);
   for (const [k, v] of Object.entries(CORS)) r.headers.set(k, v);
@@ -31,10 +53,32 @@ export async function sha256Hex(data: Uint8Array | string): Promise<string> {
 }
 
 /** `files` seen from `prefix`: the view's paths are paths below it. */
+/** `path` with `.` and `..` resolved, empty segments dropped, starting with "/". */
+export function resolvePath(path: string): string {
+  const out: string[] = [];
+  for (const part of path.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") out.pop();
+    else out.push(part);
+  }
+  return `/${out.join("/")}`;
+}
+
+/**
+ * A path an upload names (a ZIP entry, a JSON key, a PUT): relative to the tree it lands in.
+ * `..` segments, backslashes and NUL are refused, so an entry cannot reach outside its tree
+ * (`../snap/<id>/index.html`).
+ */
+export function safeUploadPath(name: string): string {
+  if (/[\\\0]/.test(name) || name.split("/").some((s) => s === ".."))
+    throw new Error(`refused path ${JSON.stringify(name)}: no "..", backslashes or NUL`);
+  return resolvePath(name);
+}
+
 export function subtree(files: FilesApi, prefix: string): FilesApi {
-  const base = prefix.replace(/\/+$/, "");
-  const p = (path: string) =>
-    `${base}${path.startsWith("/") ? path : `/${path}`}`.replace(/\/$/, "") || "/";
+  const base = resolvePath(prefix).replace(/\/$/, "");
+  // A path of the view never leaves the prefix: `..` is resolved inside the view first.
+  const p = (path: string) => `${base}${resolvePath(path)}`.replace(/\/$/, "") || "/";
   const back = (info: FileInfo): FileInfo => ({
     ...info,
     path: info.path.slice(base.length) || "/",
@@ -140,13 +184,19 @@ function crc32(bytes: Uint8Array): number {
 }
 
 /** A ZIP of `files` (path → bytes), entries stored. */
+/** Entries and sizes a stored ZIP without ZIP64 can name. */
+const ZIP_MAX_ENTRIES = 0xffff;
+
 export function zip(files: Map<string, Uint8Array> | [string, Uint8Array][]): Uint8Array {
+  const list = [...files];
+  if (list.length > ZIP_MAX_ENTRIES)
+    throw new Error(`a ZIP holds at most ${ZIP_MAX_ENTRIES} files (no ZIP64)`);
   const enc = new TextEncoder();
   const parts: Uint8Array[] = [];
   const central: Uint8Array[] = [];
   let offset = 0;
   let count = 0;
-  for (const [rawPath, data] of files) {
+  for (const [rawPath, data] of list) {
     const name = enc.encode(rawPath.replace(/^\/+/, ""));
     const crc = crc32(data);
     const local = new DataView(new ArrayBuffer(30));
@@ -197,6 +247,8 @@ export function zipStream(
   paths: string[],
   read: (path: string) => Promise<Uint8Array>,
 ): ReadableStream<Uint8Array> {
+  if (paths.length > ZIP_MAX_ENTRIES)
+    throw new Error(`a ZIP holds at most ${ZIP_MAX_ENTRIES} files (no ZIP64)`);
   const enc = new TextEncoder();
   const central: Uint8Array[] = [];
   let offset = 0;
@@ -248,7 +300,60 @@ export function zipStream(
 }
 
 /** Entries of a ZIP (stored or deflated), path → bytes; directories are skipped. */
-export async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
+export interface UnzipLimits {
+  /** Entries at most (default 20 000). */
+  maxEntries?: number;
+  /** Bytes of all entries once inflated, at most (default 256 MB): a deflate bomb stops here. */
+  maxBytes?: number;
+}
+
+export async function unzip(
+  bytes: Uint8Array,
+  limits: UnzipLimits = {},
+): Promise<Map<string, Uint8Array>> {
+  try {
+    return await unzipUnchecked(bytes, limits);
+  } catch (e) {
+    // A truncated or corrupt archive reads out of bounds: say so, not "Offset is outside".
+    if (e instanceof RangeError) throw new Error("corrupt ZIP file");
+    throw e;
+  }
+}
+
+/** deflate-raw `data`, failing as soon as the output passes `max` bytes. */
+async function inflateBounded(data: Uint8Array, max: number): Promise<Uint8Array> {
+  const reader = new Blob([data as BlobPart])
+    .stream()
+    .pipeThrough(new DecompressionStream("deflate-raw"))
+    .getReader();
+  const chunks: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) {
+      await reader.cancel();
+      throw new Error("the ZIP inflates past its limit");
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const c of chunks) {
+    out.set(c, o);
+    o += c.length;
+  }
+  return out;
+}
+
+async function unzipUnchecked(
+  bytes: Uint8Array,
+  limits: UnzipLimits,
+): Promise<Map<string, Uint8Array>> {
+  const maxEntries = limits.maxEntries ?? 20_000;
+  const maxBytes = limits.maxBytes ?? 256_000_000;
+  let total = 0;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let eocd = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--)
@@ -258,12 +363,14 @@ export async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>>
     }
   if (eocd < 0) throw new Error("not a ZIP file");
   const count = view.getUint16(eocd + 10, true);
+  if (count > maxEntries) throw new Error(`the ZIP has ${count} entries; at most ${maxEntries}`);
   let p = view.getUint32(eocd + 16, true);
   const dec = new TextDecoder();
   const out = new Map<string, Uint8Array>();
   for (let n = 0; n < count; n++) {
     const method = view.getUint16(p + 10, true);
     const csize = view.getUint32(p + 20, true);
+    const usize = view.getUint32(p + 24, true);
     const nameLen = view.getUint16(p + 28, true);
     const extraLen = view.getUint16(p + 30, true);
     const commentLen = view.getUint16(p + 32, true);
@@ -271,16 +378,22 @@ export async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>>
     const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
     p += 46 + nameLen + extraLen + commentLen;
     if (name.endsWith("/")) continue;
+    const path = safeUploadPath(name);
     const lNameLen = view.getUint16(localOff + 26, true);
     const lExtraLen = view.getUint16(localOff + 28, true);
     const start = localOff + 30 + lNameLen + lExtraLen;
+    if (start + csize > bytes.length) throw new RangeError("entry past the end");
     const data = bytes.subarray(start, start + csize);
-    if (method === 0) out.set(`/${name}`, data.slice());
-    else if (method === 8) {
-      const res = new Response(
-        new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw")),
-      );
-      out.set(`/${name}`, new Uint8Array(await res.arrayBuffer()));
+    // Declared sizes first, then what really inflates (a header can lie).
+    if (total + Math.max(usize, csize) > maxBytes)
+      throw new Error(`the ZIP inflates past ${maxBytes} bytes`);
+    if (method === 0) {
+      total += csize;
+      out.set(path, data.slice());
+    } else if (method === 8) {
+      const inflated = await inflateBounded(data, maxBytes - total);
+      total += inflated.length;
+      out.set(path, inflated);
     } else throw new Error(`unsupported ZIP method ${method} for ${name}`);
   }
   return out;
@@ -294,7 +407,7 @@ export async function readUpload(request: Request): Promise<Map<string, Uint8Arr
     const enc = new TextEncoder();
     const out = new Map<string, Uint8Array>();
     for (const [p, v] of Object.entries(files)) {
-      const path = `/${p.replace(/^\/+/, "")}`;
+      const path = safeUploadPath(p);
       out.set(
         path,
         v.startsWith("base64:")

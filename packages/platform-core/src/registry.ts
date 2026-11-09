@@ -15,7 +15,7 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { readFile } from "@statewalker/webrun-files";
-import { DEFAULT_REGISTRY, packageNameOf, type RegistryEnv, stub } from "./registry-fetch.js";
+import { DEFAULT_REGISTRY, parseRegistryPath, type RegistryEnv, stub } from "./registry-fetch.js";
 import { SqlFilesApi } from "./sql-files.js";
 
 export { type RegistryEnv, registryFetch, remoteRegistryFetch } from "./registry-fetch.js";
@@ -24,9 +24,12 @@ export { type RegistryEnv, registryFetch, remoteRegistryFetch } from "./registry
 export function handleRegistry(request: Request, env: RegistryEnv): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.slice("/registry".length);
-  if (!path || path === "/")
-    return Promise.resolve(new Response("package name expected", { status: 400 }));
-  return stub(env.REGISTRY, packageNameOf(path)).fetch(`http://registry/registry${path}`);
+  const doc = parseRegistryPath(path);
+  if (!doc)
+    return Promise.resolve(
+      new Response("expected /registry/<name> or /registry/<name>/-/<file>.tgz", { status: 400 }),
+    );
+  return stub(env.REGISTRY, doc.name).fetch(`http://registry/registry${path}`);
 }
 
 interface Meta {
@@ -63,8 +66,16 @@ export class PackageRegistry extends DurableObject<RegistryEnv> {
     const url = new URL(request.url);
     const path = url.pathname.slice("/registry".length);
     const registry = (this.env.REGISTRY_URL ?? DEFAULT_REGISTRY).replace(/\/+$/, "");
-    const isTarball = path.includes("/-/");
-    const key = isTarball ? `/tgz${path}` : `/meta/${encodeURIComponent(packageNameOf(path))}.json`;
+    const doc = parseRegistryPath(path);
+    if (!doc) return new Response("not a packument or tarball path", { status: 400 });
+    const isTarball = doc.kind === "tarball";
+    // Keys and the upstream URL come from the parsed name, not from the request's spelling.
+    const key = isTarball
+      ? `/tgz/${doc.name}/${doc.file}`
+      : `/meta/${encodeURIComponent(doc.name)}.json`;
+    const upstreamPath = isTarball
+      ? `/${doc.name}/-/${doc.file}`
+      : `/${doc.name.replace("/", "%2f")}`;
     const sql = this.ctx.storage.sql;
     const row = sql
       .exec<{ fetched: number }>("SELECT fetched FROM reg_meta WHERE path = ?", key)
@@ -79,7 +90,7 @@ export class PackageRegistry extends DurableObject<RegistryEnv> {
 
     let upstream: Response;
     try {
-      upstream = await fetch(`${registry}${path}`);
+      upstream = await fetch(`${registry}${upstreamPath}`);
     } catch (e) {
       if (row)
         return new Response((await readFile(this.files, key)) as BodyInit, {

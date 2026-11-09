@@ -197,6 +197,34 @@ async function runPlatform(host: string) {
         }
       });
 
+    await check(host, "guards: traversal, registry paths, internal build actions", async () => {
+      const put = await fetch(`${base}/p/guard/files/..%2fsnap%2f0000000000000000%2fx.ts`, {
+        method: "PUT",
+        body: "x",
+      });
+      assert(put.status === 400, `traversal PUT: ${put.status}`);
+      const imp = await fetch(`${base}/p/guard/import`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ files: { "../snap/x": "x" } }),
+      });
+      assert(imp.status === 400, `traversal import: ${imp.status}`);
+      const reg = await fetch(`${base}/registry/react/latest`);
+      assert(reg.status === 400, `registry /react/latest: ${reg.status}`);
+      const cdn = await fetch(`${base}/npm/browser/%E0%A4%A`);
+      assert(cdn.status === 400, `malformed CDN spec: ${cdn.status}`);
+      const create = await fetch(`${base}/builds/0123456789abcdef0123/create`, {
+        method: "POST",
+        body: "x",
+      });
+      assert(create.status === 404, `outside create: ${create.status}`);
+      if (buildId) {
+        const out = await fetch(`${base}/builds/${buildId}/output`, { method: "PUT", body: "x" });
+        assert(out.status === 409, `output over a finished build: ${out.status}`);
+      }
+      return "400 traversal and bad paths, 404 internal actions, 409 output over a finished build";
+    });
+
     await check(host, "bundler: runner tier (Node)", async () => {
       const r = await fetch(`${base}/builds?tier=runner&minify=1`, {
         method: "POST",

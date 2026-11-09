@@ -3,7 +3,6 @@
 import { mkdirSync } from "node:fs";
 import { createServer } from "node:http";
 import { resolve } from "node:path";
-import { Readable } from "node:stream";
 import { loadProject } from "@statewalker/cellb/node";
 
 const args = process.argv.slice(2);
@@ -22,13 +21,16 @@ createServer(async (req, res) => {
   try {
     const url = `http://${req.headers.host}${req.url}`;
     const hasBody = req.method !== "GET" && req.method !== "HEAD";
+    // The body is read whole first: a stream from Readable.toWeb(req) crashes the process with
+    // "Controller is already closed" when the handler cancels it unread (a 409, say).
+    const chunks = [];
+    if (hasBody) for await (const c of req) chunks.push(c);
     const request = new Request(url, {
       method: req.method,
       headers: Object.entries(req.headers).flatMap(([k, v]) =>
         Array.isArray(v) ? v.map((x) => [k, x]) : v ? [[k, v]] : [],
       ),
-      body: hasBody ? Readable.toWeb(req) : undefined,
-      duplex: "half",
+      body: hasBody ? Buffer.concat(chunks) : undefined,
     });
     const response = await project.fetch(request);
     const headers = {};

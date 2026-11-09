@@ -9,7 +9,7 @@ import { handleProjects, Project } from "@statewalker/cellb-esm-cdn/projects";
 import { handleNotebooks, NotebookSite } from "@statewalker/cellb-notebooks";
 import type { PlatformEnv } from "@statewalker/cellb-platform-core/env";
 import { handleRegistry, PackageRegistry } from "@statewalker/cellb-platform-core/registry";
-import { CORS, text, withCors } from "@statewalker/cellb-platform-core/util";
+import { authorized, CORS, text, withCors } from "@statewalker/cellb-platform-core/util";
 
 export type { PlatformEnv };
 export { BuildJob, ModuleHost, NotebookSite, PackageRegistry, Project };
@@ -45,12 +45,20 @@ export function createHandler(apps: AppName[] = Object.keys(APPS) as AppName[]) 
   return async (request: Request, env: PlatformEnv, ctx: ExecutionContext): Promise<Response> => {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+    // A build's inputs are its sources: a read that needs the token too.
+    const privateRead = /^\/builds\/[^/]+\/input\.zip$/.test(url.pathname);
+    if (!authorized(request, env.PLATFORM_TOKEN, privateRead))
+      return withCors(
+        text("unauthorized: this platform requires Authorization: Bearer <PLATFORM_TOKEN>\n", 401),
+      );
     for (const [prefix, handler] of routes) {
       if (url.pathname.startsWith(prefix) || `${url.pathname}/` === prefix) {
         try {
           return withCors(await handler(request, env, ctx));
         } catch (e) {
-          return withCors(text(`${(e as Error).stack ?? e}\n`, 500));
+          // The stack goes to the log, not to the client.
+          console.error(`[platform] ${request.method} ${url.pathname}:`, e);
+          return withCors(text(`internal error: ${(e as Error).message ?? e}\n`, 500));
         }
       }
     }

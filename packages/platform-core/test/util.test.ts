@@ -35,3 +35,47 @@ describe("packageNameOf", () => {
     expect(packageNameOf("/ms/-/ms-2.1.3.tgz")).toBe("ms");
   });
 });
+
+describe("upload paths", () => {
+  it("refuses .., backslashes and NUL, and resolves the rest", async () => {
+    const { safeUploadPath } = await import("../src/util.js");
+    expect(safeUploadPath("src/a.ts")).toBe("/src/a.ts");
+    expect(safeUploadPath("/./src//a.ts")).toBe("/src/a.ts");
+    for (const bad of ["../snap/x", "a/../../b", "a\\b", "a\0b", ".."])
+      expect(() => safeUploadPath(bad)).toThrow(/refused/);
+  });
+
+  it("unzip refuses an entry that climbs out of its tree", async () => {
+    const files = new Map([["/../snap/x/index.html", new TextEncoder().encode("x")]]);
+    await expect(unzip(zip(files))).rejects.toThrow(/refused/);
+  });
+
+  it("unzip reports a truncated archive, and a limit on inflated bytes", async () => {
+    const z = zip(new Map([["/a.txt", new Uint8Array(1000)]]));
+    await expect(unzip(z.subarray(0, z.length - 30))).rejects.toThrow(/not a ZIP|corrupt/);
+    await expect(unzip(z, { maxBytes: 10 })).rejects.toThrow(/inflates past/);
+  });
+});
+
+describe("parseRegistryPath", () => {
+  it("accepts only packuments and tarballs", async () => {
+    const { parseRegistryPath } = await import("../src/registry-fetch.js");
+    expect(parseRegistryPath("/react")).toEqual({ name: "react", kind: "packument" });
+    expect(parseRegistryPath("/@scope%2fpkg")).toEqual({ name: "@scope/pkg", kind: "packument" });
+    expect(parseRegistryPath("/JSONStream")).toEqual({ name: "JSONStream", kind: "packument" });
+    expect(parseRegistryPath("/@s/p/-/p-1.0.0.tgz")).toEqual({
+      name: "@s/p",
+      kind: "tarball",
+      file: "p-1.0.0.tgz",
+    });
+    for (const bad of [
+      "/react/latest",
+      "/react/18.2.0",
+      "/react/-/../x.tgz",
+      "/",
+      "/%E0%A4%A",
+      "/a/-/b/c.tgz",
+    ])
+      expect(parseRegistryPath(bad)).toBeUndefined();
+  });
+});

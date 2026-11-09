@@ -135,7 +135,7 @@ curl -o build.zip localhost:8787/b/<id>/project.zip           # wrangler dev, ce
     <li>A small build runs in its <code>BuildJob</code> object.</li>
     <li>
       A build larger than <code>IN_OBJECT_BUILD_MAX_BYTES</code> is queued. A Node runner
-      (<code>bin/webrun-build.ts --runner &lt;origin&gt;</code>) claims it, builds it with the same
+      (<code>packages/bundler/bin/webrun-build.ts --runner &lt;origin&gt;</code>) claims it, builds it with the same
       code and native esbuild, and uploads the output.
     </li>
     <li>
@@ -214,6 +214,7 @@ pnpm run build                                 # dist/platform/workerd and dist/
 npx wrangler dev                               # on workerd, from the sources
 npx tsx scripts/serve-cellb.mjs dist/platform/cellb --port 8793   # on CellB in Node
 pnpm run build:browser && python3 -m http.server -d dist/browser 8080   # in a tab: open /__cellb/
-npx tsx scripts/e2e.ts all                     # every check, on every host`}
+npx tsx scripts/e2e.ts all                     # every check on Wrangler, celld and CellB in Node
+pnpm run e2e:browser                           # the platform in a Chromium tab`}
   />
 </Docs>

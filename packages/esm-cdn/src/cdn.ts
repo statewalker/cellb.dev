@@ -38,21 +38,43 @@ export const passthroughCss: CssTransform = {
   },
 };
 
-/** Splits `<name>[@<range>][/<subpath>]` (scope-aware). */
-export function parseSpec(spec: string): { pkg: string; version?: string; subpath?: string } {
-  let scope = "";
-  let rest = spec;
-  if (rest.startsWith("@")) {
-    const i = rest.indexOf("/");
-    scope = `${rest.slice(0, i)}/`;
-    rest = rest.slice(i + 1);
+/**
+ * Splits `<name>[@<range>][/<subpath>]` (scope-aware), from the path as the request spelled it:
+ * split on "/" first, then each segment decoded, so a range with an encoded "/" or "@"
+ * (`github:u%2Fr`, `npm:x%401`) stays one range. `undefined` for a malformed spec.
+ */
+export function parseSpec(
+  raw: string,
+): { pkg: string; version?: string; subpath?: string } | undefined {
+  let segments: string[];
+  try {
+    segments = raw
+      .split("/")
+      .filter((x) => x !== "")
+      .map(decodeURIComponent);
+  } catch {
+    return undefined;
   }
-  const [nameVer, ...sub] = rest.split("/");
+  let scope = "";
+  if (segments[0]?.startsWith("@")) {
+    if (segments.length < 2 || segments[0].length < 2) return undefined;
+    scope = `${segments.shift()}/`;
+  }
+  const nameVer = segments.shift();
+  if (!nameVer) return undefined;
   const at = nameVer.indexOf("@");
+  const name = at >= 0 ? nameVer.slice(0, at) : nameVer;
+  if (
+    !/^[a-z0-9][a-z0-9._~-]*$/i.test(name) ||
+    (scope && !/^@[a-z0-9][a-z0-9._~-]*\/$/i.test(scope))
+  )
+    return undefined;
+  if (segments.some((x) => x === ".." || x === ".")) return undefined;
+  const version = at >= 0 ? nameVer.slice(at + 1) : undefined;
   return {
-    pkg: scope + (at >= 0 ? nameVer.slice(0, at) : nameVer),
-    version: at >= 0 ? nameVer.slice(at + 1) : undefined,
-    subpath: sub.join("/") || undefined,
+    pkg: scope + name,
+    version: version || undefined,
+    subpath: segments.join("/") || undefined,
   };
 }
 
@@ -92,12 +114,13 @@ export class ModuleHost extends DurableObject<CdnEnv> {
     const [, , profile, ...rest] = url.pathname.split("/");
     await ensureLightningCss();
     const server = this.server(profile as Profile, hasLightningCss());
-    const specPath = decodeURIComponent(rest.join("/"));
+    const specPath = rest.join("/");
     if (!specPath)
       return text(
         `ESM CDN (${profile}): try /npm/${profile}/react or /npm/${profile}/lodash-es@4/merge\n`,
       );
     const spec = parseSpec(specPath);
+    if (!spec) return text(`not a package spec: ${specPath}\n`, 400);
     try {
       if (url.searchParams.has("meta"))
         return json(await server.listPackageFiles(spec), { headers: CORS });

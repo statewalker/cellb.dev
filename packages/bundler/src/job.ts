@@ -97,10 +97,13 @@ export async function handleBuilds(request: Request, env: PlatformEnv): Promise<
     }
     // A ZIP upload carries its spec (an Astro build's `astro` options, say) in a header.
     const headerSpec = request.headers.get("x-build-spec");
-    const spec = specFrom(url, {
-      ...(headerSpec ? (JSON.parse(headerSpec) as BuildSpec) : {}),
-      ...bodySpec,
-    });
+    let parsedSpec: BuildSpec = {};
+    try {
+      parsedSpec = headerSpec ? (JSON.parse(headerSpec) as BuildSpec) : {};
+    } catch {
+      return text("x-build-spec: not JSON\n", 400);
+    }
+    const spec = specFrom(url, { ...parsedSpec, ...bodySpec });
     const tier = url.searchParams.get("tier") ?? "auto";
     const sorted = [...files.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
     const hashes: string[] = [];
@@ -120,11 +123,25 @@ export async function handleBuilds(request: Request, env: PlatformEnv): Promise<
   }
   if (parts[1] === "claim" && request.method === "POST")
     return stubOf(env.BUILDS, QUEUE).fetch(request);
-  if (parts[1]) return stubOf(env.BUILDS, parts[1]).fetch(request);
+  // From outside, only these: status, and the runner's input, output and failure. The object's
+  // own actions (create, enqueue, dequeue) are sent by this file, never routed from a request.
+  const action = parts[2] ?? "";
+  const external =
+    parts.length <= 3 &&
+    /^[0-9a-f]{20}$/.test(parts[1] ?? "") &&
+    ((action === "" && request.method === "GET") ||
+      (action === "input.zip" && request.method === "GET") ||
+      (action === "output" && request.method === "PUT") ||
+      (action === "fail" && request.method === "POST"));
+  if (external) return stubOf(env.BUILDS, parts[1]).fetch(request);
+  if (parts[1]) return text("not found\n", 404);
   return text("POST /builds with a ZIP or JSON { files }, or ?project=<id>&snapshot=<snap>\n", 400);
 }
 
-type Status = "new" | "queued" | "running" | "done" | "failed";
+type Status = "new" | "receiving" | "queued" | "running" | "done" | "failed";
+
+/** A job "running" or "receiving" longer than this was cut off (eviction, limits): build it again. */
+const STALE_MS = 15 * 60_000;
 
 export class BuildJob extends DurableObject<PlatformEnv> {
   input: SqlFilesApi;
@@ -165,8 +182,14 @@ export class BuildJob extends DurableObject<PlatformEnv> {
       status,
       tier: this.#get("tier"),
       spec: JSON.parse(this.#get("spec") ?? "{}"),
-      stats: JSON.parse(this.#get("stats") ?? "null"),
-      error: this.#get("error"),
+      stats: (() => {
+        try {
+          return JSON.parse(this.#get("stats") ?? "null");
+        } catch {
+          return null;
+        }
+      })(),
+      error: this.#get("error") || undefined,
       log: this.ctx.storage.sql
         .exec<{ line: string }>("SELECT line FROM job_log ORDER BY n")
         .toArray()
@@ -188,6 +211,10 @@ export class BuildJob extends DurableObject<PlatformEnv> {
     const parts = url.pathname.split("/").filter(Boolean);
     // The queue object.
     if (parts[0] === "builds" && parts[1] === "claim") return this.#claim(url.origin);
+    if (parts[0] === "builds" && parts[2] === "dequeue") {
+      this.ctx.storage.sql.exec("DELETE FROM queue WHERE id = ?", parts[1]);
+      return new Response(null, { status: 204 });
+    }
     if (parts[0] === "builds" && parts[2] === "enqueue") {
       this.ctx.storage.sql.exec(
         "INSERT OR IGNORE INTO queue (id, at, claimed) VALUES (?, ?, 0)",
@@ -199,15 +226,29 @@ export class BuildJob extends DurableObject<PlatformEnv> {
 
     const id = parts[1];
     if (parts[0] === "b")
-      return this.#serveOutput(id, parts.slice(2).map(decodeURIComponent).join("/"), url.origin);
+      try {
+        return this.#serveOutput(id, parts.slice(2).map(decodeURIComponent).join("/"), url.origin);
+      } catch {
+        return text("bad path\n", 400);
+      }
     const action = parts[2];
     if (!action && request.method === "GET") return json(this.#status(id, url.origin));
     if (action === "create" && request.method === "POST") {
       const status = this.#get("status") as Status | undefined;
-      if (status === "done" || status === "running" || status === "queued") {
+      const started = Number(this.#get("started") ?? 0);
+      const busy =
+        status === "done" ||
+        status === "queued" ||
+        ((status === "running" || status === "receiving") && Date.now() - started < STALE_MS);
+      if (busy) {
         await request.body?.cancel();
         return json(this.#status(id, url.origin));
       }
+      // Claimed before the first await: a second create meanwhile sees "receiving" and waits on
+      // this one instead of writing the same inputs over it.
+      this.#set("status", "receiving");
+      this.#set("started", String(Date.now()));
+      this.#set("error", "");
       const entries = await unzip(new Uint8Array(await request.arrayBuffer()));
       await this.input.remove("/");
       await this.output.remove("/");
@@ -241,20 +282,44 @@ export class BuildJob extends DurableObject<PlatformEnv> {
       );
     }
     if (action === "output" && request.method === "PUT") {
+      // Only a build waiting for a runner takes an output: a finished one is immutable.
+      if (this.#get("status") !== "queued") {
+        await request.body?.cancel();
+        return text(`build ${id} is not waiting for a runner\n`, 409);
+      }
+      let stats = "null";
+      try {
+        stats = JSON.stringify(JSON.parse(request.headers.get("x-build-stats") ?? "null"));
+      } catch {
+        return text("x-build-stats: not JSON\n", 400);
+      }
       const entries = await unzip(new Uint8Array(await request.arrayBuffer()));
       await this.output.remove("/");
       for (const [p, b] of entries) await this.output.write(p, [b]);
-      this.#set("stats", request.headers.get("x-build-stats") ?? "null");
+      this.#set("stats", stats);
       this.#set("status", "done");
       this.#log(`runner uploaded ${entries.size} files`);
+      await this.#dequeue(id, url.origin);
       return json(this.#status(id, url.origin));
     }
     if (action === "fail" && request.method === "POST") {
-      this.#set("error", await request.text());
+      if (this.#get("status") !== "queued") {
+        await request.body?.cancel();
+        return text(`build ${id} is not waiting for a runner\n`, 409);
+      }
+      this.#set("error", (await request.text()).slice(0, 20_000));
       this.#set("status", "failed");
+      await this.#dequeue(id, url.origin);
       return json(this.#status(id, url.origin));
     }
     return text("not found\n", 404);
+  }
+
+  /** The runner is done with `id`: the queue no longer hands it out. */
+  async #dequeue(id: string, origin: string) {
+    await stubOf(this.env.BUILDS, QUEUE).fetch(`${origin}/builds/${id}/dequeue`, {
+      method: "POST",
+    });
   }
 
   async #build() {

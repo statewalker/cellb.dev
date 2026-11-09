@@ -1,5 +1,6 @@
 // The demo's project: one Worker and one Durable Object class with SQLite storage.
-// cellb reads this file as wrangler and celld do.
+// cellb reads this file as wrangler and celld do. (The site does not type-check this folder:
+// check-snippets.mjs runs it, in Node and in the demo.)
 {
   "name": "counter",
   "main": "src/index.ts",

@@ -91,8 +91,9 @@ const check = (ok, what) => {
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  let browser;
   try {
+    browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
     const page = await browser.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
@@ -117,7 +118,7 @@ const check = (ok, what) => {
   } catch (e) {
     check(false, `browser: the demo answers (${String(e).split("\n")[0]})`);
   } finally {
-    await browser.close();
+    await browser?.close();
     server.close();
   }
 }

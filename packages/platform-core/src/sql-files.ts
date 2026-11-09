@@ -232,6 +232,10 @@ export class SqlFilesApi implements FilesApi {
     const t = norm(target);
     const st = await this.stats(s);
     if (!st) return false;
+    if (t === s) return true; // onto itself: nothing to do (and nothing to remove)
+    // Into its own subtree: the copies would be read again, and a move would remove them.
+    if (st.kind === "directory" && t.startsWith(under(s)))
+      throw new Error(`cannot ${move ? "move" : "copy"} ${s} into itself (${t})`);
     const paths =
       st.kind === "file"
         ? [s]

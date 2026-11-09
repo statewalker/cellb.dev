@@ -73,3 +73,22 @@ describe("SqlFilesApi", () => {
     expect(names).toEqual(["/index.html"]);
   });
 });
+
+describe("SqlFilesApi transfers onto or into themselves", () => {
+  it("moving a tree onto itself keeps it; into itself is refused", async () => {
+    const files = new SqlFilesApi(nodeSqlStorage(), "t");
+    await writeText(files, "/a/x.txt", "x");
+    expect(await files.move("/a", "/a")).toBe(true);
+    expect(await readText(files, "/a/x.txt")).toBe("x");
+    await expect(files.move("/a", "/a/b")).rejects.toThrow(/into itself/);
+    expect(await readText(files, "/a/x.txt")).toBe("x");
+  });
+
+  it("a subtree view cannot leave its prefix", async () => {
+    const files = new SqlFilesApi(nodeSqlStorage(), "t");
+    const view = subtree(files, "/projects/p1");
+    await writeText(view, "/../../escaped", "e");
+    expect(await files.exists("/escaped")).toBe(false);
+    expect(await files.exists("/projects/p1/escaped")).toBe(true);
+  });
+});

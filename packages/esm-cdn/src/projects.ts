@@ -26,6 +26,7 @@ import { SqlFilesApi } from "@statewalker/cellb-platform-core/sql-files";
 import {
   json,
   readUpload,
+  safeUploadPath,
   sha256Hex,
   subtree,
   text,
@@ -99,12 +100,25 @@ export class Project extends DurableObject<PlatformEnv> {
     const url = new URL(request.url);
     const [, , id, area, ...rest] = url.pathname.split("/");
     const base = `/p/${id}`;
-    const restPath = rest.map(decodeURIComponent).join("/");
+    let restPath: string;
+    try {
+      restPath = rest.map(decodeURIComponent).join("/");
+    } catch {
+      return text("bad path encoding\n", 400);
+    }
+    const SNAP = /^[0-9a-f]{16}$/; // a snapshot id: never a path segment that could climb
 
     if (area === "files") {
       if (!restPath && request.method === "GET")
         return json(this.store.filePaths("/live").map((p) => p.slice("/live".length)));
-      const path = `/live/${restPath}`;
+      // A file of the working tree: no "..", no empty name (`/live` itself is the tree).
+      let path: string;
+      try {
+        path = `/live${safeUploadPath(restPath)}`;
+      } catch (e) {
+        return text(`${(e as Error).message}\n`, 400);
+      }
+      if (path === "/live/") return text("a file path is expected after /files/\n", 400);
       if (request.method === "PUT") {
         await this.store.write(path, [new Uint8Array(await request.arrayBuffer())]);
         this.#set("dirty", "1");
@@ -121,7 +135,12 @@ export class Project extends DurableObject<PlatformEnv> {
     }
 
     if (area === "import" && request.method === "POST") {
-      const files = await readUpload(request);
+      let files: Map<string, Uint8Array>;
+      try {
+        files = await readUpload(request); // refuses entries that climb out of the tree
+      } catch (e) {
+        return text(`${(e as Error).message}\n`, 400);
+      }
       await this.store.remove("/live");
       for (const [p, bytes] of files) await this.store.write(`/live${p}`, [bytes]);
       this.#set("dirty", "1");
@@ -135,6 +154,7 @@ export class Project extends DurableObject<PlatformEnv> {
 
     if (area === "export") {
       const snap = rest[0] === "live" || !rest[0] ? await this.snapshot() : rest[0];
+      if (!SNAP.test(snap)) return text("bad snapshot id\n", 400);
       const dir = `/snap/${snap}`;
       if (!(await this.store.exists(dir))) return text(`no snapshot ${snap}\n`, 404);
       const paths = this.store.filePaths(dir).map((p) => p.slice(dir.length));
@@ -151,12 +171,14 @@ export class Project extends DurableObject<PlatformEnv> {
           : await this.snapshot();
       return new Response(null, {
         status: 302,
-        headers: { location: `${base}/s/${snapshot}/${restPath}${url.search}` },
+        // The path as the request spelled it: decoded, `a%3Fb.ts` would become a query.
+        headers: { location: `${base}/s/${snapshot}/${rest.join("/")}${url.search}` },
       });
     }
 
     if (area === "s") {
       const [snap, ...pathParts] = rest;
+      if (!SNAP.test(snap ?? "")) return text("bad snapshot id\n", 400);
       if (!(await this.store.exists(`/snap/${snap}`))) return text(`no snapshot ${snap}\n`, 404);
       const server = await this.server(id, snap, url.origin);
       const inner = pathParts.join("/");
@@ -186,7 +208,16 @@ export class Project extends DurableObject<PlatformEnv> {
   }
 
   /** Freezes the working tree under its content hash. */
-  async snapshot(): Promise<string> {
+  /**
+   * Freezes the working tree under its content hash. No other request of this object runs
+   * meanwhile: a write between hashing and copying would freeze content that does not match
+   * the snapshot's name.
+   */
+  snapshot(): Promise<string> {
+    return this.ctx.blockConcurrencyWhile(() => this.#snapshot());
+  }
+
+  async #snapshot(): Promise<string> {
     const paths = this.store.filePaths("/live");
     const parts: string[] = [];
     for (const p of paths) parts.push(`${p}\0${await sha256Hex(await readFile(this.store, p))}`);
