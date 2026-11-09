@@ -11,9 +11,13 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A newer push cancels a pull request's run; on main every run finishes, so a release is never cut short.
+# A newer push cancels a pull request's run. Every other run (a push to main, a manual run) has a
+# group of its own and finishes: a release is never cut short, and a run whose `publish` waits for
+# approval holds up no later run. (With one group for main, that waiting run kept every later push
+# pending, and each new push cancelled the one before.) The release jobs keep their own serial
+# group (`version`'s `release-<repository>`).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
