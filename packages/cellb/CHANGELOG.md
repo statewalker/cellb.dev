@@ -1,5 +1,21 @@
 # @statewalker/cellb
 
+## 0.7.0
+
+### Minor Changes
+
+- b490cdc: `loadProject` in browsers loads a project from its sources, with a `compile` option (#72):
+  `bundleCompiler` (new entry `@statewalker/cellb/bundle`: webrun-bundler on esbuild-wasm, one ES
+  module) or `siteCompiler` (`@statewalker/cellb/site`: modules compiled one by one and served from a
+  ServiceWorker; `siteHostOverPort` / `hostSitesForWorker` let a page host a worker's site). Without
+  `compile`, only `cellb build` folders load, as before. `@statewalker/webrun-bundler` is a new
+  optional peer dependency. Importing the `node:*` polyfills (`@statewalker/cellb/host-modules`) no
+  longer fails in a realm without `process`.
+
+### Patch Changes
+
+- b7a0fd4: A request no longer gets copied so that its signal also aborts when the runtime closes. Since 0.2.0 every request to `runtime.fetch` and to a Durable Object's `fetch` was copied with a merged signal (`new Request(req, { signal: AbortSignal.any([...]) })`), about 7 µs each, which halved in-process throughput (about 80,000 → 40,000 requests a second on Node). The request is now handed over as it is, and its `signal` is a getter that merges the two signals the first time it is read: a long poll or an SSE stream that waits on it still ends when the runtime closes, and a handler that never reads it pays nothing. One difference: a copy the handler makes itself (`new Request(req)`, or `fetch(req)` to forward it) takes the request's own signal, without the runtime's.
+
 ## 0.6.0
 
 ### Minor Changes
