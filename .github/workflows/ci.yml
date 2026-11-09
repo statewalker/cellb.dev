@@ -44,6 +44,35 @@ jobs:
       - name: The published package (pack, install, Node, types, Vite + Chromium)
         run: node scripts/pack-check.mjs
 
+  # The platform packages (packages/platform*, esm-cdn, bundler, astro-builder, notebooks): lint,
+  # typecheck, unit tests and the per-host builds. Their end-to-end checks need celld, wrangler
+  # and Chromium and take minutes per host; they run by hand (packages/platform/README.md).
+  platform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm exec biome check packages/platform packages/platform-core packages/esm-cdn packages/bundler packages/astro-builder packages/notebooks
+      - name: Typecheck and unit tests
+        run: |
+          for p in platform-core esm-cdn astro-builder bundler notebooks platform; do
+            pnpm --filter "@statewalker/cellb-$p" run typecheck
+            pnpm --filter "@statewalker/cellb-$p" run test
+          done
+      - name: Per-host builds (workerd and celld, cellb, the browser tab)
+        working-directory: packages/platform
+        run: |
+          pnpm run build
+          pnpm run build:apps
+          pnpm run build:browser
+
   # Releases to npm in three jobs: `version` opens the version pull request, `pack` packs what
   # npm lacks once it is merged, `publish` uploads the tarballs after a maintainer approves.
   #

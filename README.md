@@ -48,12 +48,20 @@ Where cellb follows Cloudflare or workerd instead of celld, and what still diffe
 
 ```
 packages/cellb/        the runtime, its browser host, conformance corpus and docs (see its README)
+packages/platform/     the webrun apps as Durable Object apps (ESM CDN, user code as ESM, bundler with
+                       Astro builds, notebooks), composed into one Worker for Wrangler, celld and cellb
+                       (Node and browsers), with its per-host builds and end-to-end checks (see its README)
+packages/platform-core/, esm-cdn/, bundler/, astro-builder/, notebooks/
+                       the platform's packages (private)
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
 examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
                        (live: https://cellb-emdash.httpeers.net)
 examples/astro-in-browser/  Astro apps, EmDash included, built from their sources in a browser tab and run there on cellb
                        (live: https://cellb-astro.httpeers.net)
+examples/platform-astro/  a small Astro SSR app the platform bundles, or builds from its sources
+examples/platform-demos/  the platform's demos: Astro, EmDash and Observable notebooks bundled, built or compiled
+                       by the platform (packages/platform, as in this checkout), run on Wrangler, celld, cellb
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
 examples/landing/      the page of https://cellb-examples.httpeers.net, which links to the published examples
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
@@ -66,7 +74,8 @@ site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tok
 .changeset/            changesets for the published package (@statewalker/cellb)
 ```
 
-Two pnpm workspaces. The root one (`pnpm-workspace.yaml`) holds cellb and the website. The
+Two pnpm workspaces. The root one (`pnpm-workspace.yaml`) holds cellb, the platform packages and the
+website. The
 examples are private apps in a workspace of their own (`examples/pnpm-workspace.yaml`, its own
 lockfile) and use cellb as its users do: `@statewalker/cellb` from npm, at a released range
 (`~0.5.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to

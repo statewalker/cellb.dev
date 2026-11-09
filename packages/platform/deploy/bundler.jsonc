@@ -1,0 +1,17 @@
+{
+  // The bundler app on its own: `node scripts/build.mjs src/entries/bundler.ts deploy/bundler.jsonc bundler`
+  "name": "webrun-bundler",
+  "main": "../src/entries/bundler.ts",
+  "compatibility_date": "2026-02-24",
+  "compatibility_flags": ["nodejs_compat"],
+  // Astro builds run their config in a Worker Loader isolate where the realm cannot evaluate code.
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "REGISTRY", "class_name": "PackageRegistry" },
+      { "name": "BUILDS", "class_name": "BuildJob" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PackageRegistry", "BuildJob"] }],
+  "vars": { "PACKUMENT_TTL_S": "600", "IN_OBJECT_BUILD_MAX_BYTES": "8000000" }
+}

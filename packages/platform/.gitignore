@@ -1,0 +1,6 @@
+dist/
+.wrangler/
+.celld/
+e2e-results.json
+node_modules/
+vendor/

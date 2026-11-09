@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>webrun platform in a tab</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 3rem auto; padding: 0 1rem; }
+      code { background: #8881; padding: 0 .25em; border-radius: 3px; }
+      #status { padding: .75rem 1rem; border-radius: 6px; background: #8882; white-space: pre-wrap; }
+      body[data-ready="true"] #status { background: #2a72; }
+      body[data-error] #status { background: #d332; }
+    </style>
+  </head>
+  <body>
+    <h1>webrun platform in a tab</h1>
+    <p>
+      This tab runs the whole platform on cellb: the package store, the ESM CDN, the project
+      module servers, the bundler (esbuild-wasm) and the notebook builder, each a Durable Object
+      in SQLite on OPFS inside a Dedicated Worker. A ServiceWorker routes this origin to it. Keep
+      the tab open while you use it.
+    </p>
+    <p id="status">Starting…</p>
+    <ul>
+      <li><a href="/" target="_blank">/</a>: the platform's index</li>
+      <li><a href="/npm/browser/react" target="_blank">/npm/browser/react</a>: the ESM CDN</li>
+    </ul>
+    <script type="module" src="./host.js"></script>
+  </body>
+</html>

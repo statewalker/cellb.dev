@@ -1,0 +1,18 @@
+{
+  "name": "@statewalker/platform-demos",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The platform's demos (packages/platform): Astro, EmDash and Observable notebooks bundled, built or compiled by the platform, then run on Wrangler, celld and cellb",
+  "scripts": {
+    "e2e": "tsx scripts/e2e.ts"
+  },
+  "devDependencies": {
+    "@statewalker/platform-astro-example": "workspace:*",
+    "@statewalker/emdash-example": "workspace:*",
+    "@types/node": "catalog:",
+    "tsx": "^4.21.0",
+    "typescript": "catalog:"
+  }
+}
