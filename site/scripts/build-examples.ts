@@ -6,6 +6,8 @@
 //                                      wrangler.json, worker.js, assets/ and cellb.json, which the
 //                                      pages load with the browser's loadProject
 //   public/vendor/sqlite-vec/          SQLite WASM with sqlite-vec, for the `vectordb` example
+//   public/built/demo-counter/         the homepage demo's project (src/demo/counter/project),
+//                                      as `cellb build` writes it, which the demo's tabs load
 //
 // Run by `pnpm dev` and `pnpm build` (predev, prebuild) with tsx, which reads cellb's TypeScript
 // sources as the conformance tests do. Both outputs are generated: they are not committed.
@@ -133,6 +135,9 @@ mkdirSync(join(SITE, "src/generated"), { recursive: true });
 async function writeBundle(project: string, dir: string) {
   await buildProject(dir, join(SITE, "public/built", project));
 }
+
+// The homepage demo's project: the code the home page shows is the code its demo runs.
+await writeBundle("demo-counter", join(SITE, "src/demo/counter/project"));
 
 const entries = [];
 for (const [name, s] of Object.entries(scenarios)) {

@@ -43,11 +43,11 @@ The copy is drawn from this repository: the root README, `packages/cellb/README.
 | Use cases | IDE-class apps (VS Code/Theia-style plugin hosts), AI agents as DOs, sandboxed agent-written code, local-first apps, apps for people and agents, Workers without native binaries | examples/flue, examples/agents, Worker Loader docs |
 | Tools | The ESM CDN, user code as ESM, the bundler, the Astro builder and notebooks: Durable Object apps that run on every host, as what they build does; cards link to each package's page | `packages/platform` and its packages' READMEs |
 | Real apps | EmDash in a tab from static files; EmDash built from source in a tab; Flue, pi, opencode | examples/*/README.md |
-| Code | Node, browser and fleet examples (tabs) | package README |
 | Comparison | The full celld 0.6.3 / cellb Node / cellb browsers table, with 70/5/6 scenario counts | root README; each check links to its example page (`src/lib/examples.ts`) |
 | Life of a cell | Take → run → log → move | ownership-and-durability.md |
 | By the numbers | celld.dev's rows (durability, speed, density and cost) for cellb on Node and Chromium, with footnotes | `packages/cellb/bench/results/*.json`, imported at build time |
-| Demo | celld's `counter` example, unchanged, on cellb shared by every open tab (`joinProjectShards`: the tabs split the project's shards, each a Dedicated Worker with SQLite WASM on OPFS; a ServiceWorker at `/cellb-demo-sw.js`, bundled by `integrations/demo-service-worker.mjs`, routes `/demo/counter/…` to the tab that runs the cell). `src/demo/counter/`: wrangler.jsonc and tabs.ts are shown beside it | browser-host.md, conformance/celld-examples/counter |
+| Code | The Durable Object (extends `DurableObject`, `ctx.storage.sql`, RPC through `getByName`) and how Node, a browser (ServiceWorker, shard workers, the page) and a celld fleet run it: the demo's own files, imported raw | `src/demo/counter/` |
+| Demo | `src/demo/counter/project` (that Durable Object), built by `scripts/build-examples.ts` into `public/built/demo-counter/` as `cellb build` writes it, and run on cellb shared by every open tab (`joinProjectShards`: the tabs split the project's shards, each a Dedicated Worker with SQLite WASM on OPFS; a ServiceWorker at `/cellb-demo-sw.js`, bundled by `integrations/demo-service-worker.mjs`, routes `/demo/counter/…` to the tab that runs the object). `scripts/check-snippets.mjs` runs the Node side (`serve-node.ts`) | browser-host.md |
 
 Examples: `/examples/<name>` has one page per conformance scenario (the 70 of
 `packages/cellb/conformance/scenarios.ts`). Each shows the project's files, links to its source
