@@ -85,6 +85,20 @@ export const servicePages: RepoPage[] = [
   },
 ];
 
+/** The tools built on cellb (packages/platform and its packages): /docs/tools has the overview. */
+export const toolPages: RepoPage[] = [
+  { file: "packages/platform/README.md", slug: "tools/platform", label: "The platform" },
+  { file: "packages/esm-cdn/README.md", slug: "tools/esm-cdn", label: "ESM CDN & user code" },
+  { file: "packages/bundler/README.md", slug: "tools/bundler", label: "Bundler" },
+  { file: "packages/astro-builder/README.md", slug: "tools/astro-builder", label: "Astro builder" },
+  { file: "packages/notebooks/README.md", slug: "tools/notebooks", label: "Notebooks" },
+  {
+    file: "packages/platform-core/README.md",
+    slug: "tools/platform-core",
+    label: "Package store & storage",
+  },
+];
+
 export const examplePages: RepoPage[] = [
   { file: "examples/flue/README.md", slug: "examples/flue", label: "Flue agent app" },
   { file: "examples/agents/README.md", slug: "examples/agents", label: "pi and opencode" },
@@ -94,9 +108,19 @@ export const examplePages: RepoPage[] = [
     slug: "examples/astro-in-browser",
     label: "Astro built in a tab",
   },
+  {
+    file: "examples/platform-demos/README.md",
+    slug: "examples/platform-demos",
+    label: "Apps built by the tools",
+  },
+  {
+    file: "examples/platform-astro/README.md",
+    slug: "examples/platform-astro",
+    label: "A small Astro app",
+  },
 ];
 
-export const repoPages = [...referencePages, ...servicePages, ...examplePages];
+export const repoPages = [...referencePages, ...servicePages, ...toolPages, ...examplePages];
 
 export const pageHref = (page: RepoPage) => `/docs/${page.slug}`;
 

@@ -1,0 +1,219 @@
+---
+import CodeBlock from "@/components/CodeBlock.astro";
+import Docs from "@/layouts/Docs.astro";
+import { docHref } from "@/lib/docs";
+---
+
+<Docs
+  title="Tools: ESM CDN, bundler, builders"
+  description="Developer tools as Durable Object apps: an ESM CDN, user code as ESM, a bundler, an Astro builder and a notebook compiler, on Wrangler, celld and CellB."
+>
+  <h1>Tools: ESM CDN, bundler, builders</h1>
+  <p>
+    The tools that turn sources into running apps are Durable Object apps themselves:
+  </p>
+  <ul>
+    <li>a CDN that serves npm packages as ES modules;</li>
+    <li>a server that serves a project's own files as ES modules;</li>
+    <li>a bundler that turns a project into one Worker;</li>
+    <li>an Astro builder, and a notebook compiler.</li>
+  </ul>
+  <p>
+    They are composed into one Worker, <a href={docHref("packages/platform/README.md")}>the
+    platform</a>. Like any project on CellB, it runs unchanged on Wrangler (workerd, as on
+    Cloudflare), on celld, on CellB in Node, and on CellB in a browser tab. What a tool builds runs
+    on the same hosts.
+  </p>
+
+  <h2>Use cases</h2>
+  <table>
+    <thead><tr><th>You want to</th><th>Use</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Import npm packages in a page or a Worker with no install step and no third-party CDN at run time</td>
+        <td>The ESM CDN: <code>/npm/browser/react</code> redirects to a pinned, immutable module; <code>?graph</code> lists every module to preload</td>
+      </tr>
+      <tr>
+        <td>Run a TypeScript/TSX project in a browser as it is written: an editor, a playground, an AI agent writing code</td>
+        <td>User code as ESM: write files, take a snapshot, open <code>/p/&lt;id&gt;/s/&lt;snapshot&gt;/~/index.html</code></td>
+      </tr>
+      <tr>
+        <td>Turn a project into one package: a download, a <code>no_bundle</code> wrangler project, a Worker Loader payload</td>
+        <td>The bundler: <code>POST /builds</code> with a ZIP, then <code>/b/&lt;id&gt;/project.zip</code> or <code>/b/&lt;id&gt;/loader.json</code></td>
+      </tr>
+      <tr>
+        <td>Build an Astro site (EmDash included) without Node or Vite: in a Durable Object, or in the visitor's tab</td>
+        <td>The Astro builder, through the same <code>POST /builds</code>: a project with an <code>astro.config.*</code> is built from its sources</td>
+      </tr>
+      <tr>
+        <td>Publish Markdown or Observable Notebook Kit notebooks as live pages</td>
+        <td>Notebooks: <code>POST /nb/&lt;site&gt;/build</code>, then open <code>/nb/&lt;site&gt;/&lt;page&gt;.html</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>The HTTP API</h2>
+  <table>
+    <thead><tr><th>Route</th><th>App (Durable Object)</th><th>What it answers</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET /registry/&lt;name&gt;</code>, <code>…/-/&lt;file&gt;.tgz</code></td><td>package store (<code>PackageRegistry</code>, one per package)</td><td>the npm registry, cached: packuments for 10 minutes, tarballs forever</td></tr>
+      <tr><td><code>GET /npm/&lt;browser|node&gt;/&lt;name&gt;[@range][/sub]</code></td><td>ESM CDN (<code>ModuleHost</code>, one per profile)</td><td>302 to the pinned URL; the pinned URL is the module as ESM; <code>?graph</code>, <code>?meta</code>, <code>?raw</code></td></tr>
+      <tr><td><code>PUT /p/&lt;id&gt;/files/&lt;path&gt;</code>, <code>POST /p/&lt;id&gt;/import</code></td><td>user code (<code>Project</code>, one per project)</td><td>writes the working tree (a file, a ZIP or JSON)</td></tr>
+      <tr><td><code>POST /p/&lt;id&gt;/snapshots</code>, <code>GET /p/&lt;id&gt;/s/&lt;snap&gt;/~/&lt;path&gt;</code></td><td>user code</td><td>freezes the tree under its hash; serves a source as ESM (TS, TSX, JSX, CommonJS, CSS as <code>?module</code>)</td></tr>
+      <tr><td><code>POST /builds</code> (ZIP or JSON, <code>?project=…&amp;snapshot=…</code>)</td><td>bundler (<code>BuildJob</code>, one per build)</td><td>builds in the object or queues for the Node runner; the build id is the hash of the inputs</td></tr>
+      <tr><td><code>GET /b/&lt;id&gt;/project.zip</code>, <code>/b/&lt;id&gt;/loader.json</code>, <code>/b/&lt;id&gt;/&lt;file&gt;</code></td><td>bundler</td><td>the output: a wrangler project, a Worker Loader payload, any file</td></tr>
+      <tr><td><code>POST /nb/&lt;site&gt;/import</code>, <code>/build</code>; <code>GET /nb/&lt;site&gt;/…</code></td><td>notebooks (<code>NotebookSite</code>, one per site)</td><td>compiles notebooks to pages; serves the pages and their modules</td></tr>
+    </tbody>
+  </table>
+
+  <CodeBlock
+    lang="sh"
+    code={`curl -L localhost:8787/npm/browser/react                       # the ESM CDN
+curl 'localhost:8787/npm/browser/react-dom@19/client?graph'   # the modules to preload
+
+(cd my-app && zip -r - .) | curl -X POST --data-binary @- localhost:8787/p/my-app/import
+curl -X POST localhost:8787/p/my-app/snapshots                # → { base }: open <base>~/index.html
+
+(cd my-worker && zip -r - .) | curl -X POST --data-binary @- localhost:8787/builds
+curl -o build.zip localhost:8787/b/<id>/project.zip           # wrangler dev, celld dev, or CellB`}
+  />
+
+  <h2>How they work</h2>
+
+  <h3>Every tool is a set of Durable Objects</h3>
+  <ul>
+    <li>
+      Each object keeps its files in its own SQLite (<code>ctx.storage.sql</code>), through a FilesApi
+      that stores blocks of at most 256 KiB. That is under Cloudflare's 2 MB value limit, and celld
+      and CellB store cells in the same format.
+    </li>
+    <li>
+      Objects are named by what they hold: one per npm package in the package store, one per
+      project, one per build, one per notebook site.
+    </li>
+    <li>
+      The tools reach each other through stubs within one script, because celld and CellB support
+      no service bindings to other scripts.
+    </li>
+  </ul>
+
+  <h3>Packages come from the package store</h3>
+  <p>
+    Every tool loads npm packages through webrun-modules' <code>npmRegistrySource</code>, with a
+    <code>fetch</code> that sends registry requests to the package store. A package is downloaded
+    once per deployment, and the Node runner reads it over HTTP. Peer dependencies take the
+    project's version, as npm installs them.
+  </p>
+
+  <h3>Module by module, or one bundle</h3>
+  <ul>
+    <li>
+      <strong>The ESM CDN and user code</strong> transform one file at a time with
+      <code>@statewalker/webrun-modules</code>:
+      <ul>
+        <li>TypeScript and JSX are stripped and compiled;</li>
+        <li>CommonJS is wrapped;</li>
+        <li>CSS goes through Lightning CSS;</li>
+        <li>every bare import becomes a same-origin URL.</li>
+      </ul>
+      Pinned versions and snapshot ids are in the URLs, so every response is immutable.
+    </li>
+    <li>
+      <strong>The bundler</strong> runs <code>@statewalker/webrun-bundler</code> on esbuild-wasm:
+      <ul>
+        <li>one Worker module, with <code>cloudflare:*</code> and <code>node:*</code> left to the
+          runtime;</li>
+        <li>assets and D1 migrations copied;</li>
+        <li>the fixes one build needs to run on every host (KV namespace ids,
+          <code>node:module</code>'s <code>createRequire</code>, celld's internal tables).</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>Builds are placed</h3>
+  <ul>
+    <li>A small build runs in its <code>BuildJob</code> object.</li>
+    <li>
+      A build larger than <code>IN_OBJECT_BUILD_MAX_BYTES</code> is queued. A Node runner
+      (<code>bin/webrun-build.ts --runner &lt;origin&gt;</code>) claims it, builds it with the same
+      code and native esbuild, and uploads the output.
+    </li>
+    <li>
+      Cloudflare's isolates have 128 MB, and EmDash's build needs far more. On hosts without that
+      limit, EmDash builds inside the object too.
+    </li>
+  </ul>
+
+  <h3>Astro without Vite, wherever esbuild runs</h3>
+  <p>
+    The Astro builder is the in-browser builder of
+    <a href={docHref("examples/astro-in-browser/README.md")}>Astro built in a tab</a>, made a
+    package:
+  </p>
+  <ul>
+    <li><code>astro.config.mjs</code> and its integrations run;</li>
+    <li>routes come from <code>src/pages</code> and from the integrations;</li>
+    <li><code>.astro</code> files are compiled by compiler-rs as WebAssembly;</li>
+    <li>webrun-bundler builds the server and client bundles.</li>
+  </ul>
+  <p>
+    The project's config is code, and workerd and celld refuse to evaluate code at run time. There,
+    the whole build runs in a <a href={docHref("packages/cellb/docs/services/dynamic-workers.md")}>Worker
+    Loader</a> isolate: the builder, the bundled config and the WebAssembly are its modules, and the
+    project's build-time code is isolated from the platform. CellB and browsers evaluate the config
+    directly. A browser tab must be cross-origin isolated, for the compiler's shared memory.
+  </p>
+
+  <h3>One build per host</h3>
+  <p>The platform's <code>scripts/build.mjs</code> writes two folders:</p>
+  <ul>
+    <li>
+      one for workerd and celld, with the WebAssembly as module imports, since those runtimes refuse
+      to compile it from bytes;
+    </li>
+    <li>one for CellB, with the WebAssembly embedded.</li>
+  </ul>
+  <p>
+    <code>build:browser</code> turns the CellB folder into a static site that runs every tool in a
+    tab: a host page, a ServiceWorker and a shard worker with SQLite on OPFS.
+  </p>
+
+  <h2>What is checked</h2>
+  <p>
+    The end-to-end scripts start the platform on each host and check every tool on small and large
+    projects. They then run what was built on the same host and check its pages, its Durable
+    Objects and its hydration in Chromium.
+  </p>
+  <table>
+    <thead><tr><th>Check</th><th>Wrangler</th><th>celld</th><th>CellB, Node</th><th>CellB, Chromium tab</th></tr></thead>
+    <tbody>
+      <tr><td>ESM CDN: react-dom, Observable Plot with d3</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr>
+      <tr><td>User code as ESM: a React page renders</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr>
+      <tr><td>Bundler: a Hono app with a Durable Object, built and run</td><td>yes</td><td>yes</td><td>yes</td><td>built in the tab</td></tr>
+      <tr><td>Astro app built from its sources, run, island hydrated</td><td>yes</td><td>yes</td><td>yes</td><td>built in the tab</td></tr>
+      <tr><td>EmDash built from its sources (225 routes): setup seeds D1, pages render</td><td>yes</td><td>yes</td><td>yes</td><td>not tried</td></tr>
+      <tr><td>Notebooks compiled in the object, cells run</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The demo apps are in <a href={docHref("examples/platform-demos/README.md")}>Apps built by the
+    tools</a>. Each package's page has its API: the
+    <a href={docHref("packages/esm-cdn/README.md")}>ESM CDN</a>, the
+    <a href={docHref("packages/bundler/README.md")}>bundler</a>, the
+    <a href={docHref("packages/astro-builder/README.md")}>Astro builder</a>,
+    <a href={docHref("packages/notebooks/README.md")}>notebooks</a>, and the
+    <a href={docHref("packages/platform-core/README.md")}>package store</a>.
+  </p>
+
+  <h2>Run it</h2>
+  <CodeBlock
+    lang="sh"
+    code={`pnpm install                                   # at the repository root
+cd packages/platform
+pnpm run build                                 # dist/platform/workerd and dist/platform/cellb
+npx wrangler dev                               # on workerd, from the sources
+npx tsx scripts/serve-cellb.mjs dist/platform/cellb --port 8793   # on CellB in Node
+pnpm run build:browser && python3 -m http.server -d dist/browser 8080   # in a tab: open /__cellb/
+npx tsx scripts/e2e.ts all                     # every check, on every host`}
+  />
+</Docs>

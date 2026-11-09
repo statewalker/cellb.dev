@@ -27,6 +27,8 @@ on:
       - "packages/cellb/docs/**/*.md"
       - "packages/cellb/CONTEXT.md"
       - "packages/cellb/bench/README.md"
+      # The tools' pages (/docs/tools/…): the platform packages' READMEs.
+      - "packages/*/README.md"
       - "examples/*/README.md"
       - "package.json"
       - ".nvmrc"
@@ -42,6 +44,7 @@ on:
       - "packages/cellb/docs/**/*.md"
       - "packages/cellb/CONTEXT.md"
       - "packages/cellb/bench/README.md"
+      - "packages/*/README.md"
       - "examples/*/README.md"
       - "package.json"
       - ".nvmrc"

@@ -265,6 +265,51 @@ const dot: Record<Status, string> = {
   no: "bg-muted-foreground/40",
 };
 
+const tools = [
+  {
+    icon: "globe",
+    title: "ESM CDN",
+    body: "npm packages as ES modules from your own origin: resolved, downloaded once into a package store, transformed file by file (TypeScript, CommonJS, CSS) and served immutable. No install step, no third-party CDN at run time.",
+    api: "GET /npm/browser/react-dom@19/client?graph",
+    href: docHref("packages/esm-cdn/README.md"),
+  },
+  {
+    icon: "book",
+    title: "User code as ESM",
+    body: "A project's files, frozen into snapshots named by their hash and served one module at a time: TSX straight into the browser, npm imports bound to the CDN. For editors, playgrounds and agents that write code.",
+    api: "POST /p/<id>/snapshots → <base>~/index.html",
+    href: docHref("packages/esm-cdn/README.md"),
+  },
+  {
+    icon: "layers",
+    title: "Bundler",
+    body: "A project bundled with esbuild-wasm into one Worker that Wrangler, celld and CellB run as they get it: a download, a wrangler project, a Worker Loader payload. Small builds run in a Durable Object, large ones on a Node runner.",
+    api: "POST /builds → /b/<id>/project.zip",
+    href: docHref("packages/bundler/README.md"),
+  },
+  {
+    icon: "cpu",
+    title: "Astro builder",
+    body: "Astro sites built from their sources without Node or Vite: config and integrations, compiler-rs as WebAssembly, server and client bundles. EmDash's 225 routes build in a Durable Object, or in your tab.",
+    api: "POST /builds (an astro.config.* project)",
+    href: docHref("packages/astro-builder/README.md"),
+  },
+  {
+    icon: "database",
+    title: "Notebooks",
+    body: "Markdown and Observable Notebook Kit documents compiled to live pages inside a Durable Object; their cells import d3, Plot and any npm package from the same origin.",
+    api: "POST /nb/<site>/build → /nb/<site>/<page>.html",
+    href: docHref("packages/notebooks/README.md"),
+  },
+  {
+    icon: "refresh",
+    title: "One build, every host",
+    body: "Each tool, and what it builds, runs unchanged on Wrangler (workerd), celld, CellB in Node and CellB in a browser tab: checked end to end on each, with Astro, EmDash and notebooks.",
+    api: "scripts/e2e.ts all",
+    href: "/docs/tools",
+  },
+] as const;
+
 const useCases = [
   {
     icon: "layers",
@@ -521,6 +566,40 @@ const lifecycle = [
       ))}
     </div>
    </div>
+  </section>
+
+  <!-- Tools -->
+  <section id="tools" class="scroll-mt-20">
+    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div class="max-w-3xl space-y-3">
+        <p class="font-mono text-sm text-primary">// tools</p>
+        <h2 class="text-3xl font-semibold tracking-tight text-balance">
+          The tools that build apps are Durable Object apps too
+        </h2>
+        <p class="text-muted-foreground">
+          An ESM CDN, a server for a project's own code, a bundler, an Astro builder and a notebook
+          compiler. Like any CellB project, they run on Wrangler, celld, Node and in a tab, and so
+          does what they build.
+        </p>
+      </div>
+      <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {tools.map((t) => (
+          <a href={t.href} class="block">
+            <Card class="h-full p-6 transition-colors hover:border-primary/40">
+              <div class="mb-4 inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon name={t.icon} />
+              </div>
+              <h3 class="font-medium">{t.title}</h3>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">{t.body}</p>
+              <p class="mt-3 font-mono text-xs text-muted-foreground">{t.api}</p>
+            </Card>
+          </a>
+        ))}
+      </div>
+      <div class="mt-8">
+        <Button href="/docs/tools" variant="outline">How the tools work <Icon name="arrowRight" class="size-4" /></Button>
+      </div>
+    </div>
   </section>
 
   <!-- Real apps -->
