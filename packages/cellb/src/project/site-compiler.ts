@@ -8,8 +8,8 @@
  * MessagePort: the worker serves the site's handler, the page mounts it in its ServiceWorker.
  */
 import type { SiteHandler } from "@statewalker/webrun-site-builder";
-import { HostedSiteBuilder } from "@statewalker/webrun-site-host";
 import { linkOverPort, serveHandlerOverPort } from "../transport/port.js";
+import { newHostedSiteBuilder } from "./hosted-site.js";
 import { createProjectSite } from "./site.js";
 import type { ProjectCompiler } from "./source-project.js";
 
@@ -43,7 +43,7 @@ function serviceWorkerHost(serviceWorkerUrl?: string): SiteHost {
         "siteCompiler: this realm cannot register a ServiceWorker (a Dedicated Worker cannot): " +
           "pass `host: siteHostOverPort(port)` and call `hostSitesForWorker(port)` in the page",
       );
-    const builder = new HostedSiteBuilder().setHandler(handler);
+    const builder = newHostedSiteBuilder().setHandler(handler);
     if (serviceWorkerUrl) builder.setServiceWorkerUrl(serviceWorkerUrl);
     const site = await builder.build();
     return { baseUrl: site.baseUrl, stop: () => site.stop() };
@@ -179,7 +179,7 @@ export function hostSitesForWorker(
       // The worker may give up waiting (`timeoutMs`) and ask to stop before the site is up: the
       // stop then waits on `reply` until the handler below reads it.
       const link = await linkOverPort(req.link);
-      const builder = new HostedSiteBuilder().setHandler(link.send);
+      const builder = newHostedSiteBuilder().setHandler(link.send);
       if (options.serviceWorkerUrl) builder.setServiceWorkerUrl(options.serviceWorkerUrl);
       const site = await builder.build();
       req.reply.onmessage = async (m) => {

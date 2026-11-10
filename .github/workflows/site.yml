@@ -88,11 +88,14 @@ jobs:
       - name: Home page code
         run: pnpm --filter @statewalker/cellb-site check:snippets
       # CellB sandbox (/sandbox/app/): its unit tests, and its e2e in Chromium on the build the
-      # site copied, served under the same path as on the site.
+      # site copied, served under the same path as on the site, over http and over https (as the
+      # site is served: a request's scheme once got lost on its way to the page, and only https
+      # showed it).
       - name: CellB sandbox
         run: |
           pnpm --filter @statewalker/cellb-sandbox test
           SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox e2e
+          SANDBOX_BASE=/sandbox/app/ HTTPS=1 pnpm --filter @statewalker/cellb-sandbox e2e
 
       - name: Publish to https://${{ env.SITE_DOMAIN }}
         if: github.event_name != 'pull_request'

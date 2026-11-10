@@ -10,14 +10,21 @@
 // CHROME=/path/to/chrome node test/e2e.mjs   (default: Playwright's own Chromium)
 // SANDBOX_BASE=/sandbox/app/ for a build made with that base (as cellb.dev serves it): the site is
 // then served under that path only, as on cellb.dev.
+// HTTPS=1 serves it over https (a self-signed certificate made with openssl), as cellb.dev does:
+// requests reach the page's handlers through webrun-http-browser, which rebuilt them as http://
+// (cellb's newHostedSiteBuilder gives them the page's scheme back).
 
-import { readdir, readFile } from "node:fs/promises";
-import { createServer } from "node:http";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { chromium } from "playwright";
 
 const PORT = Number(process.env.PORT ?? 4339);
-const ORIGIN = `http://localhost:${PORT}`;
+const HTTPS = process.env.HTTPS === "1";
+const ORIGIN = `${HTTPS ? "https" : "http"}://localhost:${PORT}`;
 const BASE = (process.env.SANDBOX_BASE ?? "/").replace(/\/?$/, "/");
 const APP = `${ORIGIN}${BASE}`;
 const root = new URL("..", import.meta.url).pathname;
@@ -62,7 +69,33 @@ const TYPES = {
   woff2: "font/woff2",
 };
 const dist = join(root, "dist");
-const server = createServer(async (req, res) => {
+async function tlsOptions() {
+  const dir = await mkdtemp(join(tmpdir(), "sandbox-e2e-"));
+  const [key, cert] = [join(dir, "key.pem"), join(dir, "cert.pem")];
+  execFileSync(
+    "openssl",
+    [
+      "req",
+      "-x509",
+      "-newkey",
+      "rsa:2048",
+      "-nodes",
+      "-days",
+      "1",
+      "-subj",
+      "/CN=localhost",
+      "-addext",
+      "subjectAltName=DNS:localhost",
+      "-keyout",
+      key,
+      "-out",
+      cert,
+    ],
+    { stdio: "ignore" },
+  );
+  return { key: await readFile(key), cert: await readFile(cert) };
+}
+const listener = async (req, res) => {
   let path = decodeURIComponent(new URL(req.url, ORIGIN).pathname);
   if (!path.startsWith(BASE)) {
     res.statusCode = 404;
@@ -79,12 +112,20 @@ const server = createServer(async (req, res) => {
     res.statusCode = 404;
     res.end("not found");
   }
-}).listen(PORT);
+};
+const server = (
+  HTTPS ? createHttpsServer(await tlsOptions(), listener) : createHttpServer(listener)
+).listen(PORT);
 let browser;
 try {
-  await waitFor(`${APP}sw-worker.js`);
-  browser = await chromium.launch({ executablePath: process.env.CHROME || undefined });
-  const page = await browser.newPage();
+  // The server is in this process; over https, Node's fetch would refuse its certificate.
+  if (!HTTPS) await waitFor(`${APP}sw-worker.js`);
+  browser = await chromium.launch({
+    executablePath: process.env.CHROME || undefined,
+    // The self-signed certificate: a ServiceWorker registers only where the certificate is trusted.
+    args: HTTPS ? ["--ignore-certificate-errors"] : [],
+  });
+  const page = await browser.newPage({ ignoreHTTPSErrors: HTTPS });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(APP);
