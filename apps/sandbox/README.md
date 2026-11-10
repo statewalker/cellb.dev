@@ -1,6 +1,8 @@
-# @statewalker/cellb-sandbox
+# CellB sandbox
 
-> Private, not published. A demo of CellB, and the seed of a CodeSandbox-like tool.
+> `@statewalker/cellb-sandbox` — private, not published. A demo of CellB, and the seed of a
+> CodeSandbox-like tool. Live at **https://cellb.dev/sandbox/app/**; about it:
+> **https://cellb.dev/sandbox/** (`site/src/pages/sandbox.astro`).
 
 ## What it is
 
@@ -45,7 +47,22 @@ pnpm --filter @statewalker/cellb-sandbox test     # unit tests (Vitest)
 pnpm --filter @statewalker/cellb-sandbox e2e      # after build: Chrome, via Playwright
 ```
 
-`CHROME=/path/to/chrome` makes the e2e use an installed Chrome. Folder access with rerun on save
+`CHROME=/path/to/chrome` makes the e2e use an installed Chrome. `SANDBOX_BASE` sets the path the
+build is served under (default `/`); the e2e serves `dist/` under that same path.
+
+### On cellb.dev
+
+The site's build (`pnpm --filter @statewalker/cellb-site build`) runs
+`site/scripts/build-sandbox.mjs`: this package is built with `SANDBOX_BASE=/sandbox/app/` and
+copied to `site/dist/sandbox/app/`. The ServiceWorker is served next to the page
+(`<base>sw-worker.js`), so its scope is `/sandbox/app/` and it never meets the homepage demo's
+worker (scope `/`). The site's workflow (`.github/workflows/site.yml`) runs the unit tests and the
+e2e on that build:
+
+```sh
+SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox build
+SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox e2e
+``` Folder access with rerun on save
 needs the File System Access API (Chrome, Edge); other browsers read the folder once
 (`webkitdirectory`).
 
@@ -58,7 +75,7 @@ needs the File System Access API (Chrome, Edge); other browsers read the folder 
 | `src/sandbox/project.ts` | The folder's layout (server, client), HTML rewriting, MIME types |
 | `src/sandbox/app-site.ts` | The app as one handler: client files, compiled modules (`/_modules/`), server |
 | `src/sandbox/runner.worker.ts` | The runner (Dedicated Worker): CellB, esbuild-wasm, the hosted site |
-| `integrations/sw-worker.mjs` | Serves webrun-http-browser's ServiceWorker at `/sw-worker.js` |
+| `integrations/sw-worker.mjs` | Serves webrun-http-browser's ServiceWorker at `<base>sw-worker.js` |
 
 - The runner keeps one npm package store (server) and one module cache (client) for its life, so
   a rerun downloads nothing again. Each run drops only the project's own compiled modules from the

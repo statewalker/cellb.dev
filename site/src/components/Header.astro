@@ -13,10 +13,11 @@ const nav = [
   { href: "/docs/tools", label: "Tools" },
   { href: "/examples", label: "Examples" },
   { href: "/examples#live-demos", label: "Live demos" },
+  { href: "/sandbox", label: "Sandbox" },
   { href: "/#compare", label: "Supported" },
-  // Shown from `lg` only: below it the bar has room for the first five.
+  // Shown from `lg` (`wide`) or `xl` (`widest`) only: below them the bar has no room for them.
   { href: "/#use-cases", label: "Use cases", wide: true },
-  { href: "/#numbers", label: "Numbers", wide: true },
+  { href: "/#numbers", label: "Numbers", widest: true },
 ];
 ---
 
@@ -31,6 +32,7 @@ const nav = [
           class:list={[
             "whitespace-nowrap transition-colors hover:text-foreground",
             "wide" in item && item.wide && "hidden lg:inline",
+            "widest" in item && item.widest && "hidden xl:inline",
             path === item.href || (item.href !== "/docs" && path.startsWith(item.href))
               ? "text-foreground"
               : "text-muted-foreground",

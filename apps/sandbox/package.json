@@ -2,7 +2,7 @@
   "name": "@statewalker/cellb-sandbox",
   "private": true,
   "type": "module",
-  "description": "A local folder's client/server web application (wrangler.jsonc + an HTML app) compiled and run in the browser on CellB.",
+  "description": "CellB sandbox: a local folder's client/server web application (wrangler.jsonc + an HTML app) compiled and run in the browser on CellB.",
   "license": "MIT",
   "engines": {
     "node": ">=22.23.4"

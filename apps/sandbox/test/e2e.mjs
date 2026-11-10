@@ -8,6 +8,8 @@
 //   4. "Download .zip" gives the folder's files.
 //
 // CHROME=/path/to/chrome node test/e2e.mjs   (default: Playwright's own Chromium)
+// SANDBOX_BASE=/sandbox/app/ for a build made with that base (as cellb.dev serves it): the site is
+// then served under that path only, as on cellb.dev.
 
 import { readdir, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -16,6 +18,8 @@ import { chromium } from "playwright";
 
 const PORT = Number(process.env.PORT ?? 4339);
 const ORIGIN = `http://localhost:${PORT}`;
+const BASE = (process.env.SANDBOX_BASE ?? "/").replace(/\/?$/, "/");
+const APP = `${ORIGIN}${BASE}`;
 const root = new URL("..", import.meta.url).pathname;
 
 function step(text) {
@@ -60,11 +64,16 @@ const TYPES = {
 const dist = join(root, "dist");
 const server = createServer(async (req, res) => {
   let path = decodeURIComponent(new URL(req.url, ORIGIN).pathname);
+  if (!path.startsWith(BASE)) {
+    res.statusCode = 404;
+    res.end("not found");
+    return;
+  }
+  path = `/${path.slice(BASE.length)}`;
   if (path.endsWith("/")) path += "index.html";
   try {
     const body = await readFile(join(dist, path));
     res.setHeader("content-type", TYPES[path.split(".").pop()] ?? "application/octet-stream");
-    if (path === "/sw-worker.js") res.setHeader("service-worker-allowed", "/");
     res.end(body);
   } catch {
     res.statusCode = 404;
@@ -73,12 +82,12 @@ const server = createServer(async (req, res) => {
 }).listen(PORT);
 let browser;
 try {
-  await waitFor(`${ORIGIN}/sw-worker.js`);
+  await waitFor(`${APP}sw-worker.js`);
   browser = await chromium.launch({ executablePath: process.env.CHROME || undefined });
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(ORIGIN);
+  await page.goto(APP);
 
   const status = page.getByTestId("status");
   const frame = page.frameLocator('iframe[title="The running app"]');

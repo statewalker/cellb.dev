@@ -18,3 +18,11 @@ export const LIVE_DEMOS = {
     readme: "examples/astro-in-browser/README.md",
   },
 } as const;
+
+/** CellB sandbox (apps/sandbox), built into this site (scripts/build-sandbox.mjs). */
+export const SANDBOX = {
+  href: "/sandbox/app/",
+  about: "/sandbox",
+  title: "CellB sandbox: an app from your folder",
+  body: "Open a folder with a Workers server (wrangler.jsonc, Hono, Durable Objects) and an HTML client in TS or React. The tab compiles both, runs the server on CellB and previews the app, and reruns it when you save. Or try the sample.",
+} as const;

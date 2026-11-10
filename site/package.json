@@ -10,7 +10,8 @@
   "scripts": {
     "examples": "tsx scripts/build-examples.ts",
     "dev": "tsx scripts/build-examples.ts && astro dev",
-    "build": "tsx scripts/build-examples.ts && astro build && node scripts/compress.mjs",
+    "build": "tsx scripts/build-examples.ts && astro build && node scripts/build-sandbox.mjs && node scripts/compress.mjs",
+    "sandbox": "node scripts/build-sandbox.mjs",
     "preview": "astro preview",
     "check:examples": "node scripts/check-examples.mjs",
     "check:snippets": "node scripts/check-snippets.mjs"

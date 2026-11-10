@@ -4,7 +4,14 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 import { swWorker } from "./integrations/sw-worker.mjs";
 
+// The path the sandbox is served under: "/" on its own (`pnpm dev`), "/sandbox/app/" on cellb.dev
+// (the site's build sets SANDBOX_BASE and copies dist/ there). Its ServiceWorker sits at that path,
+// so its scope is the sandbox alone, not the site's root and its homepage demo.
+const base = process.env.SANDBOX_BASE ?? "/";
+
 export default defineConfig({
+  base,
+  trailingSlash: "ignore",
   integrations: [react(), swWorker()],
   vite: {
     plugins: [tailwindcss()],

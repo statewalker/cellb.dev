@@ -75,7 +75,13 @@ export default function Sandbox() {
       type: "module",
     });
     worker.current = w;
-    const unhost = hostSitesForWorker(w);
+    // The ServiceWorker next to this page (integrations/sw-worker.mjs): its scope is the sandbox.
+    const unhost = hostSitesForWorker(w, {
+      serviceWorkerUrl: new URL(
+        `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}sw-worker.js`,
+        location.href,
+      ).href,
+    });
     w.addEventListener("message", (e: MessageEvent<FromRunner>) => {
       const m = e.data;
       if (!m || typeof m !== "object" || !("type" in m)) return;
@@ -218,10 +224,11 @@ export default function Sandbox() {
       />
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2.5">
         <a
-          href="https://cellb.dev"
+          href="https://cellb.dev/sandbox/"
+          title="About CellB sandbox"
           className="flex items-baseline gap-1.5 font-semibold tracking-tight"
         >
-          <span className="text-brand-gradient">cellb</span>
+          <span className="text-brand-gradient">CellB</span>
           <span className="text-muted-foreground font-normal">sandbox</span>
         </a>
         {loaded && (

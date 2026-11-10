@@ -116,6 +116,10 @@ hostSitesForWorker(worker);`;
   </p>
   <CodeBlock lang="ts" title="page.ts, worker.ts" code={modulesCode} />
   <p>
+    <a href="/sandbox">CellB sandbox</a> uses both: webrun-bundler for a folder's server part, and
+    webrun-modules for its HTML client, served together by the page's ServiceWorker.
+  </p>
+  <p>
     CellB's browser test suite runs every conformance project this way, from its sources
     (<a href={repoFile("packages/cellb/e2e-browser/site-projects.spec.ts")}>site-projects.spec.ts</a>).
   </p>
