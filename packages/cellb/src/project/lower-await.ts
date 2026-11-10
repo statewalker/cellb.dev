@@ -58,6 +58,25 @@ function usesSuperOrNewTarget(fn: AnyNode): boolean {
   return found;
 }
 
+/**
+ * Whether an arrow reads `arguments` itself: an `arguments` identifier in its body, not in a
+ * function of its own (which has its own `arguments`). A word in a string or a comment is not.
+ */
+function readsArguments(fn: AnyNode): boolean {
+  let found = false;
+  const visit = (n: AnyNode) => {
+    if (found) return;
+    if (n.type === "Identifier" && n.name === "arguments") {
+      found = true;
+      return;
+    }
+    for (const c of childrenOf(n))
+      if (!(isFunction(c) && c.type !== "ArrowFunctionExpression")) visit(c);
+  };
+  visit(fn.body);
+  return found;
+}
+
 const lowered = (n: AnyNode) =>
   isFunction(n) && n.async && !n.generator && !usesSuperOrNewTarget(n);
 
@@ -132,8 +151,8 @@ export function lowerAwait(code: string): string {
     const text = generic(fn, true, (child, body) => {
       if (child !== fn.body) return body;
       // An arrow's `arguments` is its enclosing function's: pass them on only when it reads them
-      // (a module has none).
-      const call = !arrow || /\barguments\b/.test(body) ? ".apply(this, arguments)" : ".call(this)";
+      // (a module, a class field or a static block has none, and naming it there is an error).
+      const call = !arrow || readsArguments(fn) ? ".apply(this, arguments)" : ".call(this)";
       if (fn.expression) return `__cellbAsync(function* () { return ${body}; }${call})`;
       return `{ return __cellbAsync(function* () ${body}${call}); }`;
     });
