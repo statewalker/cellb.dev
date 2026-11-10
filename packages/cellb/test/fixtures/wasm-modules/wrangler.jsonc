@@ -1,0 +1,7 @@
+// `.wasm` imports as workerd's CompiledWasm rule, plus wrangler `rules` for Text and Data.
+{
+  "name": "wasm-modules",
+  "main": "index.js",
+  "compatibility_date": "2025-04-01",
+  "rules": [{ "type": "Text", "globs": ["**/*.md"] }, { "type": "Data", "globs": ["**/*.dat"] }]
+}

@@ -11,6 +11,7 @@ import { type BuildOptions, build } from "esbuild";
 import { NODE_POLYFILL_FILES, NODE_POLYFILL_PACKAGES } from "../node-compat/modules.js";
 import { PROJECT_WORKERS_MODULE_SHIM } from "./browser-modules.js";
 import { lowerAwait } from "./lower-await.js";
+import { type ModuleRule, moduleRulesPlugin } from "./module-rules.js";
 import { ownModule } from "./own-module.js";
 import { SCHEDULER_EXPRESSION } from "./scheduler.js";
 import { WORKERS_GLOBAL_NAMES } from "./workers-global-names.js";
@@ -65,6 +66,8 @@ export async function bundleWorkerForBrowser(
      * too.
      */
     lowerAwait?: boolean;
+    /** wrangler `rules` for non-JS imports (the defaults: `.wasm`, `.bin`, `.txt`…, as wrangler). */
+    rules?: ModuleRule[];
   } = {},
 ): Promise<string> {
   const lower = opts.lowerAwait ?? opts.nodeCompat;
@@ -124,6 +127,7 @@ export async function bundleWorkerForBrowser(
           }));
         },
       },
+      moduleRulesPlugin(opts.rules),
     ],
   });
   try {

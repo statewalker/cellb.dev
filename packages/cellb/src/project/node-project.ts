@@ -25,6 +25,7 @@ import type { PortLike } from "../isolate/protocol.js";
 import type { CellStorage } from "../ports.js";
 import * as workersClasses from "./cloudflare-workers.js";
 import { parseJsonc } from "./jsonc.js";
+import { type ModuleRule, moduleRulesPlugin } from "./module-rules.js";
 import { ownModule } from "./own-module.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import {
@@ -64,7 +65,13 @@ export async function bundleWorker(
   entry: { path: string } | { modules: Record<string, string>; main: string },
   logs?: LogSink,
   outbound?: typeof fetch,
-  opts: { nodeCompat?: boolean; standardBinaryType?: boolean; scope?: WorkerScope } = {},
+  opts: {
+    nodeCompat?: boolean;
+    standardBinaryType?: boolean;
+    scope?: WorkerScope;
+    /** wrangler `rules` for non-JS imports (the defaults: `.wasm`, `.bin`, `.txt`…, as wrangler). */
+    rules?: ModuleRule[];
+  } = {},
 ): Promise<WorkerModule> {
   // `env` and `exports` of `cloudflare:workers` belong to one Worker: the bundle reads them
   // from its own scope (empty objects for code that has none).
@@ -217,6 +224,7 @@ export async function bundleWorker(
           }));
         },
       },
+      moduleRulesPlugin(opts.rules),
     ],
   });
   return (await import(/* @vite-ignore */ out)) as WorkerModule;
@@ -269,6 +277,7 @@ export async function loadNodeProject(
         nodeCompat,
         standardBinaryType,
         scope,
+        rules: config.rules,
       })
     : ({ default: {} } as WorkerModule);
   const assetFiles = config.assets?.directory
