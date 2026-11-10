@@ -44,6 +44,7 @@ export async function buildProject(
     ? await bundleWorkerForBrowser(resolve(dir, config.main), {
         nodeCompat,
         lowerAwait: opts.lowerAwait,
+        rules: config.rules,
       })
     : null;
   const assets = config.assets?.directory

@@ -21,6 +21,7 @@ import { filesApiBlobService } from "../miniflare-compat/blob-service.js";
 import { simulatorFetcher } from "../miniflare-compat/simulator-fetcher.js";
 import { D1DatabaseObject, makeD1Binding } from "../miniflare-compat/vendored.js";
 import { systemClock } from "../ports.js";
+import type { ModuleRule } from "./module-rules.js";
 
 /** The subset of wrangler.json(c) that celld deploys (and cellb reads). */
 export interface WranglerConfig {
@@ -51,6 +52,8 @@ export interface WranglerConfig {
   worker_loaders?: { binding: string }[];
   /** Workers AI: served by the host's OpenAI-compatible endpoint (`ProjectHost.ai`), if any. */
   ai?: { binding: string };
+  /** Module rules: how imports of non-JS files load (`CompiledWasm`, `Data`, `Text`). */
+  rules?: ModuleRule[];
   /** Containers (celld runs them with Docker or Podman): not supported, reported. */
   containers?: { class_name: string; image?: string }[];
 }

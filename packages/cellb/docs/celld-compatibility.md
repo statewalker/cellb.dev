@@ -22,6 +22,7 @@ identical, how it is checked, and where the two still differ. The pinned celld v
 | Dynamic Workers (Worker Loader) | supported | yes, a worker thread each | yes, a Dedicated Worker each | `dynamic-worker-tails`, the Worker Loader scenarios |
 | WebSockets, hibernation | supported | yes | yes, over MessagePorts | `wsecho`, `wsclient`, `wd-websocket-*` (celld fails `wd-websocket-hibernation`, CellB passes it) |
 | Vectorize-style search | example | yes | yes | `vectordb` |
+| Module rules (`.wasm`, `rules`: `CompiledWasm`, `Data`, `Text`) | wrangler bundles them | yes, inlined in the bundle | yes, from `cellb build` (not with `compile`) | `p42-module-rules`, `load-project.spec` |
 | Workers AI (`ai` binding) | no binding (the `pi` example builds its own adapter) | yes, on an OpenAI-compatible endpoint the host names | yes | `p14-workers-ai`, Flue's `cloud` agent |
 | Python Workers (Pyodide) | supported | no, out of scope ([Gaps](gaps.md)) | no | not run |
 | Containers | experimental (Docker or Podman) | no; reported in `unsupported` | no | not run |
@@ -38,6 +39,12 @@ those transcripts, and that CellB matches:
   `Worker failed: rejected: <name>: <message>`. A handler returning something other than a
   `Response` is sent as its text with status 200.
 - An inbound request has `request.cf` set to `{}`.
+- Non-JS imports follow wrangler's module rules: `import mod from "./add.wasm"` (or
+  `./add.wasm?module`) is a compiled `WebAssembly.Module`, as workerd's `CompiledWasm`; `.bin` is an
+  `ArrayBuffer` (`Data`); `.txt`, `.html` and `.sql` are strings (`Text`). The project's own `rules`
+  (`globs`, `fallthrough`) come first. The bytes are inlined in the bundle (`loadProject` on Node and
+  `cellb build`), so a built folder stays one self-contained `worker.js`. Sources compiled in a
+  browser (`compile`) do not apply the rules yet.
 - A promise the Worker leaves rejected concerns the Worker, not the host. celld ignores it and
   workerd logs it. On Node, where the Worker shares the host's process, CellB sends it to
   `onUnhandledRejection` (default: one line on stderr, outside the Worker's console) instead of the

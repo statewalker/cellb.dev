@@ -54,6 +54,19 @@ test("a built project with assets answers as celld does", async ({ page }) => {
   }
 });
 
+test("a built project importing .wasm, Text and Data files", async ({ page }) => {
+  const url = await build("wasm-modules", "test/fixtures/wasm-modules");
+  const r = await load(page, url, [["/?a=2&b=40"]]);
+  expect(r.out[0][0].status).toBe(200);
+  expect(JSON.parse(r.out[0][0].body)).toEqual({
+    sum: 42,
+    module: true,
+    sameModuleRule: 42,
+    greeting: "hello from a Text rule\n",
+    data: [1, 2, 3, 255],
+  });
+});
+
 test("Worker Loader code runs in the package's own isolate worker", async ({ page }) => {
   const url = await build("isolation-api", "conformance/projects/isolation-api");
   const golden = JSON.parse(
