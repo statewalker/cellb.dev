@@ -9,7 +9,7 @@
     "url": "git+https://github.com/statewalker/cellb.dev.git",
     "directory": "packages/notebooks"
   },
-  "description": "Markdown and Observable Notebook Kit notebooks compiled to pages in a Durable Object (notebook-build), their npm imports served by the site's module server.",
+  "description": "Markdown and Observable Notebook Kit notebooks compiled to pages in a Durable Object (notebook-build), their npm imports served by the site's module server, and rendered by an Astro theme from page models.",
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
@@ -27,11 +27,13 @@
     "@statewalker/webrun-files": "catalog:",
     "@statewalker/webrun-modules": "catalog:",
     "linkedom": "catalog:",
-    "urlpattern-polyfill": "catalog:"
+    "urlpattern-polyfill": "catalog:",
+    "markdown-it": "^15.0.2"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@types/markdown-it": "^14.1.2"
   }
 }

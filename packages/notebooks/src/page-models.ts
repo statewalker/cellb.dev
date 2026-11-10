@@ -1,20 +1,20 @@
 /**
- * Markdown notebooks → the data an Astro theme renders: one `PageModel` per notebook and one
+ * Notebooks → the data an Astro theme renders: one `PageModel` per notebook and one
  * `SiteModel` for navigation. This is the contract between the notebook build and the theme
  * (docs/notebook-runtime/options.md in statewalker-sandbox, Section 3): the theme never parses
  * Markdown or transpiles cells, it lays out prose blocks, cell roots and one module script.
  *
- * The stages are `@statewalker/notebook-build`'s: `parseMarkdown` (Markdown → notebook-kit
- * `Notebook`), `resolveNotebook` (`npm:` imports → URLs under the module server's base path) and
+ * The stages are `@statewalker/notebook-build`'s: `parseMarkdown` or `parseNotebookHtml`
+ * (Markdown or a Notebook Kit document → notebook-kit `Notebook`), `resolveNotebook` (`npm:` imports → URLs under the module server's base path) and
  * `transpileNotebook` (cells → `define()` definitions). Prose is rendered here with markdown-it,
  * headings get ids, and the outline is collected for a table of contents.
  */
 import {
   type CellDefinition,
-  type ModuleServerLike,
-  materializeDeps,
-  type PinMap,
+  type DomEnv,
+  type ModuleResolver,
   parseMarkdown,
+  parseNotebookHtml,
   resolveNotebook,
   toModuleRef,
   transpileNotebook,
@@ -33,9 +33,9 @@ export type PageBlock =
   | { kind: "cell"; id: number; error?: string };
 
 export interface PageModel {
-  /** The collection entry's id: the notebook's path without `.md` (`index`, `guide/plots`). */
+  /** The collection entry's id: the notebook's path without its extension (`index`, `guide/plots`). */
   id: string;
-  /** The page's URL path (`/`, `/guide/plots`). */
+  /** The page's URL path under the site's base (`<base>/`, `<base>/guide/plots`). */
   path: string;
   title: string;
   outline: OutlineEntry[];
@@ -48,14 +48,14 @@ export interface PageModel {
 
 export interface SiteModel {
   title: string;
+  /** The home page's path (`<base>/`). */
+  home: string;
   pages: { id: string; path: string; title: string }[];
 }
 
-export interface PageModelsResult {
+export interface PageModels {
   site: SiteModel;
   pages: PageModel[];
-  /** Every module URL the pages import (`npm:` imports and the runtime), for materializing. */
-  pins: PinMap;
 }
 
 const RUNTIME_SPECIFIER = "npm:@observablehq/notebook-kit/runtime";
@@ -122,81 +122,91 @@ async function readText(files: FilesApi, path: string): Promise<string> {
   return new TextDecoder().decode(bytes);
 }
 
-/** The models of every `.md` notebook under `root` in `notebooks`. */
+/** The page path of a notebook id under `base`: `index` is the base itself. */
+const pagePath = (base: string, id: string) =>
+  id === "index" ? `${base}/` : `${base}/${id.replace(/\/index$/, "")}`;
+
+/**
+ * The models of every notebook (`.md`, or Notebook Kit `.html`) in `notebooks`. `base` prefixes
+ * page paths (`/nb/<site>/t`); `dom` is what `parseNotebookHtml` needs (linkedom in an isolate).
+ * A notebook that fails to resolve or parse is reported in `failures` and left out.
+ */
 export async function buildPageModels(opts: {
   notebooks: FilesApi;
-  root?: string;
-  moduleServer: ModuleServerLike;
+  moduleServer: ModuleResolver;
+  dom: DomEnv;
   siteTitle: string;
-}): Promise<PageModelsResult> {
-  const root = (opts.root ?? "/").replace(/\/$/, "");
+  base?: string;
+}): Promise<PageModels & { failures: { notebook: string; error: string }[] }> {
+  const base = (opts.base ?? "").replace(/\/$/, "");
   const md = new MarkdownIt({ html: true });
   const runtimeUrl = (await opts.moduleServer.resolve(toModuleRef(RUNTIME_SPECIFIER))).url;
-  // The runtime is `<base>/@observablehq/notebook-kit@<version>/dist/src/runtime/index.js`; the
-  // stylesheet sits beside it in the same package.
+  // The runtime is `<modules>/@observablehq/notebook-kit@<version>/dist/src/runtime/index.js`;
+  // the stylesheet sits beside it in the same package.
   const stylesUrl = runtimeUrl.replace(/\/dist\/.*$/, "/dist/src/styles/index.css");
-  const pins = new Map<string, string>([[RUNTIME_SPECIFIER, runtimeUrl]]);
 
   const paths: string[] = [];
-  for await (const p of walk(opts.notebooks, root || "/")) if (p.endsWith(".md")) paths.push(p);
+  for await (const p of walk(opts.notebooks, "/")) if (/\.(md|html)$/.test(p)) paths.push(p);
   paths.sort();
 
   const pages: PageModel[] = [];
+  const failures: { notebook: string; error: string }[] = [];
+  const seen = new Set<string>();
   for (const file of paths) {
-    const id = file.slice(root.length + 1).replace(/\.md$/, "");
-    const nb = parseMarkdown(await readText(opts.notebooks, file));
-    const notebookPins = await resolveNotebook(nb, { moduleServer: opts.moduleServer }, file);
-    for (const [k, v] of notebookPins) pins.set(k, v);
-    const cells = transpileNotebook(nb, notebookPins);
-    const source = new Map(nb.cells.map((c) => [c.id, c.value]));
-
-    const outline: OutlineEntry[] = [];
-    const used = new Set<string>();
-    const blocks: PageBlock[] = [];
-    const defines: string[] = [];
-    for (const cell of cells) {
-      if (!CODE_MODES.has(cell.mode)) {
-        blocks.push({
-          kind: "prose",
-          html: renderProse(md, source.get(cell.id) ?? "", outline, used),
-        });
-      } else if (cell.error) {
-        blocks.push({ kind: "cell", id: cell.id, error: cell.error });
-      } else {
-        blocks.push({ kind: "cell", id: cell.id });
-        defines.push(defineCall(cell));
-      }
+    const id = file.slice(1).replace(/\.(md|html)$/, "");
+    if (seen.has(id)) {
+      failures.push({ notebook: file, error: `another notebook already publishes "${id}"` });
+      continue;
     }
-    // A literal `</script` would end the inline script early; `<\/script` is the same JS string.
-    const script = [`import {define} from "${runtimeUrl}";`, ...defines]
-      .join("\n")
-      .replace(/<\/script/gi, "<\\/script");
-    pages.push({
-      id,
-      path: id === "index" ? "/" : `/${id.replace(/\/index$/, "")}`,
-      title: nb.title,
-      outline,
-      blocks,
-      script,
-      stylesUrl,
-    });
+    seen.add(id);
+    try {
+      const text = await readText(opts.notebooks, file);
+      const nb = file.endsWith(".md") ? parseMarkdown(text) : parseNotebookHtml(text, opts.dom);
+      const pins = await resolveNotebook(nb, { moduleServer: opts.moduleServer }, file);
+      const cells = transpileNotebook(nb, pins);
+      const source = new Map(nb.cells.map((c) => [c.id, c.value]));
+
+      const outline: OutlineEntry[] = [];
+      const used = new Set<string>();
+      const blocks: PageBlock[] = [];
+      const defines: string[] = [];
+      for (const cell of cells) {
+        if (!CODE_MODES.has(cell.mode)) {
+          blocks.push({
+            kind: "prose",
+            html: renderProse(md, source.get(cell.id) ?? "", outline, used),
+          });
+        } else if (cell.error) {
+          blocks.push({ kind: "cell", id: cell.id, error: cell.error });
+        } else {
+          blocks.push({ kind: "cell", id: cell.id });
+          defines.push(defineCall(cell));
+        }
+      }
+      // A literal `</script` would end the inline script early; `<\/script` is the same string.
+      const script = [`import {define} from "${runtimeUrl}";`, ...defines]
+        .join("\n")
+        .replace(/<\/script/gi, "<\\/script");
+      pages.push({
+        id,
+        path: pagePath(base, id),
+        title: nb.title || id,
+        outline,
+        blocks,
+        script,
+        stylesUrl,
+      });
+    } catch (e) {
+      failures.push({ notebook: file, error: String((e as Error)?.message ?? e) });
+    }
   }
   // Navigation order: the home page first, then by path.
   const order = (p: PageModel) => (p.id === "index" ? "" : p.id);
   pages.sort((a, b) => order(a).localeCompare(order(b)));
   const site: SiteModel = {
     title: opts.siteTitle,
+    home: `${base}/`,
     pages: pages.map(({ id, path, title }) => ({ id, path, title })),
   };
-  return { site, pages, pins };
-}
-
-/** Writes the modules the pages import (and the assets their packages ship) into `output`. */
-export function materializeModules(
-  pins: PinMap,
-  moduleServer: ModuleServerLike,
-  output: FilesApi,
-  basePath = "/_m/",
-): Promise<string[]> {
-  return materializeDeps(pins, moduleServer, output, basePath);
+  return { site, pages, failures };
 }

@@ -12,7 +12,7 @@ const toc = page.outline.filter((o) => o.depth >= 2 && o.depth <= 3);
     <link rel="stylesheet" href={page.stylesUrl} />
   </head>
   <body>
-    <header class="site-header"><a href="/">{site.title}</a></header>
+    <header class="site-header"><a href={site.home}>{site.title}</a></header>
     <div class="frame">
       <nav class="site-nav" aria-label="Notebooks">
         <ul>

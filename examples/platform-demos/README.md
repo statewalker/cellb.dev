@@ -12,7 +12,7 @@ these exercise the platform as it is in this checkout: they read its build
 | [`../emdash`](../emdash) | [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare` template (D1, KV sessions, R2 media, cron, passkeys), the example next to this one | `astro build`, then the bundler: 758 files, 38.5 MB in, a 22.9 MB worker out, on the Node runner (or in the object on hosts without the 128 MB limit) |
 | `platform-astro`, from sources (`astro-src`) | the same app's sources alone, no `dist/` | built by the platform's port of cellb.dev's in-browser Astro builder, in its object |
 | `emdash`, from sources (`emdash-src`) | EmDash's sources alone (28 files, 0.2 MB) | built by the same builder: on the Node runner by default, in the object with `--emdash-src-tier object` |
-| `notebooks/` | a Markdown notebook (from statewalker-knowledge's demo) and an Observable Notebook Kit HTML document with Inputs, d3 and Observable Plot | sent as sources; compiled to pages in a `NotebookSite` object; their npm imports come from the site's module server |
+| `notebooks/` | a Markdown notebook (from statewalker-knowledge's demo) and an Observable Notebook Kit HTML document with Inputs, d3 and Observable Plot | sent as sources; compiled to pages in a `NotebookSite` object; their npm imports come from the site's module server. Then rendered by `packages/notebooks/theme`, an Astro theme the platform builds from its sources |
 
 ## How to use it
 
@@ -52,7 +52,14 @@ For each host, the platform is started on it, then for each demo:
     module server;
   - in Chromium, Plot draws 60 dots and the summary cell runs;
   - changing the range input re-runs the dependent cells (100 points);
-  - the Markdown notebook draws its plots.
+  - the Markdown notebook draws its plots;
+  - the Astro theme (`packages/notebooks/theme`) is built from its sources by the platform and
+    set as the site's theme; `/nb/demo/t/plots` and `/nb/demo/t/` render the page models with
+    navigation and the cells' `define()` script, and a missing page is a 404;
+  - an edit of `index.md` and a rebuild change the themed page and the models, with no new
+    theme build;
+  - in Chromium, the themed page's cells run (Plot draws 60 dots) and its navigation lists both
+    notebooks.
 
 ## Internals
 
