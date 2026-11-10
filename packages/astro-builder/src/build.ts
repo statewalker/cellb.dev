@@ -29,6 +29,7 @@ import {
   clientPartsOf,
   compileAstro,
 } from "./astro-plugin.js";
+import { type ClientDirective, clientDirectiveSources } from "./client-directives.js";
 import type { IntegrationResult } from "./integrations.js";
 import { type ClientAssets, pathsPlugin } from "./paths-plugin.js";
 import { projectRoutes, type RouteData, routeFromPattern, sortRoutes } from "./routes.js";
@@ -161,11 +162,11 @@ import { App } from "astro/app";
 import { deserializeManifest } from "astro/app/manifest";
 import { DefaultFetchHandler } from "astro/app/fetch/default-handler";
 import { routeStyles, entryModules, inlinedScripts } from "virtual:astro-in-browser/styles";
-import loadDirective from "astro/runtime/client/load.prebuilt.js";
-import idleDirective from "astro/runtime/client/idle.prebuilt.js";
-import visibleDirective from "astro/runtime/client/visible.prebuilt.js";
-import mediaDirective from "astro/runtime/client/media.prebuilt.js";
-import onlyDirective from "astro/runtime/client/only.prebuilt.js";
+import loadDirective from "virtual:astro-in-browser/directive/load";
+import idleDirective from "virtual:astro-in-browser/directive/idle";
+import visibleDirective from "virtual:astro-in-browser/directive/visible";
+import mediaDirective from "virtual:astro-in-browser/directive/media";
+import onlyDirective from "virtual:astro-in-browser/directive/only";
 import { renderers } from "virtual:astro-in-browser/renderers";
 
 const routes = ${JSON.stringify(routes)};
@@ -226,6 +227,9 @@ export const inlinedScripts = g.inlinedScripts;`;
   let pageStyles: Record<string, string[]> = {};
   let client: ClientBuild = { entryModules: {}, inlinedScripts: [] };
 
+  // The client directives' scripts, from wherever this project's astro ships them.
+  const directives = await clientDirectiveSources(opts.packages, mounts.get("~") as Mount, root);
+
   const run = () =>
     bundle({
       esbuild: opts.esbuild,
@@ -241,6 +245,8 @@ export const inlinedScripts = g.inlinedScripts;`;
       conditions: ["workerd", "worker", "browser", "module"],
       external: ["cloudflare:*", "node:*"],
       modules: (spec) => {
+        if (spec.startsWith("virtual:astro-in-browser/directive/"))
+          return directives[spec.slice(spec.lastIndexOf("/") + 1) as ClientDirective];
         switch (spec) {
           case "virtual:astro-in-browser/entry":
             return entry;

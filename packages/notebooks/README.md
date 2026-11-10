@@ -67,8 +67,9 @@ GET  /nb/<site>/t/<page> ─► the theme's build in a Worker Loader isolate,
   `<script type="module" is:inline>`, so Astro passes it through unchanged.
 - **Paths.** Page paths in the models carry the `/nb/<site>/t` base; the object strips it before
   the theme sees the request. The theme's own files (`/_astro/…`) come from the build's `assets/`.
-- **The theme pins `astro` 7.4.4.** The Astro builder imports Astro's prebuilt client
-  directives, which astro 7.4.9 no longer ships.
+- **The theme pins `astro` 7.4.4**, so its build does not change under it with each Astro
+  release. The platform's Astro demo takes the latest 7.x; between them both places Astro has
+  kept its client directives in are checked.
 
 ```sh
 (cd theme && zip -r - . -x 'node_modules/*') | curl -X POST --data-binary @- 'localhost:8787/builds?tier=object&sourcemap=0'

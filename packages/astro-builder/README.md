@@ -69,6 +69,11 @@ worker, on Node.
   - the renderer's automatic JSX runtime;
   - one React for the server and the islands, since peer dependencies take the project's
     version.
+- **Client directives from the project's astro.** The scripts Astro inlines for `client:load`,
+  `idle`, `visible`, `media` and `only` are read from the `astro` the project resolves to, or,
+  from astro 7.4.9 on, from the `@astrojs/runtime` that astro depends on, at the version astro
+  pins (`client-directives.ts`). They reach the bundle as virtual modules, so the project never
+  resolves `@astrojs/runtime` itself.
 - **Routes as Astro ranks them.** Static before dynamic, and a rest route (`/[...rest]`) after
   every route without one.
 
