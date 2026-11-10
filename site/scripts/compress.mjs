@@ -9,7 +9,7 @@
 //                            when the copy is at least 10% smaller
 //
 // A copy is written only when it is missing or older than its file, so a second run is quick.
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
 
@@ -43,7 +43,13 @@ let after = 0;
 for (const file of walk(dist)) {
   if (!COMPRESSIBLE.test(file) || file.includes("/.site/")) continue;
   const stats = statSync(file);
-  if (stats.size < MIN_SIZE) continue;
+  // A copy the file no longer gets must go: the host serves any copy it finds.
+  const drop = (target) => rmSync(target, { force: true });
+  if (stats.size < MIN_SIZE) {
+    drop(`${file}.br`);
+    drop(`${file}.gz`);
+    continue;
+  }
   let bytes;
   const copies = [
     // Brotli's best quality costs minutes on the multi-megabyte WASM files (esbuild, the Astro
@@ -68,7 +74,10 @@ for (const file of walk(dist)) {
     if (size == null) {
       bytes ??= readFileSync(file);
       const out = compress(bytes);
-      if (out.length > stats.size * 0.9) continue; // not worth a copy
+      if (out.length > stats.size * 0.9) {
+        drop(target); // not worth a copy
+        continue;
+      }
       writeFileSync(target, out);
       size = out.length;
     }

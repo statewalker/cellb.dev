@@ -136,8 +136,9 @@ every tab: joinProjectShards({ name, shards: 4, spawn, config, code, serviceWork
 
 The tab and the ServiceWorker import both functions from `@statewalker/cellb/tabs`, and the
 shard worker imports `serveProjectShard` from `@statewalker/cellb/browser`. The `tabs` entry holds
-only the routing code (about 70 KB minified, most of it webrun-http-browser's router), not the
-runtime the shards run. `@statewalker/cellb/browser` exports the same two functions, but a page
+only the routing code (about 75 KB minified with Vite, most of it webrun-http-browser's router),
+not the runtime the shards run. `@statewalker/cellb/browser` exports the same two functions, but
+a page
 that imports them from there bundles that runtime too.
 
 `installProjectRouter` starts webrun-http-browser's dispatcher, which makes the ServiceWorker
