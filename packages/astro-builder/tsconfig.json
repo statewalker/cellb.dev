@@ -1,14 +1,4 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node"],
-    "skipLibCheck": true,
-    "noEmit": true,
-    "allowImportingTsExtensions": true
-  },
-  "include": ["src", "test"]
+  "extends": "../../tsconfig.platform.json",
+  "include": ["src", "test", "bin", "scripts", "../platform-core/src/types.d.ts"]
 }

@@ -1,4 +1,4 @@
-import { bytesToHex } from "@noble/hashes/utils";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { scopeOf } from "../core/celld-schema.js";
 import { decodeLtx, encodeLtx, ltxFileName } from "../ltx/ltx.js";
 import type { BackupInfo, CellBackup, CellDurability } from "../ports.js";
@@ -53,6 +53,9 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   let renew: ReturnType<typeof setTimeout> | undefined;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let leaseWritten: Promise<void> | undefined;
+  /** The lease write on its way to the bucket, if any: `close()` waits for it before the delete. */
+  let writing: Promise<unknown> = Promise.resolve();
+  let closed = false;
 
   /** nodes/<node>.json, renewed every ttl/3; a failed renewal stops every cell (self-fencing). */
   // celld decodes every node record (ownership_store.rs NodeLeaseWire / NodeLoadWire): a record
@@ -83,7 +86,14 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     }
   })();
   let validUntil = 0;
-  const writeLease = async () => {
+  const writeLease = () => {
+    const w = putLease();
+    // Every write in flight, not only the latest: they may land in any order.
+    writing = Promise.all([writing, w.catch(() => {})]);
+    return w;
+  };
+  const putLease = async () => {
+    if (closed) return;
     const t = now();
     const body = {
       node: opts.node,
@@ -117,7 +127,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     // Our authority lasts until the record we just wrote expires — minus a margin, so a node
     // that stalls (a paused process, a frozen tab) stops acknowledging before celld may take
     // over: celld waits for expires_ms; we stop at expires_ms - margin.
-    validUntil = t + ttl - Math.min(1_000, ttl / 4);
+    if (!closed) validUntil = t + ttl - Math.min(1_000, ttl / 4);
   };
   const owned = new Set<string>();
   /** Cells whose ownership record was found lost, with the time their refusal ends. */
@@ -125,6 +135,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   const ensureLease = () => {
     leaseWritten ??= probeKeyReady.then(writeLease).then(() => {
       const tick = () => {
+        if (closed) return;
         renew = setTimeout(() => {
           writeLease().then(tick, (e) => lost.abort(e));
         }, ttl / 3);
@@ -153,7 +164,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
 
   // One LTX writer (ltx-log.ts) holds each cell's epoch, TXID and page mirror.
   // A write is acknowledged only while our node lease is still ours (self-fencing).
-  const log = ltxLog(store, { now, authorized: () => now() < validUntil });
+  const log = ltxLog(store, { now, authorized: () => !closed && now() < validUntil });
 
   const ownership = {
     async tryAcquire(cellKey: string) {
@@ -299,8 +310,16 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     },
     /** Clean shutdown: stop renewing, remove this node's lease record, close the store. */
     async close() {
+      closed = true;
       if (renew) clearTimeout(renew);
       if (deadline) clearTimeout(deadline);
+      validUntil = 0; // no write is acknowledged once closing has begun
+      // A renewal already on its way would write the record back after the delete, and the
+      // node's cells would stay "owned by a live node" for a whole lease: let it land first —
+      // for at most a lease, since one that lands later expires within a lease anyway.
+      let waited: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([writing, new Promise((r) => (waited = setTimeout(r, ttl)))]);
+      clearTimeout(waited);
       if (leaseWritten) await store.delete(`nodes/${opts.node}.json`).catch(() => {});
       store.close?.();
     },

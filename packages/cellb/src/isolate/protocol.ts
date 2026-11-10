@@ -2,6 +2,7 @@ import { fetchOverDuplex, serveFetchOverDuplex } from "@statewalker/webrun-http-
 import {
   callPort,
   duplexOverPort,
+  getPortCloseSignal,
   listenPort,
   type MessageTarget,
   multiplexPort,
@@ -12,6 +13,9 @@ import {
 } from "@statewalker/webrun-rpc";
 import { cross, pipeTo, rpcPromise, STUB } from "../core/handles.js";
 import { withUrl } from "../core/request-body.js";
+import type { Frame } from "../ws/frames.js";
+import { CellsResponse, CfWebSocket, takeClientEnd } from "../ws/server.js";
+import { carryWebSocketHeaders } from "../ws/upgrade.js";
 
 /**
  * Isolation for loaded Workers (celld runs each in its own V8 isolate): the loaded code runs
@@ -35,6 +39,13 @@ import { withUrl } from "../core/request-body.js";
  * Fetches: one port per request (meta: its target and URL), HTTP/1.1 with streamed bodies,
  * as cells-http over a port (src/transport/port.ts): host → isolate to an export or facet,
  * isolate → host for the loaded code's global `fetch()` when a `globalOutbound` Fetcher routes it.
+ * A WebSocket upgrade (host → isolate) has a port of its own instead, since HTTP/1.1 drops the
+ * `Upgrade` header: its meta carries the request's method and headers; the isolate answers with
+ * the response's head and closes the port. A 101's head carries the socket's own MessagePort,
+ * transferred, and the frames the server sent before the 101 (replayed by the host's end): the
+ * socket's frames then go straight between the client and the isolate, outside the multiplexer
+ * and through no relay in the isolate, so open sockets hold none of its ports (it allows
+ * `maxPorts` at once) and a socket's 1001 reaches its client before the isolate ends.
  */
 export interface PortLike {
   postMessage(msg: unknown, transfer?: Transferable[]): void;
@@ -68,6 +79,7 @@ export async function hostPort(
   const mux = multiplexPort(messageTarget(port), {
     codec: structuredCodec,
     side: "initiator",
+    maxPorts: maxPorts(),
     onPort(p, meta) {
       const m = meta as { kind?: string; url: string } | undefined;
       if (m?.kind !== "outbound" || !outbound) return false;
@@ -76,7 +88,10 @@ export async function hostPort(
     },
   });
   const call = callsOver(await mux.openPort({ kind: "calls" }), handle);
-  const fetch: Fetch = (target, req) => fetchOver(mux, { kind: "fetch", target }, req);
+  const fetch: Fetch = (target, req) =>
+    isUpgrade(req)
+      ? upgradeOver(mux, { kind: "upgrade", target }, req)
+      : fetchOver(mux, { kind: "fetch", target }, req);
   return { call, fetch };
 }
 
@@ -94,10 +109,15 @@ export function isolatePort(
   const mux = multiplexPort(messageTarget(port), {
     codec: structuredCodec,
     side: "responder",
+    maxPorts: maxPorts(),
     onPort(p, meta) {
       const m = meta as { kind?: string; target: FetchTarget; url: string } | undefined;
       if (m?.kind === "fetch") {
         serveFetch(p, m.url, (r) => fetch(m.target, r));
+        return true;
+      }
+      if (m?.kind === "upgrade") {
+        serveUpgrade(p, m as unknown as UpgradeMeta, (r) => fetch(m.target, r));
         return true;
       }
       if (m?.kind !== "calls" || calls) return false;
@@ -128,6 +148,139 @@ function serveFetch(p: MessageTarget, url: string, fetch: (req: Request) => Prom
     p,
     serveFetchOverDuplex((req) => withUrl(req, url).then(fetch).catch(throwOwn)),
   );
+}
+
+const isUpgrade = (req: Request) => req.headers.get("upgrade")?.toLowerCase() === "websocket";
+
+interface UpgradeMeta {
+  url: string;
+  method: string;
+  headers: [string, string][];
+}
+/**
+ * Ports of an isolate's multiplexer open at once: the calls port, and one per fetch or upgrade
+ * in flight (each closes when its exchange ends). `globalThis.__cellbMaxPorts` overrides it, as
+ * for src/transport/port.ts.
+ */
+const maxPorts = () => (globalThis as { __cellbMaxPorts?: number }).__cellbMaxPorts ?? 4096;
+
+/** The isolate's answer to an upgrade: the head of its response, or the error it threw. */
+type UpgradeHead =
+  | {
+      status: number;
+      statusText?: string;
+      headers: [string, string][];
+      body: ArrayBuffer | null;
+      /** A 101's socket: the port of its client end, transferred. */
+      socket?: MessagePort;
+      /** A 101's frames that reached its client end before the hand-over. */
+      frames?: Frame[];
+    }
+  | { error: unknown };
+
+/** Statuses whose response has no body (`new Response(body, …)` refuses one). */
+const nullBody = (status: number) => [101, 204, 205, 304].includes(status);
+
+/**
+ * A WebSocket upgrade over a port of its own, closed once the isolate's answer is in. A 101
+ * becomes a Workers response whose `webSocket` is a client end over the socket's own port.
+ */
+async function upgradeOver(mux: PortMux, meta: object, req: Request): Promise<Response> {
+  const p = await mux.openPort({
+    ...meta,
+    url: req.url,
+    method: req.method,
+    headers: [...req.headers],
+  } satisfies UpgradeMeta);
+  return new Promise((resolve, reject) => {
+    // A port closed without an answer (the isolate refused it, or could not post one)
+    // fails the upgrade rather than leaving it pending.
+    const closed = getPortCloseSignal(p);
+    const onClosed = () => {
+      p.removeEventListener("message", onHead);
+      reject(
+        closed?.reason ?? new Error("cellb: the isolate closed the upgrade without an answer"),
+      );
+    };
+    closed?.addEventListener("abort", onClosed, { once: true });
+    const onHead = (e: MessageEvent) => {
+      p.removeEventListener("message", onHead);
+      closed?.removeEventListener("abort", onClosed);
+      void p.close?.();
+      try {
+        const head = e.data as UpgradeHead;
+        if ("error" in head) throw head.error;
+        if (head.status === 101 && head.socket)
+          return resolve(
+            new CellsResponse(null, {
+              status: 101,
+              headers: head.headers,
+              webSocket: new CfWebSocket(head.socket, head.frames),
+            }),
+          );
+        resolve(
+          new Response(nullBody(head.status) ? null : head.body, {
+            status: head.status,
+            statusText: head.statusText,
+            headers: head.headers,
+          }),
+        );
+      } catch (err) {
+        reject(err);
+      }
+    };
+    p.addEventListener("message", onHead);
+    void p.start?.();
+  });
+}
+
+/** Serves an upgrade on port `p`: a 101 hands over its client end's port; then `p` closes. */
+function serveUpgrade(
+  p: MessageTarget,
+  meta: UpgradeMeta,
+  fetch: (req: Request) => Promise<Response>,
+) {
+  // A browser drops `Upgrade` and `Sec-WebSocket-*` from `new Request()`: carried over here.
+  const headers = new Headers(meta.headers);
+  const req = carryWebSocketHeaders(
+    headers,
+    new Request(meta.url, { method: meta.method, headers }),
+  );
+  const answer = (head: UpgradeHead, transfer: Transferable[] = []) => {
+    try {
+      // The multiplexer drops a message it cannot copy, so check before posting; a 101
+      // head is not checked, since its socket port is transferred rather than copied.
+      if (transfer.length === 0) cloneable(head);
+      p.postMessage(head, transfer);
+    } catch {
+      // An error that cannot be copied (a function in its `cause`, say): its name and message.
+      const e = (head as { error?: { name?: unknown; message?: unknown } }).error;
+      p.postMessage({
+        error: Object.assign(new Error(String(e?.message ?? e)), {
+          name: String(e?.name ?? "Error"),
+        }),
+      } satisfies UpgradeHead);
+    }
+  };
+  void (async () => {
+    try {
+      const res = await fetch(req);
+      const ws = (res as { webSocket?: CfWebSocket | null }).webSocket;
+      if (res.status === 101 && ws) {
+        const { port: socket, frames } = takeClientEnd(ws);
+        answer({ status: 101, headers: [...res.headers], body: null, socket, frames }, [socket]);
+      } else
+        answer({
+          status: res.status,
+          statusText: res.statusText,
+          headers: [...res.headers],
+          body: nullBody(res.status) ? null : await res.arrayBuffer(),
+        });
+    } catch (error) {
+      answer({ error });
+    }
+    void p.close?.();
+  })();
 }
 
 /** Marks a value passed by reference in a message: `{ [REF]: id }`. */

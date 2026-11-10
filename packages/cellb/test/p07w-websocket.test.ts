@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { writeText } from "@statewalker/webrun-files";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import type { WsFrame } from "@statewalker/webrun-http-browser/sw";
 import { newHostRegistry, newModuleServer } from "@statewalker/webrun-modules";
 import { describe, expect, it } from "vitest";
 import {
@@ -14,6 +15,13 @@ import {
   WebSocketPair,
 } from "../src/index.js";
 import { nodeSqliteOpener } from "../src/node.js";
+import type { Frame } from "../src/ws/frames.js";
+import { CfWebSocket } from "../src/ws/server.js";
+
+// cellb's frames are webrun-http-browser's, declared again (src/ws/frames.ts): either way round.
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const framesAreThePackages: Same<Frame, WsFrame> = true;
+void framesAreThePackages;
 
 /** Cloudflare-style chat room: accepts sockets, echoes, broadcasts, closes on "bye". */
 class Room extends DurableObject {
@@ -261,6 +269,40 @@ describe("P07w heartbeat: MessagePorts never report a dead peer, so both ends pi
     expect([ev.code, ev.wasClean, server.readyState]).toEqual([1006, false, 3]);
   });
 
+  it("server: keeps the first period, so a closing tab's last ping does not delay noticing it", async () => {
+    const pair = new WebSocketPair();
+    const server = pair[1];
+    server.accept();
+    const port = takeClientPort(pair[0]);
+    port.start();
+    port.postMessage({ t: "p", hb: 20 });
+    await sleep(30);
+    // webrun-http-browser's client announces 70 s when its page turns hidden, which a closing
+    // tab does on its way out; then silence.
+    port.postMessage({ t: "p", hb: 70_000 });
+    const t0 = Date.now();
+    const ev = await new Promise<any>((r) => server.addEventListener("close", r, { once: true }));
+    expect([ev.code, ev.wasClean]).toEqual([1006, false]);
+    expect(Date.now() - t0).toBeLessThan(1_000);
+  });
+
+  it("server: acknowledges the bytes it dispatched (the client's bufferedAmount)", async () => {
+    const pair = new WebSocketPair();
+    const server = pair[1];
+    server.accept();
+    const port = takeClientPort(pair[0]);
+    const frames: unknown[] = [];
+    port.onmessage = (e) => frames.push(e.data);
+    port.postMessage({ t: "m", d: "héllo" }); // 6 UTF-8 bytes
+    port.postMessage({ t: "m", d: new ArrayBuffer(3) });
+    await sleep(20);
+    expect(frames).toEqual([
+      { t: "a", n: 6 },
+      { t: "a", n: 3 },
+    ]);
+    port.close();
+  });
+
   it("a live socket stays open across many heartbeat periods", async () => {
     const { WS: base } = setup();
     void base;
@@ -277,5 +319,111 @@ describe("P07w heartbeat: MessagePorts never report a dead peer, so both ends pi
     const msg = next(ws, "message");
     ws.send("still here");
     expect((await msg).data).toBe("still here");
+  });
+});
+
+describe("P07w a WebSocketPair's ends keep workerd's semantics", () => {
+  const next = <T extends Event>(target: EventTarget, type: string) =>
+    new Promise<T>((resolve) =>
+      target.addEventListener(type, (e) => resolve(e as T), { once: true }),
+    );
+  const pair = () => Object.values(new WebSocketPair()) as CfWebSocket[];
+
+  it("close() with no code reaches the other end as 1005", async () => {
+    const [client, server] = pair();
+    client.accept();
+    server.accept();
+    const closed = next<CloseEvent>(client, "close");
+    server.close();
+    expect((await closed).code).toBe(1005);
+  });
+
+  it("either end may send before accept(); the frames wait for the other end", async () => {
+    const [client, server] = pair();
+    server.send("early");
+    const got = next<MessageEvent>(client, "message");
+    client.accept();
+    expect((await got).data).toBe("early");
+  });
+
+  it("Worker code may not send 1001; goAway() does, for the ends accepted here", async () => {
+    const [client, server] = pair();
+    client.accept();
+    server.accept();
+    expect(() => server.close(1001)).toThrow();
+    const closed = next<CloseEvent>(client, "close");
+    CfWebSocket.goAway("moving");
+    expect(await closed).toMatchObject({ code: 1001, reason: "moving" });
+  });
+});
+
+describe("P07w client rules cellb keeps over webrun-http-browser's client", () => {
+  const WS = createWebSocketClass(async () => {
+    throw new Error("not connecting");
+  });
+  it("duplicate subprotocols are refused case-insensitively", () => {
+    expect(() => new WS("ws://x/", ["chat", "CHAT"])).toThrow(/duplicated/);
+  });
+  it("a relative url resolves against http://localhost/ where there is no page", async () => {
+    const urls: string[] = [];
+    const Rel = createWebSocketClass(async (url) => {
+      urls.push(url);
+      throw new Error("not connecting");
+    });
+    const ws = new Rel("/room/a");
+    expect(ws.url).toBe("ws://localhost/room/a");
+    await new Promise((r) => ws.addEventListener("close", r, { once: true }));
+    expect(urls).toEqual(["ws://localhost/room/a"]);
+  });
+  it("an url that does not parse is still refused with SyntaxError", () => {
+    expect(() => new WS("http://[")).toThrow(/invalid/);
+  });
+});
+
+describe("P07w the celld peer bridge's socket to a cell", () => {
+  const upgrade = (protocol: string) => {
+    const pair = new WebSocketPair();
+    const server = pair[1];
+    server.accept();
+    server.addEventListener("message", (e: any) => server.send(`echo:${e.data}`));
+    return new CellsResponse(null, {
+      status: 101,
+      webSocket: pair[0],
+      headers: { "Sec-WebSocket-Protocol": protocol },
+    }) as Response & { webSocket: any };
+  };
+
+  it("asks for the subprotocols the far client offered, so the cell's pick is accepted", async () => {
+    const { cellSocket } = await import("../src/peer/celld-peer.js");
+    const cell = cellSocket(upgrade("v1"), "v0, v1");
+    await next(cell, "open");
+    expect(cell.protocol).toBe("v1");
+    const reply = next(cell, "message");
+    cell.send("hi");
+    expect((await reply).data).toBe("echo:hi");
+    cell.close();
+  });
+
+  it("parses the offered header as a client may ask for it: valid tokens, each once", async () => {
+    const { offeredProtocols } = await import("../src/peer/celld-peer.js");
+    expect(offeredProtocols(undefined)).toEqual([]);
+    expect(offeredProtocols(" v0 , ,v1,")).toEqual(["v0", "v1"]);
+    expect(offeredProtocols("v1, V1, v2")).toEqual(["v1", "v2"]);
+    expect(offeredProtocols('a b, ok, "q"')).toEqual(["ok"]);
+  });
+
+  it("a malformed offer from a client does not throw: the socket still opens", async () => {
+    const { cellSocket } = await import("../src/peer/celld-peer.js");
+    const cell = cellSocket(upgrade("v1"), "v1, V1, not valid");
+    await next(cell, "open");
+    expect(cell.protocol).toBe("v1");
+    cell.close();
+  });
+
+  it("(why) a client that asked for none refuses the subprotocol the cell picked", async () => {
+    const { cellSocket } = await import("../src/peer/celld-peer.js");
+    const cell = cellSocket(upgrade("v1"), undefined);
+    const ev = await next(cell, "close");
+    expect(ev.code).toBe(1006);
   });
 });

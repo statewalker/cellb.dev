@@ -25,19 +25,23 @@ import type { PortLike } from "../isolate/protocol.js";
 import type { CellStorage } from "../ports.js";
 import * as workersClasses from "./cloudflare-workers.js";
 import { parseJsonc } from "./jsonc.js";
+import { type ModuleRule, moduleRulesPlugin } from "./module-rules.js";
 import { ownModule } from "./own-module.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import {
   createProjectRuntime,
+  hasNodeCompat,
+  loadProjectBindings,
   loadTimeEnv,
   type ProjectHost,
   type ProjectRuntime,
+  WRANGLER_FILES,
   type WranglerConfig,
 } from "./wrangler.js";
 
 /** Reads `wrangler.jsonc` / `wrangler.json` of a project directory (celld reads the same files). */
 export function readWranglerConfig(dir: string): WranglerConfig {
-  for (const name of ["wrangler.jsonc", "wrangler.json"]) {
+  for (const name of WRANGLER_FILES) {
     const p = join(dir, name);
     if (existsSync(p)) return parseJsonc(readFileSync(p, "utf8")) as WranglerConfig;
   }
@@ -62,7 +66,13 @@ export async function bundleWorker(
   entry: { path: string } | { modules: Record<string, string>; main: string },
   logs?: LogSink,
   outbound?: typeof fetch,
-  opts: { nodeCompat?: boolean; standardBinaryType?: boolean; scope?: WorkerScope } = {},
+  opts: {
+    nodeCompat?: boolean;
+    standardBinaryType?: boolean;
+    scope?: WorkerScope;
+    /** wrangler `rules` for non-JS imports (the defaults: `.wasm`, `.bin`, `.txt`…, as wrangler). */
+    rules?: ModuleRule[];
+  } = {},
 ): Promise<WorkerModule> {
   // `env` and `exports` of `cloudflare:workers` belong to one Worker: the bundle reads them
   // from its own scope (empty objects for code that has none).
@@ -215,6 +225,7 @@ export async function bundleWorker(
           }));
         },
       },
+      moduleRulesPlugin(opts.rules),
     ],
   });
   return (await import(/* @vite-ignore */ out)) as WorkerModule;
@@ -243,7 +254,7 @@ export async function loadNodeProject(
   if (!config.main && !config.assets)
     throw new Error("wrangler config has neither `main` nor `assets`");
   const flags = config.compatibility_flags ?? [];
-  const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
+  const nodeCompat = hasNodeCompat(config);
   const standardBinaryType = flags.includes("websocket_standard_binary_type");
   // The module reads `env` from `cloudflare:workers` while it is evaluated, before the
   // runtime exists: until then the scope holds the configuration's vars (and `ai`).
@@ -267,12 +278,14 @@ export async function loadNodeProject(
         nodeCompat,
         standardBinaryType,
         scope,
+        rules: config.rules,
       })
     : ({ default: {} } as WorkerModule);
   const assetFiles = config.assets?.directory
     ? readAssetDirectory(resolve(dir, config.assets.directory))
     : undefined;
   const project = createProjectRuntime(config, module, {
+    bindings: await loadProjectBindings(config),
     loadModules: nodeModuleLoader,
     // own realm, as celld; facets logged like the root's
     isolatedModules: nodeIsolatedLoader(() => host.storage),
@@ -361,7 +374,8 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
               }));
               b.onLoad({ filter: /.*/, namespace: "isolate-workers" }, () => ({
                 contents: [
-                  'export * from "./cloudflare-workers.ts";',
+                  // cloudflare-workers.js in the published package (dist/), .ts in the sources.
+                  `export * from ${JSON.stringify(ownModule(import.meta.dirname, "cloudflare-workers"))};`,
                   "export const env = globalThis.__cellsProjectScope.env, exports = globalThis.__cellsProjectScope.exports, waitUntil = (p) => globalThis.__cellsProjectScope.waitUntil(p);",
                 ].join("\n"),
                 loader: "js",

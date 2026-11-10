@@ -1,6 +1,6 @@
 import type { ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
 import type { CellStorage } from "../ports.js";
-import { putLoadedModule } from "../project/site.js";
+import { putLoadedModule } from "../project/site-loader.js";
 import { isolatedModuleLoader } from "./host.js";
 import type { PortLike } from "./protocol.js";
 
@@ -11,7 +11,8 @@ import type { PortLike } from "./protocol.js";
  * travel to the isolate and become Blob-URL modules there.
  */
 export function browserIsolatedLoader(opts: {
-  isolateScript: URL;
+  /** The isolate's script, or a function that starts a Dedicated Worker running it. */
+  isolateScript: URL | (() => Worker);
   siteBaseUrl?: string;
   /** Prefix of the OPFS SQLite pool each isolate keeps its facets in (one pool per loaded id). */
   storagePrefix?: string;
@@ -23,7 +24,8 @@ export function browserIsolatedLoader(opts: {
   return isolatedModuleLoader({
     storage: opts.storage,
     spawn: () => {
-      const w = new Worker(opts.isolateScript, { type: "module" });
+      const script = opts.isolateScript;
+      const w = typeof script === "function" ? script() : new Worker(script, { type: "module" });
       return { port: w as unknown as PortLike, terminate: () => w.terminate() };
     },
     prepare: async (id: string, code: WorkerCode) => {

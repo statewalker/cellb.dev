@@ -3,10 +3,12 @@
  * `importCode` is realm specific (data: URL of a bundle on Node, a site URL in browsers).
  */
 import { ctxExports, entrypointStub } from "../core/handles.js";
+import type { DurableObjectId } from "../core/id.js";
 import { runInDurableObject } from "../core/namespace.js";
 import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
 import type { Lease, LeaseHandle, OpenCellSql } from "../ports.js";
 import { realmWorkerScope } from "../project/worker-scope.js";
+import { CfWebSocket } from "../ws/server.js";
 import { type FetchTarget, isolatePort, type PortLike } from "./protocol.js";
 
 export function serveIsolate(
@@ -99,6 +101,12 @@ export function serveIsolate(
         vars: env, // the loaded Worker's env: plain values and host stubs
         storage: { durability, backup, ownership },
         facets: true, // rows move to this run's scope on open, as celld does for facets
+        ctxIdOf: (key) => {
+          const name = idNames.get(key);
+          return name === undefined
+            ? undefined
+            : (rt!.env[className] as { idFromName(n: string): DurableObjectId }).idFromName(name);
+        },
       });
       runtimes.set(className, rt);
     }
@@ -108,6 +116,10 @@ export function serveIsolate(
   let exports: Record<string, unknown> = {};
   // The loaded Worker is this realm's own: its `cloudflare:workers` reads `env` and `exports` here.
   const scope = realmWorkerScope();
+  // The name of the `id` a facet was given by `ctx.facets.get`, by its isolate-local cell key:
+  // the facet's `ctx.id` (partyserver's `this.name`). Two facets may be given the same id; each
+  // keeps its own object and storage, addressed by the parent's facet cell key.
+  const idNames = new Map<string, string>();
   // A facet of loaded code: the object lives here, named by the parent's facet cell key.
   const facet = async (className: string, cellKey: string) => {
     const rt = await objectRuntime(className);
@@ -154,10 +166,20 @@ export function serveIsolate(
       return Object.fromEntries(Object.entries(module).map(([k, v]) => [k, typeof v]));
     }
     if (m.type === "image") return await images.get(m.token)?.();
+    // The host is stopping this isolate: the sockets served here hear 1001 first. A 101 carries
+    // its early frames, so a socket's close normally goes straight to its client; only a client
+    // end that had sent unacknowledged frames before its hand-over keeps a relay here
+    // (takeClientEnd), and the answer waits a macrotask so that relay forwards the 1001 before
+    // the host terminates the isolate.
+    if (m.type === "goAway") {
+      CfWebSocket.goAway("the loaded Worker stopped");
+      return await new Promise((r) => setTimeout(r, 0));
+    }
     if (m.type === "object") {
       const { rt, stub, key } = await facet(m.className, m.cellKey);
       if (m.op === "attach") {
         facetKeys.set(key, { key: m.cellKey, epoch: m.epoch });
+        if (typeof m.idName === "string") idNames.set(key, m.idName);
         return;
       }
       if (m.op === "call") return stub[m.method](...m.args);

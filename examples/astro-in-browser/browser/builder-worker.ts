@@ -5,21 +5,17 @@
 // the way. With `integrations`, astro.config.mjs and its integrations run first (EmDash), and
 // the Worker is built for cellb's runtime (its node:* polyfills, cloudflare:workers, globals).
 import "./process-shim.ts";
-import {
-  buildAstroApp,
-  cachedSource,
-  prefetch,
-  preloadVfs,
-  runAstroConfig,
-} from "@statewalker/astro-builder";
-import { loadAstroCompiler } from "@statewalker/astro-builder/browser";
 import { CELLS_GLOBALS_MODULE, cellbHostModule } from "@statewalker/cellb/host-modules";
 import { npmPackages } from "@statewalker/webrun-bundler";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { npmRegistrySource } from "@statewalker/webrun-modules";
 import wasmURL from "esbuild-wasm/esbuild.wasm?url";
 import * as esbuild from "esbuild-wasm/esm/browser.js";
-import { httpFiles } from "../src/pkgstore/http-files.ts";
+import { buildAstroApp } from "../src/builder/build.ts";
+import { httpFiles } from "../src/builder/http-files.ts";
+import { preloadVfs, runAstroConfig } from "../src/builder/integrations.ts";
+import { cachedSource, prefetch } from "../src/builder/package-cache.ts";
+import { loadAstroCompiler } from "./compiler.ts";
 
 const log = (line: string) => postMessage({ log: line });
 const DOWNLOADERS = 1; // each holds one unpacked package while it packs it
@@ -62,7 +58,9 @@ function downloadPool(n: number, store: string) {
         );
       });
     },
-    close: () => workers.forEach((x) => x.w.terminate()),
+    close: () => {
+      for (const x of workers) x.w.terminate();
+    },
   };
 }
 /** wrangler.jsonc's `main`, relative to the app (comments and trailing commas allowed). */

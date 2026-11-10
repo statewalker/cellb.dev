@@ -24,20 +24,24 @@ mix celld nodes, cellb nodes and browsers.
 
 ```sh
 npm install @statewalker/cellb
-npm install esbuild   # for loadNodeProject and bundleWorkerForBrowser (an optional peer dependency)
+npm install esbuild   # for loadProject and cellb build on Node (an optional peer dependency)
 ```
 
 The package has three entry points, one per platform, and two more for bundling. Published, it is
 JavaScript with type declarations (`dist/`, built by `scripts/build.mjs`); in this repository the
-entry points are the TypeScript sources, which the workspace's examples and tests import directly.
+entry points are the TypeScript sources, which cellb's tests and browser pages import directly
+(the examples, in a workspace of their own, use the published package).
 In a browser app, a bundler must handle `new Worker(new URL("…", import.meta.url))`: the LTX store
 worker is started that way (checked with a Vite build, see `scripts/pack-check.mjs`).
 
 | Import | What it gives |
 |---|---|
-| `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes, and the errors embedders catch |
-| `@statewalker/cellb/node` | `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
-| `@statewalker/cellb/browser` | `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `createProjectSite`, `serviceWorkerConnector` |
+| `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime` with `loadProjectBindings`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes, and the errors embedders catch |
+| `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
+| `@statewalker/cellb/browser` | `loadProject` (a `cellb build` folder by URL, or sources with a compiler), `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
+| `@statewalker/cellb/tabs` | the tab side and the ServiceWorker side of a project shared by the tabs (`joinProjectShards`, `installProjectRouter`, `shardOwner`) without the shard runtime: what a page and its ServiceWorker import |
+| `@statewalker/cellb/site` | `createProjectSite`: a project's sources compiled in the browser and served by an in-browser HTTP server (`browserProjectRuntime({ site })`); `siteCompiler` for `loadProject`, and `siteHostOverPort` / `hostSitesForWorker` to host a worker's site from its page. Needs the optional peer dependencies `@statewalker/webrun-modules`, `@statewalker/webrun-site-builder` and `@statewalker/webrun-site-host` (the ServiceWorker host) |
+| `@statewalker/cellb/bundle` | `bundleCompiler`: a project's sources bundled in the browser for `loadProject`, with webrun-bundler on esbuild-wasm. Needs the optional peer dependency `@statewalker/webrun-bundler`; the caller passes esbuild-wasm, initialized |
 | `@statewalker/cellb/host-modules` | for bundlers other than cellb's own (webrun-bundler in a browser, say): the sources of `cloudflare:workers`, `node:*` and the Workers globals as cellb's realms provide them (`cellbHostModule`, `CELLS_GLOBALS_MODULE`) |
 | `@statewalker/cellb/isolate-worker` | the Dedicated Worker that runs a Worker-Loader Worker in a realm of its own (`isolateScript`) |
 
@@ -45,10 +49,88 @@ Node 22.13 or later is needed for `node:sqlite`. `loadNodeProject` bundles a pro
 `esbuild`, which the embedder must install.
 
 A runtime is a `(Request) ⇒ Response` handler: mount `runtime.fetch` on `node:http`, a
-ServiceWorker or a test, and call `runtime.close()` when done. `close()` takes final backups,
-closes every database, then closes the storage.
+ServiceWorker or a test, and call `runtime.close()` when done. `close()` aborts the signal of the
+requests in flight (the Worker's and its objects', as when a client goes away on Cloudflare: a long
+poll or an SSE stream ends), gives events still running and `waitUntil` work `closeGraceMs` (2 s) to
+finish, takes final backups, closes every database, then closes the storage. After that, the
+runtime answers requests with 503, and an object's code still running fails with
+`ObjectClosedError` when it uses its storage or another object.
 
 ## Examples
+
+### One project loader for Node and browsers
+
+`loadProject(source, options)` has the same name and options in both entry points:
+
+```ts
+// Node: a folder with wrangler.json(c), its `main` bundled with esbuild
+import { loadProject } from "@statewalker/cellb/node";
+const project = await loadProject("./counter", { data: "./data" });
+
+// Browser, in a Dedicated Worker: the URL of a folder written by `cellb build`
+import { loadProject } from "@statewalker/cellb/browser";
+const project = await loadProject("/apps/counter/", { data: "counter" });
+
+// Both
+const res = await project.fetch(new Request("http://localhost/increment?name=alpha"));
+project.unsupported; // configuration cellb does not run
+await project.close();
+```
+
+A browser loads a project built ahead of time, on Node:
+
+```sh
+npx cellb build ./counter --out public/apps/counter
+```
+
+The folder holds `wrangler.json`, `worker.js` (`main` bundled for browsers, with nodejs_compat
+when the flags ask for it), `assets/` (the files of `assets.directory`) and `cellb.json`, the
+manifest that lists the assets, since a static host cannot list a folder. Any static host serves
+it; Node loads it too.
+
+- `source`: Node takes a folder (built or not), a `file:` or `http(s):` URL of a built folder, or
+  a FilesApi holding either; a browser takes the URL of a built folder or a FilesApi holding one,
+  or, with `compile`, a FilesApi holding the sources.
+- `compile` (browser): how a source folder becomes code, below. Without it, a browser loads only
+  `cellb build` folders.
+- `data`: where cells keep their data. On Node, a directory (SQLite files, and the project's files
+  under `<data>/files`); without it, memory. In a browser, an OPFS name: the SQLite pool `<data>`
+  and the files directory `<data>-files` (default: the project's `name`).
+- `bucket`: a fleet bucket, as `loadNodeProject`'s `storage` (a `CellStorage`) and
+  `browserProjectRuntime`'s `bucket` (a `BrowserBucket`).
+- `ai`: the Workers AI endpoint. `sqlite3` (browser): a SQLite WASM module, if the caller has one
+  (default: `@sqlite.org/sqlite-wasm`). `isolateScript` (browser): where Worker Loader code runs,
+  the package's own isolate worker by default, `false` for this realm.
+
+`loadNodeProject` and `browserProjectRuntime`, below, stay as the lower-level calls.
+
+### Sources in a browser: `compile`
+
+A browser compiles a project's sources (`wrangler.jsonc` and `main` at the root of a FilesApi,
+`package.json`, assets) when `loadProject` is given a compiler. The compilers come from their own
+entry points, so a plain `loadProject` ships neither:
+
+```ts
+// One ES module, bundled by webrun-bundler on esbuild-wasm. npm packages come from the project's
+// node_modules, else the npm registry, at package.json's ranges.
+import * as esbuild from "esbuild-wasm";
+import { bundleCompiler } from "@statewalker/cellb/bundle";
+await esbuild.initialize({ wasmURL });
+const project = await loadProject(files, { data: "app", compile: bundleCompiler({ esbuild }) });
+
+// Modules compiled one by one by webrun-modules, served from the page's ServiceWorker (a change
+// recompiles one module). A Dedicated Worker cannot register a ServiceWorker: its page hosts the
+// site, with hostSitesForWorker(worker).
+import { siteCompiler, siteHostOverPort } from "@statewalker/cellb/site";
+const project = await loadProject(files, {
+  data: "app",
+  compile: siteCompiler({ host: siteHostOverPort(self) }),
+});
+```
+
+Both lower `await` for nodejs_compat as `cellb build` does (AsyncLocalStorage follows
+continuations), and take `cloudflare:workers`, the Workers globals and `node:*` from the runtime.
+A source folder loads from a FilesApi only: a static host cannot list it.
 
 ### A Worker and a Durable Object in Node
 
@@ -199,7 +281,8 @@ conformance/        celld examples, our projects, workerd's tests, recorded gold
 test/               unit tests (vitest, Node)
 e2e/                tests against a real celld and RustFS (vitest; skipped without CELLD_BIN)
 e2e-browser/        Playwright specs; pages/ holds the demo pages, the host app, ServiceWorker and
-                    shard workers they drive; probes/ the exploratory browser probes (ServiceWorker idling)
+                    shard workers they drive, and labs/ (storage internals, measured; cross-origin isolated); probes/
+                    the exploratory browser probes (ServiceWorker idling, the ltx and sqlite labs)
 scripts/            vendoring, the interop environment, mutation harnesses
 probes/             Node hypothesis probes (SQLite locks, webrun-modules globals)
 docs/               topic pages
@@ -219,10 +302,12 @@ docs/               topic pages
 - **The gates use no `AsyncLocalStorage`**, which browsers lack.
 - **A browser origin has a fixed number of shards**, because an OPFS pool is exclusive per worker
   ([docs/browser-host.md](docs/browser-host.md)).
-- **WebSockets travel over MessagePorts**, because a ServiceWorker cannot accept them. A port
-  has no send buffer to measure, so the server end acknowledges each message it dispatched and
-  a client's `bufferedAmount` counts the bytes not acknowledged yet: the WHATWG signal a sender
-  throttles on. workerd's server-side WebSocket has no `bufferedAmount`, and cellb's has none.
+- **WebSockets travel over MessagePorts**, because a ServiceWorker cannot accept them. The client
+  (`createWebSocketClass`) and the frames on the port are `webrun-http-browser`'s; the ends of a
+  `WebSocketPair` are cellb's, with workerd's semantics. A port has no send buffer to measure, so
+  the server end acknowledges the bytes of each message it dispatched and a client's
+  `bufferedAmount` counts the bytes not acknowledged yet: the WHATWG signal a sender throttles on.
+  workerd's server-side WebSocket has no `bufferedAmount`, and cellb's has none.
 - **Each loaded Worker gets a realm of its own**, a thread or a Dedicated Worker: as in celld's
   isolates, loaded code must not see the host's globals or env.
 - **`idFromName` is synchronous**, with `@noble/hashes` instead of `crypto.subtle`, which is
@@ -238,8 +323,9 @@ docs/               topic pages
   stays open until they are.
 
 What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches celld is in
-[docs/celld-compatibility.md](docs/celld-compatibility.md). The vocabulary is in
-[CONTEXT.md](CONTEXT.md).
+[docs/celld-compatibility.md](docs/celld-compatibility.md), and service by service (KV, D1, R2,
+Queues, Workflows, …) in [docs/services/](docs/services/). What is isolated, and what is not, is in
+[docs/security.md](docs/security.md). The vocabulary is in [CONTEXT.md](CONTEXT.md).
 
 ### Dependencies, and why
 
@@ -249,8 +335,14 @@ What cellb does not do yet is in [docs/gaps.md](docs/gaps.md); how it matches ce
 - `@statewalker/webrun-rpc`, `webrun-http-streams`, `webrun-streams` — HTTP with streaming bodies
   over MessagePorts.
 - `@statewalker/webrun-files` — the FilesApi for logs, backups and KV blobs;
-  `webrun-http-browser`, `webrun-site-builder`, `webrun-site-host` — ServiceWorker ingress and the
-  in-browser HTTP server.
+  `webrun-http-browser` — the HTTP links over MessagePorts, the WebSocket client and its frames.
+- Optional peers, for `@statewalker/cellb/site` only: `webrun-modules` (compiles a project's
+  sources in the browser; it brings lightningcss-wasm and @jspm/core, about 30 MB),
+  `webrun-site-builder` (the in-browser HTTP server), and `webrun-site-host` (hosts it in a
+  ServiceWorker: `siteCompiler`, `hostSitesForWorker`). Projects that run a bundle (`{ bundle }`)
+  need none of them, and their builds emit none of their assets.
+- Optional peer, for `@statewalker/cellb/bundle` only: `webrun-bundler` (with esbuild-wasm, which
+  the caller passes in).
 - `worker-timers` — unthrottled heartbeat timers on a page's main thread.
 - `buffer`, `events`, `util`, `assert`, `path-browserify` — `nodejs_compat` in browsers.
 
@@ -298,23 +390,35 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 | `pnpm e2e:firefox`, `pnpm e2e:webkit` | the same suite in Playwright's Firefox or WebKit (`npx playwright install firefox webkit`; `PW_BROWSERS` takes a comma-separated list). What differs in Firefox: [docs/browser-host.md](docs/browser-host.md#firefox-and-webkit). |
 | `pnpm interop` | `e2e/` and the celld conformance in Node: `scripts/interop-env.sh` downloads the pinned celld and RustFS into `~/.cache/cellb-interop`, starts a shared RustFS on `127.0.0.1:9200` (`RUSTFS_PORT`), and sets `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` |
 | `pnpm interop:browser` | the same for Chromium |
+| `pnpm probes:browser` | the exploratory probes in Chromium (`e2e-browser/probes`), measurements printed, not part of `pnpm e2e`; among them the storage labs: `ltx-lab` (SQLite over a cell's LTX files; `LTX_STORE=worker`, `LTX_SYNC=1`) and `sqlite-lab` (SQLite in N workers, six storage modes). Add a spec name to run one |
+| `pnpm bench`, `pnpm bench:browser` | the numbers celld.dev reports, measured for cellb: durability (one writer, acknowledged writes after a `SIGKILL`, durable write latency, failover), speed (stateless requests, waking a hibernated cell) and density (memory per resident cell), on Node and in Chromium. See [bench/README.md](bench/README.md); `bench/results/` holds the last recorded runs |
 | `pnpm mutate`, `pnpm mutate:browser` | mutation harnesses in a throw-away copy, after a baseline run; `MUTANTS=0,3` runs a subset |
 | `pnpm browser:dev` | the demo pages in `e2e-browser/pages`: `/` (one cell worker), `/sharded/`, `/backup/`, and `/host/`, the host app that runs a project folder |
 
 ### Releasing
 
-Releases are made by hand from a local checkout, with the maintainer's npm login and 2FA; CI
-never publishes (the statewalker convention). A change to the package carries a changeset
-(`pnpm changeset` at the repository root). To release:
+Releases are made by CI, the same pipeline as the other statewalker monorepos
+(`.github/workflows/ci.yml`). A change to the package carries a changeset (`pnpm changeset` at
+the repository root); without one, the release planner (statewalker/.github's
+`scripts/release-changesets.mjs`) writes a patch for a package whose published contents changed.
+On every push to `main`, after the `cellb` checks pass:
 
-```sh
-pnpm changeset version                 # versions and changelog from the pending changesets
-git commit -am "chore: version packages"
-pnpm changeset publish                 # publishes what npm lacks (prepack builds dist/), tags it
-git push --follow-tags
-```
+1. `version` applies the pending changesets in a "chore: version packages" pull request
+   (versions, `CHANGELOG.md`). It never publishes.
+2. Once that pull request is merged, `pack` packs every public package whose version npm lacks
+   (`pnpm pack`: `prepack` builds `dist/`, and `catalog:` ranges are resolved).
+3. `publish` waits for a maintainer's approval (the `npm` GitHub environment), then publishes
+   the tarballs with npm trusted publishing (OIDC, with provenance) and creates a GitHub release
+   per package. No npm token is stored in GitHub.
 
-Run `node scripts/pack-check.mjs` first: it checks exactly what `publish` uploads.
+One-time setup on npm: `@statewalker/cellb` → Settings → Trusted publishing → GitHub Actions,
+repository `statewalker/cellb.dev`, workflow `ci.yml`, environment `npm`. On GitHub: an
+environment named `npm` with required reviewers. A new package's first version is published by
+hand (`pnpm publish` in its directory, with the maintainer's 2FA), since a trusted publisher can
+only be added to a package that exists.
+
+The `cellb` job runs `node scripts/pack-check.mjs` before any of these: it checks exactly what
+`publish` uploads. Run it locally to see the same.
 
 ## License
 

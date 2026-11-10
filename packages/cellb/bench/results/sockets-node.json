@@ -1,0 +1,68 @@
+{
+  "date": "2026-11-07",
+  "machine": {
+    "cpus": 4,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "memoryGB": 16,
+    "node": "v22.23.4"
+  },
+  "runs": 3,
+  "median": {
+    "rttP50Ms": 0.08918600000004062,
+    "rttP95Ms": 0.16976499999998396,
+    "rttP99Ms": 0.5204420000000027,
+    "msgsPerSec64B": 41075,
+    "mbPerSec64B": 2.5,
+    "msgsPerSec1KiB": 32665,
+    "mbPerSec1KiB": 31.9,
+    "msgsPerSec64KiB": 3624,
+    "mbPerSec64KiB": 226.5,
+    "concurrentSockets": 1500,
+    "concurrentOpenMs": 1253,
+    "concurrentFailure": 0
+  },
+  "all": [
+    {
+      "rttP50Ms": 0.09203700000000481,
+      "rttP95Ms": 0.20465999999998985,
+      "rttP99Ms": 0.5004879999999616,
+      "msgsPerSec64B": 45819,
+      "mbPerSec64B": 2.8,
+      "msgsPerSec1KiB": 35853,
+      "mbPerSec1KiB": 35,
+      "msgsPerSec64KiB": 3862,
+      "mbPerSec64KiB": 241.4,
+      "concurrentSockets": 1500,
+      "concurrentOpenMs": 1335,
+      "concurrentFailure": 0
+    },
+    {
+      "rttP50Ms": 0.08918600000004062,
+      "rttP95Ms": 0.16976499999998396,
+      "rttP99Ms": 0.5250230000000329,
+      "msgsPerSec64B": 41075,
+      "mbPerSec64B": 2.5,
+      "msgsPerSec1KiB": 32665,
+      "mbPerSec1KiB": 31.9,
+      "msgsPerSec64KiB": 3489,
+      "mbPerSec64KiB": 218.1,
+      "concurrentSockets": 1500,
+      "concurrentOpenMs": 1185,
+      "concurrentFailure": 0
+    },
+    {
+      "rttP50Ms": 0.08324400000003607,
+      "rttP95Ms": 0.15854200000001129,
+      "rttP99Ms": 0.5204420000000027,
+      "msgsPerSec64B": 39955,
+      "mbPerSec64B": 2.4,
+      "msgsPerSec1KiB": 28613,
+      "mbPerSec1KiB": 27.9,
+      "msgsPerSec64KiB": 3624,
+      "mbPerSec64KiB": 226.5,
+      "concurrentSockets": 1500,
+      "concurrentOpenMs": 1253,
+      "concurrentFailure": 0
+    }
+  ]
+}

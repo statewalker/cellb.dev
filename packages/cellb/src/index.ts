@@ -22,7 +22,11 @@ export {
   type DurableObjectStub,
   runInDurableObject,
 } from "./core/namespace.js";
-export { BrokenObjectError, CellOwnedElsewhereError } from "./core/object-host.js";
+export {
+  BrokenObjectError,
+  CellOwnedElsewhereError,
+  ObjectClosedError,
+} from "./core/object-host.js";
 export {
   type CellRuntime,
   type CellRuntimeOptions,
@@ -31,9 +35,13 @@ export {
 } from "./core/runtime.js";
 export { shardOf } from "./core/shard.js";
 export { DurableObjectState } from "./core/state.js";
+export { type FilesRpcOptions, rpcFilesClient, serveFilesApi } from "./ltx/files-rpc.js";
 export * from "./ports.js";
+export { parseJsonc } from "./project/jsonc.js";
 export {
   createProjectRuntime,
+  loadProjectBindings,
+  type ProjectBindings,
   type ProjectHost,
   type ProjectRuntime,
   type WranglerConfig,

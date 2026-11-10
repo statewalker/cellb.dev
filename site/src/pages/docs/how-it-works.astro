@@ -1,13 +1,13 @@
 ---
 import CodeBlock from "@/components/CodeBlock.astro";
 import Docs from "@/layouts/Docs.astro";
-import { repoDoc } from "@/lib/site";
+import { docHref } from "@/lib/docs";
 ---
 
-<Docs title="How it works" description="cellb's core, its ports, ownership and durability.">
+<Docs title="How it works" description="CellB's core, its ports, ownership and durability.">
   <h1>How it works</h1>
   <p>
-    cellb has one runtime core that does not know where it runs, plus an adapter for each
+    CellB has one runtime core that does not know where it runs, plus an adapter for each
     platform. The same core runs a cell in a tab, in a Node process, or as one node of a celld
     fleet.
   </p>
@@ -56,7 +56,7 @@ import { repoDoc } from "@/lib/site";
     <tbody>
       <tr><td>One process</td><td>nothing to share</td><td>none needed</td></tr>
       <tr><td>A browser origin, sharded</td><td>a shard</td><td>one Web Lock per shard, held by one shard worker</td></tr>
-      <tr><td>A fleet bucket (celld, cellb, browsers)</td><td>a cell</td><td>celld's <code>own.json</code> per cell, a node lease per node, epochs and self-fencing</td></tr>
+      <tr><td>A fleet bucket (celld, CellB, browsers)</td><td>a cell</td><td>celld's <code>own.json</code> per cell, a node lease per node, epochs and self-fencing</td></tr>
     </tbody>
   </table>
 
@@ -69,6 +69,17 @@ import { repoDoc } from "@/lib/site";
     interval of writes.
   </p>
 
+  <h2>Cells on LTX files in a browser</h2>
+  <p>
+    With <code>{"bucket: { ltx, node }"}</code>, a browser shard keeps each cell exactly as celld
+    keeps it: a snapshot and one LTX file per commit, in an OPFS directory. SQLite never holds the
+    database. It reads pages through a VFS from a store worker, with an LRU page cache and
+    read-ahead, so a cell's memory is its page cache, whatever its size. Each commit becomes one
+    LTX file, written under a temporary name and moved into place. The store compacts a cell into a
+    new snapshot when its files grow, and holds a Web Lock per cell, so only one tab or worker
+    writes a cell at a time.
+  </p>
+
   <h2>Loaded Workers get a realm of their own</h2>
   <p>
     A Worker Loader binding runs each loaded Worker in its own isolate: a worker thread in Node, a
@@ -79,8 +90,8 @@ import { repoDoc } from "@/lib/site";
 
   <h2>Read more</h2>
   <ul>
-    <li><a href={repoDoc("architecture.md")}>Architecture</a></li>
-    <li><a href={repoDoc("ownership-and-durability.md")}>Ownership and durability</a></li>
-    <li><a href={repoDoc("celld-compatibility.md")}>celld compatibility</a></li>
+    <li><a href={docHref("packages/cellb/docs/architecture.md")}>Architecture</a></li>
+    <li><a href={docHref("packages/cellb/docs/ownership-and-durability.md")}>Ownership &amp; durability</a></li>
+    <li><a href={docHref("packages/cellb/docs/celld-compatibility.md")}>celld compatibility</a></li>
   </ul>
 </Docs>

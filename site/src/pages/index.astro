@@ -3,69 +3,51 @@ import CodeBlock from "@/components/CodeBlock.astro";
 import HeroVisual from "@/components/HeroVisual.astro";
 import Icon from "@/components/Icon.astro";
 import LiveDemo from "@/components/LiveDemo.astro";
+import Showcase from "@/components/Showcase.astro";
+import Stats from "@/components/Stats.astro";
 import Badge from "@/components/ui/Badge.astro";
 import Button from "@/components/ui/Button.astro";
 import Card from "@/components/ui/Card.astro";
 import Tabs from "@/components/ui/Tabs.astro";
 import Base from "@/layouts/Base.astro";
-import { REPO, repoDoc } from "@/lib/site";
+import { docHref } from "@/lib/docs";
+import { exampleByName, exampleHref } from "@/lib/examples";
+import { LIVE_DEMOS, REPO, repoFile } from "@/lib/site";
+import counterCode from "../demo/counter/project/src/index.ts?raw";
+import counterWrangler from "../demo/counter/project/wrangler.jsonc?raw";
+import counterNode from "../demo/counter/serve-node.ts?raw";
+import counterShard from "../demo/counter/shard-worker.ts?raw";
+import counterSw from "../demo/counter/sw.ts?raw";
+import counterTabs from "../demo/counter/tabs.ts?raw";
 
-// --- Code samples (from packages/cellb/README.md) -------------------------
+// --- Code samples ----------------------------------------------------------
+// The demo's own files (src/demo/counter): the Durable Object, how Node serves it, and how a
+// browser wires it (ServiceWorker, shard workers, the page). The demo below runs exactly these;
+// scripts/check-snippets.mjs runs the Node one.
 
-const nodeExample = `import { createCellRuntime, DurableObject } from "@statewalker/cellb";
-import { nodeSqliteOpener } from "@statewalker/cellb/node";
+const browserExample = `// 1. Build the project once, for browsers (any static host serves the folder):
+//    npx cellb build ./project --out public/built/demo-counter
 
-class Counter extends DurableObject {
-  increment(): number {
-    const sql = this.ctx.storage.sql;
-    sql.exec("CREATE TABLE IF NOT EXISTS c (id INTEGER PRIMARY KEY, n INTEGER)");
-    sql.exec("INSERT INTO c (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1");
-    return sql.exec<{ n: number }>("SELECT n FROM c WHERE id = 1").one().n;
-  }
-}
-
-const runtime = createCellRuntime({
-  worker: {
-    Counter,
-    default: {
-      fetch: async (req: Request, env: any) =>
-        Response.json({ n: await env.COUNTER.getByName(new URL(req.url).pathname).increment() }),
-    },
-  },
-  durableObjects: { COUNTER: { className: "Counter" } },
-  openSql: nodeSqliteOpener("./data"),
-});
-
-await runtime.fetch(new Request("http://local/counter/a")); // {"n":1}`;
-
-const browserExample = `// in a Dedicated Worker
-import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { browserProjectRuntime } from "@statewalker/cellb/browser";
-
-const host = await browserProjectRuntime({
-  config,            // the parsed wrangler.jsonc
-  code: { bundle },  // the project's main, bundled for browsers
-  sqlite3: await sqlite3InitModule(),
-  pool: "my-app",    // the OPFS SQLite pool of this worker
-  filesDir: "my-app-files",
-});
-
-const res = await host.runtime.fetch(new Request("http://browser/"));`;
+// 2. sw.ts, the ServiceWorker: routes /demo/<project>/… to the tab that runs the object
+${counterSw.replace(/^\/\/\/ <reference[^\n]*\n/, "").replace(/^\/\/.*\n/gm, "")}
+// 3. shard-worker.ts, a Dedicated Worker: one shard of the project, SQLite WASM on OPFS
+${counterShard.replace(/^\/\/\/ <reference[^\n]*\n/, "").replace(/^\/\/.*\n/gm, "")}
+// 4. The page (tabs.ts): every open tab joins and the tabs split the shards
+${counterTabs.replace(/^\/\/.*\n/gm, "")}`;
 
 const fleetExample = `import { celldBucket, s3ObjectStore } from "@statewalker/cellb";
-import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
+import { loadProject } from "@statewalker/cellb/node";
 
-// The same wrangler project celld deploys, on the bucket celld nodes use.
-const { runtime, unsupported } = await loadNodeProject("./counter", {
-  openSql: nodeSqliteOpener(), // each cell is restored from the bucket on first use
-  files,
-  storage: celldBucket(s3ObjectStore({ endpoint, bucket, region, accessKeyId, secretAccessKey }), {
+// The same project on the bucket celld nodes use: each object is restored from it on first use
+const project = await loadProject("./project", {
+  bucket: celldBucket(s3ObjectStore({ endpoint, bucket, region, accessKeyId, secretAccessKey }), {
     node: "cellb-1",
   }),
 });
 
-await runtime.fetch(new Request("http://localhost/increment?name=a"));
-await runtime.close(); // releases the cells, so celld can take them at once`;
+const res = await project.fetch(new Request("http://localhost/?name=alice"));
+console.log(await res.json()); // {"name":"alice","n":…}, the count celld nodes see too
+await project.close(); // releases the objects, so celld can take them at once`;
 
 // --- Content ---------------------------------------------------------------
 
@@ -83,7 +65,7 @@ const pillars = [
   {
     icon: "refresh",
     title: "Movable",
-    body: "cellb stores cells exactly as celld does. One cell can be served by celld, then by cellb in Node, then by a browser, through one shared bucket and with no conversion.",
+    body: "CellB stores cells exactly as celld does. One cell can be served by celld, then by CellB in Node, then by a browser, through one shared bucket and with no conversion.",
   },
 ] as const;
 
@@ -93,10 +75,10 @@ const hosts = [
     title: "In the browser",
     tag: "@statewalker/cellb/browser",
     points: [
-      "SQLite WASM on OPFS inside Dedicated Workers",
-      "Requests through a ServiceWorker, WebSockets over MessagePorts",
+      "SQLite WASM in Dedicated Workers: on OPFS pools, on LTX files in OPFS read page by page, or in memory with an IndexedDB log",
+      "Requests through a ServiceWorker, even at the origin's root; WebSockets over MessagePorts",
       "Shards spread across the open tabs of an origin; another tab takes over when one closes",
-      "Works offline. No server, no COOP/COEP headers",
+      "A whole app served from static files keeps running when the file server stops",
     ],
   },
   {
@@ -106,7 +88,7 @@ const hosts = [
     points: [
       "node:sqlite, one file per cell",
       "loadNodeProject runs a wrangler project as celld deploys it",
-      "Loaded Workers in worker threads of their own",
+      "Loaded Workers in worker threads of their own; bundles from other bundlers through host-modules",
       "Speaks celld's peer protocol to reach owners on other nodes",
     ],
   },
@@ -115,16 +97,18 @@ const hosts = [
     title: "In the cloud, with celld",
     tag: "celldBucket(…)",
     points: [
-      "One S3, GCS or Azure bucket shared by celld nodes, cellb nodes and browsers",
+      "One S3, GCS or Azure bucket shared by celld nodes, CellB nodes and browsers",
       "celld's ownership records, node leases, epochs and wake index",
       "Exactly one owner per cell, with self-fencing on a lapsed lease",
-      "A cell that cellb wrote, celld continues, and back",
+      "A cell that CellB wrote, celld continues, and back",
     ],
   },
 ] as const;
 
 type Status = "yes" | "partial" | "no";
-type Row = { feature: string; celld: string; node: string; browser: string; check: string };
+/** How a row is checked: example pages (by scenario name), or a link with a label. */
+type Check = string | { label: string; href: string };
+type Row = { feature: string; celld: string; node: string; browser: string; checks: Check[] };
 
 const status = (v: string): Status =>
   /^(yes|supported)/i.test(v)
@@ -139,113 +123,136 @@ const rows: Row[] = [
     celld: "supported",
     node: "yes",
     browser: "yes",
-    check: "hello, webapi, router, body",
+    checks: ["hello", "webapi", "router", "body"],
   },
   {
     feature: "Durable Objects / cells",
     celld: "supported",
     node: "yes, same storage format",
     browser: "yes, same storage format",
-    check: "counter, rpc, alarm, workerd's tests; cells cross celld ↔ cellb",
+    checks: [
+      "counter",
+      "rpc",
+      "alarm",
+      "async",
+      { label: "workerd's tests", href: "/examples#workerd" },
+      { label: "cells moved between celld and CellB", href: repoFile("packages/cellb/e2e") },
+    ],
   },
   {
     feature: "Durable Object facets",
     celld: "supported",
     node: "yes",
     browser: "yes",
-    check: "facets, facets-api",
+    checks: ["facets", "facets-api"],
   },
   {
     feature: "KV",
     celld: "supported",
     node: "yes (celld's code)",
     browser: "yes",
-    check: "kv, kv-values",
+    checks: ["kv", "kv-details"],
   },
   {
     feature: "Queues",
     celld: "supported",
     node: "yes (celld's code)",
     browser: "yes",
-    check: "queues, queues-api",
+    checks: ["queues", "queues-api", "queues-details"],
   },
   {
     feature: "D1",
     celld: "supported",
     node: "yes (Miniflare's simulator)",
     browser: "yes",
-    check: "d1, D1 migrations",
+    checks: [
+      "d1",
+      "d1-details",
+      { label: "D1 migrations", href: repoFile("packages/cellb/test/p08d-d1-migrations.test.ts") },
+    ],
   },
   {
     feature: "R2",
     celld: "supported",
     node: "yes, celld's bucket layout",
     browser: "yes",
-    check: "r2, r2-api, r2-advanced",
+    checks: ["r2", "r2-api", "r2-advanced", "r2-details"],
   },
   {
     feature: "Workflows",
     celld: "supported",
     node: "yes (celld's engine)",
     browser: "yes",
-    check: "workflow, workflow-api",
+    checks: ["workflow", "workflow-api"],
   },
-  { feature: "Cron triggers", celld: "supported", node: "yes", browser: "yes", check: "cron" },
+  { feature: "Cron triggers", celld: "supported", node: "yes", browser: "yes", checks: ["cron"] },
   {
     feature: "Static assets",
     celld: "supported",
     node: "yes (Cloudflare's behaviour where celld has bugs)",
     browser: "yes",
-    check: "static-assets, assets-api",
+    checks: ["static-assets", "assets-api", "assets-force", "assets-drop"],
   },
   {
     feature: "Dynamic Workers (Worker Loader)",
     celld: "supported",
     node: "yes, a worker thread each",
     browser: "yes, a Dedicated Worker each",
-    check: "dynamic-worker-tails, Worker Loader scenarios",
+    checks: ["dynamic-worker-tails", "wd-worker-loader", "isolation-api"],
   },
   {
     feature: "WebSockets, hibernation",
     celld: "supported",
     node: "yes",
     browser: "yes, over MessagePorts",
-    check: "wsecho, wsclient, wd-websocket-* (cellb passes wd-websocket-hibernation)",
+    checks: [
+      "wsecho",
+      "wsclient",
+      "ws-details",
+      "wd-websocket-constructor",
+      "wd-websocket-hibernation",
+    ],
   },
   {
     feature: "Vectorize-style search",
     celld: "example",
     node: "yes",
     browser: "yes",
-    check: "vectordb",
+    checks: ["vectordb"],
   },
   {
     feature: "Workers AI (ai binding)",
     celld: "no binding",
     node: "yes, on any OpenAI-compatible endpoint",
     browser: "yes",
-    check: "p14-workers-ai, Flue's cloud agent",
+    checks: [
+      { label: "p14-workers-ai", href: repoFile("packages/cellb/test/p14-workers-ai.test.ts") },
+      { label: "Flue's cloud agent", href: docHref("examples/flue/README.md") },
+    ],
   },
   {
     feature: "Agent frameworks: Flue, pi, opencode",
     celld: "examples (pi, opencode need the network)",
     node: "yes, offline against a fake model",
     browser: "Flue",
-    check: "examples/flue, examples/agents",
+    checks: [
+      { label: "Flue agent app", href: docHref("examples/flue/README.md") },
+      { label: "pi and opencode", href: docHref("examples/agents/README.md") },
+    ],
   },
   {
     feature: "Python Workers (Pyodide)",
     celld: "supported",
     node: "no, out of scope",
     browser: "no",
-    check: "not run",
+    checks: [],
   },
   {
     feature: "Containers",
     celld: "experimental (Docker or Podman)",
     node: "no; reported in unsupported",
     browser: "no",
-    check: "not run",
+    checks: [],
   },
 ];
 
@@ -255,26 +262,72 @@ const dot: Record<Status, string> = {
   no: "bg-muted-foreground/40",
 };
 
+const tools = [
+  {
+    icon: "globe",
+    title: "ESM CDN",
+    body: "npm packages as ES modules from your own origin: resolved, downloaded once into a package store, transformed file by file (TypeScript, CommonJS, CSS) and served immutable. No install step, no third-party CDN at run time.",
+    api: "GET /npm/browser/react-dom@19/client?graph",
+    href: docHref("packages/esm-cdn/README.md"),
+  },
+  {
+    icon: "book",
+    title: "User code as ESM",
+    body: "A project's files, frozen into snapshots named by their hash and served one module at a time: TSX straight into the browser, npm imports bound to the CDN. For editors, playgrounds and agents that write code.",
+    api: "POST /p/<id>/snapshots → <base>~/index.html",
+    href: docHref("packages/esm-cdn/README.md"),
+  },
+  {
+    icon: "layers",
+    title: "Bundler",
+    body: "A project bundled with esbuild-wasm into one Worker that Wrangler, celld and CellB run as they get it: a download, a wrangler project, a Worker Loader payload. Small builds run in a Durable Object, large ones on a Node runner.",
+    api: "POST /builds → /b/<id>/project.zip",
+    href: docHref("packages/bundler/README.md"),
+  },
+  {
+    icon: "cpu",
+    title: "Astro builder",
+    body: "Astro sites built from their sources without Node or Vite: config and integrations, compiler-rs as WebAssembly, server and client bundles. EmDash's 225 routes build in a Durable Object; a small Astro app builds in your tab.",
+    api: "POST /builds (an astro.config.* project)",
+    href: docHref("packages/astro-builder/README.md"),
+  },
+  {
+    icon: "database",
+    title: "Notebooks",
+    body: "Markdown and Observable Notebook Kit documents compiled to live pages inside a Durable Object; their cells import d3, Plot and any npm package from the same origin.",
+    api: "POST /nb/<site>/build → /nb/<site>/<page>.html",
+    href: docHref("packages/notebooks/README.md"),
+  },
+  {
+    icon: "refresh",
+    title: "One build, every host",
+    body: "Each tool, and what it builds, runs unchanged on Wrangler (workerd), celld and CellB in Node, and the tools run in a browser tab too: checked end to end on each host, with Astro, EmDash and notebooks.",
+    api: "scripts/e2e.ts all",
+    href: "/docs/tools",
+  },
+] as const;
+
 const useCases = [
   {
     icon: "layers",
     title: "IDE-class applications",
-    body: "Editors like VS Code and Theia split into a UI, workspace services and extension hosts that run locally or remotely behind one API. With cellb each of those parts is a cell: documents, workspaces, language services. Plugins run as loaded Workers in a realm of their own. The same plugin runs beside the UI in a tab or on a server, and the code stays the same.",
+    body: "Editors like VS Code and Theia split into a UI, workspace services and extension hosts that run locally or remotely behind one API. With CellB each of those parts is a cell: documents, workspaces, language services. Plugins run as loaded Workers in a realm of their own. The same plugin runs beside the UI in a tab or on a server, and the code stays the same.",
   },
   {
     icon: "cpu",
     title: "AI agents as Durable Objects",
-    body: "An agent or conversation is a cell whose transcript lives in its own SQLite. Alarms drive long runs, SSE and WebSockets stream replies, and env.AI reaches any OpenAI-compatible model: llama.cpp, Ollama or a hosted API. Flue, pi and opencode already run on cellb. If a node stops during a model call, another node on the same bucket takes the cell and finishes the submission.",
+    body: "An agent or conversation is a cell whose transcript lives in its own SQLite. Alarms drive long runs, SSE and WebSockets stream replies, and env.AI reaches any OpenAI-compatible model: llama.cpp, Ollama or a hosted API. Flue, pi and opencode already run on CellB. If a node stops during a model call, another node on the same bucket takes the cell and finishes the submission.",
   },
   {
     icon: "lock",
-    title: "Sandboxed code that agents write",
-    body: "Worker Loader bindings run code handed over at run time, each in its own Dedicated Worker or worker thread. The loaded code gets its own globals and env. Set globalOutbound: null to cut off its network access, or route its fetches through a Fetcher you control.",
+    title: "Isolated code that agents write",
+    body: "Worker Loader bindings run code handed over at run time, each in its own worker thread, or in a browser its own Dedicated Worker. The loaded code gets its own globals and only the env you give it. Set globalOutbound: null to block its fetch(), or route its fetches through a Fetcher you control. It is not a sandbox for hostile code: see Security & isolation.",
   },
   {
     icon: "wifiOff",
     title: "Local-first apps",
-    body: "Cells answer from OPFS inside the tab, with no network and no server. Configure a fleet bucket and the same cells are logged in celld's format, so a server node can serve them when the tab is closed.",
+    body: "Cells answer from OPFS inside the tab, with no network and no server: EmDash keeps publishing posts after its file server is stopped. Configure a fleet bucket and the same cells are logged in celld's format, so a server node can serve them when the tab is closed.",
+    link: { href: LIVE_DEMOS.emdash.href, label: "Try EmDash in your tab" },
   },
   {
     icon: "globe",
@@ -322,19 +375,19 @@ const lifecycle = [
           </Badge>
         </a>
         <h1 class="text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-          One cell model.<br />
-          <span class="text-brand-gradient">Browser, server, cloud.</span>
+          One cell model<br />
+          <span class="text-brand-gradient">Browser, server, cloud</span>
         </h1>
         <p class="max-w-xl text-lg text-muted-foreground text-pretty">
-          cellb runs Workers and Durable Objects unchanged in a browser tab, in Node, and
+          CellB runs Workers and Durable Objects unchanged in a browser tab, in Node, and
           alongside celld on one shared bucket. It is an architecture for rich, isomorphic
           applications built for people and for AI agents.
         </p>
         <div class="flex flex-wrap gap-3">
           <Button href="/docs" size="lg">Get started <Icon name="arrowRight" /></Button>
-          <Button href="#compare" size="lg" variant="outline">Compare with celld</Button>
+          <Button href="#compare" size="lg" variant="outline">Supported services</Button>
         </div>
-        <CodeBlock code={`git clone ${REPO}\ncd cellb.dev && pnpm install`} class="max-w-md" />
+        <CodeBlock code="npm install @statewalker/cellb" class="max-w-md" />
       </div>
       <HeroVisual />
     </div>
@@ -345,7 +398,7 @@ const lifecycle = [
     <div class="max-w-3xl space-y-3">
       <p class="font-mono text-sm text-primary">// the architecture</p>
       <h2 class="text-3xl font-semibold tracking-tight text-balance">
-        Cells are the unit of the application. Placement is a deployment detail.
+        Cells are the unit of the application, and placement is a deployment choice
       </h2>
       <p class="text-muted-foreground">
         A cell is a named object with its own code, its own SQLite database and exactly one owner
@@ -367,12 +420,92 @@ const lifecycle = [
     </div>
   </section>
 
+  <!-- Comparison -->
+  <section id="compare" class="scroll-mt-20 border-y bg-muted/30">
+   <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+    <div class="max-w-3xl space-y-3">
+      <p class="font-mono text-sm text-primary">// supported services, next to celld</p>
+      <h2 class="text-3xl font-semibold tracking-tight">Supported services, with celld as the judge</h2>
+      <p class="text-muted-foreground">
+        celld's examples, CellB's own probe projects and workerd's Durable Object tests run on the
+        real celld, and their answers are recorded. CellB must give the same answers: in Node on
+        every pull request, and in Chromium in the browser test suite. That is 70 scenarios. For 5
+        of them workerd's answers are the expected ones, and 6 are known differences.
+      </p>
+      <p class="text-muted-foreground">
+        Every name in the last column opens an <a href="/examples" class="text-primary hover:underline">example page</a>:
+        the project's code, and a button that runs it on CellB in this tab and shows its answers
+        next to celld's.
+      </p>
+    </div>
+
+    <div class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {[
+        ["70", "recorded scenarios"],
+        ["2", "runtimes replayed: Node, Chromium"],
+        ["5", "judged by workerd"],
+        ["6", "known differences"],
+      ].map(([n, label]) => (
+        <Card class="p-4">
+          <p class="font-mono text-3xl font-semibold tracking-tight text-primary">{n}</p>
+          <p class="mt-1 text-sm text-muted-foreground">{label}</p>
+        </Card>
+      ))}
+    </div>
+
+    <Card class="mt-6 overflow-x-auto">
+      <table class="w-full min-w-[880px] text-sm">
+        <thead>
+          <tr class="border-b bg-muted/40 text-left">
+            <th class="px-4 py-3 font-medium">Feature</th>
+            <th class="px-4 py-3 font-mono font-medium">celld 0.6.3</th>
+            <th class="px-4 py-3 font-mono font-medium text-primary">CellB · Node</th>
+            <th class="px-4 py-3 font-mono font-medium text-primary">CellB · browsers</th>
+            <th class="px-4 py-3 font-medium text-muted-foreground">How CellB is checked</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr class="border-b last:border-0 hover:bg-muted/30">
+              <td class="px-4 py-3 font-medium">{r.feature}</td>
+              {[r.celld, r.node, r.browser].map((v) => (
+                <td class="px-4 py-3">
+                  <span class="flex items-start gap-2">
+                    <span class:list={["mt-1.5 size-2 shrink-0 rounded-full", dot[status(v)]]}></span>
+                    <span class:list={[status(v) === "no" && "text-muted-foreground"]}>{v}</span>
+                  </span>
+                </td>
+              ))}
+              <td class="px-4 py-3 font-mono text-xs text-muted-foreground">
+                {r.checks.length === 0 && "not run"}
+                {r.checks.map((c, i) => {
+                  const link = typeof c === "string" ? { label: c, href: exampleHref(c) } : c;
+                  if (typeof c === "string" && !exampleByName.has(c)) throw new Error(`no example ${c}`);
+                  return <>{i > 0 && ", "}<a href={link.href} class="text-primary hover:underline">{link.label}</a></>;
+                })}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+    <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+      <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-primary"></span>supported</span>
+      <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-amber-500"></span>partial, example or different</span>
+      <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-muted-foreground/40"></span>not supported</span>
+      <a href={docHref("packages/cellb/docs/celld-compatibility.md")} class="ml-auto inline-flex items-center gap-1 text-primary hover:underline">
+        Where CellB follows Cloudflare instead of celld <Icon name="externalLink" class="size-3" />
+      </a>
+    </div>
+   </div>
+  </section>
+
   <!-- Where it runs -->
-  <section class="border-y bg-muted/30">
+  <section>
     <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
       <div class="max-w-2xl space-y-3">
         <p class="font-mono text-sm text-primary">// where it runs</p>
-        <h2 class="text-3xl font-semibold tracking-tight">One core, three hosts.</h2>
+        <h2 class="text-3xl font-semibold tracking-tight">One core, three hosts</h2>
         <p class="text-muted-foreground">
           The runtime core knows nothing about its platform. Ports supply SQLite, storage, leases
           and clocks; the package has one entry point per platform.
@@ -403,10 +536,11 @@ const lifecycle = [
   </section>
 
   <!-- Use cases -->
-  <section id="use-cases" class="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6">
+  <section id="use-cases" class="scroll-mt-20 border-y bg-muted/30">
+   <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
     <div class="max-w-2xl space-y-3">
       <p class="font-mono text-sm text-primary">// use cases</p>
-      <h2 class="text-3xl font-semibold tracking-tight">Built for rich applications, people and agents.</h2>
+      <h2 class="text-3xl font-semibold tracking-tight">Built for rich applications, people and agents</h2>
       <p class="text-muted-foreground">
         IDE-class tools, agent platforms and collaborative apps all need the same thing: many
         small stateful services that run close to whoever uses them, human or machine.
@@ -420,8 +554,70 @@ const lifecycle = [
           </div>
           <h3 class="font-medium">{u.title}</h3>
           <p class="mt-2 text-sm leading-6 text-muted-foreground">{u.body}</p>
+          {"link" in u && u.link && (
+            <a href={u.link.href} class="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline">
+              {u.link.label} <Icon name="externalLink" class="size-3" />
+            </a>
+          )}
         </Card>
       ))}
+    </div>
+   </div>
+  </section>
+
+  <!-- Tools -->
+  <section id="tools" class="scroll-mt-20">
+    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div class="max-w-3xl space-y-3">
+        <p class="font-mono text-sm text-primary">// tools</p>
+        <h2 class="text-3xl font-semibold tracking-tight text-balance">
+          The tools that build apps are Durable Object apps too
+        </h2>
+        <p class="text-muted-foreground">
+          An ESM CDN, a server for a project's own code, a bundler, an Astro builder and a notebook
+          compiler. Like any CellB project, they run on Wrangler, celld, Node and in a tab, and so
+          does what they build.
+        </p>
+      </div>
+      <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {tools.map((t) => (
+          <a href={t.href} class="block">
+            <Card class="h-full p-6 transition-colors hover:border-primary/40">
+              <div class="mb-4 inline-flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon name={t.icon} />
+              </div>
+              <h3 class="font-medium">{t.title}</h3>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">{t.body}</p>
+              <p class="mt-3 font-mono text-xs text-muted-foreground">{t.api}</p>
+            </Card>
+          </a>
+        ))}
+      </div>
+      <div class="mt-8">
+        <Button href="/docs/tools" variant="outline">How the tools work <Icon name="arrowRight" class="size-4" /></Button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Real apps -->
+  <section id="apps" class="scroll-mt-20">
+    <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div class="max-w-3xl space-y-3">
+        <p class="font-mono text-sm text-primary">// real apps</p>
+        <h2 class="text-3xl font-semibold tracking-tight text-balance">
+          Large Cloudflare apps that CellB did not write, running in a tab
+        </h2>
+        <p class="text-muted-foreground">
+          The examples use CellB as its users do, from npm. A CI job, started by hand, also runs
+          them on CellB as the next release would publish it. Running them found gaps in CellB,
+          which are now closed. The first two are published as{" "}
+          <a href="/examples#live-demos" class="text-primary hover:underline">live demos</a>: open
+          one and the app runs in your tab.
+        </p>
+      </div>
+      <div class="mt-10">
+        <Showcase />
+      </div>
     </div>
   </section>
 
@@ -431,12 +627,12 @@ const lifecycle = [
       <div class="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] [&>*]:min-w-0">
         <div class="space-y-3">
           <p class="font-mono text-sm text-primary">// the code</p>
-          <h2 class="text-3xl font-semibold tracking-tight">Workers code you already have.</h2>
+          <h2 class="text-3xl font-semibold tracking-tight">Workers code you already have</h2>
           <p class="text-muted-foreground">
-            A runtime is a plain <code class="font-mono text-sm">(Request) ⇒ Response</code>
+            A runtime is a plain <code class="font-mono text-sm">(Request) ⇒ Response</code>{" "}
             handler. Mount it on <code class="font-mono text-sm">node:http</code>, a ServiceWorker
             or a test. Wrangler projects load from the configuration celld deploys, and anything
-            cellb does not support is listed in <code class="font-mono text-sm">unsupported</code>
+            CellB does not support is listed in <code class="font-mono text-sm">unsupported</code>{" "}
             instead of being silently ignored.
           </p>
           <ul class="space-y-2 pt-2 text-sm text-muted-foreground">
@@ -445,90 +641,35 @@ const lifecycle = [
             <li class="flex gap-2"><Icon name="check" class="mt-0.5 size-4 shrink-0 text-primary" />Alarms, WebSockets, hibernation, facets</li>
           </ul>
         </div>
-        <Tabs labels={["Node", "Browser", "Fleet with celld"]}>
-          <CodeBlock slot="tab-0" title="counter.ts" lang="ts" code={nodeExample} />
-          <CodeBlock slot="tab-1" title="worker.ts" lang="ts" code={browserExample} />
-          <CodeBlock slot="tab-2" title="node.ts" lang="ts" code={fleetExample} />
-        </Tabs>
+        <div class="space-y-3">
+          <Tabs labels={["Durable Object", "Node", "Browser", "Fleet with celld"]}>
+            <CodeBlock slot="tab-0" title="project/src/index.ts" class="h-[30rem]" lang="ts" code={counterCode} />
+            <CodeBlock slot="tab-1" title="serve-node.ts" class="h-[30rem]" lang="ts" code={counterNode} />
+            <CodeBlock slot="tab-2" title="sw.ts · shard-worker.ts · tabs.ts" class="h-[30rem]" lang="ts" code={browserExample} />
+            <CodeBlock slot="tab-3" title="fleet.ts" class="h-[30rem]" lang="ts" code={fleetExample} />
+          </Tabs>
+          <p class="text-sm text-muted-foreground">
+            One project, <code class="font-mono">wrangler.jsonc</code> and its Worker, everywhere.
+            Node loads its folder. A browser loads the folder{" "}
+            <code class="font-mono">cellb build</code> writes, which any static host can serve, and wires it with a ServiceWorker and shard
+            workers. These are the files of the demo below, and every{" "}
+            <a href="/examples" class="text-primary hover:underline">example page</a> runs its
+            project the same way.
+          </p>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Comparison -->
-  <section id="compare" class="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6">
-    <div class="max-w-3xl space-y-3">
-      <p class="font-mono text-sm text-primary">// next to celld</p>
-      <h2 class="text-3xl font-semibold tracking-tight">celld is the judge.</h2>
-      <p class="text-muted-foreground">
-        celld's examples, cellb's own probe projects and workerd's Durable Object tests run on the
-        real celld and are recorded. The recordings are then replayed against cellb in Node and in
-        Chromium on every pull request. That is 70 scenarios: 5 are judged by workerd instead,
-        and 6 are known differences.
-      </p>
-    </div>
-
-    <div class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {[
-        ["70", "recorded scenarios"],
-        ["2", "runtimes replayed: Node, Chromium"],
-        ["5", "judged by workerd"],
-        ["6", "known differences"],
-      ].map(([n, label]) => (
-        <Card class="p-4">
-          <p class="font-mono text-3xl font-semibold tracking-tight text-primary">{n}</p>
-          <p class="mt-1 text-sm text-muted-foreground">{label}</p>
-        </Card>
-      ))}
-    </div>
-
-    <Card class="mt-6 overflow-x-auto">
-      <table class="w-full min-w-[880px] text-sm">
-        <thead>
-          <tr class="border-b bg-muted/40 text-left">
-            <th class="px-4 py-3 font-medium">Feature</th>
-            <th class="px-4 py-3 font-mono font-medium">celld 0.6.3</th>
-            <th class="px-4 py-3 font-mono font-medium text-primary">cellb · Node</th>
-            <th class="px-4 py-3 font-mono font-medium text-primary">cellb · browsers</th>
-            <th class="px-4 py-3 font-medium text-muted-foreground">How cellb is checked</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr class="border-b last:border-0 hover:bg-muted/30">
-              <td class="px-4 py-3 font-medium">{r.feature}</td>
-              {[r.celld, r.node, r.browser].map((v) => (
-                <td class="px-4 py-3">
-                  <span class="flex items-start gap-2">
-                    <span class:list={["mt-1.5 size-2 shrink-0 rounded-full", dot[status(v)]]}></span>
-                    <span class:list={[status(v) === "no" && "text-muted-foreground"]}>{v}</span>
-                  </span>
-                </td>
-              ))}
-              <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{r.check}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
-    <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
-      <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-primary"></span>supported</span>
-      <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-amber-500"></span>partial, example or different</span>
-      <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-muted-foreground/40"></span>not supported</span>
-      <a href={repoDoc("celld-compatibility.md")} class="ml-auto inline-flex items-center gap-1 text-primary hover:underline">
-        Where cellb follows Cloudflare instead of celld <Icon name="externalLink" class="size-3" />
-      </a>
-    </div>
-  </section>
-
   <!-- Lifecycle -->
-  <section class="border-y bg-muted/30">
+  <section>
     <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
       <div class="max-w-2xl space-y-3">
         <p class="font-mono text-sm text-primary">// life of a cell</p>
-        <h2 class="text-3xl font-semibold tracking-tight">One writer, and no lost writes.</h2>
+        <h2 class="text-3xl font-semibold tracking-tight">One writer and no lost writes</h2>
         <p class="text-muted-foreground">
           A cell is safe when only one runtime writes it at a time and every acknowledged write
-          can be restored somewhere else. On a fleet bucket, cellb uses celld's own ownership
+          can be restored somewhere else. On a fleet bucket, CellB uses celld's own ownership
           protocol to guarantee both.
         </p>
       </div>
@@ -544,19 +685,48 @@ const lifecycle = [
     </div>
   </section>
 
+  <!-- Numbers -->
+  <section id="numbers" class="scroll-mt-20 border-y bg-muted/30">
+   <div class="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+    <div class="max-w-3xl space-y-3">
+      <p class="font-mono text-sm text-primary">// by the numbers</p>
+      <h2 class="text-3xl font-semibold tracking-tight">Measured and reproducible</h2>
+      <p class="text-muted-foreground">
+        The rows celld.dev reports, measured for CellB on Node and in Chromium by the benchmark in
+        the repository. The page reads its last recorded run.
+      </p>
+    </div>
+    <div class="mt-10">
+      <Stats />
+    </div>
+   </div>
+  </section>
+
   <!-- Demo -->
   <section id="demo" class="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6">
-    <div class="grid gap-10 lg:grid-cols-[1fr_1.2fr] lg:items-center [&>*]:min-w-0">
+    <div class="max-w-3xl space-y-3">
+      <p class="font-mono text-sm text-primary">// try it</p>
+      <h2 class="text-3xl font-semibold tracking-tight">A Durable Object, running in your tabs</h2>
+      <p class="text-muted-foreground">
+        The <code class="font-mono text-sm">Counter</code> below is Workers code as it is written
+        for Cloudflare: a class that extends <code class="font-mono text-sm">DurableObject</code>,
+        its count in the object's own SQLite, called over RPC. cellb runs it in the browser, shared
+        by every tab of this site that has the page open: its shards run in Dedicated Workers of
+        those tabs, each object in SQLite WASM on OPFS. No server answers these requests.
+      </p>
+    </div>
+    <div class="mt-10 grid gap-8 lg:grid-cols-[1.35fr_1fr] lg:items-start [&>*]:min-w-0">
       <div class="space-y-3">
-        <p class="font-mono text-sm text-primary">// try it</p>
-        <h2 class="text-3xl font-semibold tracking-tight">Tabs share one origin's cells.</h2>
-        <p class="text-muted-foreground">
-          In a browser, cellb places cells in shards, and each shard is owned through one Web Lock.
-          This small demo uses the same primitive. Open the page in a second tab, press increment
-          in both, then close the owner tab and watch the other one take over.
-        </p>
-        <a href={repoDoc("browser-host.md")} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-          The four browser topologies <Icon name="externalLink" class="size-3" />
+        <!-- One height for every tab (tabs.ts scrolls), so switching tabs does not move the page. -->
+        <Tabs labels={["index.ts", "wrangler.jsonc", "tabs.ts", "sw.ts", "shard-worker.ts"]}>
+          <CodeBlock slot="tab-0" title="site/src/demo/counter/project/src/index.ts" class="h-[32rem]" lang="ts" code={counterCode} />
+          <CodeBlock slot="tab-1" title="site/src/demo/counter/project/wrangler.jsonc" class="h-[32rem]" lang="jsonc" code={counterWrangler} />
+          <CodeBlock slot="tab-2" title="site/src/demo/counter/tabs.ts" class="h-[32rem]" lang="ts" code={counterTabs} />
+          <CodeBlock slot="tab-3" title="site/src/demo/counter/sw.ts" class="h-[32rem]" lang="ts" code={counterSw} />
+          <CodeBlock slot="tab-4" title="site/src/demo/counter/shard-worker.ts" class="h-[32rem]" lang="ts" code={counterShard} />
+        </Tabs>
+        <a href={docHref("packages/cellb/docs/browser-host.md")} class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+          How a browser runs cells <Icon name="externalLink" class="size-3" />
         </a>
       </div>
       <LiveDemo />
@@ -568,7 +738,7 @@ const lifecycle = [
     <div class="relative overflow-hidden rounded-2xl border bg-primary px-6 py-14 text-center text-primary-foreground sm:px-12">
       <div class="pointer-events-none absolute inset-0 bg-grid opacity-40 [--grid-line:rgb(255_255_255/0.12)]"></div>
       <div class="relative mx-auto max-w-xl space-y-5">
-        <h2 class="text-3xl font-semibold tracking-tight">Build once. Place every cell where it belongs.</h2>
+        <h2 class="text-3xl font-semibold tracking-tight">Build once, place every cell where it belongs</h2>
         <p class="opacity-85">Start from a Worker you have, run it in Node or a tab, and join a celld fleet when you need servers.</p>
         <div class="flex flex-wrap justify-center gap-3">
           <Button href="/docs" size="lg" variant="secondary">Read the docs</Button>

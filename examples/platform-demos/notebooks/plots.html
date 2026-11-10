@@ -1,0 +1,26 @@
+<!doctype html>
+<notebook theme="air">
+  <title>Observable notebook on the webrun platform</title>
+  <script id="1" type="text/markdown">
+    # Observable notebook on the webrun platform
+
+    An [Observable Notebook Kit](https://github.com/observablehq/notebook-kit) document, compiled
+    to a page inside a Durable Object. Its npm imports are served by the platform's module server.
+  </script>
+  <script id="2" type="module">
+    const count = view(Inputs.range([10, 200], {value: 60, step: 10, label: "points"}));
+  </script>
+  <script id="3" type="module">
+    import * as d3 from "npm:d3";
+
+    const points = d3.range(count).map((i) => ({x: i, y: Math.sin(i / 8) * 30 + d3.randomNormal(50, 4)()}));
+  </script>
+  <script id="4" type="module">
+    import * as Plot from "npm:@observablehq/plot";
+
+    display(Plot.plot({height: 260, marks: [Plot.dot(points, {x: "x", y: "y", fill: "steelblue"}), Plot.lineY(points, Plot.windowY(9, {x: "x", y: "y", stroke: "tomato"}))]}));
+  </script>
+  <script id="5" type="module">
+    display(html`<p id="summary">${count} points, mean y = ${d3.mean(points, (d) => d.y).toFixed(1)}</p>`);
+  </script>
+</notebook>

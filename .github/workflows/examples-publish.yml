@@ -1,0 +1,73 @@
+name: examples-publish
+
+# The browser examples as static sites on the httpeers host, one host each, since each one's
+# ServiceWorker takes its whole origin:
+#
+#   cellb-examples.httpeers.net   examples/landing: links to the two below
+#   cellb-emdash.httpeers.net     examples/emdash's static build (EmDash built by Astro on Node)
+#   cellb-astro.httpeers.net      examples/astro-in-browser's static build (Astro and EmDash built
+#                                 in the tab)
+#
+# Run by hand ("Run workflow", or `gh workflow run examples-publish.yml`). Each build is tested in
+# Chromium behind a plain file server before anything is published. The *.httpeers.net names need
+# nothing on the server (wildcard DNS and certificate); the HTTPEERS_S3_* key must be allowed to
+# write their prefixes (site/scripts/setup-publish-secrets.sh).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: examples-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: cellb.dev/examples
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: cellb.dev
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: cellb.dev/examples/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: cellb.dev/.nvmrc
+      - run: pnpm install --frozen-lockfile
+      - name: Chromium
+        run: pnpm --dir emdash exec playwright install --with-deps chromium
+
+      - name: EmDash's static build, tested
+        working-directory: cellb.dev/examples/emdash
+        run: pnpm test:browser
+      - name: The in-browser builder's static build, tested
+        working-directory: cellb.dev/examples/astro-in-browser
+        run: |
+          pnpm build:static
+          STATIC=1 pnpm exec playwright test test/browser/build-in-browser.spec.ts test/browser/emdash-in-browser.spec.ts
+
+      - name: Publish
+        env:
+          RCLONE_CONFIG_HTTPEERS_TYPE: s3
+          RCLONE_CONFIG_HTTPEERS_PROVIDER: Other
+          RCLONE_CONFIG_HTTPEERS_ENDPOINT: https://s3.httpeers.net
+          # Path-style addressing: virtual-host style would look up sites.s3.httpeers.net.
+          RCLONE_CONFIG_HTTPEERS_FORCE_PATH_STYLE: "true"
+          RCLONE_CONFIG_HTTPEERS_ACCESS_KEY_ID: ${{ secrets.HTTPEERS_S3_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_HTTPEERS_SECRET_ACCESS_KEY: ${{ secrets.HTTPEERS_S3_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq rclone >/dev/null
+          publish() { # <dir> <domain>: within the domain's own prefix, new files first, then removals
+            test -f "$1/index.html" || { echo "::error::$1/index.html is missing."; exit 1; }
+            rclone sync "$1" "httpeers:sites/$2" --checksum --stats-one-line -v
+            echo "::notice::Published https://$2 (the host may serve old files for up to 60 s)."
+          }
+          publish emdash/dist/static cellb-emdash.httpeers.net
+          publish astro-in-browser/dist/static cellb-astro.httpeers.net
+          publish landing cellb-examples.httpeers.net

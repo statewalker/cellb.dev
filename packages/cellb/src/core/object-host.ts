@@ -1,5 +1,5 @@
-import { sha256 } from "@noble/hashes/sha2";
-import { bytesToHex } from "@noble/hashes/utils";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import type {
   BackupInfo,
   CellBackup,
@@ -23,6 +23,63 @@ import { SqlStorage } from "./sql-storage.js";
 import { DurableObjectState } from "./state.js";
 import { DurableObjectStorage, SyncKvStorage } from "./storage.js";
 
+/**
+ * The request as the object sees it: its signal also aborts when the host closes (the runtime
+ * shuts down), as on Cloudflare when the client goes away; a long poll or an SSE stream that
+ * waits on it then ends instead of running on into a closed database.
+ *
+ * The request is not copied: its `signal` becomes a getter that builds the merged signal the
+ * first time it is read. Copying a Request and merging two signals cost about 7 µs a request, as
+ * much as a small handler's whole turn, and most handlers never read the signal. The request is
+ * the caller's own object (`runtime.fetch`) or a stub's fresh copy (a Durable Object's `fetch`);
+ * `cf` and the upgrade's `headers` that cellb sets on it stay as they are. A copy the handler
+ * makes itself (`new Request(req)`) takes the request's own signal, without the host's.
+ */
+export function closingWith(req: Request, closing: AbortSignal): Request {
+  if (closing.aborted) return req;
+  const own = signalOf(req);
+  let merged: AbortSignal | undefined;
+  try {
+    Object.defineProperty(req, "signal", {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        if (!merged) {
+          const before = own();
+          merged = before ? AbortSignal.any([before, closing]) : closing;
+        }
+        return merged;
+      },
+    });
+    return req;
+  } catch {
+    // A request whose `signal` cannot be redefined: a copy with the merged signal, as before.
+    const r = new Request(req, { signal: AbortSignal.any([req.signal, closing]) });
+    for (const k of ["cf", "headers"]) {
+      const d = Object.getOwnPropertyDescriptor(req, k);
+      if (d) Object.defineProperty(r, k, d);
+    }
+    return r;
+  }
+}
+
+/** Reads `req.signal` as it is now: a getter set by an earlier `closingWith`, or the Request's own. */
+function signalOf(req: Request): () => AbortSignal | undefined {
+  for (let o: object | null = req; o; o = Object.getPrototypeOf(o)) {
+    const d = Object.getOwnPropertyDescriptor(o, "signal");
+    if (d) return d.get ? () => d.get?.call(req) : () => d.value;
+  }
+  return () => undefined;
+}
+
+/** The object's host was closed for good: its storage and events fail with this. */
+export class ObjectClosedError extends Error {
+  override name = "ObjectClosedError";
+  constructor(cellKey: string) {
+    super(`Durable Object ${cellKey} was closed (its runtime shut down, or it moved or was reset)`);
+  }
+}
+
 export class BrokenObjectError extends Error {
   constructor(cause: unknown, reason = "its storage failed to commit durably") {
     const detail = cause instanceof Error ? `: ${cause.message}` : "";
@@ -44,6 +101,12 @@ export class ObjectHost {
   #db!: SyncSqlDriver;
   readonly #driver: SyncSqlDriver = new Proxy({} as SyncSqlDriver, {
     get: (_t, k) => {
+      // Closed for good (its runtime or shard shut down): code still running in the object
+      // learns why, instead of SQLite's "DB has been closed".
+      if (this.#closed && k !== "close")
+        return () => {
+          throw new ObjectClosedError(this.cellKey);
+        };
       const v = (this.#db as unknown as Record<PropertyKey, unknown>)[k];
       return typeof v === "function" ? v.bind(this.#db) : v;
     },
@@ -262,9 +325,11 @@ export class ObjectHost {
    * late — every queued continuation would see it open).
    */
   deliver<T>(fn: (instance: any, state: DurableObjectState) => T | Promise<T>): Promise<T> {
+    if (this.#closed) return Promise.reject(new ObjectClosedError(this.cellKey));
     if (this.broken) return Promise.reject(new BrokenObjectError(undefined));
     return new Promise<T>((resolve, reject) => {
       this.#queue.push(() => {
+        if (this.#closed) return reject(new ObjectClosedError(this.cellKey));
         if (this.broken)
           return reject(new BrokenObjectError(this.#brokenCause, "its initialization failed"));
         let started: Promise<T>;
@@ -277,6 +342,7 @@ export class ObjectHost {
         const done = () => {
           this.#active--;
           this.lastActive = Date.now();
+          if (!this.#active && !this.#queue.length) this.#notifyIdle();
         };
         started.then(
           (r) => {
@@ -342,11 +408,50 @@ export class ObjectHost {
     }
   }
 
+  /**
+   * Settles once no event is in flight or queued (a response body still streaming is not an
+   * event: its handler has returned). The runtime waits for it, within a grace period, before
+   * it closes the database on shutdown.
+   */
+  /** No event in flight or queued. */
+  get idle(): boolean {
+    return !this.#active && !this.#queue.length;
+  }
+  settled(): Promise<void> {
+    if (!this.#active && !this.#queue.length) return Promise.resolve();
+    return new Promise((resolve) => this.#idleWaiters.push(resolve));
+  }
+  #idleWaiters: (() => void)[] = [];
+  #notifyIdle(): void {
+    const waiters = this.#idleWaiters;
+    this.#idleWaiters = [];
+    for (const w of waiters) w();
+  }
+
+  /** Closed for good: storage calls throw ObjectClosedError. */
+  #closed = false;
+  readonly #closing = new AbortController();
+  /** Aborts when the host is shutting down: the signal of the requests it is handed. */
+  get closing(): AbortSignal {
+    return this.#closing.signal;
+  }
+  /** The first step of a shutdown: requests in flight see their signal abort. */
+  shutdown(): void {
+    if (this.#closing.signal.aborted) return;
+    this.#closing.abort(new ObjectClosedError(this.cellKey));
+    for (const facet of this.#facets) facet.shutdown();
+  }
+
   /** Settles once the cell lease is released (a store closed earlier would keep it held). */
   close(): Promise<void> {
+    this.shutdown();
+    this.#closed = true;
     for (const facet of this.#facets) void facet.close();
     this.#facets.clear();
     if (!this.#dbClosed) this.#db.close();
+    // Events still queued fail (each checks #closed first); nothing more runs here.
+    for (const queued of this.#queue.splice(0)) queued();
+    this.#notifyIdle();
     // Hand the cell over at once instead of letting the lease expire.
     const released = this.#release?.().catch(() => {});
     this.#release = undefined;
@@ -618,7 +723,7 @@ function createFacets(
         if (typeof fn !== "function") throw new TypeError(`${method} is not a function`);
         return fn.apply(obj, args);
       }),
-    fetch: (req) => h.deliver((obj) => obj.fetch(req)),
+    fetch: (req) => h.deliver((obj) => obj.fetch(closingWith(req, h.closing))),
     restart: () => h.restart(),
     delete: async () => {
       await h.deliver((_o, state) => state.storage.deleteAll());
@@ -626,8 +731,8 @@ function createFacets(
     },
   });
   /** A class of isolated loaded code: the facet's instance and SQLite live in the isolate. */
-  const isolated = (iso: IsolatedClass, cellKey: string): FacetTarget => {
-    const attached = iso.attach?.(cellKey, parent.epoch?.());
+  const isolated = (iso: IsolatedClass, cellKey: string, idName?: string): FacetTarget => {
+    const attached = iso.attach?.(cellKey, parent.epoch?.(), idName);
     const ready = async () => attached;
     return {
       call: async (method, args) => (await ready(), iso.call(cellKey, method, args)),
@@ -649,7 +754,12 @@ function createFacets(
         if (isClassHandle(info.class)) {
           const r = await info.class.resolve();
           if ("isolated" in r)
-            return isolated(r.isolated, `${parent.cellKey}/facets/${facetSegment(name)}`);
+            return isolated(
+              r.isolated,
+              `${parent.cellKey}/facets/${facetSegment(name)}`,
+              // The facet's own `ctx.id` (partyserver's `this.name` reads its name).
+              info.id instanceof DurableObjectIdClass ? info.id.name : undefined,
+            );
           ({ cls, env, props } = r);
         } else cls = info.class as DurableObjectClass;
         const id = info.id instanceof DurableObjectIdClass ? info.id : parent.id;

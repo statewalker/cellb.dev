@@ -42,6 +42,14 @@ const left = walk(dist).filter(
   (f) => f.endsWith(".js") && /new URL\(\s*"[^"]+\.ts"/.test(readFileSync(f, "utf8")),
 );
 if (left.length) throw new Error(`.ts URLs left in ${left.join(", ")}`);
+// Any other relative `.ts` path written as a string (e.g. in code generated for esbuild) names a
+// file that exists only in the sources: resolve such paths with ownModule() instead.
+const TS_PATH = /["'`]\.{1,2}\/[^"'`\n]*\.ts["'`]/;
+const tsPaths = walk(dist).filter(
+  (f) => f.endsWith(".js") && TS_PATH.test(readFileSync(f, "utf8")),
+);
+if (tsPaths.length)
+  throw new Error(`source-only .ts paths in ${tsPaths.map((f) => relative(root, f)).join(", ")}`);
 console.log(
   `dist/: ${walk(dist).filter((f) => f.endsWith(".js")).length} modules, ${rewritten} worker URL(s) rewritten`,
 );

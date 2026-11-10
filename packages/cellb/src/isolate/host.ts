@@ -22,8 +22,10 @@ export function isolatedModuleLoader(opts: {
   storage?: () => CellStorage | undefined;
   spawn(id: string): { port: PortLike; terminate(): void };
   prepare(id: string, code: WorkerCode): Promise<{ source?: string; url?: string }>;
-}): ModuleLoader {
-  return async (id: string, code: WorkerCode, logs?: LogSink) => {
+}): IsolatedModuleLoader {
+  // Every isolate this loader started: `close()` ends them (a project runtime's close does).
+  const isolates = new Set<{ terminate(): void; goAway?(): Promise<unknown> }>();
+  const load = async (id: string, code: WorkerCode, logs?: LogSink) => {
     // The env crosses as any call does: bindings and other stubs by reference.
     const env: Record<string, unknown> = { ...code.env };
     // The loaded code's global fetch(): blocked in the isolate, or sent back here to the Fetcher.
@@ -31,6 +33,10 @@ export function isolatedModuleLoader(opts: {
     const outbound = code.globalOutbound === null ? "blocked" : fetcher ? "fetcher" : undefined;
     const where = await opts.prepare(id, code);
     const isolate = opts.spawn(id);
+    const running: { terminate(): void; goAway?(): Promise<unknown> } = {
+      terminate: () => isolate.terminate(),
+    };
+    isolates.add(running);
     const { call, fetch } = await hostPort(
       isolate.port,
       async (m) => {
@@ -57,6 +63,9 @@ export function isolatedModuleLoader(opts: {
       },
       fetcher,
     );
+    // Before it ends, the isolate tells its sockets' clients it is going away (1001): their
+    // frames go straight to the isolate (protocol.ts), so only it can.
+    running.goAway = () => call({ type: "goAway" });
     const exports = await call<Record<string, string>>({
       type: "load",
       ...where,
@@ -92,8 +101,32 @@ export function isolatedModuleLoader(opts: {
         call({ type: "object", op: "call", className, cellKey, method, args }),
       restart: (cellKey) => call({ type: "object", op: "restart", className, cellKey }),
       delete: (cellKey) => call({ type: "object", op: "delete", className, cellKey }),
-      attach: (cellKey, epoch) => call({ type: "object", op: "attach", className, cellKey, epoch }),
+      attach: (cellKey, epoch, idName) =>
+        call({ type: "object", op: "attach", className, cellKey, epoch, idName }),
     });
     return module as Record<string, unknown>;
   };
+  return Object.assign(load, {
+    close(): Promise<void> {
+      const ending = [...isolates];
+      isolates.clear();
+      // Each isolate closes its sockets (1001), within a second; then it ends.
+      return Promise.all(
+        ending.map(async (isolate) => {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          await Promise.race([
+            isolate.goAway?.().catch(() => {}),
+            new Promise((r) => {
+              timer = setTimeout(r, 1_000);
+            }),
+          ]);
+          clearTimeout(timer);
+          isolate.terminate();
+        }),
+      ).then(() => {});
+    },
+  });
 }
+
+/** A Worker Loader's module loader whose isolates end with `close()`. */
+export type IsolatedModuleLoader = ModuleLoader & { close(): Promise<void> };

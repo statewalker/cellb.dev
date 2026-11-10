@@ -10,20 +10,16 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { transform } from "@astrojs/compiler-rs";
-import {
-  buildAstroApp,
-  cachedSource,
-  prefetch,
-  preloadVfs,
-  runAstroConfig,
-  Trace,
-} from "@statewalker/astro-builder";
 import { CELLS_GLOBALS_MODULE, cellbHostModule } from "@statewalker/cellb/host-modules";
 import { newNodeSqliteDb } from "@statewalker/db-sqlite-node";
 import { npmPackages } from "@statewalker/webrun-bundler";
 import { SqliteFilesApi } from "@statewalker/webrun-files-sqlite";
 import { npmRegistrySource } from "@statewalker/webrun-modules";
 import * as esbuild from "esbuild-wasm";
+import { buildAstroApp } from "../src/builder/build.ts";
+import { preloadVfs, runAstroConfig } from "../src/builder/integrations.ts";
+import { cachedSource, prefetch } from "../src/builder/package-cache.ts";
+import { Trace } from "../src/builder/trace.ts";
 import { appFiles } from "../test/load-app.ts";
 
 const app = process.argv[2] ?? "emdash";

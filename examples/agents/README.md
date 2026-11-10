@@ -1,49 +1,50 @@
 # @statewalker/agent-examples
 
-Coding-agent frameworks running in Durable Objects on cellb, each against a fake OpenAI-compatible
-model (`@statewalker/fake-openai`), so the whole thing runs offline once the packages are installed:
+Coding-agent frameworks running in Durable Objects on CellB. Each one talks to a fake
+OpenAI-compatible model (`@statewalker/fake-openai`), so everything runs offline once the packages
+are installed.
 
 | Example | Framework | What it shows |
 |---|---|---|
-| `pi/` | [pi](https://pi.dev)'s agent loop (`@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`) | a prompt runs a tool call and its follow-up; the transcript persists in the object's storage |
-| `opencode/` | opencode's workerd SDK (`@opencode-ai/sdk/workerd`) | celld's opencode example: the SDK boots on the object's SQLite, creates a session, and the model answers a prompt |
+| `pi/` | [pi](https://pi.dev)'s agent loop (`@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`) | a prompt runs a tool call and its follow-up, and the transcript persists in the object's storage |
+| `opencode/` | opencode's workerd SDK (`@opencode-ai/sdk/workerd`) | celld's opencode example, in which the SDK boots on the object's SQLite, creates a session, and the model answers a prompt |
 | `../flue` | Flue (`@flue/runtime`) | a whole Flue app, built for Cloudflare, on Node and in browsers |
 
-The package is private: it is a test of cellb, not a library.
+The package is private, since it is a test of CellB and not a library.
 
 ## Why it exists
 
-celld ships `pi` and `opencode` examples, but they need the network: `pi` depends on an unreleased
-preview build of the `agents` package and OpenRouter, `opencode` on a free model from opencode's own
-registry. These versions take the model from an endpoint named in the project's vars, which the
-tests point at the fake model, and they run on cellb as celld runs them.
+celld ships `pi` and `opencode` examples, but they need the network. `pi` depends on an unreleased
+preview build of the `agents` package and on OpenRouter, and `opencode` on a free model from
+opencode's own registry. The versions here take the model from an endpoint named in the project's
+vars, which the tests point at the fake model, and they run on CellB the way celld runs them.
 
 ## How to use it
 
 ```
-pnpm install            # at the repository root
+pnpm install            # in examples/ (their own workspace; cellb from npm)
 pnpm test               # in this directory: each example on cellb (Node), against the fake model
 ```
 
-To run one against a real endpoint, set its vars (`PI_BASE_URL`, `PI_MODEL`, `PI_API_KEY`;
+To run an example against a real endpoint, set its vars (`PI_BASE_URL`, `PI_MODEL`, `PI_API_KEY`;
 `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_API_KEY`) in `wrangler.jsonc` or `.dev.vars`, and
 start it with `celld dev pi` or load it with `loadNodeProject`. Against the fake model:
 
 ```sh
-node ../fake-openai/src/cli.ts 8787     # the vars' defaults point here
+node ../fake-openai/src/cli.ts 8787     # the default vars point here
 ```
 
 ## Examples
 
 What the tests prove:
 
-1. **pi**: `GET /?q=…` runs the agent: the model is offered the `where_am_i` tool and calls it, the
+1. **pi**: `GET /?q=…` runs the agent. The model is offered the `where_am_i` tool and calls it, the
    tool answers, and the second model call carries the result, which becomes the reply
    (`The tool said: a Durable Object on cellb`). A second prompt continues the same transcript,
    restored from storage.
 2. **opencode**: `GET /` runs celld's probe (`model.default`, `provider.list`, `health.get`,
-   `session.create`, `session.get`, `session.prompt`, `session.wait`, `message.list`); every step
-   succeeds and the reply is the fake model's answer to `hello world`, from provider `endpoint`,
+   `session.create`, `session.get`, `session.prompt`, `session.wait`, `message.list`). Every step
+   succeeds, and the reply is the fake model's answer to `hello world`, from provider `endpoint` and
    model `fake-model`.
 
 ## Internals
@@ -51,22 +52,23 @@ What the tests prove:
 ### Differences from celld's examples
 
 - **pi** uses pi's published packages instead of the `PiHarness` of `agents` pull request 2197
-  (only on pkg.pr.new, which may expire, and unreachable from some networks). The object holds a
-  pi `Agent` with one tool; the transcript is stored under the `messages` key.
-- **opencode** adds `config` to `OpenCodeWorkerd.create()`: a provider `endpoint`
+  (published only on pkg.pr.new, where it may expire, and unreachable from some networks). The
+  object holds a pi `Agent` with one tool, and the transcript is stored under the `messages` key.
+- **opencode** adds a `config` to `OpenCodeWorkerd.create()` with a provider `endpoint`
   (`@ai-sdk/openai-compatible` with `baseURL` from `OPENCODE_BASE_URL`) and `model:
   "endpoint/<OPENCODE_MODEL>"`. Everything else is celld's code.
 
 ### What surprised us
 
-- **The opencode SDK builds a Response from another** (`new Response(body, response)`). cellb's
-  `Response` lost the headers of such an init, so the SDK's client saw no `content-type` and failed
-  with `ClientError: UnsupportedContentType`; it now reads the init as Fetch does.
-- **Packages with only a `main` field did not resolve** in cellb's Node bundles (esbuild's neutral
-  platform has no main fields): opencode's dependencies (`@smithy/*`) failed to build. Node bundles
-  now resolve as `celld deploy` does: conditions `workerd`, `worker`, `browser`, then `module` and
-  `main`.
-- **The opencode bundle is large** (about 430,000 lines): its first load takes about half a minute.
+- **The opencode SDK builds a Response from another** (`new Response(body, response)`). CellB's
+  `Response` used to drop the headers of such an init, so the SDK's client saw no `content-type` and
+  failed with `ClientError: UnsupportedContentType`. It now reads the init as Fetch does.
+- **Packages with only a `main` field did not resolve** in CellB's Node bundles, because esbuild's
+  neutral platform has no main fields, so opencode's dependencies (`@smithy/*`) failed to build.
+  Node bundles now resolve the way `celld deploy` does: the conditions `workerd`, `worker` and
+  `browser`, then the `module` and `main` fields.
+- **The opencode bundle is large** (about 430,000 lines), so its first load takes about half a
+  minute.
 
 ### Dependencies
 

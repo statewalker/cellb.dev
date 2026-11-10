@@ -1,6 +1,6 @@
 {
   "name": "@statewalker/cellb",
-  "version": "0.1.0",
+  "version": "0.8.1",
   "description": "cellb: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers",
   "type": "module",
   "license": "MIT",
@@ -13,15 +13,22 @@
   "engines": {
     "node": ">=22.13"
   },
+  "bin": {
+    "cellb": "./bin/cellb.mjs"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./node": "./src/node.ts",
     "./browser": "./src/browser.ts",
+    "./tabs": "./src/tabs.ts",
+    "./site": "./src/site.ts",
+    "./bundle": "./src/bundle.ts",
     "./host-modules": "./src/project/host-modules.ts",
     "./isolate-worker": "./src/isolate/isolate-worker.ts"
   },
   "files": [
     "dist",
+    "bin",
     "vendor",
     "README.md",
     "LICENSE"
@@ -41,6 +48,18 @@
         "types": "./dist/browser.d.ts",
         "default": "./dist/browser.js"
       },
+      "./tabs": {
+        "types": "./dist/tabs.d.ts",
+        "default": "./dist/tabs.js"
+      },
+      "./site": {
+        "types": "./dist/site.d.ts",
+        "default": "./dist/site.js"
+      },
+      "./bundle": {
+        "types": "./dist/bundle.d.ts",
+        "default": "./dist/bundle.js"
+      },
       "./host-modules": {
         "types": "./dist/project/host-modules.d.ts",
         "default": "./dist/project/host-modules.js"
@@ -55,6 +74,8 @@
     "build": "node scripts/build.mjs",
     "prepack": "node scripts/build.mjs",
     "test": "vitest run",
+    "bench": "node scripts/build.mjs && node --expose-gc bench/node-bench.mjs",
+    "bench:browser": "PW_CHROMIUM=\"${PW_CHROMIUM:-$(node scripts/npm-chromium.mjs)}\" playwright test --config playwright.probes.config.ts --reporter=line bench",
     "test:unit": "vitest run test/",
     "test:e2e": "vitest run e2e/",
     "typecheck": "tsc --noEmit && tsc --noEmit -p e2e-browser/pages/tsconfig.json",
@@ -74,18 +95,16 @@
     "probes:node": "node --no-warnings probes/sqlite-lock.probe.mjs"
   },
   "dependencies": {
-    "@noble/hashes": "^1.8.0",
+    "@noble/hashes": "^2.4.0",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
     "@statewalker/webrun-files": "^0.10.0",
     "@statewalker/webrun-files-browser": "^0.10.0",
     "@statewalker/webrun-files-mem": "^0.10.0",
+    "@statewalker/webrun-files-node": "^0.10.3",
     "@statewalker/webrun-http-browser": "catalog:",
-    "@statewalker/webrun-http-streams": "^0.3.0",
-    "@statewalker/webrun-modules": "catalog:",
-    "@statewalker/webrun-rpc": "^0.5.0",
-    "@statewalker/webrun-site-builder": "catalog:",
-    "@statewalker/webrun-site-host": "catalog:",
-    "@statewalker/webrun-streams": "^0.2.0",
+    "@statewalker/webrun-http-streams": "^0.4.0",
+    "@statewalker/webrun-rpc": "^0.10.0",
+    "@statewalker/webrun-streams": "^0.2.3",
     "acorn": "^8.19.0",
     "assert": "^2.1.0",
     "buffer": "^6.0.3",
@@ -97,9 +116,25 @@
     "ws": "catalog:"
   },
   "peerDependencies": {
+    "@statewalker/webrun-bundler": "^0.1.1",
+    "@statewalker/webrun-modules": "catalog:",
+    "@statewalker/webrun-site-builder": "catalog:",
+    "@statewalker/webrun-site-host": "catalog:",
     "esbuild": ">=0.25"
   },
   "peerDependenciesMeta": {
+    "@statewalker/webrun-bundler": {
+      "optional": true
+    },
+    "@statewalker/webrun-modules": {
+      "optional": true
+    },
+    "@statewalker/webrun-site-builder": {
+      "optional": true
+    },
+    "@statewalker/webrun-site-host": {
+      "optional": true
+    },
     "esbuild": {
       "optional": true
     }
@@ -107,12 +142,18 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@sparticuz/chromium": "^153.0.0",
-    "@statewalker/webrun-http-browser": "^0.7.0",
+    "@statewalker/webrun-bundler": "^0.1.1",
+    "@statewalker/webrun-modules": "catalog:",
+    "@statewalker/webrun-site-builder": "catalog:",
+    "@statewalker/webrun-site-host": "catalog:",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "esbuild": "^0.28.0",
+    "esbuild-wasm": "0.28.2",
     "html-rewriter-wasm": "^0.4.1",
     "miniflare": "4.20260730.0",
+    "partyserver": "0.5.10",
+    "partywhen": "0.1.5",
     "sqlite-vec-wasm-demo": "0.1.6",
     "typescript": "catalog:",
     "vite": "catalog:",

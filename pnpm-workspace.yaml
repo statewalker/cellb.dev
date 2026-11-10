@@ -1,12 +1,11 @@
 packages:
   - "packages/*"
-  - "examples/*"
   - "site"
 
 catalog:
   "@changesets/cli": "^3.0.3"
-  "@biomejs/biome": 2.5.15
-  "@statewalker/webrun-http-browser": "^0.7.0"
+  "@biomejs/biome": 2.6.4
+  "@statewalker/webrun-http-browser": "^0.12.2"
   "@statewalker/webrun-modules": ^0.3.5
   "@statewalker/webrun-site-builder": "^0.2.0"
   "@statewalker/webrun-site-host": "^0.3.0"
@@ -17,3 +16,23 @@ catalog:
   vite: ^8.3.2
   vitest: ^5.0.3
   ws: ^8.22.0
+  # The platform packages (packages/platform*, esm-cdn, bundler, astro-builder, notebooks)
+  "@statewalker/webrun-bundler": ^0.1.1
+  "@statewalker/webrun-files": ^0.10.3
+  "@statewalker/webrun-files-mem": ^0.10.0
+  "@statewalker/webrun-files-node": ^0.10.3
+  "@statewalker/webrun-builder": ^0.2.1
+  "@statewalker/notebook-build": ^0.1.1
+  "@statewalker/notebook-site": ^0.1.2
+  "@astrojs/compiler-rs": 0.5.2
+  "@emnapi/core": 1.11.3
+  "@emnapi/runtime": 1.11.3
+  "@napi-rs/wasm-runtime": 1.2.6
+  cjs-module-lexer: ^2.2.1
+  esbuild: 0.28.2
+  esbuild-wasm: 0.28.2
+  lightningcss-wasm: ^1.33.0
+  linkedom: ^0.18.15
+  tsx: ^4.23.15
+  urlpattern-polyfill: ^10.1.0
+  wrangler: ^4.158.0

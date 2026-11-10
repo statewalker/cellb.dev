@@ -96,28 +96,19 @@ const STUBS: Record<string, string> = {
   "astro/config": `export const defineConfig = (c) => c; export const fontProviders = new Proxy({}, { get: () => () => ({}) }); export const passthroughImageService = () => ({ entrypoint: "astro/assets/services/noop" }); export const sharpImageService = passthroughImageService; export const envField = new Proxy({}, { get: () => (o) => o });`,
 };
 
-/** Bundles and evaluates `astro.config.mjs`, then runs its integrations' config hooks. */
-export async function runAstroConfig(opts: {
+/**
+ * `astro.config.mjs` bundled for a builder's realm: its integrations included, Vite and
+ * Cloudflare tooling stubbed, Node modules over the build-time VFS (`buildTimeNodeModule`).
+ */
+export async function bundleAstroConfig(opts: {
   esbuild: Esbuild;
   files: FilesApi;
   root: string;
   packages: PackageStore;
-  vfs: Map<string, Uint8Array>;
-  /** Evaluates an ES module's source (a Blob URL import in browsers, a data: URL on Node). */
-  evaluate: (code: string) => Promise<Record<string, unknown>>;
+  metaUrl?: string;
   log?: (m: string) => void;
   trace?: import("./trace.js").Trace;
-  /**
-   * The session driver the build supplies (`{ driver, options }`), set in the config before the
-   * integrations run, as an adapter's would be: EmDash checks for one in `config:setup`.
-   */
-  session?: { driver: string; options?: Record<string, unknown> };
-}): Promise<IntegrationResult> {
-  const g = globalThis as Record<string, unknown>;
-  g[VFS_GLOBAL] = opts.vfs;
-  g.process ??= { env: {} };
-  const proc = g.process as { env: Record<string, string>; cwd?: () => string };
-  proc.cwd = () => "/app";
+}): Promise<string> {
   const built = await bundle({
     esbuild: opts.esbuild,
     files: opts.files,
@@ -129,7 +120,7 @@ export async function runAstroConfig(opts: {
     modules: (spec) => STUBS[spec] ?? buildTimeNodeModule(spec),
     // The integration finds its own files from its module URL (`createRequire(import.meta.url)`).
     define: {
-      "import.meta.url": JSON.stringify("file:///node_modules/emdash/dist/astro/index.mjs"),
+      "import.meta.url": JSON.stringify(opts.metaUrl ?? "file:///app/astro.config.mjs"),
     },
     esbuildOptions: { mainFields: ["module", "main"] },
   });
@@ -139,7 +130,58 @@ export async function runAstroConfig(opts: {
     inputs: Object.keys(built.metafile.inputs).length,
     nodeShims: Object.keys(built.metafile.inputs).filter((i) => i.startsWith("webrun-virtual:")),
   });
-  const mod = await opts.evaluate(built.code);
+  return built.code;
+}
+
+/** Bundles and evaluates `astro.config.mjs`, then runs its integrations' config hooks. */
+export async function runAstroConfig(opts: {
+  esbuild: Esbuild;
+  files: FilesApi;
+  root: string;
+  packages: PackageStore;
+  vfs: Map<string, Uint8Array>;
+  /** Evaluates an ES module's source (a Blob URL import in browsers, a data: URL on Node). */
+  evaluate: (code: string) => Promise<Record<string, unknown>>;
+  /**
+   * The config module, already evaluated (`bundleAstroConfig` ran elsewhere and the module was
+   * loaded with the builder, as in a Worker Loader isolate): then nothing is evaluated here.
+   */
+  configModule?: Record<string, unknown> | (() => Promise<Record<string, unknown>>);
+  log?: (m: string) => void;
+  trace?: import("./trace.js").Trace;
+  /**
+   * The session driver the build supplies (`{ driver, options }`), set in the config before the
+   * integrations run, as an adapter's would be: EmDash checks for one in `config:setup`.
+   */
+  session?: { driver: string; options?: Record<string, unknown> };
+  /**
+   * `import.meta.url` in the bundled config and the integrations it loads (default: the config's
+   * own). An integration that finds its files relative to its module names its own entry here
+   * (EmDash: `file:///node_modules/emdash/dist/astro/index.mjs`).
+   */
+  metaUrl?: string;
+}): Promise<IntegrationResult> {
+  const g = globalThis as Record<string, unknown>;
+  g[VFS_GLOBAL] = opts.vfs;
+  g.process ??= { env: {} };
+  const proc = g.process as { env: Record<string, string>; cwd?: () => string };
+  proc.cwd = () => "/app";
+  // A config module given as a function is imported now, once the build-time VFS is in place.
+  const given =
+    typeof opts.configModule === "function" ? await opts.configModule() : opts.configModule;
+  const mod =
+    given ??
+    (await opts.evaluate(
+      await bundleAstroConfig({
+        esbuild: opts.esbuild,
+        files: opts.files,
+        root: opts.root,
+        packages: opts.packages,
+        metaUrl: opts.metaUrl,
+        log: opts.log,
+        trace: opts.trace,
+      }),
+    ));
   const userConfig = (mod.default ?? {}) as Record<string, unknown>;
 
   const result: IntegrationResult = {

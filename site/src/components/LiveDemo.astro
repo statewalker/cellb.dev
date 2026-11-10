@@ -3,116 +3,199 @@ import Icon from "./Icon.astro";
 import Badge from "./ui/Badge.astro";
 import Button from "./ui/Button.astro";
 import Card from "./ui/Card.astro";
+
+// The demo's Counter (src/demo/counter/project), run on cellb in this page's tabs (tabs.ts).
+const names = ["default", "alice", "bob"];
 ---
 
-<!--
-  A miniature of the cellb ownership model using only browser primitives:
-  the Web Locks API elects one owner tab for the cell, BroadcastChannel carries
-  requests from other tabs to the owner, and localStorage stands in for OPFS.
--->
-<Card class="overflow-hidden">
+<Card class="overflow-hidden" data-demo>
   <div class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
     <div class="flex items-center gap-2 font-mono text-sm">
       <span class="size-2 rounded-sm bg-primary"></span>
-      counter:<span class="text-primary">demo</span>
+      <span>demo/<span class="text-primary">counter</span></span>
     </div>
-    <Badge variant="outline" class="font-mono" data-demo-role>connecting…</Badge>
+    <Badge variant="outline" class="font-mono" data-demo-role>not started</Badge>
   </div>
-  <div class="grid gap-6 p-5 sm:grid-cols-[auto_1fr] sm:items-center">
-    <div class="text-center sm:text-left">
-      <p class="text-xs uppercase tracking-wider text-muted-foreground">value</p>
-      <p class="font-mono text-6xl font-semibold tabular-nums tracking-tight" data-demo-value>0</p>
+
+  <div class="space-y-4 p-5">
+    <div class="grid grid-cols-3 gap-3" data-demo-cells>
+      {names.map((name) => (
+        <button
+          type="button"
+          data-demo-send={name}
+          class="group rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50 disabled:pointer-events-none disabled:opacity-60"
+        >
+          <span class="block font-mono text-[11px] text-muted-foreground">getByName</span>
+          <span class="block truncate font-mono text-xs">"{name}"</span>
+          <span class="mt-1 block font-mono text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl" data-demo-n={name}>–</span>
+          <span class="mt-1 inline-flex items-center gap-1 text-xs text-primary">
+            <Icon name="plus" class="size-3" /> fetch
+          </span>
+        </button>
+      ))}
     </div>
-    <div class="space-y-3">
-      <div class="flex flex-wrap gap-2">
-        <Button data-demo-inc><Icon name="plus" /> Increment</Button>
-        <Button variant="outline" href="/#demo" target="_blank" rel="noopener">
-          Open another tab <Icon name="externalLink" />
-        </Button>
+
+    <form class="flex gap-2" data-demo-form>
+      <label class="sr-only" for="demo-name">Durable Object name</label>
+      <div class="flex h-9 min-w-0 flex-1 items-center rounded-md border bg-background px-3 font-mono text-sm focus-within:ring-2 focus-within:ring-ring/40">
+        <span class="text-muted-foreground">/?name=</span>
+        <input
+          id="demo-name"
+          name="name"
+          value="carol"
+          maxlength="40"
+          autocomplete="off"
+          spellcheck="false"
+          class="min-w-0 flex-1 bg-transparent outline-none"
+        />
       </div>
-      <p class="text-sm text-muted-foreground">
-        Every tab can increment. Only the <span class="text-foreground">owner</span> tab writes; the
-        others forward a request to it. Close the owner tab and another tab takes the lock and
-        continues from the stored value.
-      </p>
-    </div>
+      <Button type="submit" variant="outline" data-demo-submit>GET</Button>
+    </form>
+
+    <p class="text-sm text-muted-foreground">
+      Each name is its own Durable Object with its own SQLite database in OPFS, in one of the
+      project's shards. Open a{" "}
+      <a href="/#demo" target="_blank" rel="noopener" class="text-primary hover:underline">second tab</a>:
+      the tabs split the shards, either tab reaches every cell, and both show each answer. Close
+      one, and the other takes its shards over from the same files.
+    </p>
   </div>
+
   <div class="border-t bg-muted/40 px-5 py-3">
-    <ol class="max-h-28 space-y-1 overflow-y-auto font-mono text-[11px] text-muted-foreground" data-demo-log></ol>
+    <ol class="h-28 space-y-1 overflow-y-auto font-mono [overflow-wrap:anywhere] text-[11px] text-muted-foreground" data-demo-log>
+      <li>The worker starts when this section scrolls into view.</li>
+    </ol>
   </div>
 </Card>
 
 <script>
-  const KEY = "cellb-demo:counter";
-  const roleEl = document.querySelector<HTMLElement>("[data-demo-role]")!;
-  const valueEl = document.querySelector<HTMLElement>("[data-demo-value]")!;
-  const logEl = document.querySelector<HTMLElement>("[data-demo-log]")!;
-  const incBtn = document.querySelector<HTMLButtonElement>("[data-demo-inc]")!;
-  const tabId = Math.random().toString(36).slice(2, 6);
+  import { fetchCounter, joinCounter, SHARDS } from "../demo/counter/tabs";
 
-  const read = () => {
-    try {
-      return Number(localStorage.getItem(KEY) ?? 0);
-    } catch {
-      return 0;
-    }
-  };
-  const write = (n: number) => {
-    try {
-      localStorage.setItem(KEY, String(n));
-    } catch {}
-  };
-  const log = (msg: string) => {
+  const root = document.querySelector<HTMLElement>("[data-demo]")!;
+  const roleEl = root.querySelector<HTMLElement>("[data-demo-role]")!;
+  const logEl = root.querySelector<HTMLElement>("[data-demo-log]")!;
+  const form = root.querySelector<HTMLFormElement>("[data-demo-form]")!;
+  const input = form.querySelector<HTMLInputElement>("input")!;
+
+  const log = (msg: string, strong = false) => {
     const li = document.createElement("li");
-    li.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
+    li.textContent = msg;
+    if (strong) li.className = "text-foreground";
     logEl.prepend(li);
   };
+  const show = (name: string, n: number) => {
+    const el = root.querySelector<HTMLElement>(`[data-demo-n="${CSS.escape(name)}"]`);
+    if (!el || el.textContent === String(n)) return;
+    el.textContent = String(n);
+    el.animate([{ color: "var(--primary)" }, { color: "inherit" }], { duration: 600 });
+  };
 
-  let owner = false;
-  valueEl.textContent = String(read());
+  // The counter has one operation, and it adds one: a tab cannot read a count without
+  // changing it. Every change is an answer that some tab of this site receives, so the tabs keep
+  // the last answer for each name here, show it on load, and see each other's ("storage" event).
+  // v2: the demo's Counter keeps its count in SQL now; counts of the earlier demo are not shown.
+  const KEY = "cellb.dev:demo:counter:v2:";
+  const remember = (name: string, n: number) => {
+    try {
+      localStorage.setItem(KEY + name, String(n));
+    } catch {}
+  };
+  try {
+    for (const el of root.querySelectorAll<HTMLElement>("[data-demo-n]")) {
+      const n = localStorage.getItem(KEY + el.dataset.demoN);
+      if (n !== null) el.textContent = n;
+    }
+    addEventListener("storage", (e) => {
+      if (e.key?.startsWith(KEY) && e.newValue) show(e.key.slice(KEY.length), Number(e.newValue));
+    });
+  } catch {}
 
-  if (!("locks" in navigator) || !("BroadcastChannel" in window)) {
+  if (!("locks" in navigator) || !navigator.storage?.getDirectory || !("serviceWorker" in navigator)) {
     roleEl.textContent = "unsupported browser";
-    incBtn.disabled = true;
+    logEl.replaceChildren();
+    log("This browser lacks OPFS, Web Locks or ServiceWorkers, which cellb's browser host needs.");
   } else {
-    const channel = new BroadcastChannel("cellb-demo");
-
-    const apply = () => {
-      const next = read() + 1;
-      write(next);
-      valueEl.textContent = String(next);
-      channel.postMessage({ type: "value", value: next });
-      return next;
+    // Every answer, from any tab, is shown in every tab.
+    const peers = new BroadcastChannel("cellb.dev:demo:counter");
+    peers.onmessage = (e: MessageEvent<{ name: string; n: number; line: string }>) => {
+      show(e.data.name, e.data.n);
+      log(`${e.data.line}  (another tab)`);
     };
 
-    channel.onmessage = ({ data }) => {
-      if (data.type === "inc" && owner) {
-        const v = apply();
-        log(`owner applied increment from tab ${data.from} → ${v}`);
-      } else if (data.type === "value") {
-        valueEl.textContent = String(data.value);
+    let joined: ReturnType<typeof joinCounter> | undefined;
+    const join = () => {
+      if (joined) return joined;
+      logEl.replaceChildren();
+      roleEl.textContent = "joining…";
+      const t0 = performance.now();
+      let owned: number[] | undefined; // until the tabs have split the shards
+      const describe = async (tabs: Awaited<ReturnType<typeof joinCounter>>) => {
+        if (!owned) return;
+        const n = (await tabs.tabs()).length;
+        const runs = owned.length
+          ? `runs shard${owned.length > 1 ? "s" : ""} ${owned.join(", ")} of ${SHARDS}`
+          : `runs no shard`;
+        roleEl.textContent = `this tab ${runs} · ${n} tab${n > 1 ? "s" : ""}`;
+      };
+      joined = joinCounter((o) => {
+        owned = o;
+        log(`this tab now runs ${o.length ? `shard ${o.join(", ")}` : "no shard"} of ${SHARDS}`);
+        void joined?.then(describe);
+      });
+      joined.then(
+        (tabs) => {
+          log(`joined the project in ${Math.round(performance.now() - t0)} ms`);
+          // A tab that joins after every shard has its owner may get none, and no onChange.
+          setTimeout(() => {
+            owned ??= [];
+            void describe(tabs);
+          }, 1500);
+          setInterval(() => void describe(tabs), 2000); // tabs come and go
+        },
+        (err) => {
+          roleEl.textContent = "failed";
+          log(String(err?.message ?? err), true);
+        },
+      );
+      return joined;
+    };
+
+    const send = async (name: string) => {
+      await join();
+      const t = performance.now();
+      try {
+        const res = await fetchCounter(name);
+        const body = await res.text();
+        const line = `GET /?name=${name} → ${res.status} ${body}  ${(performance.now() - t).toFixed(1)} ms`;
+        log(line);
+        const n = (JSON.parse(body) as { n?: number }).n;
+        if (typeof n === "number") {
+          show(name, n);
+          remember(name, n);
+          peers.postMessage({ name, n, line });
+        }
+      } catch (err) {
+        log(`GET /?name=${name} failed: ${String(err)}`, true);
       }
     };
 
-    incBtn.addEventListener("click", () => {
-      if (owner) {
-        log(`local write → ${apply()}`);
-      } else {
-        channel.postMessage({ type: "inc", from: tabId });
-        log("forwarded increment to owner");
-      }
+    root.querySelectorAll<HTMLButtonElement>("[data-demo-send]").forEach((b) => {
+      b.addEventListener("click", () => void send(b.dataset.demoSend!));
+    });
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = input.value.trim();
+      if (name) void send(name);
     });
 
-    roleEl.textContent = `tab ${tabId} · follower`;
-    log(`tab ${tabId} waiting for cell lock`);
-    navigator.locks.request("cellb-demo:counter", () => {
-      owner = true;
-      valueEl.textContent = String(read());
-      roleEl.textContent = `tab ${tabId} · owner`;
-      roleEl.classList.add("border-primary/40", "text-primary");
-      log(`tab ${tabId} acquired lock, restored value ${read()}`);
-      // Hold the lock for the lifetime of the tab.
-      return new Promise(() => {});
-    });
+    new IntersectionObserver(
+      (entries, obs) => {
+        if (entries.some((x) => x.isIntersecting)) {
+          obs.disconnect();
+          void join();
+        }
+      },
+      { rootMargin: "300px" },
+    ).observe(root);
   }
 </script>

@@ -16,7 +16,12 @@ import type { ExecutionContext } from "./durable-object.js";
 import { ctxExports, type DurableObjectClass, storedExports } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
 import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./namespace.js";
-import { CellOwnedElsewhereError, ObjectHost } from "./object-host.js";
+import {
+  CellOwnedElsewhereError,
+  closingWith,
+  ObjectClosedError,
+  ObjectHost,
+} from "./object-host.js";
 import { installRequestBody } from "./request-body.js";
 import { type RejectionHandler, rejectionScope, reportToStderr } from "./worker-rejections.js";
 
@@ -51,6 +56,11 @@ export interface CellRuntimeOptions {
   wakePollMs?: number;
   /** Every object of this runtime is a facet of an outer cell (an isolate's runtime). */
   facets?: boolean;
+  /**
+   * The `ctx.id` an object sees, when it is not the id that addresses it (a facet given an `id`
+   * by `ctx.facets.get`): its storage, cell key and alarms stay the addressing id's.
+   */
+  ctxIdOf?: (cellKey: string) => DurableObjectId | undefined;
   /** The Worker script's name (wrangler `name`): object ids derive from it, as on celld. */
   scriptName?: string;
   /** Namespace keys overriding the script-scoped default, per class (celld's fleet-wide ones). */
@@ -82,6 +92,11 @@ export interface CellRuntimeOptions {
    * restores the cell (a log or a backup).
    */
   closeDatabaseAfterMs?: number;
+  /**
+   * On `close()`, how long (ms) events still running and `waitUntil` work may take to finish
+   * before the databases close under them (they then fail with ObjectClosedError). Default 2000.
+   */
+  closeGraceMs?: number;
   /** SQLite extensions loaded into every cell database (celld's `sqlite_vec` flag). */
   sqlExtensions?: string[];
   /** `delete_all_preserves_alarm`: storage.deleteAll() keeps the alarm (default: deletes it). */
@@ -241,12 +256,15 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       throw new Error(`Durable Object class "${className}" is not exported by the worker`);
     const hostFor = (id: DurableObjectId): ObjectHost => {
       const cellKey = `${className}/${id.toString()}`;
+      // Once close() has closed the cells, none opens again: its storage is closed or handed to
+      // the next runtime. Until then (the grace period), work in flight still reaches objects.
+      if (cellsClosed) throw new ObjectClosedError(cellKey);
       let h = hosts.get(cellKey);
       if (!h || h.broken) {
         h?.close();
         h = new ObjectHost({
           cellKey,
-          id,
+          id: opts.ctxIdOf?.(cellKey) ?? id,
           cls,
           env,
           openSql: opts.openSql,
@@ -380,6 +398,10 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     );
   let timer: unknown;
   let closed = false;
+  /** Set by close() after its grace period: no cell opens or takes an event any more. */
+  let cellsClosed = false;
+  /** Aborts when close() starts: the signal of the Worker's requests in flight. */
+  const closing = new AbortController();
   const schedule = () => {
     if (!backup || closed) return;
     timer = clock.setTimeout(() => {
@@ -436,6 +458,36 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       alarms.stop();
       clock.clearTimeout(timer);
       timer = undefined;
+      // Events in flight (a conversation's last writes, say) and waitUntil work finish first,
+      // within the grace period: their writes are then in the final backups too.
+      const grace = opts.closeGraceMs ?? 2_000;
+      // Requests in flight, the Worker's and its objects', see their signal abort.
+      closing.abort(new Error("the runtime is closing"));
+      for (const h of hosts.values()) h.shutdown();
+      // Work in flight may start more (a queue's delivery calls the consumer, which writes to
+      // another object): wait until nothing runs, nor started while waiting, or the grace ends.
+      const end = Date.now() + grace;
+      for (let left = grace; left > 0; left = end - Date.now()) {
+        const cells = hosts.size;
+        let t: ReturnType<typeof setTimeout> | undefined;
+        const idle = await Promise.race([
+          Promise.all([...[...hosts.values()].map((h) => h.settled()), ...[...background]]).then(
+            () => true,
+          ),
+          new Promise<false>((r) => (t = setTimeout(() => r(false), left))),
+        ]);
+        clearTimeout(t);
+        if (!idle) break;
+        // One more turn: what finished may have queued more work.
+        await new Promise((r) => setTimeout(r, 0));
+        if (
+          hosts.size === cells &&
+          background.size === 0 &&
+          [...hosts.values()].every((h) => h.idle)
+        )
+          break;
+      }
+      cellsClosed = true;
       await backupAll("close");
       // The releases reach the store before it closes.
       await Promise.all([...hosts.values()].map((h) => h.close()));
@@ -446,6 +498,10 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     async fetch(req) {
       const handler = opts.worker.default?.fetch;
       if (!handler) return new Response("Worker has no fetch handler", { status: 500 });
+      // A closed runtime serves nothing: its cells are closed, or another runtime's now.
+      if (closed) return new Response("cellb: the runtime is closed", { status: 503 });
+      // Its signal aborts when the runtime closes: a long poll or an SSE stream ends then.
+      req = closingWith(req, closing.signal);
       const ctx = {
         waitUntil,
         passThroughOnException() {},

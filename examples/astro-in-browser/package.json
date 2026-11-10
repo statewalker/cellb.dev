@@ -1,7 +1,7 @@
 {
   "name": "@statewalker/astro-in-browser-example",
   "version": "0.0.1",
-  "description": "An Astro SSR app built in the browser (@statewalker/astro-builder: webrun-bundler + esbuild-wasm + Astro's compiler) and run on cellb",
+  "description": "An Astro SSR app built in the browser (webrun-bundler + esbuild-wasm + @astrojs/compiler) and run on cellb",
   "type": "module",
   "private": true,
   "license": "MIT",
@@ -9,14 +9,16 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "dev:browser": "vite browser --config browser/vite.config.ts",
+    "build:static": "node scripts/build-static.mjs",
+    "serve:static": "python3 -m http.server 8080 --bind 127.0.0.1 --directory dist/static",
     "trace": "tsx scripts/trace-build.mts"
   },
   "dependencies": {
-    "@statewalker/astro-builder": "workspace:*",
     "@astrojs/compiler": "4.0.0",
-    "@statewalker/webrun-bundler": "link:../../../webrun-sites/packages/webrun-bundler",
+    "@statewalker/webrun-bundler": "^0.1.1",
     "@statewalker/webrun-files-mem": "^0.10.0",
     "esbuild-wasm": "0.28.2",
+    "@napi-rs/wasm-runtime": "1.2.6",
     "@statewalker/webrun-modules": "0.3.6",
     "@statewalker/webrun-files-sqlite": "0.11.0",
     "@statewalker/db-sqlite-browser": "0.2.1"
@@ -25,7 +27,7 @@
     "@playwright/test": "^1.63.0",
     "@sparticuz/chromium": "^153.0.0",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
-    "@statewalker/cellb": "workspace:*",
+    "@statewalker/cellb": "~0.5.0",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

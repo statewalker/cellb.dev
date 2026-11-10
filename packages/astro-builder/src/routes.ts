@@ -138,7 +138,11 @@ export function routeFromPattern(pattern: string, component: string): RouteData 
 export function sortRoutes(routes: RouteData[]): RouteData[] {
   const weight = (r: RouteData) =>
     r.segments.flat().reduce((w, p) => w + (p.spread ? 100 : p.dynamic ? 10 : 0), 0);
+  // A route with a rest parameter matches paths a shorter route names (`/[...rest]` matches `/`):
+  // as in Astro, every route without one comes first.
+  const spread = (r: RouteData) => r.segments.some((seg) => seg.some((p) => p.spread));
   return routes.sort((a, b) => {
+    if (spread(a) !== spread(b)) return spread(a) ? 1 : -1;
     const n = Math.min(a.segments.length, b.segments.length);
     for (let i = 0; i < n; i++) {
       const wa = a.segments[i].reduce((w, p) => w + (p.spread ? 100 : p.dynamic ? 10 : 0), 0);

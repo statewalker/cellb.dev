@@ -5,10 +5,13 @@
   "type": "module",
   "private": true,
   "license": "MIT",
+  "engines": {
+    "node": ">=22.23.4"
+  },
   "scripts": {
     "build": "astro build && node scripts/apply-assetsignore.mjs",
     "build:browser": "pnpm run build && tsx scripts/bundle-browser.ts",
-    "dev:browser": "vite browser --config browser/vite.config.ts",
+    "dev:browser": "pnpm run build:browser && vite build --config browser/vite.sw.config.ts && vite browser --config browser/vite.config.ts",
     "test": "pnpm run build && vitest run",
     "test:browser": "pnpm run build:static && playwright test --config playwright.static.config.ts",
     "build:static": "pnpm run build:browser && node scripts/build-static.mjs",
@@ -27,7 +30,7 @@
     "@playwright/test": "^1.63.0",
     "@sparticuz/chromium": "^153.0.0",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
-    "@statewalker/cellb": "workspace:*",
+    "@statewalker/cellb": "~0.5.0",
     "@statewalker/webrun-files-mem": "^0.10.0",
     "@types/node": "catalog:",
     "esbuild": "0.28.2",

@@ -1,6 +1,5 @@
 import { join } from "node:path";
-import { loadNodeProject, nodeSqliteOpener } from "@statewalker/cellb/node";
-import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import { loadProject } from "@statewalker/cellb/node";
 import { expect, it } from "vitest";
 
 // The EmDash site as `astro build` emits it (Astro's Cloudflare adapter), on cellb in Node:
@@ -13,10 +12,7 @@ it("serves the EmDash site: setup applies the seed, the pages render the posts",
   // On Cloudflare the canonical URL comes from `vars` through process.env (nodejs_compat); a
   // Node host shares its process with the Worker, so it is set here.
   process.env.EMDASH_SITE_URL = origin;
-  const { runtime, unsupported } = await loadNodeProject(built, {
-    openSql: nodeSqliteOpener(),
-    files: new MemFilesApi(),
-  });
+  const { runtime, unsupported } = await loadProject(built);
   try {
     expect(unsupported).toEqual([]);
     const get = (path: string) =>

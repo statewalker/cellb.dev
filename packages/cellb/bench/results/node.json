@@ -1,0 +1,94 @@
+{
+  "date": "2026-11-07",
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cpus": 4,
+    "memoryGB": 16,
+    "node": "v22.23.4",
+    "platform": "linux x64"
+  },
+  "stateless": {
+    "inProcess": {
+      "n": 50000,
+      "p50Ms": 0.014,
+      "p99Ms": 0.048,
+      "meanMs": 0.018,
+      "rps": 61630
+    },
+    "http": {
+      "n": 10000,
+      "p50Ms": 0.129,
+      "p99Ms": 0.576,
+      "meanMs": 0.163,
+      "rps": 16482,
+      "connections": 64
+    }
+  },
+  "wake": {
+    "databaseOpen": {
+      "hibernated": 1000,
+      "n": 1000,
+      "p50Ms": 0.166,
+      "p99Ms": 0.635,
+      "meanMs": 0.194
+    },
+    "databaseClosed": {
+      "hibernated": 1000,
+      "n": 1000,
+      "p50Ms": 1.659,
+      "p99Ms": 3.562,
+      "meanMs": 1.696
+    },
+    "inactiveFromBucket": {
+      "note": "in-memory bucket: cellb's own cost, no network",
+      "n": 200,
+      "p50Ms": 4.417,
+      "p99Ms": 10.323,
+      "meanMs": 4.649
+    }
+  },
+  "memory": {
+    "cells": 5000,
+    "rssPerCellMB": 0.162,
+    "heapPerCellMB": 0.005,
+    "residentCellsPer8GB": 40354
+  },
+  "durable": {
+    "bucketRtt0msImageDiff": {
+      "n": 2000,
+      "p50Ms": 3.92,
+      "p99Ms": 8.58,
+      "meanMs": 4.151,
+      "parallel100CellsMs": 731.6
+    },
+    "bucketRtt0ms": {
+      "n": 2000,
+      "p50Ms": 0.749,
+      "p99Ms": 2.88,
+      "meanMs": 0.832,
+      "parallel100CellsMs": 958.9
+    },
+    "bucketRtt20ms": {
+      "n": 100,
+      "p50Ms": 21.519,
+      "p99Ms": 24.7,
+      "meanMs": 21.658,
+      "parallel100CellsMs": 1052.4
+    },
+    "bucketRtt90ms": {
+      "n": 100,
+      "p50Ms": 92.067,
+      "p99Ms": 95.074,
+      "meanMs": 92.087,
+      "parallel100CellsMs": 1399.1
+    }
+  },
+  "failover": {
+    "leaseTtlMs": 10000,
+    "acknowledged": 300,
+    "recovered": 300,
+    "lostAcknowledged": 0,
+    "refusedWhileLeaseLive": 87,
+    "failoverMs": 9038
+  }
+}

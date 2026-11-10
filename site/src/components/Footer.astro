@@ -1,5 +1,6 @@
 ---
-import { CELLD, REPO, repoDoc } from "@/lib/site";
+import { docHref } from "@/lib/docs";
+import { CELLD, REPO } from "@/lib/site";
 import Logo from "./Logo.astro";
 ---
 
@@ -8,7 +9,7 @@ import Logo from "./Logo.astro";
     <div class="space-y-3">
       <Logo />
       <p class="max-w-xs text-sm text-muted-foreground">
-        Isomorphic Durable Objects for the browser, the server and the cloud. A sibling of
+        Isomorphic Durable Objects for the browser, the server and the cloud. A sibling of{" "}
         <a href={CELLD} class="text-foreground underline-offset-4 hover:underline">celld</a>.
       </p>
     </div>
@@ -25,7 +26,7 @@ import Logo from "./Logo.astro";
       <p class="font-medium">Project</p>
       <ul class="space-y-1.5 text-muted-foreground">
         <li><a href={REPO} class="hover:text-foreground">GitHub</a></li>
-        <li><a href={repoDoc("gaps.md")} class="hover:text-foreground">Known gaps</a></li>
+        <li><a href={docHref("packages/cellb/docs/gaps.md")} class="hover:text-foreground">Known gaps</a></li>
         <li><a href={CELLD} class="hover:text-foreground">celld.dev</a></li>
       </ul>
     </div>

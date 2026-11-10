@@ -1,8 +1,7 @@
 {
-  "name": "@statewalker/astro-builder",
+  "name": "@statewalker/cellb-astro-builder",
   "version": "0.0.0",
   "private": true,
-  "description": "An Astro SSR build (Astro's compiler + esbuild-wasm over a FilesApi) that runs in a browser, a worker or Node, producing one Worker module and its client assets",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -10,32 +9,37 @@
     "url": "git+https://github.com/statewalker/cellb.dev.git",
     "directory": "packages/astro-builder"
   },
-  "homepage": "https://github.com/statewalker/cellb.dev/tree/main/packages/astro-builder#readme",
+  "description": "Astro projects built from their sources, without Vite (a port of examples/astro-in-browser's builder): in a Durable Object, a Worker Loader isolate, a browser worker or Node.",
   "exports": {
-    ".": "./src/index.ts",
-    "./browser": "./src/browser.ts"
+    "./project": "./src/project.ts",
+    "./build": "./src/build.ts",
+    "./compiler": "./src/compiler.ts",
+    "./loader": "./src/loader.ts",
+    "./loaded-builder": "./src/loaded-builder.ts",
+    "./astro-plugin": "./src/astro-plugin.ts",
+    "./integrations": "./src/integrations.ts",
+    "./routes": "./src/routes.ts",
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "test": "vitest run",
-    "test:unit": "vitest run test/routes.test.ts",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@napi-rs/wasm-runtime": "1.2.6",
-    "@statewalker/webrun-bundler": "link:../../../webrun-sites/packages/webrun-bundler",
-    "@statewalker/webrun-files": "^0.10.0",
-    "@statewalker/webrun-modules": "0.3.6"
-  },
-  "peerDependencies": {
-    "esbuild-wasm": ">=0.28.2"
+    "@statewalker/cellb-platform-core": "workspace:*",
+    "@statewalker/webrun-bundler": "catalog:",
+    "@statewalker/webrun-files": "catalog:",
+    "@statewalker/webrun-files-mem": "catalog:",
+    "@statewalker/webrun-modules": "catalog:",
+    "esbuild-wasm": "catalog:",
+    "@napi-rs/wasm-runtime": "catalog:",
+    "@emnapi/core": "catalog:",
+    "@emnapi/runtime": "catalog:"
   },
   "devDependencies": {
-    "@astrojs/compiler-rs": "0.5.2",
-    "@statewalker/cellb": "workspace:*",
-    "@statewalker/webrun-files-mem": "^0.10.0",
     "@types/node": "catalog:",
-    "esbuild-wasm": "0.28.2",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@astrojs/compiler-rs": "catalog:"
   }
 }

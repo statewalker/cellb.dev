@@ -16,8 +16,8 @@ function assetPaths(dir = join(dist, "client")): string[] {
 
 /**
  * The built app, for the host page: its wrangler.json (`/__cellb/app/config.json`), its browser
- * bundle (`/__cellb/app/worker.js`), the list of its static assets (`/__cellb/app/assets.json`)
- * and the assets themselves (`/__cellb/app/assets/<path>`).
+ * bundle (`/__cellb/app/worker.js`), the list of its static assets (`/__cellb/app/assets.json`),
+ * the assets themselves (`/__cellb/app/assets/<path>`), and the ServiceWorker (`/cellb-sw.js`).
  */
 function builtApp(): Plugin {
   return {
@@ -48,6 +48,17 @@ function builtApp(): Plugin {
           );
         next();
       });
+      // The ServiceWorker, built by `vite build --config browser/vite.sw.config.ts`.
+      server.middlewares.use("/cellb-sw.js", (_req, res) => {
+        const file = join(dist, "static/cellb-sw.js");
+        if (!existsSync(file)) {
+          res.statusCode = 404;
+          return res.end("static/cellb-sw.js is missing: run `pnpm dev:browser`");
+        }
+        res.setHeader("content-type", "text/javascript");
+        res.setHeader("cache-control", "no-store");
+        res.end(readFileSync(file));
+      });
     },
   };
 }
@@ -61,7 +72,7 @@ export default defineConfig({
   // sqlite-wasm must not be pre-bundled (it locates its .wasm next to its module).
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm"],
-    entries: ["index.html", "host.ts", "shard-worker.ts", "sw.ts"],
+    entries: ["index.html", "host.ts", "shard-worker.ts"],
   },
   worker: { format: "es" },
   // `vite build`: the host page and its shard worker under dist/static/__cellb/ (the base);
@@ -73,8 +84,6 @@ export default defineConfig({
   },
   server: {
     strictPort: true,
-    // The ServiceWorker's script is under /__cellb/, its scope is the whole origin.
-    headers: { "Service-Worker-Allowed": "/" },
     fs: { allow: [searchForWorkspaceRoot(resolve(import.meta.dirname, ".."))] },
   },
 });

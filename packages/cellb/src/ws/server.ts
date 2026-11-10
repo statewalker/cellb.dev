@@ -1,88 +1,82 @@
-import { CellsCloseEvent, checkClose, type Frame, toFrameData } from "./frames.js";
-
-const kPort = Symbol("cellb.ws.port");
-/** Server ends accepted in this realm and not yet closed (see `CfWebSocket.goAway`). */
-const acceptedEnds = new Set<CfWebSocket>();
+import { ServerWebSocket } from "@statewalker/webrun-http-browser/sw";
+import { checkClose, type Frame } from "./frames.js";
 
 /**
- * Cloudflare Workers' server-side WebSocket (one end of a WebSocketPair):
- * events are delivered only after `accept()`; `send`/`close` as in workerd.
+ * Server ends of this realm that a client may be waiting on, not yet closed: the accepted ones,
+ * and those whose client end was handed over (see `CfWebSocket.goAway`).
+ */
+const serverEnds = new Set<CfWebSocket>();
+
+/** What `ServerWebSocket` keeps of the frames that reached an end before `accept()`. */
+type QueueOf = { _queue: Frame[] };
+
+/**
+ * Cloudflare Workers' server-side WebSocket (one end of a WebSocketPair), on
+ * webrun-http-browser's `ServerWebSocket` and its frames, with workerd's semantics:
+ *
+ * - events only after `accept()` (frames that arrive earlier wait), and either end may `send()`
+ *   before it (celld does; the frames wait in the port);
+ * - `close()` with no code sends 1005 and waits for the echo however long; the codes Worker code
+ *   may send are 1000 and 3000–4999; messages in flight when `close()` was called still arrive;
+ * - the heartbeat watch starts with the client's first ping and keeps that period: a pair's ends
+ *   used in one realm never ping, and a tab that closes turns hidden (announcing a longer period)
+ *   on its way out;
+ * - attachments, `peer`, `hibernatable`, and `goAway` for the server ends of this realm.
+ *
  * Hibernation (`ctx.acceptWebSocket`) is a later prototype.
  */
-export class CfWebSocket extends EventTarget {
+export class CfWebSocket extends ServerWebSocket {
   static readonly READY_STATE_CONNECTING = 0;
   static readonly READY_STATE_OPEN = 1;
   static readonly READY_STATE_CLOSING = 2;
   static readonly READY_STATE_CLOSED = 3;
-  readyState = 1;
-  url: string | null = null;
-
-  protocol: string | null = null;
   extensions: string | null = null;
-  #binaryType: "blob" | "arraybuffer" = "arraybuffer";
-  /** How binary messages arrive; other values are ignored, as in browsers. */
-  get binaryType(): "blob" | "arraybuffer" {
-    return this.#binaryType;
-  }
-  set binaryType(v: "blob" | "arraybuffer") {
-    if (v === "blob" || v === "arraybuffer") this.#binaryType = v;
-  }
-  [kPort]: MessagePort | undefined;
-  #accepted = false;
-  #queued: Frame[] = [];
   #attachment: unknown;
 
-  #lastPing = 0;
-  #watch: ReturnType<typeof setInterval> | undefined;
-
-  constructor(port: MessagePort) {
-    super();
-    this[kPort] = port;
-    port.onmessage = (e) => {
-      const f = e.data as Frame;
-      if (f.t === "p") return this.#ping(f.hb); // answered even before accept()
-      if (this.#accepted) this.#frame(f);
-      else this.#queued.push(f);
-    };
-  }
-
-  /** Heartbeat: answer the client's ping; close 1006 when pings stop for 3 periods. */
-  #ping(hb: number): void {
-    this.#lastPing = Date.now();
-    this[kPort]?.postMessage({ t: "q" } satisfies Frame);
-    if (this.#watch || !hb) return;
-    this.#watch = setInterval(() => {
-      if (this.readyState === 3) return clearInterval(this.#watch);
-      if (Date.now() - this.#lastPing > 3 * hb) this.#gone();
-    }, hb);
-  }
-
-  /** The client stopped pinging (tab closed, worker killed): abnormal closure. */
-  #gone(): void {
-    clearInterval(this.#watch);
-    if (this.readyState === 3) return;
-    this.readyState = 3;
-    acceptedEnds.delete(this);
-    this[kPort]?.close();
-    this.dispatchEvent(new CellsCloseEvent("close", { code: 1006, reason: "", wasClean: false }));
+  /** `queued`: frames the end received before `port` reached it, delivered first (a 101's). */
+  constructor(port: MessagePort, queued: Frame[] = []) {
+    super(port, {
+      watch: "first-ping",
+      heartbeatPeriod: "first",
+      sendBeforeAccept: true,
+      deliverWhileClosing: true,
+      defaultCloseCode: 1005,
+      closeTimeoutMs: Number.POSITIVE_INFINITY,
+    });
+    // workerd's server ends have no url or subprotocol of their own.
+    Object.defineProperty(this, "url", { value: null, writable: true, configurable: true });
+    Object.defineProperty(this, "protocol", { value: null, writable: true, configurable: true });
+    // Ahead of anything from the port, which reaches this end in a later task.
+    if (queued.length) (this as unknown as QueueOf)._queue.unshift(...queued);
   }
 
   /** The other end of the WebSocketPair (the runtime checks how the server end was accepted). */
   peer?: CfWebSocket;
   /** Accepted through ctx.acceptWebSocket() (hibernatable) rather than accept(). */
   hibernatable = false;
-  get accepted(): boolean {
-    return this.#accepted;
+
+  override accept(): void {
+    if (this.accepted) return;
+    try {
+      super.accept();
+    } catch {
+      throw new TypeError("This WebSocket end was handed to a client; it cannot be accepted.");
+    }
+    serverEnds.add(this);
   }
 
-  accept(): void {
-    if (this.#accepted) return;
-    if (!this[kPort])
-      throw new TypeError("This WebSocket end was handed to a client; it cannot be accepted.");
-    this.#accepted = true;
-    acceptedEnds.add(this);
-    this[kPort].start?.();
-    for (const f of this.#queued.splice(0)) this.#frame(f);
+  override send(data: string | ArrayBuffer | ArrayBufferView): void {
+    if (this.readyState !== 1) throw new TypeError("Can't call WebSocket send() after close().");
+    super.send(data);
+  }
+
+  protected override checkClose(code: number | undefined, reason: string | undefined): void {
+    checkClose(code, reason);
+  }
+
+  protected override _onClosed(): void {
+    serverEnds.delete(this);
+    super._onClosed();
   }
 
   serializeAttachment(v: unknown): void {
@@ -92,53 +86,19 @@ export class CfWebSocket extends EventTarget {
     return structuredClone(this.#attachment);
   }
 
-  #frame(f: Frame): void {
-    if (f.t === "m") {
-      const data = typeof f.d !== "string" && this.#binaryType === "blob" ? new Blob([f.d]) : f.d;
-      this.dispatchEvent(new MessageEvent("message", { data }));
-      this[kPort]?.postMessage({ t: "a" } satisfies Frame); // the sender's bufferedAmount drains
-      return;
-    }
-    if (f.t !== "c") return;
-    const wasOpen = this.readyState === 1;
-    if (wasOpen)
-      this[kPort]!.postMessage({ t: "c", code: f.code, reason: f.reason } satisfies Frame);
-    this.readyState = 3;
-    acceptedEnds.delete(this);
-    clearInterval(this.#watch);
-    this[kPort]!.close();
-    this.dispatchEvent(
-      new CellsCloseEvent("close", { code: f.code, reason: f.reason, wasClean: true }),
-    );
-  }
-
   /**
-   * Closes every server end accepted in this realm with 1001 (going away). A shard worker that
-   * hands its cells to another tab does it before it stops, so that clients reconnect at once
-   * instead of noticing through the heartbeat; Worker code cannot send 1001 itself (`close`).
+   * Closes every server end of this realm with 1001 (going away): the accepted ones, and those
+   * whose client end was handed over but which were never accepted. A shard worker that hands
+   * its cells to another tab does it before it stops, and an isolate before it is terminated,
+   * so that clients reconnect at once instead of noticing through the heartbeat; Worker code
+   * cannot send 1001 itself (`close`).
    */
   static goAway(reason = "moving to another worker"): void {
-    for (const ws of acceptedEnds) {
-      acceptedEnds.delete(ws);
+    for (const ws of serverEnds) {
+      serverEnds.delete(ws);
       if (ws.readyState >= 2) continue;
-      ws.readyState = 2;
-      ws[kPort]?.postMessage({ t: "c", code: 1001, reason } satisfies Frame);
+      ws._startClose(1001, reason);
     }
-  }
-
-  send(data: string | ArrayBuffer | ArrayBufferView): void {
-    // celld lets either end of a pair send before accept() (workerd refuses); frames wait in
-    // the port until the other end listens.
-    if (this.readyState !== 1) throw new TypeError("Can't call WebSocket send() after close().");
-    const d = toFrameData(data);
-    this[kPort]!.postMessage({ t: "m", d } satisfies Frame, typeof d === "string" ? [] : [d]);
-  }
-
-  close(code?: number, reason?: string): void {
-    checkClose(code, reason);
-    if (this.readyState >= 2) return;
-    this.readyState = 2;
-    this[kPort]!.postMessage({ t: "c", code: code ?? 1005, reason: reason ?? "" } satisfies Frame);
   }
 }
 
@@ -214,16 +174,43 @@ export class StandardWebSocketPair extends WebSocketPair {
 }
 
 /**
+ * Detaches the CLIENT end returned in a 101 response: its own port, and the frames the server
+ * sent before the response was handed over (partyserver greets in onConnect, before it returns
+ * the 101), which reached this end and wait in its queue. A holder that replays them
+ * (`new CfWebSocket(port, frames)`) needs no relay. Only when this end itself sent frames not
+ * yet acknowledged does `detach()` keep a relay (it absorbs their acknowledgements); the frames
+ * then travel through it.
+ */
+export function takeClientEnd(ws: CfWebSocket): { port: MessagePort; frames: Frame[] } {
+  const frames = ws.bufferedAmount === 0 ? (ws as unknown as QueueOf)._queue.splice(0) : [];
+  let port: MessagePort;
+  try {
+    port = ws.detach(); // with its queue emptied: the end's own port
+  } catch {
+    (ws as unknown as QueueOf)._queue.unshift(...frames);
+    throw new TypeError("WebSocket end already handed over");
+  }
+  // Its server end now has a client waiting, accepted or not: `goAway` must reach it.
+  const server = ws.peer;
+  if (server && server.readyState < 2) serverEnds.add(server);
+  return { port, frames };
+}
+
+/**
  * Detaches the transport of the CLIENT end returned in a 101 response, so the
- * runtime can hand the raw MessagePort to the real client (transferable).
+ * runtime can hand the raw MessagePort to the real client (transferable). Frames the server
+ * sent before the hand-over go to the new holder first, then the rest (ServerWebSocket.detach
+ * relays them).
  */
 export function takeClientPort(ws: CfWebSocket): MessagePort {
-  const port = ws[kPort];
-  if (!port) throw new TypeError("WebSocket end already handed over");
-  ws[kPort] = undefined;
-  port.onmessage = null;
-  ws.readyState = 3; // handed over: this end must not answer pings any more
-  return port;
+  try {
+    const port = ws.detach();
+    const server = ws.peer;
+    if (server && server.readyState < 2) serverEnds.add(server);
+    return port;
+  } catch {
+    throw new TypeError("WebSocket end already handed over");
+  }
 }
 
 /**

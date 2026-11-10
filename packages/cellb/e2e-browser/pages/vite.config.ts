@@ -1,6 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { defineConfig, searchForWorkspaceRoot } from "vite";
+import { defineConfig, type Plugin, searchForWorkspaceRoot } from "vite";
 
 /**
  * Directories the dev server may serve. pnpm keeps packages in the WORKSPACE root's
@@ -21,8 +21,36 @@ function allowedRoots(): string[] {
   return roots;
 }
 
+/**
+ * The labs (labs/*.html: cellb's storage internals, measured) need SharedArrayBuffer, so their
+ * pages and workers are cross-origin isolated; the other pages are not (opfs-sahpool needs no
+ * isolation, and some of them load cross-origin resources).
+ */
+const isolatedLabs: Plugin = {
+  name: "cellb-labs-isolation",
+  configureServer(server) {
+    // A lab's own files, and what its pages and workers load (SQLite's OPFS proxy worker, from
+    // node_modules, is requested by a lab worker: it must be isolated too).
+    const fromLab = (referer: string | undefined) => {
+      try {
+        return !!referer && new URL(referer).pathname.startsWith("/labs/");
+      } catch {
+        return false;
+      }
+    };
+    server.middlewares.use((req, res, next) => {
+      if (req.url?.startsWith("/labs/") || fromLab(req.headers.referer)) {
+        res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+        res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+      }
+      next();
+    });
+  },
+};
+
 export default defineConfig({
   root: import.meta.dirname,
+  plugins: [isolatedLabs],
   // sqlite-wasm must not be pre-bundled (it locates its .wasm next to its module).
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm", "sqlite-vec-wasm-demo"],
@@ -35,6 +63,8 @@ export default defineConfig({
       "@statewalker/webrun-files-mem",
       "@statewalker/webrun-site-host",
       "@statewalker/webrun-site-builder",
+      "@statewalker/webrun-bundler",
+      "esbuild-wasm",
       "assert",
       "buffer",
       "events",
@@ -61,6 +91,8 @@ export default defineConfig({
       "entry/index.html",
       "peers/index.html",
       "entry/entry-worker.ts",
+      "load-project/index.html",
+      "load-project/load-worker.ts",
       "shards/index.html",
       "shards/shard-worker.ts",
       "tabs/index.html",
@@ -94,5 +126,5 @@ export default defineConfig({
     },
   },
   preview: { strictPort: true },
-  // No COOP/COEP needed: opfs-sahpool works without SharedArrayBuffer.
+  // No COOP/COEP but for /labs/ (isolatedLabs): opfs-sahpool works without SharedArrayBuffer.
 });

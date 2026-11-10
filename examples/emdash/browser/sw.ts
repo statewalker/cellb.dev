@@ -2,7 +2,7 @@
 // The origin's router: every request outside /__cellb/ (the host page's own files) goes to the
 // EmDash project, navigations included, with its URL unchanged: EmDash builds absolute paths
 // (`/_emdash/…`), so it is served at the root, as on its own Cloudflare route.
-import { installProjectRouter } from "@statewalker/cellb/browser";
+import { installProjectRouter } from "@statewalker/cellb/tabs";
 
 declare const self: ServiceWorkerGlobalScope;
 self.addEventListener("install", () => void self.skipWaiting());

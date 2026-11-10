@@ -25,30 +25,22 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         working-directory: .
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/cellb-interop/bin
           key: interop-bin-celld-0.6.3-rustfs-1.0.3
       - run: pnpm run typecheck
-      - name: Node — a Flue agent app on cellb
-        run: pnpm --dir ../../examples/flue test
-      - name: Node — the fake OpenAI-compatible model
-        run: pnpm --dir ../../examples/fake-openai test
-      - name: Node — pi and opencode agents on cellb, against the fake model
-        run: pnpm --dir ../../examples/agents test
       - name: Node — celld conformance and interop
         run: pnpm run interop
       - run: pnpm exec playwright install --with-deps chromium
       - name: Chromium — browser hosts on the shared bucket
         run: pnpm run interop:browser
-      - name: Chromium — a Flue agent app on cellb in a browser
-        run: pnpm --dir ../../examples/flue test:browser
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: interop-logs
           path: |

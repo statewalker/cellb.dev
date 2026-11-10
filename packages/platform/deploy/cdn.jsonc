@@ -1,0 +1,22 @@
+{
+  // The ESM CDN app on its own: `node scripts/build.mjs src/entries/cdn.ts deploy/cdn.jsonc cdn`
+  "name": "webrun-cdn",
+  "main": "../src/entries/cdn.ts",
+  "compatibility_date": "2026-02-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      { "name": "REGISTRY", "class_name": "PackageRegistry" },
+      { "name": "CDN", "class_name": "ModuleHost" },
+      { "name": "PROJECTS", "class_name": "Project" },
+      { "name": "NOTEBOOKS", "class_name": "NotebookSite" }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["PackageRegistry", "ModuleHost", "Project", "NotebookSite"]
+    }
+  ],
+  "vars": { "PACKUMENT_TTL_S": "600" }
+}

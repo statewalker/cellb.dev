@@ -6,7 +6,7 @@ import { sahpoolOpener } from "../adapters/wasm-sqlite.js";
 import { browserModuleLoader, PROJECT_WORKERS_MODULE_SHIM } from "../project/browser-modules.js";
 import * as emailModule from "../project/cloudflare-email.js";
 import * as workersModule from "../project/cloudflare-workers.js";
-import { workersHostRegistry } from "../project/site.js";
+import { workersHostRegistry } from "../project/site-loader.js";
 import { realmWorkerScope } from "../project/worker-scope.js";
 import * as workersGlobals from "../project/workers-globals-module.js";
 import { serveIsolate } from "./isolate.js";
@@ -26,6 +26,17 @@ workersHostRegistry({
   ...workersGlobals,
   Request: workersGlobals.CellsRequest,
   Response: workersGlobals.CellsResponse,
+});
+
+// This worker is the loaded Worker's realm: its globals are the Workers ones (as on Node,
+// src/isolate/node-entry.ts). Loaded code reads them as free names (partyserver builds its
+// `new WebSocketPair()` and its 101 `Response` that way).
+Object.assign(globalThis, {
+  Request: workersGlobals.CellsRequest,
+  Response: workersGlobals.CellsResponse,
+  WebSocket: workersGlobals.WebSocket,
+  WebSocketPair: workersGlobals.WebSocketPair,
+  WebSocketRequestResponsePair: workersGlobals.WebSocketRequestResponsePair,
 });
 
 // The global console is left alone (the dev server's client logs here too): loaded modules

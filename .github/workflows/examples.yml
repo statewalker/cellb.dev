@@ -1,0 +1,101 @@
+name: examples
+
+# The examples (examples/: their own pnpm workspace and lockfile) as cellb's users run them:
+# on @statewalker/cellb from npm, at the range they pin.
+#
+# Run by hand only ("Run workflow", or `gh workflow run examples.yml`): they are whole
+# applications (EmDash built in a tab, Flue, pi, opencode) taking up to 45 minutes per job, so no
+# push or pull request waits on them. With `cellb: packed` they run instead on cellb as this
+# checkout would publish it: packages/cellb packed, and the tarball installed in place of the
+# release, which says whether the next release breaks an example.
+on:
+  workflow_dispatch:
+    inputs:
+      cellb:
+        description: "`released` (the examples' lockfile) or `packed` (packages/cellb of this ref)"
+        default: released
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.cellb || 'released' }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  example:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Node (fake-openai, Flue, pi and opencode, EmDash, the in-browser builder)
+            browser: false
+            run: |
+              pnpm --filter @statewalker/fake-openai test
+              pnpm --filter @statewalker/flue-example test
+              pnpm --filter @statewalker/agent-examples test
+              pnpm --filter @statewalker/emdash-example test
+              cd astro-in-browser
+              pnpm exec vitest run
+              pnpm exec tsx scripts/trace-build.mts emdash
+              pnpm exec tsx scripts/run-node.mts
+          - name: Chromium — Flue in tabs
+            browser: true
+            dir: flue
+            run: pnpm test:browser
+          - name: Chromium — EmDash's static build
+            browser: true
+            dir: emdash
+            run: pnpm test:browser
+          - name: Chromium — EmDash built in the tab (package store, cold and warm; in memory)
+            browser: true
+            dir: astro-in-browser
+            run: |
+              pnpm exec playwright test test/browser/pkgstore-probe.spec.ts test/browser/build-in-browser.spec.ts test/browser/cells-lab.spec.ts
+              pnpm exec playwright test test/browser/emdash-in-browser.spec.ts
+              EMDASH_STORE=0 pnpm exec playwright test test/browser/emdash-in-browser.spec.ts
+          - name: Chromium — EmDash's admin on the in-browser build (reload, two tabs)
+            browser: true
+            dir: astro-in-browser
+            run: pnpm exec playwright test test/browser/emdash-admin-in-browser.spec.ts
+    defaults:
+      run:
+        working-directory: cellb.dev/examples
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: cellb.dev
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: cellb.dev/examples/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: cellb.dev/.nvmrc
+      - name: Install (cellb as released)
+        if: (inputs.cellb || 'released') == 'released'
+        run: pnpm install --frozen-lockfile
+      - name: Install (cellb as this checkout would publish it)
+        if: inputs.cellb == 'packed'
+        run: |
+          pnpm --dir .. install --frozen-lockfile
+          pnpm --dir ../packages/cellb pack --pack-destination "$RUNNER_TEMP"
+          tarball=$(ls "$RUNNER_TEMP"/statewalker-cellb-*.tgz)
+          printf '\noverrides:\n  "@statewalker/cellb": "file:%s"\n' "$tarball" >> pnpm-workspace.yaml
+          pnpm install --no-frozen-lockfile
+          echo "cellb: $(node -p 'require("./emdash/node_modules/@statewalker/cellb/package.json").version') from $tarball"
+
+      - name: Chromium
+        if: matrix.browser
+        working-directory: cellb.dev/examples/${{ matrix.dir }}
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run
+        working-directory: cellb.dev/examples/${{ matrix.dir || '.' }}
+        run: ${{ matrix.run }}
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: examples-${{ strategy.job-index }}-${{ inputs.cellb || 'released' }}
+          path: |
+            cellb.dev/examples/*/test-results/
+            cellb.dev/examples/*/screenshots/

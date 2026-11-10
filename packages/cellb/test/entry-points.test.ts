@@ -38,6 +38,69 @@ test.each(["src/index.ts", "src/browser.ts", "src/isolate/isolate-worker.ts"])(
   },
 );
 
+// The in-browser site compiler (webrun-modules, and through it lightningcss-wasm and @jspm/core)
+// is an optional peer dependency, reached only through @statewalker/cellb/site: importing any
+// other entry point must not load it, or bundlers emit its 16 MB .wasm with every app.
+// The in-browser bundler (webrun-bundler, which loads webrun-modules) is reached only through
+// @statewalker/cellb/bundle, the same way (#72): `loadProject` takes a compiler, it never imports one.
+const SITE_COMPILER = [
+  "@statewalker/webrun-bundler",
+  "esbuild-wasm",
+  "@statewalker/webrun-modules",
+  "@statewalker/webrun-site-builder",
+  "@statewalker/webrun-site-host",
+  "lightningcss-wasm",
+];
+// What a bundler emits for `entry`: static imports and dynamic `import("…")`, which becomes a
+// chunk of its own (its .wasm included), followed through relative modules.
+const DYNAMIC = /\bimport\s*\(\s*["']([^"']+)["']/g;
+function bundledImports(entry: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const visit = (file: string) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const text = readFileSync(file, "utf8");
+    for (const re of [STATIC, DYNAMIC])
+      for (const [, spec] of text.matchAll(re)) {
+        if (!spec.startsWith(".")) {
+          out.push(spec);
+          continue;
+        }
+        const ts = resolve(dirname(file), spec.replace(/\.js$/, ".ts"));
+        const target = existsSync(ts) ? ts : resolve(dirname(file), spec);
+        if (existsSync(target)) visit(target);
+      }
+  };
+  visit(resolve(PKG, entry));
+  return out;
+}
+test.each([
+  "src/index.ts",
+  "src/browser.ts",
+  "src/node.ts",
+  "src/project/host-modules.ts",
+  "src/isolate/isolate-worker.ts",
+])("importing %s loads none of the in-browser site compiler", (entry) => {
+  expect(bundledImports(entry).filter((spec) => SITE_COMPILER.includes(spec))).toEqual([]);
+});
+
+test("@statewalker/cellb/site is where the site compiler is reached", () => {
+  expect(staticImports("src/site.ts").map(([spec]) => spec)).toContain(
+    "@statewalker/webrun-modules",
+  );
+});
+
+test("@statewalker/cellb/bundle is where the bundler is reached", () => {
+  expect(staticImports("src/bundle.ts").map(([spec]) => spec)).toContain(
+    "@statewalker/webrun-bundler",
+  );
+  // A bundle compiler loads no site compiler of its own (webrun-bundler brings what it needs).
+  expect(staticImports("src/bundle.ts").map(([spec]) => spec)).not.toContain(
+    "@statewalker/webrun-site-host",
+  );
+});
+
 class Counter extends DurableObject {
   increment(): number {
     const sql = this.ctx.storage.sql;

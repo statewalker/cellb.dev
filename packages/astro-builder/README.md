@@ -1,114 +1,81 @@
-# @statewalker/astro-builder
+# @statewalker/cellb-astro-builder
 
-An Astro SSR build that runs wherever esbuild-wasm runs: in a browser tab or worker, in a Durable
-Object, under Node. It reads an Astro project from a
-[`FilesApi`](https://www.npmjs.com/package/@statewalker/webrun-files). It takes `astro` and its
-dependencies from a `PackageStore` (the npm registry on demand, or a cache) and compiles `.astro`
-files with Astro's compiler. The output is **one Worker module** (`export default { fetch }`:
-Astro's `App`, the route manifest, every page) plus the client assets. cellb runs that module the
-same way in Node and in a browser.
+> Private, not published. Used by [`bundler`](../bundler) for projects with an `astro.config.*`.
 
-The package is private for now. It moved out of
-[`examples/astro-in-browser`](../../examples/astro-in-browser), which builds a small Astro app and
-EmDash with it. It is not published because it depends on `@statewalker/webrun-bundler` 0.1.1
-(`sourcemap: false`), which is not on npm yet.
+## What it is
 
-## Why it exists
+[`examples/astro-in-browser`](../../examples/astro-in-browser)'s builder, ported into a package.
+It turns an Astro project's sources into what Astro's Cloudflare build writes, without Vite or
+Node:
 
-Astro's own build is Vite under Node. A site whose sources live in the browser or in a Durable
-Object (a notebook site, a CMS a user edits in a tab) has no Node to run it. This package does the
-part of Astro's build an on-demand (`output: "server"`) site with a fetch-style adapter needs, on
-`webrun-bundler` and esbuild-wasm, with no file system other than a `FilesApi`.
+- `wrangler.json`, with `main` → `server/entry.mjs` and `assets` → `client`;
+- `server/entry.mjs`: one Worker module with Astro's `App`, the routes and every page;
+- `client/`: `public/` and the client bundles.
 
-## How to use
+It runs wherever esbuild runs: in a Durable Object, in a Worker Loader isolate, in a browser
+worker, on Node.
 
-```ts
-import { buildAstroApp, preloadVfs, runAstroConfig } from "@statewalker/astro-builder";
-import { loadAstroCompiler } from "@statewalker/astro-builder/browser"; // browsers only
-import { npmPackages } from "@statewalker/webrun-bundler";
-import * as esbuild from "esbuild-wasm";
+## Use cases
 
-await esbuild.initialize({ wasmURL }); // browsers; Node needs nothing
-const transform = await loadAstroCompiler(); // Node: `transform` of @astrojs/compiler-rs
+- **Astro sites built by the platform from their sources.** A small app takes about 6 seconds in
+  the bundler's object. EmDash (225 routes) takes about 35 seconds on the Node runner, or 90 to
+  145 seconds inside the object on hosts without the 128 MB limit.
+- **Astro in a browser tab.** The platform's tab builds an Astro app from its sources. The result
+  runs on CellB, and its islands hydrate.
 
-const built = await buildAstroApp({
-  esbuild,
-  transform,
-  files, // a FilesApi holding the project
-  root: "/site", // the project's directory in `files` (src/pages, package.json, …)
-  packages: npmPackages(),
-});
-// built.code: the Worker module; built.clientAssets: Map<URL path, bytes>; built.routes
-```
-
-Run the module on cellb (`loadNodeProject` in Node, a project shard in a browser) or on any
-Workers runtime that accepts an ES module with `nodejs_compat`.
-
-### A project with `astro.config.mjs` and integrations
-
-Run the configuration step first and pass what it registered:
-
-```ts
-const { vfs, mounts } = await preloadVfs(files, "/site", packages, [["astro"], ["emdash"]]);
-const integration = await runAstroConfig({ esbuild, files, root: "/site", packages, vfs, evaluate });
-const built = await buildAstroApp({ esbuild, transform, files, root: "/site", packages,
-  integration, nodeMounts: mounts, hostModules, inject, main: "src/worker.ts" });
-```
-
-`evaluate(code)` imports an ES module's source (a Blob URL in a browser, a `data:` URL under
-Node). `hostModules`/`inject` are the runtime's modules and globals (cellb's
-`cellbHostModule`/`CELLS_GLOBALS_MODULE` from `@statewalker/cellb/host-modules`). See
-`examples/astro-in-browser/browser/builder-worker.ts` for the full browser wiring.
-
-### Exports
+## API
 
 | Export | What it does |
 |---|---|
-| `buildAstroApp(options)` | The build: routes, middleware, virtual modules, styles, server bundle, client bundles. Returns `{ code, routes, components, clientAssets, inputs, ms }` |
-| `preloadVfs`, `runAstroConfig` | Astro's configuration step: evaluates `astro.config.mjs` and runs the integrations' `astro:config:setup` / `astro:config:done` hooks over a synchronous in-memory file system |
-| `cachedSource`, `prefetch`, `packOf`, `openPack`, `lockOf`, `subtree`, `BUILD_TOOLING` | A persistent package cache over any `FilesApi`, and parallel prefetch from the last build's lock |
-| `projectRoutes`, `routeFromPattern`, `sortRoutes` | Astro's routes of `src/pages` as serialized `RouteData` |
-| `compileAstro`, `clientPartsOf`, `astroModule`, `buildTimeNodeModule` | Lower-level pieces: one `.astro` compile, Astro's virtual modules, Node built-ins for build-time code |
-| `Trace`, `tracedPackages`, `resolutionTrace`, `inputsByPackage` | A step-by-step trace of a build |
-| `/browser`: `loadAstroCompiler()` | Astro's compiler as WebAssembly (`@astrojs/compiler-binding-wasm32-wasi` from the npm registry), in a cross-origin isolated realm |
+| `buildAstroProject({ files, esbuild, transform, packages, spec?, log?, configModule? })` (`./project`) | sources → `{ files, routes, ms }` (the files above) |
+| `isAstroProject(files)` | whether the project has an `astro.config.*` |
+| `astroInLoader({ loader, files, esbuild, packages, registryFetch, spec?, log? })` (`./loader`) | the same build, in a Worker Loader isolate |
+| `canEvaluate()` | whether this realm can evaluate a module from a string |
+| `loadAstroCompiler(wasm)`, `astroCompilerFromRegistry(fetch?)` (`./compiler`) | compiler-rs as WebAssembly: from a module or bytes, or from the package store |
+| `buildAstroApp(…)` (`./build`) | the builder's core: routes, manifest, server and client bundles |
+| `bundleAstroConfig(…)`, `runAstroConfig(…)` (`./integrations`) | the config bundled for a realm; its integrations' hooks run |
 
-## Examples
+`AstroSpec` fields:
 
-`test/build.test.ts` builds a project held in a `MemFilesApi` and runs it on cellb in Node. The
-project has a layout, a component with a scoped style, pages from a **live content collection**
-(content as data, read at request time), an inline module script and an endpoint. The test checks
-the rendered pages, the inlined style, a 404 from the page and the endpoint's JSON. It also checks
-that `<script type="module" is:inline>` reaches the page unchanged, which is how a notebook page
-carries its `define()` calls.
+| Field | Meaning |
+|---|---|
+| `preload` | packages build-time code reads from disk, `[name, importer?][]`. EmDash's is `[["emdash"], ["@emdash-cms/admin", "emdash"]]` |
+| `metaUrl` | `import.meta.url` of the bundled config |
+| `session` | Astro's session driver (default: Cloudflare KV on `SESSION`, as the adapter's) |
 
-## Internals
+## How it works
 
-- **One esbuild pass per bundle.** `.astro` files (the project's and the packages') are compiled
-  in an esbuild plugin (`astro-plugin.ts`). Astro's virtual modules come from `astro-modules.ts`,
-  and integrations' Vite plugins run through `vite-adapter.ts`. Package and project paths are
-  resolved by `paths-plugin.ts`, the rest by webrun-bundler.
-- **Styles are inlined per route.** Components' scoped and global styles, and imported `.css` with
-  relative `@import`s inlined, are collected per component and attached to the routes whose pages
-  import them.
-- **The adapter is the runtime.** `@astrojs/cloudflare` (and `@astrojs/react`'s build side) are
-  stubbed in the configuration step; the Worker module wraps Astro's `App` itself, or the
-  project's own entry when `main` is given.
+- **The config runs first.** `astro.config.mjs` is bundled with Vite and Cloudflare tooling
+  stubbed, and with Node modules over a synchronous virtual file system of the preloaded
+  packages. It is then evaluated, and its integrations' `astro:config:setup` and
+  `astro:config:done` hooks register:
+  - routes and middleware;
+  - Vite plugins, whose `resolveId`/`load` run inside esbuild;
+  - renderers.
+- **Where the config is evaluated.** workerd and celld refuse to evaluate code: no
+  `import("data:…")`, no `new Function`, no Blob URLs. There, `astroInLoader` runs the whole build
+  in a Worker Loader isolate:
+  - the builder (`./loaded-builder`, bundled and embedded by the platform's build), the bundled
+    config, `esbuild.wasm` and the compiler are its modules;
+  - the project's build-time code is imported statically, in an isolate of its own.
 
-## What will surprise you
+  CellB and browsers evaluate the config with a data: URL import.
+- **`.astro` with compiler-rs.** The compiler is its wasm32-wasi build, which needs a shared
+  WebAssembly memory. A browser tab must be cross-origin isolated (COOP/COEP). The native build is
+  used on Node. The compiler's `resolvePath` step, after the binding returns, is applied as
+  compiler-rs's own `transform` does, so a project's own island resolves at render.
+- **Bundles as Astro's Vite build makes them:**
+  - production `process.env.NODE_ENV`, so React's production build is bundled;
+  - the renderer's automatic JSX runtime;
+  - one React for the server and the islands, since peer dependencies take the project's
+    version.
+- **Routes as Astro ranks them.** Static before dynamic, and a rest route (`/[...rest]`) after
+  every route without one.
 
-- **No prerendering.** Every route renders on request; a static export crawls the running site
-  (`examples/astro-in-browser/browser/export-site.ts`).
-- **Pages are `.astro`, endpoints `.ts`/`.js`.** `.md`/`.mdx` pages are not compiled, and
-  `astro:content` supports live collections only (no build-time content layer).
-- **`astro:assets` uses the no-op image service**: images are not optimized.
-- **Astro's compiler in a browser needs cross-origin isolation** (COOP/COEP): its WebAssembly
-  module imports shared memory.
-- **Memory.** esbuild-wasm's memory grows during a bundle and is never returned; pass `release` to
-  restart it between the server and client bundles. EmDash's build peaks at about 2 GB in a tab.
-- **The versions are pinned together**: astro 7.4.4 and `@astrojs/compiler-rs` 0.5.2 (the wasm
-  binding `loadAstroCompiler` fetches). The builder re-implements parts of Astro's build that
-  Astro does not export, so a new Astro major release needs a port.
+It differs from the example in two ways. It builds for workerd, celld and CellB, not only for
+CellB's browser realm. And it fixes the island resolution, the JSX runtime, the production React
+build and the route order.
 
-## License
-
-MIT
+```sh
+pnpm --filter @statewalker/cellb-astro-builder test   # the WebAssembly compiler against the native one, routes
+```

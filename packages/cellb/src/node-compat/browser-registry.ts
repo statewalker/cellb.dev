@@ -3,6 +3,9 @@
 // An entry is the module's default export, carrying its named exports as properties: the
 // module server's proxy serves the entry itself as `default` (so `import assert from
 // "node:assert"` must be callable) and its keys as the named exports.
+// First: `util` reads `process` while it loads (util-guard.ts). A side-effect import is never
+// reordered, and the imports after it are evaluated after it.
+import "./util-guard.js";
 import assert from "assert";
 import { Buffer } from "buffer";
 import EventEmitter from "events";
@@ -15,6 +18,9 @@ import * as fs from "./fs.js";
 import nodeModule from "./module.js";
 import * as os from "./os.js";
 import { process } from "./process.js";
+import { releaseUtilGuard } from "./util-guard.js";
+
+releaseUtilGuard();
 
 const modules: Record<string, unknown> = {
   "node:assert": assert,

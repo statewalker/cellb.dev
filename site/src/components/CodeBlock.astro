@@ -12,7 +12,7 @@ interface Props {
 const { code, lang = "sh", title, class: className } = Astro.props;
 ---
 
-<div class:list={["group relative overflow-hidden rounded-xl border bg-code text-code-foreground", className]}>
+<div class:list={["code-window group relative flex flex-col overflow-hidden rounded-xl border bg-code text-code-foreground", className]}>
   {title && (
     <div class="flex items-center gap-2 border-b border-white/10 px-4 py-2 font-mono text-xs text-code-foreground/60">
       <span class="flex gap-1.5">
@@ -32,7 +32,7 @@ const { code, lang = "sh", title, class: className } = Astro.props;
     <Icon name="copy" class="size-4 copy-icon" />
     <Icon name="check" class="size-4 check-icon hidden" />
   </button>
-  <Code code={code} lang={lang as any} theme="github-dark-default" class="!bg-transparent px-4 py-4 text-[13px] leading-6 font-mono overflow-x-auto" />
+  <Code code={code} lang={lang as any} theme="github-dark-default" class="!bg-transparent px-4 py-4 text-[13px] leading-6 font-mono min-h-0 flex-1 overflow-auto" />
 </div>
 
 <script>

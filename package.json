@@ -18,6 +18,7 @@
   },
   "license": "MIT",
   "scripts": {
+    "build": "pnpm --filter \"./packages/*\" --filter \"!./packages/platform\" run build",
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
     "lint": "biome check --write .",

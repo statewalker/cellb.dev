@@ -13,6 +13,10 @@
  * relative `@import`s inlined) inlined per route, and the client: islands, renderers' client
  * entrypoints and component scripts, in bundles of their own. With `main`, the project's own
  * Worker entry (wrangler's `main`) wraps the app. It does not prerender pages.
+ *
+ * Ported from cellb.dev's examples/astro-in-browser (src/builder): there it builds for cellb's
+ * browser realm only (`hostModules`); here, without `hostModules`, `cloudflare:*` and `node:*`
+ * stay imports, so the Worker runs on workerd, celld and cellb alike.
  */
 
 import { bundle, type Esbuild, type Mount, type PackageStore } from "@statewalker/webrun-bundler";
@@ -260,7 +264,10 @@ export const inlinedScripts = g.inlinedScripts;`;
       },
       inject: opts.inject,
       // What Vite defines for a production server build (Astro and integrations read it).
+      // `process.env.NODE_ENV` too: without it React picks its development build, which calls
+      // `console.createTask()` (celld has none).
       define: {
+        "process.env.NODE_ENV": '"production"',
         "import.meta.env": JSON.stringify({
           MODE: "production",
           DEV: false,
@@ -272,6 +279,9 @@ export const inlinedScripts = g.inlinedScripts;`;
       },
       lowerAwait: !!opts.hostModules,
       esbuildOptions: {
+        // JSX as Astro's renderers compile it: the automatic runtime of the renderer's package.
+        jsx: "automatic",
+        jsxImportSource: jsxImportSource(integ?.renderers),
         // Minified (whitespace and syntax; names kept: Astro and React read function names):
         // a smaller module for the shard to parse and hold.
         minifyWhitespace: true,
@@ -285,7 +295,11 @@ export const inlinedScripts = g.inlinedScripts;`;
             mounts,
             components,
             clientAssets,
-            builtin: (n) => opts.hostModules?.(`node:${n}`),
+            // Bare Node built-in names: cellb's polyfill when building for its browser realm
+            // (`hostModules`), else the runtime's own `node:` module (workerd, celld, cellb Node).
+            builtin: (n) =>
+              opts.hostModules?.(`node:${n}`) ??
+              `export * from "node:${n}"; export { default } from "node:${n}";`,
             trace: opts.trace,
           }),
           vitePluginsAdapter(integ?.plugins ?? [], opts.trace),
@@ -449,7 +463,7 @@ async function buildClient(
     ...new Set(o.renderers.map((r) => r.clientEntrypoint).filter(Boolean)),
   ] as string[];
   const hash = async (b: Uint8Array) =>
-    [...new Uint8Array(await crypto.subtle.digest("SHA-1", b as Uint8Array<ArrayBuffer>))]
+    [...new Uint8Array(await crypto.subtle.digest("SHA-1", b as BufferSource))]
       .slice(0, 5)
       .map((x) => x.toString(16).padStart(2, "0"))
       .join("");
@@ -480,6 +494,8 @@ async function buildClient(
         }),
       },
       esbuildOptions: {
+        jsx: "automatic",
+        jsxImportSource: jsxImportSource(o.renderers as { name?: string }[]),
         minify: true,
         plugins: [
           pathsPlugin({
@@ -586,3 +602,10 @@ function stylesByPage(
 }
 
 const stripNs = (p: string) => p.replace(/^[a-z-]+:(?=~|npm:)/, "");
+
+/** The JSX runtime of a project's renderers (React's unless Preact's is there). */
+function jsxImportSource(renderers: { name?: string }[] | undefined): string {
+  const names = (renderers ?? []).map((r) => r.name ?? "");
+  if (names.includes("@astrojs/preact")) return "preact";
+  return "react";
+}
