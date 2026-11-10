@@ -40,6 +40,8 @@ export * from "./ports.js";
 export { parseJsonc } from "./project/jsonc.js";
 export {
   createProjectRuntime,
+  loadProjectBindings,
+  type ProjectBindings,
   type ProjectHost,
   type ProjectRuntime,
   type WranglerConfig,

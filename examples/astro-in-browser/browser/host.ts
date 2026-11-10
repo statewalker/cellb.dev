@@ -1,6 +1,6 @@
 // The host tab: makes this origin cross-origin isolated (through the ServiceWorker), builds the
 // app in a worker, and runs the built Worker on cellb (joinProjectShards).
-import { joinProjectShards } from "@statewalker/cellb/browser";
+import { joinProjectShards } from "@statewalker/cellb/tabs";
 import { pkgstoreConfig } from "../src/pkgstore/config.ts";
 import pkgstoreSource from "../src/pkgstore/worker.js?raw";
 import { crawlSite, zip } from "./export-site.ts";

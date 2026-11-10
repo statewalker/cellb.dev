@@ -4,7 +4,7 @@
 //   responses of /__cellb/ (Astro's compiler needs a shared WebAssembly memory), as cellb.dev's
 //   in-browser Astro builder does;
 // - it routes every other path of the origin to the platform, URL unchanged.
-import { installProjectRouter } from "@statewalker/cellb/browser";
+import { installProjectRouter } from "@statewalker/cellb/tabs";
 
 declare const self: ServiceWorkerGlobalScope;
 self.addEventListener("install", () => void self.skipWaiting());

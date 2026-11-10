@@ -27,34 +27,12 @@ import {
   type BrowserProjectOptions,
   browserProjectRuntime,
 } from "./browser-host.js";
+import { INTERNAL_ORIGIN, TAB_INIT, type TabShardInit } from "./browser-tab-protocol.js";
+
+export { INTERNAL_ORIGIN, TAB_INIT, type TabShardInit };
 
 const INIT = "cellb:shard";
 const CLOSE = "cellb:shard-close";
-/**
- * A shard of a project shared by the tabs of an origin (`joinProjectShards`): it serves through
- * the ServiceWorker's router (webrun-http-browser's `serveHttpInWorker`), which the tab attaches
- * it to, and reaches the other shards through it.
- */
-export const TAB_INIT = "cellb:tab-shard";
-/** The host calls between shards go to through the router: `http://cellb.internal/<project>/`. */
-export const INTERNAL_ORIGIN = "http://cellb.internal";
-
-/** What a shard worker shared by tabs is told: no peers, it reaches them through the router. */
-export interface TabShardInit {
-  type: typeof TAB_INIT;
-  name: string;
-  shard: number;
-  shards: number;
-  config: BrowserProjectOptions["config"];
-  code: BrowserProjectOptions["code"];
-  assetFiles?: BrowserProjectOptions["assetFiles"];
-  /** The OpenAI-compatible endpoint behind the project's `ai` binding. */
-  ai?: BrowserProjectOptions["ai"];
-  bucket?: BrowserBucket;
-  pool: string;
-  filesDir: string;
-}
-
 /** What a shard worker is told (the ports travel next to it). */
 interface ShardInit {
   type: typeof INIT;

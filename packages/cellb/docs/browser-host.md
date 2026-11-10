@@ -134,6 +134,12 @@ every tab: joinProjectShards({ name, shards: 4, spawn, config, code, serviceWork
                  (SwHttpAdapter.attachWorker, serveHttpInWorker)
 ```
 
+The tab and the ServiceWorker import both functions from `@statewalker/cellb/tabs`, and the
+shard worker imports `serveProjectShard` from `@statewalker/cellb/browser`. The `tabs` entry holds
+only the routing code (about 70 KB minified, most of it webrun-http-browser's router), not the
+runtime the shards run. `@statewalker/cellb/browser` exports the same two functions, but a page
+that imports them from there bundles that runtime too.
+
 `installProjectRouter` starts webrun-http-browser's dispatcher, which makes the ServiceWorker
 `skipWaiting()` on install and `clients.claim()` on activate. A new version therefore takes over
 the open pages at once instead of waiting for them to close. A tab that joins must be inside the
