@@ -20,6 +20,30 @@ describe("lowerAwait", () => {
     expect(lowerAwait("export const x = (")).toBe("export const x = ("); // does not parse
   });
 
+  it("an arrow that does not read arguments never names them (class fields, static blocks)", () => {
+    // The word in a string, a comment, or a nested function's own `arguments`: not the arrow's.
+    const code =
+      "class A {\n" +
+      '  f = async (x) => { const s = "arguments"; /* arguments */ function g() { return arguments; } return [s, await x, g]; };\n' +
+      "  static { this.h = async () => { await 1; }; }\n" +
+      "}\n" +
+      "export const k = async () => { return 'no arguments here'; };";
+    const out = lowerAwait(code);
+    expect(out).not.toMatch(/\bawait\b/);
+    // Parses as a module: `arguments` in a class field or a static block would be a SyntaxError.
+    expect(() => new Function(out.replace(/^export /m, ""))).not.toThrow();
+    expect(out.match(/\.apply\(this, arguments\)/g)).toBeNull();
+  });
+
+  it("an arrow that reads its function's arguments still gets them", async () => {
+    expect(
+      await run(`
+        function outer() { return (async () => { await null; return arguments.length; })(); }
+        return outer(1, 2, 3);
+      `),
+    ).toBe(3);
+  });
+
   it("removes every await from lowered functions", () => {
     const out = lowerAwait(
       "export default { async fetch(r) { return await r; } };\n" +
