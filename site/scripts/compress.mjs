@@ -4,7 +4,8 @@
 // that accept them (statewalker/httpeers apps/sites/README.md).
 //
 //   dist/.site/config.json   the site's options on the host: copies served, and /_astro/
-//                            (file names with content hashes) cached for good
+//                            and /sandbox/app/_astro/ (file names with content hashes) cached
+//                            for good
 //   dist/**/<file>.br, .gz   for text files (JS, CSS, HTML, JSON, SVG, WASM…) of 1 KB or more,
 //                            when the copy is at least 10% smaller
 //
@@ -29,7 +30,11 @@ writeFileSync(
     {
       notFound: "/404.html",
       cacheControl: "public, no-cache",
-      cacheRules: [{ prefix: "/_astro/", cacheControl: "public, max-age=31536000, immutable" }],
+      cacheRules: [
+        { prefix: "/_astro/", cacheControl: "public, max-age=31536000, immutable" },
+        // CellB sandbox (scripts/build-sandbox.mjs): its own Astro build, its own hashed assets.
+        { prefix: "/sandbox/app/_astro/", cacheControl: "public, max-age=31536000, immutable" },
+      ],
       precompressed: true,
     },
     null,

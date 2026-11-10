@@ -5,7 +5,7 @@ import Card from "@/components/ui/Card.astro";
 import Base from "@/layouts/Base.astro";
 import { docHref } from "@/lib/docs";
 import { type Example, exampleHref, examples } from "@/lib/examples";
-import { LIVE_DEMOS } from "@/lib/site";
+import { LIVE_DEMOS, SANDBOX } from "@/lib/site";
 
 const groups: { origin: Example["origin"]; title: string; body: string }[] = [
   {
@@ -43,9 +43,10 @@ const groups: { origin: Example["origin"]; title: string; body: string }[] = [
       <p class="mt-2 max-w-3xl text-sm text-muted-foreground">
         EmDash, a Cloudflare app CellB did not write, served from static files, and Astro apps
         (EmDash among them) built from their sources in the tab. The tab runs the Worker, its
-        Durable Objects, D1, KV and R2. Keep the host tab open while you use a site.
+        Durable Objects, D1, KV and R2. Keep the host tab open while you use a site. CellB sandbox
+        does the same for a project folder of your own.
       </p>
-      <div class="mt-6 grid gap-3 sm:grid-cols-2">
+      <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Object.values(LIVE_DEMOS).map((d) => (
           <Card class="flex h-full flex-col p-5">
             <a href={d.href} class="inline-flex items-center gap-1 font-medium text-primary hover:underline">
@@ -55,6 +56,13 @@ const groups: { origin: Example["origin"]; title: string; body: string }[] = [
             <a href={docHref(d.readme)} class="mt-3 text-sm text-primary hover:underline">How it is wired</a>
           </Card>
         ))}
+        <Card class="flex h-full flex-col p-5">
+          <a href={SANDBOX.href} class="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+            {SANDBOX.title} <Icon name="arrowRight" class="size-3" />
+          </a>
+          <p class="mt-2 flex-1 text-sm text-muted-foreground">{SANDBOX.body}</p>
+          <a href={SANDBOX.about} class="mt-3 text-sm text-primary hover:underline">How it is wired</a>
+        </Card>
       </div>
     </div>
     {groups.map((g) => {

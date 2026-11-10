@@ -30,6 +30,8 @@ on:
       # The tools' pages (/docs/tools/…): the platform packages' READMEs.
       - "packages/*/README.md"
       - "examples/*/README.md"
+      # CellB sandbox, built into the site at /sandbox/app/ (site/scripts/build-sandbox.mjs).
+      - "apps/sandbox/**"
       - "package.json"
       - ".nvmrc"
       - "pnpm-lock.yaml"
@@ -46,6 +48,7 @@ on:
       - "packages/cellb/bench/README.md"
       - "packages/*/README.md"
       - "examples/*/README.md"
+      - "apps/sandbox/**"
       - "package.json"
       - ".nvmrc"
       - "pnpm-lock.yaml"
@@ -84,6 +87,15 @@ jobs:
       # The home page's Durable Object code: serve-node.ts on Node, and the demo in Chromium.
       - name: Home page code
         run: pnpm --filter @statewalker/cellb-site check:snippets
+      # CellB sandbox (/sandbox/app/): its unit tests, and its e2e in Chromium on the build the
+      # site copied, served under the same path as on the site, over http and over https (as the
+      # site is served: a request's scheme once got lost on its way to the page, and only https
+      # showed it).
+      - name: CellB sandbox
+        run: |
+          pnpm --filter @statewalker/cellb-sandbox test
+          SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox e2e
+          SANDBOX_BASE=/sandbox/app/ HTTPS=1 pnpm --filter @statewalker/cellb-sandbox e2e
 
       - name: Publish to https://${{ env.SITE_DOMAIN }}
         if: github.event_name != 'pull_request'
@@ -111,6 +123,7 @@ jobs:
           fi
           # An incomplete build must not replace the published site.
           test -f site/dist/index.html || { echo "::error::site/dist/index.html is missing."; exit 1; }
+          test -f site/dist/sandbox/app/index.html || { echo "::error::site/dist/sandbox/app/index.html is missing."; exit 1; }
 
           sudo apt-get install -y -qq rclone >/dev/null
           # Within the site's own prefix: files the build no longer has are removed, after the
