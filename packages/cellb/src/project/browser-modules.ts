@@ -74,6 +74,9 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
       consolePrelude += `const fetch = globalThis.__cellsOutbound[${JSON.stringify(key)}];\n`;
     }
     const urls = new Map<string, string>();
+    // Modules whose Blob URL is being made: a Blob URL exists only once its text (with its
+    // imports' URLs) does, so modules that import each other cannot be loaded this way.
+    const making: string[] = [];
     const source = (name: string) => {
       const m = code.modules[name];
       if (m === undefined) throw new Error(`Worker Loader: module "${name}" not found`);
@@ -82,6 +85,11 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
     const urlOf = (name: string): string => {
       const known = urls.get(name);
       if (known) return known;
+      if (making.includes(name))
+        throw new Error(
+          `Worker Loader: modules import each other (${[...making.slice(making.indexOf(name)), name].join(" → ")}); a browser realm loads each module from a Blob URL, which cannot form a cycle`,
+        );
+      making.push(name);
       const base = name.includes("/") ? name.slice(0, name.lastIndexOf("/") + 1) : "";
       // Only the module's own imports: the same words in a string, a template or a comment are
       // not imports (a code generator's template may well contain `from "cloudflare:workers"`).
@@ -95,6 +103,7 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
         new Blob([consolePrelude + text], { type: "text/javascript" }),
       );
       urls.set(name, url);
+      making.pop();
       return url;
     };
     const module = (await import(/* @vite-ignore */ urlOf(code.mainModule))) as Record<
