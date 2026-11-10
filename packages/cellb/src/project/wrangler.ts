@@ -129,6 +129,10 @@ export function createProjectRuntime(
     for (const r of m.renamed_classes ?? [])
       unsupported.push(`migrations.renamed_classes (${r.from} → ${r.to})`);
   }
+  // wrangler's module rule types: the bundles apply CompiledWasm, Data and Text (module-rules.ts)
+  for (const [i, r] of (config.rules ?? []).entries())
+    if (!["ESModule", "CommonJS", "CompiledWasm", "Data", "Text"].includes(r.type))
+      unsupported.push(`rules[${i}].type "${r.type}"`);
   for (const c of config.containers ?? [])
     unsupported.push(`containers[${c.class_name}] (cellb runs no containers)`);
   for (const b of config.durable_objects?.bindings ?? []) {
