@@ -1,0 +1,50 @@
+{
+  "name": "@statewalker/cellb-sandbox",
+  "private": true,
+  "type": "module",
+  "description": "CellB sandbox: a local folder's client/server web application (wrangler.jsonc + an HTML app) compiled and run in the browser on CellB.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "vitest run",
+    "e2e": "node test/e2e.mjs"
+  },
+  "dependencies": {
+    "@astrojs/react": "^7.1.5",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-tabs": "^1.1.12",
+    "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
+    "@statewalker/cellb": "workspace:*",
+    "@statewalker/cellb-platform-core": "workspace:*",
+    "@statewalker/webrun-bundler": "^0.1.1",
+    "@statewalker/webrun-files": "catalog:",
+    "@statewalker/webrun-files-mem": "^0.10.3",
+    "@statewalker/webrun-http-browser": "catalog:",
+    "@statewalker/webrun-modules": "catalog:",
+    "@statewalker/webrun-site-builder": "catalog:",
+    "@statewalker/webrun-site-host": "catalog:",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.4.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "esbuild-wasm": "catalog:",
+    "lucide-react": "^1.71.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "playwright": "^1.64.1",
+    "vitest": "catalog:"
+  }
+}

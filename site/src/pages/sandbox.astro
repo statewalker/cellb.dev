@@ -1,0 +1,185 @@
+---
+import CodeBlock from "@/components/CodeBlock.astro";
+import Icon from "@/components/Icon.astro";
+import Button from "@/components/ui/Button.astro";
+import Docs from "@/layouts/Docs.astro";
+import { docHref } from "@/lib/docs";
+import { repoFile } from "@/lib/site";
+import clientHtml from "../../../apps/sandbox/sample/tasks/client/index.html?raw";
+import serverCode from "../../../apps/sandbox/sample/tasks/server/index.ts?raw";
+// /sandbox/: the page about CellB sandbox. The sandbox itself (apps/sandbox) is built into the site
+// at /sandbox/app/ by scripts/build-sandbox.mjs.
+import wrangler from "../../../apps/sandbox/sample/tasks/wrangler.jsonc?raw";
+
+const SANDBOX_APP = "/sandbox/app/";
+
+const layout = `my-app/
+├── wrangler.jsonc        the server: a Worker (Durable Objects, KV, D1…)
+├── package.json          npm dependencies of both parts
+├── server/
+│   └── index.ts          wrangler's "main"
+└── client/
+    ├── index.html        <script type="module" src="./src/main.tsx">
+    └── src/              TS / TSX / JS / JSX / CSS`;
+
+const runLocally = `pnpm install
+pnpm --filter @statewalker/cellb-sandbox dev     # http://localhost:4321
+pnpm --filter @statewalker/cellb-sandbox test    # unit tests (Vitest)
+pnpm --filter @statewalker/cellb-sandbox build
+pnpm --filter @statewalker/cellb-sandbox e2e     # after build: Chrome, via Playwright`;
+
+const steps = [
+  {
+    title: "Pick a folder",
+    body: "Open a project folder from your disk, or start from the bundled sample. Nothing is uploaded: the files are read in the tab.",
+  },
+  {
+    title: "Compile in the tab",
+    body: "The server is bundled by esbuild-wasm. The client's TS, TSX and CSS are compiled module by module when the browser asks for them. npm packages come from the registry.",
+  },
+  {
+    title: "Run it on CellB",
+    body: "CellB runs the Worker and its Durable Objects (SQLite WASM in OPFS). A ServiceWorker serves the client and the server together as one site.",
+  },
+];
+---
+
+<Docs
+  title="CellB sandbox"
+  description="CellB sandbox: open a folder with a Workers server and an HTML client, and run the whole app in your browser tab, compiled and served there."
+>
+  <p class="font-mono text-sm text-primary">// demo application</p>
+  <h1>CellB sandbox</h1>
+  <p>
+    CellB sandbox runs a full-stack web application from a folder on your computer, inside the
+    browser tab. The folder holds a Cloudflare-style Worker (<code>wrangler.jsonc</code>, a Hono
+    server, Durable Objects) and an HTML client written in TypeScript or React. The sandbox compiles
+    both parts in the tab, runs the server on CellB, and shows the app in a preview frame. No build
+    server or container is involved, and the files never leave your machine.
+  </p>
+  <div class="my-6 flex flex-wrap gap-3">
+    <Button href={SANDBOX_APP} size="lg">
+      Open CellB sandbox <Icon name="arrowRight" />
+    </Button>
+    <Button href={repoFile("apps/sandbox/README.md")} variant="outline" size="lg">
+      <Icon name="github" /> Source: apps/sandbox
+    </Button>
+  </div>
+  <p class="text-sm text-muted-foreground">
+    Best in Chrome or Edge: they support the File System Access API, so the sandbox can rerun the
+    app when you save a file. Other browsers read the folder once.
+  </p>
+
+  <h2>What it does</h2>
+  <ol>
+    {steps.map((s) => (
+      <li>
+        <strong>{s.title}.</strong> {s.body}
+      </li>
+    ))}
+  </ol>
+  <p>Next to the preview, the sandbox has these tools:</p>
+  <ul>
+    <li><strong>Files</strong> shows the folder's tree and which files are the server and which are the client.</li>
+    <li><strong>Log</strong> shows each step with its timing: bundling, startup, the URL the app runs at.</li>
+    <li><strong>Rerun on save</strong> watches the folder and restarts the app when a file changes.</li>
+    <li><strong>Download .zip</strong> packs the project's files into a ZIP.</li>
+    <li><strong>Open in a new tab</strong>: the running app has a URL, and any tab of the site can open it while the sandbox runs.</li>
+  </ul>
+  <p>
+    Durable Object data lives in OPFS in a pool named after the project, so it is still there after a
+    rerun or a reload. A rerun downloads nothing again: the worker keeps its npm package store and
+    module cache, and rebuilds only the project's own files. In the e2e run the first start of the
+    sample takes about 1.9 s, and each rerun about 0.3 s.
+  </p>
+
+  <h2>A project folder</h2>
+  <p>
+    The server part is a normal Workers project. The same folder runs unchanged with
+    <code>wrangler dev</code>, celld or Cloudflare. The client part is an HTML page whose
+    <code>&lt;script src&gt;</code> and <code>&lt;link href&gt;</code> point to source files.
+  </p>
+  <CodeBlock lang="txt" title="layout" code={layout} />
+  <p>
+    The client folder is set by the optional <code>"client"</code> field of
+    <code>wrangler.jsonc</code>. Without it, the sandbox uses <code>client/</code>, then
+    <code>public/</code>, then the folder's root (an app with no server). The client calls the server
+    with <strong>relative</strong> URLs (<code>fetch("api/tasks")</code>), because the sandbox
+    serves the app under a path of its own. A deployment at the root of its origin works the same
+    way. A request that matches no client file goes to the server.
+  </p>
+
+  <h2>The sample: tasks</h2>
+  <p>
+    "Try the sample" runs a small task list: a Hono server with a <code>TaskList</code> Durable Object
+    that stores tasks in its own SQLite database, and a React TSX client. "Download the sample"
+    gives the same folder as a ZIP: unpack it, change it, and open it with "Open folder".
+  </p>
+  <CodeBlock lang="jsonc" title="wrangler.jsonc" code={wrangler.trim()} />
+  <CodeBlock lang="ts" title="server/index.ts" code={serverCode.trim()} />
+  <CodeBlock lang="html" title="client/index.html" code={clientHtml.trim()} />
+
+  <h2>How it works</h2>
+  <p>
+    The sandbox is an Astro site with one React island. The work happens in a Dedicated Worker, and
+    the page's ServiceWorker serves the result. It is built from CellB's public entry points and the
+    packages described in <a href="/docs/from-sources">Running from sources</a>:
+  </p>
+  <table>
+    <thead>
+      <tr><th>Part</th><th>Done by</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Reading the folder</td>
+        <td>File System Access API (<code>showDirectoryPicker</code>), else <code>webkitdirectory</code>; changes are found by polling.</td>
+      </tr>
+      <tr>
+        <td>Server: bundle</td>
+        <td><code>bundleCompiler</code> from <code>@statewalker/cellb/bundle</code>: webrun-bundler on esbuild-wasm, npm packages from the registry.</td>
+      </tr>
+      <tr>
+        <td>Server: run</td>
+        <td><code>loadProject</code> from <code>@statewalker/cellb/browser</code>: the Worker and its Durable Objects on SQLite WASM in OPFS.</td>
+      </tr>
+      <tr>
+        <td>Client: compile</td>
+        <td><code>@statewalker/webrun-modules</code>: each TS/TSX/JS/JSX/CSS module is compiled to browser ESM on request, served under <code>/_modules/</code>.</td>
+      </tr>
+      <tr>
+        <td>Serving the app</td>
+        <td><code>siteHostOverPort</code> (worker) and <code>hostSitesForWorker</code> (page) from <code>@statewalker/cellb/site</code>: the page's ServiceWorker forwards each request to the worker.</td>
+      </tr>
+      <tr>
+        <td>ZIP</td>
+        <td><code>zip</code> from <code>@statewalker/cellb-platform-core/util</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    On this site the sandbox runs at <a href={SANDBOX_APP}><code>{SANDBOX_APP}</code></a>. Its
+    ServiceWorker is scoped to that path, so it does not touch the homepage demo's worker. Each
+    running app gets a URL of its own below it.
+  </p>
+
+  <h2>Run it locally</h2>
+  <p>
+    The sandbox is the private workspace package <code>@statewalker/cellb-sandbox</code> in
+    <a href={repoFile("apps/sandbox")}>apps/sandbox</a>. The site's build builds it with
+    <code>SANDBOX_BASE=/sandbox/app/</code> and copies it in
+    (<a href={repoFile("site/scripts/build-sandbox.mjs")}>build-sandbox.mjs</a>).
+  </p>
+  <CodeBlock lang="sh" title="terminal" code={runLocally} />
+
+  <h2>Limits and next steps</h2>
+  <ul>
+    <li>Only <code>&lt;script src&gt;</code> modules are compiled, not inline <code>&lt;script type="module"&gt;</code> blocks.</li>
+    <li>The server is re-bundled whole on each run (under a second for the sample). <code>siteCompiler</code> could recompile a single module instead.</li>
+    <li>Files are read-only. The next steps toward a CodeSandbox-like tool are an editor that writes back through the folder handle (or to an OPFS copy), a server compiled per module, and a "Deploy" button that pushes the build and the cells' state to a celld bucket.</li>
+  </ul>
+  <p>
+    More on the pieces it uses: <a href="/docs/from-sources">Running from sources</a>,{" "}
+    <a href={docHref("packages/cellb/docs/browser-host.md")}>Running in a browser</a>, and{" "}
+    <a href="/examples#live-demos">the live demos</a>.
+  </p>
+</Docs>
