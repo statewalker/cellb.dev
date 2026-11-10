@@ -6,6 +6,7 @@ import {
   type WorkerCode,
 } from "../bindings/worker-loader.js";
 import { ctxExports } from "../core/handles.js";
+import { rewriteModuleSpecifiers } from "./module-specifiers.js";
 import { workerScope } from "./worker-scope.js";
 
 const WORKERS_CLASSES =
@@ -82,15 +83,14 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
       const known = urls.get(name);
       if (known) return known;
       const base = name.includes("/") ? name.slice(0, name.lastIndexOf("/") + 1) : "";
-      const text = source(name).replace(
-        /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g,
-        (all, pre, q, spec: string) => {
-          if (spec === "cloudflare:workers") return `${pre}${q}${shimUrl}${q}`;
-          if (spec.startsWith("./") || spec.startsWith("../"))
-            return `${pre}${q}${urlOf(new URL(spec, `file:///${base}`).pathname.slice(1))}${q}`;
-          return all;
-        },
-      );
+      // Only the module's own imports: the same words in a string, a template or a comment are
+      // not imports (a code generator's template may well contain `from "cloudflare:workers"`).
+      const text = rewriteModuleSpecifiers(source(name), (spec) => {
+        if (spec === "cloudflare:workers") return shimUrl;
+        if (spec.startsWith("./") || spec.startsWith("../"))
+          return urlOf(new URL(spec, `file:///${base}`).pathname.slice(1));
+        return undefined;
+      });
       const url = URL.createObjectURL(
         new Blob([consolePrelude + text], { type: "text/javascript" }),
       );
