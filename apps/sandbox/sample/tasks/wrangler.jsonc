@@ -1,0 +1,11 @@
+{
+  // The server part: a Worker with one Durable Object, run by CellB in the browser
+  // (and, unchanged, by wrangler dev, celld or Cloudflare).
+  "name": "tasks",
+  "main": "server/index.ts",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": {
+    "bindings": [{ "name": "LISTS", "class_name": "TaskList" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TaskList"] }]
+}

@@ -1,0 +1,21 @@
+---
+import Sandbox from "@/components/Sandbox";
+import "@/styles/global.css";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Open a local folder and run its full-stack app in your browser: a Workers server on CellB and an HTML client, compiled in the tab." />
+    <title>cellb sandbox: run a full-stack app from a folder</title>
+    <link rel="icon" href="/favicon.svg" />
+    <script is:inline>
+      if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.classList.add("dark");
+    </script>
+  </head>
+  <body>
+    <Sandbox client:only="react" />
+  </body>
+</html>
