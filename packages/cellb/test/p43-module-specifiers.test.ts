@@ -60,6 +60,34 @@ describe("rewriteModuleSpecifiers", () => {
     expect(out).toContain("<p>${");
   });
 
+  it("tells regexes from divisions where a lexer must (review cases)", () => {
+    const after = 'import("./p.js")';
+    const cases = [
+      "export default /[`]/;\n", // a regex after `default`
+      "class A extends /x/.constructor {}\n",
+      "if (x) /`/.test(y);\n", // a regex after the head of if
+      "while (a) /`/.test(b);\n",
+      "const v = a++ / 2; const w = b / 3;\n", // postfix ++ then a division
+      "const z = a++ / 2\n", // a division over a line end
+      "#!/usr/bin/env node --x=`\n", // a hashbang with a backtick
+      'const s = "a\\\r\nb";\n', // a CRLF line continuation in a string
+    ];
+    for (const c of cases) expect(mark(c + after), JSON.stringify(c)).toContain('"blob:./p.js"');
+  });
+
+  it("dynamic imports: whole literals only, templates without substitutions", () => {
+    expect(mark('import("./locales/" + lang + ".js")')).toBe('import("./locales/" + lang + ".js")');
+    expect(mark("import(`./t.js`)")).toBe('import("blob:./t.js")');
+    expect(mark("import(`./${x}.js`)")).toBe("import(`./${x}.js`)");
+    expect(mark('import("./o.js", { with: { type: "json" } })')).toContain('"blob:./o.js"');
+  });
+
+  it("decodes simple escapes; `from` as a variable is not an import", () => {
+    expect(mark('import a from "./\\u0061.js";')).toBe('import a from "blob:./a.js";');
+    const asi = 'let from = 1\nfrom\n"./fp.js"';
+    expect(mark(asi)).toBe(asi);
+  });
+
   it("keeps code without imports byte for byte", () => {
     const code = "export default class { fetch() { return new Response(`ok ${1 + 1}`); } }";
     expect(mark(code)).toBe(code);
