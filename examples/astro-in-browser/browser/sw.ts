@@ -3,7 +3,7 @@
 // - it gives the host page and its workers cross-origin isolation, by adding COOP/COEP to the
 //   responses of /__cellb/ (Astro's compiler needs SharedArrayBuffer), as coi-serviceworker does;
 // - it routes every other path of the origin to the project the host page built ("app").
-import { installProjectRouter } from "@statewalker/cellb/browser";
+import { installProjectRouter } from "@statewalker/cellb/tabs";
 
 declare const self: ServiceWorkerGlobalScope;
 self.addEventListener("install", () => void self.skipWaiting());

@@ -20,6 +20,7 @@
     ".": "./src/index.ts",
     "./node": "./src/node.ts",
     "./browser": "./src/browser.ts",
+    "./tabs": "./src/tabs.ts",
     "./site": "./src/site.ts",
     "./bundle": "./src/bundle.ts",
     "./host-modules": "./src/project/host-modules.ts",
@@ -46,6 +47,10 @@
       "./browser": {
         "types": "./dist/browser.d.ts",
         "default": "./dist/browser.js"
+      },
+      "./tabs": {
+        "types": "./dist/tabs.d.ts",
+        "default": "./dist/tabs.js"
       },
       "./site": {
         "types": "./dist/site.d.ts",

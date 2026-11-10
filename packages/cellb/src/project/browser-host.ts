@@ -25,6 +25,7 @@ import * as workersGlobals from "./workers-globals-module.js";
 import {
   createProjectRuntime,
   hasNodeCompat,
+  loadProjectBindings,
   loadTimeEnv,
   populatesProcessEnv,
   processEnvOf,
@@ -325,6 +326,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       ? celldBucket(store, { node: opts.bucket.node, leaseTtlMs: opts.bucket.leaseTtlMs })
       : undefined;
   const { runtime, unsupported } = createProjectRuntime(opts.config, module, {
+    bindings: await loadProjectBindings(opts.config),
     openSql,
     files,
     assetFiles: opts.assetFiles,

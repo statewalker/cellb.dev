@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 // The router of the Flue app shared by the tabs: requests to /app/<name>/… reach it.
-import { installProjectRouter } from "@statewalker/cellb/browser";
+import { installProjectRouter } from "@statewalker/cellb/tabs";
 
 declare const self: ServiceWorkerGlobalScope;
 self.addEventListener("install", () => void self.skipWaiting());

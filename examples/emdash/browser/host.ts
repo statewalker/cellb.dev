@@ -1,7 +1,7 @@
 // The host tab: registers the origin's ServiceWorker and runs the EmDash project's shard in a
 // Dedicated Worker (joinProjectShards); pages of the site then reach it through the ServiceWorker.
 import type { WranglerConfig } from "@statewalker/cellb";
-import { joinProjectShards, type ProjectTabs } from "@statewalker/cellb/browser";
+import { joinProjectShards, type ProjectTabs } from "@statewalker/cellb/tabs";
 
 const status = document.getElementById("status")!;
 const say = (text: string) => (status.textContent = text);

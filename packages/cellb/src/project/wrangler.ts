@@ -1,12 +1,7 @@
 import type { FilesApi } from "@statewalker/webrun-files";
-import { type AssetFiles, type AssetsConfig, createAssets } from "../bindings/assets.js";
-import { celldKv } from "../bindings/celld-kv.js";
-import { celldQueues, type QueueConsumerConfig } from "../bindings/celld-queues.js";
-import { celldWorkflows } from "../bindings/celld-workflows.js";
-import { startCronTriggers } from "../bindings/cron.js";
-import { r2Bucket, r2BucketOn } from "../bindings/r2.js";
-import { celldR2Backend } from "../bindings/r2-celld.js";
-import { type ModuleLoader, workerLoader } from "../bindings/worker-loader.js";
+import type { AssetFiles, AssetsConfig } from "../bindings/assets.js";
+import type { QueueConsumerConfig } from "../bindings/celld-queues.js";
+import type { ModuleLoader } from "../bindings/worker-loader.js";
 import { type WorkersAiOptions, workersAi } from "../bindings/workers-ai.js";
 import { entrypointStub } from "../core/handles.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
@@ -19,7 +14,6 @@ import {
 import { splitSqlStatements } from "../core/sql-split.js";
 import { filesApiBlobService } from "../miniflare-compat/blob-service.js";
 import { simulatorFetcher } from "../miniflare-compat/simulator-fetcher.js";
-import { D1DatabaseObject, makeD1Binding } from "../miniflare-compat/vendored.js";
 import { systemClock } from "../ports.js";
 import type { ModuleRule } from "./module-rules.js";
 
@@ -82,6 +76,61 @@ export interface ProjectHost
   files: FilesApi;
   /** The OpenAI-compatible endpoint behind the `ai` binding; without it the binding is unsupported. */
   ai?: WorkersAiOptions;
+  /** The binding implementations the config needs: `await loadProjectBindings(config)`. */
+  bindings?: ProjectBindings;
+}
+
+/**
+ * The implementations of the bindings a project declares, loaded on demand: a project with
+ * Durable Objects only loads none of them (Miniflare's D1 simulator, celld's KV, queue and
+ * workflow code, R2, assets, cron and Worker Loaders), and a browser bundle keeps them in chunks
+ * of their own.
+ */
+export interface ProjectBindings {
+  kv?: typeof import("../bindings/celld-kv.js");
+  d1?: typeof import("../miniflare-compat/vendored.js");
+  queues?: typeof import("../bindings/celld-queues.js");
+  workflows?: typeof import("../bindings/celld-workflows.js");
+  r2?: typeof import("../bindings/r2.js");
+  r2Celld?: typeof import("../bindings/r2-celld.js");
+  cron?: typeof import("../bindings/cron.js");
+  assets?: typeof import("../bindings/assets.js");
+  workerLoader?: typeof import("../bindings/worker-loader.js");
+}
+
+/** Loads the binding implementations `config` declares, for `createProjectRuntime`'s host. */
+export async function loadProjectBindings(config: WranglerConfig): Promise<ProjectBindings> {
+  const when = <T>(cond: unknown, load: () => Promise<T>) =>
+    cond ? load() : Promise.resolve(undefined);
+  const [kv, d1, queues, workflows, r2, r2Celld, cron, assets, workerLoader] = await Promise.all([
+    when(config.kv_namespaces?.length, () => import("../bindings/celld-kv.js")),
+    when(config.d1_databases?.length, () => import("../miniflare-compat/vendored.js")),
+    when(
+      config.queues?.producers?.length || config.queues?.consumers?.length,
+      () => import("../bindings/celld-queues.js"),
+    ),
+    when(config.workflows?.length, () => import("../bindings/celld-workflows.js")),
+    when(config.r2_buckets?.length, () => import("../bindings/r2.js")),
+    when(config.r2_buckets?.length, () => import("../bindings/r2-celld.js")),
+    when(config.triggers?.crons?.length, () => import("../bindings/cron.js")),
+    when(config.assets, () => import("../bindings/assets.js")),
+    when(config.worker_loaders?.length, () => import("../bindings/worker-loader.js")),
+  ]);
+  return { kv, d1, queues, workflows, r2, r2Celld, cron, assets, workerLoader };
+}
+
+/** The loaded implementation of a binding the config declares, or an error saying how to load it. */
+function binding<K extends keyof ProjectBindings>(
+  host: ProjectHost,
+  key: K,
+  what: string,
+): NonNullable<ProjectBindings[K]> {
+  const m = host.bindings?.[key];
+  if (!m)
+    throw new Error(
+      `${what}: the host has no implementation loaded; pass \`bindings: await loadProjectBindings(config)\``,
+    );
+  return m as NonNullable<ProjectBindings[K]>;
 }
 
 export interface ProjectRuntime {
@@ -140,14 +189,14 @@ export function createProjectRuntime(
     durableObjects[b.name] = { className: b.class_name };
   }
   const worker: WorkerModule = { ...module };
-  let kv: ReturnType<typeof celldKv> | undefined;
+  let kv: ReturnType<NonNullable<ProjectBindings["kv"]>["celldKv"]> | undefined;
   if (config.kv_namespaces?.length) {
-    kv = celldKv(host.files);
+    kv = binding(host, "kv", "kv_namespaces").celldKv(host.files);
     worker.__KvNamespace = kv.KvNamespaceCell as never;
     durableObjects[KV_OBJECTS] = { className: "__KvNamespace" };
   }
   if (config.d1_databases?.length) {
-    worker.__D1Database = D1DatabaseObject;
+    worker.__D1Database = binding(host, "d1", "d1_databases").D1DatabaseObject;
     durableObjects[D1_OBJECTS] = { className: "__D1Database" };
   }
   // Queues: every queue is a cell of a runtime-supplied class (as on celld).
@@ -155,9 +204,9 @@ export function createProjectRuntime(
   // celld's own queue code (vendor/celld/queues.js): its queue cell, producer and consumer
   // batch, so a queue's cell (and pending messages) is celld's format.
   let queueDispatcher: QueueDispatcher | undefined;
-  let queues: ReturnType<typeof celldQueues> | undefined;
+  let queues: ReturnType<NonNullable<ProjectBindings["queues"]>["celldQueues"]> | undefined;
   if (config.queues?.producers?.length || consumers.size) {
-    queues = celldQueues({
+    queues = binding(host, "queues", "queues").celldQueues({
       namespace: () => runtime.env[QUEUE_OBJECTS] as never,
       consumers: [...consumers.values()],
       compatibilityDate: config.compatibility_date,
@@ -168,9 +217,11 @@ export function createProjectRuntime(
   }
   // Workflows: every instance is a cell of a runtime-supplied class (as on celld).
   // celld's own workflow code (vendor/celld/workflows.js): its instance cell and binding.
-  let workflows: ReturnType<typeof celldWorkflows> | undefined;
+  let workflows:
+    | ReturnType<NonNullable<ProjectBindings["workflows"]>["celldWorkflows"]>
+    | undefined;
   if (config.workflows?.length) {
-    workflows = celldWorkflows({
+    workflows = binding(host, "workflows", "workflows").celldWorkflows({
       script: config.name ?? "worker",
       workflows: Object.fromEntries(config.workflows.map((w) => [w.name, w.class_name])),
       exports: () => module as Record<string, unknown>,
@@ -259,12 +310,14 @@ export function createProjectRuntime(
     };
   }
   for (const l of config.worker_loaders ?? []) {
-    if (!host.loadModules)
+    if (!host.loadModules) {
       unsupported.push(`worker_loaders[${l.binding}] (the host provides no module loader)`);
-    else
-      env[l.binding] = host.isolatedModules
-        ? workerLoader(host.isolatedModules) // facets of loaded code run in the isolate as well
-        : workerLoader(host.loadModules);
+      continue;
+    }
+    const { workerLoader } = binding(host, "workerLoader", "worker_loaders");
+    env[l.binding] = host.isolatedModules
+      ? workerLoader(host.isolatedModules) // facets of loaded code run in the isolate as well
+      : workerLoader(host.loadModules);
   }
   // Cron Triggers (validated at load time like `celld deploy` does).
   const crons = config.triggers?.crons ?? [];
@@ -276,7 +329,7 @@ export function createProjectRuntime(
       unsupported.push("triggers.crons without a scheduled() handler");
     else {
       const db = host.openSql("__cellb/cron");
-      const stop = startCronTriggers(
+      const stop = binding(host, "cron", "triggers.crons").startCronTriggers(
         crons,
         (c, x) => runtime.runEvent(() => scheduled.call(module.default, c, env, x)),
         host.clock ?? systemClock,
@@ -297,7 +350,11 @@ export function createProjectRuntime(
       throw new Error(
         `${config.assets.directory ?? "assets"}/.assetsignore is not supported by celld; remove it`,
       );
-    const assets = createAssets(host.assetFiles ?? new Map(), config.assets, hasWorker);
+    const assets = binding(host, "assets", "assets").createAssets(
+      host.assetFiles ?? new Map(),
+      config.assets,
+      hasWorker,
+    );
     if (config.assets.binding) env[config.assets.binding] = assets.binding;
     const workerFetch = runtime.fetch.bind(runtime);
     runtime.fetch = async (req) =>
@@ -316,13 +373,16 @@ export function createProjectRuntime(
   }
   // R2 objects live directly in the host's store, as celld keeps them in the fleet bucket.
   // With a celld fleet bucket, R2 objects live in it as celld keeps them; else in the FilesApi.
-  for (const r2 of config.r2_buckets ?? [])
+  for (const r2 of config.r2_buckets ?? []) {
+    const { r2Bucket, r2BucketOn } = binding(host, "r2", "r2_buckets");
+    const { celldR2Backend } = binding(host, "r2Celld", "r2_buckets");
     env[r2.binding] = host.storage?.objects
       ? r2BucketOn(celldR2Backend(host.storage.objects, r2.bucket_name), r2.binding)
       : r2Bucket(host.files, `/r2/${r2.bucket_name}`, r2.binding);
+  }
   for (const d1 of config.d1_databases ?? [])
     env[d1.binding] = celldExec(
-      makeD1Binding({
+      binding(host, "d1", "d1_databases").makeD1Binding({
         fetcher: simulatorFetcher(
           env[D1_OBJECTS] as DurableObjectNamespace,
           d1.database_id as string, // set by withResourceIds

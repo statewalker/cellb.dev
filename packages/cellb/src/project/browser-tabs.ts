@@ -30,7 +30,7 @@ import { H } from "../transport/cells-link.js";
 import { SW_SOCKET } from "../ws/sw-connector.js";
 import { applyWorkerCookies, withPageCookies } from "./browser-cookies.js";
 import type { BrowserBucket, BrowserProjectOptions } from "./browser-host.js";
-import { INTERNAL_ORIGIN, TAB_INIT, type TabShardInit } from "./browser-shards.js";
+import { INTERNAL_ORIGIN, TAB_INIT, type TabShardInit } from "./browser-tab-protocol.js";
 
 /** The ServiceWorker asks a project's tabs to attach their shards again (a host page's wait). */
 const NEED_LINKS = "cellb:need-links";

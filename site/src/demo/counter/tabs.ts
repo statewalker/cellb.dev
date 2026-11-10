@@ -4,7 +4,7 @@
 // shards of a tab that closes. Any tab reaches any object: /demo/counter-v2/… goes through the
 // ServiceWorker (sw.ts) to the tab that runs the object's shard.
 import type { WranglerConfig } from "@statewalker/cellb";
-import { joinProjectShards } from "@statewalker/cellb/browser";
+import { joinProjectShards } from "@statewalker/cellb/tabs";
 
 export const SHARDS = 2;
 

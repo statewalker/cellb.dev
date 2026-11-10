@@ -1,7 +1,7 @@
 // The host tab: registers the origin's ServiceWorker and runs the platform's shard in a Dedicated
 // Worker (cellb's joinProjectShards); the origin's requests then reach the platform through it.
 import type { WranglerConfig } from "@statewalker/cellb";
-import { joinProjectShards, type ProjectTabs } from "@statewalker/cellb/browser";
+import { joinProjectShards, type ProjectTabs } from "@statewalker/cellb/tabs";
 
 const status = document.getElementById("status") as HTMLElement;
 const say = (text: string) => {

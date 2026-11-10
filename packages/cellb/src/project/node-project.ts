@@ -31,6 +31,7 @@ import { type WorkerScope, workerScope } from "./worker-scope.js";
 import {
   createProjectRuntime,
   hasNodeCompat,
+  loadProjectBindings,
   loadTimeEnv,
   type ProjectHost,
   type ProjectRuntime,
@@ -284,6 +285,7 @@ export async function loadNodeProject(
     ? readAssetDirectory(resolve(dir, config.assets.directory))
     : undefined;
   const project = createProjectRuntime(config, module, {
+    bindings: await loadProjectBindings(config),
     loadModules: nodeModuleLoader,
     // own realm, as celld; facets logged like the root's
     isolatedModules: nodeIsolatedLoader(() => host.storage),

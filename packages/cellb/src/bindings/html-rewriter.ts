@@ -1,13 +1,10 @@
 /**
  * Workers `HTMLRewriter` on lol-html compiled to WASM: Miniflare's `html-rewriter-wasm`
  * (async handlers via asyncify), vendored as an ES module by scripts/vendor-html-rewriter.mjs.
- * The WASM is instantiated on first use — from the file system on Node, with fetch() in
- * browsers — so importing the runtime costs nothing until a Worker rewrites HTML.
+ * The glue and the WASM are loaded on first use — the WASM from the file system on Node, with
+ * fetch() in browsers — so importing the runtime costs nothing until a Worker rewrites HTML.
  * The streaming wrapper follows Miniflare 2's (packages/html-rewriter/src/rewriter.ts).
  */
-// @ts-expect-error — generated JS, no declarations
-import glue from "../../vendor/html-rewriter-wasm/html_rewriter.js";
-
 type Handlers = Record<string, unknown>;
 interface RawRewriter {
   on(selector: string, handlers: Handlers): void;
@@ -18,16 +15,23 @@ interface RawRewriter {
 }
 
 const wasmUrl = new URL("../../vendor/html-rewriter-wasm/html_rewriter_bg.wasm", import.meta.url);
-let ready: Promise<void> | undefined;
-function instantiate(): Promise<void> {
+interface Glue {
+  __instantiate(source: unknown): Promise<void>;
+  HTMLRewriter: new (sink: (out: Uint8Array) => void, o?: object) => RawRewriter;
+}
+let ready: Promise<Glue> | undefined;
+function instantiate(): Promise<Glue> {
   ready ??= (async () => {
+    // @ts-expect-error — generated JS, no declarations
+    const glue = (await import("../../vendor/html-rewriter-wasm/html_rewriter.js")).default as Glue;
     let source: unknown;
     if (wasmUrl.protocol === "file:") {
       const fsName = "node:fs"; // not statically visible to browser bundlers
       const fs = (await import(/* @vite-ignore */ fsName)) as { readFileSync(u: URL): Uint8Array };
       source = fs.readFileSync(wasmUrl);
     } else source = await fetch(wasmUrl);
-    await (glue as { __instantiate(s: unknown): Promise<void> }).__instantiate(source);
+    await glue.__instantiate(source);
+    return glue;
   })();
   return ready;
 }
@@ -53,10 +57,7 @@ export class HTMLRewriter {
     let rewriter: RawRewriter | undefined;
     const stream = new TransformStream<Uint8Array, Uint8Array>({
       start: async (controller) => {
-        await instantiate();
-        const Raw = (
-          glue as { HTMLRewriter: new (sink: (out: Uint8Array) => void, o?: object) => RawRewriter }
-        ).HTMLRewriter;
+        const Raw = (await instantiate()).HTMLRewriter;
         rewriter = new Raw(
           (out) => {
             if (out.length !== 0) controller.enqueue(out); // enqueue throws on empty chunks

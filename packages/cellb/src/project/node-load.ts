@@ -32,6 +32,7 @@ import { workerScope } from "./worker-scope.js";
 import * as workersGlobals from "./workers-globals-module.js";
 import {
   createProjectRuntime,
+  loadProjectBindings,
   loadTimeEnv,
   type ProjectHost,
   populatesProcessEnv,
@@ -159,6 +160,7 @@ async function runBuilt(
     }
   }
   const project = createProjectRuntime(config, module, {
+    bindings: await loadProjectBindings(config),
     loadModules: nodeModuleLoader,
     isolatedModules: nodeIsolatedLoader(() => host.storage),
     assetFiles: built.assets,
