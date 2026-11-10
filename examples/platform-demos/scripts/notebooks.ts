@@ -7,11 +7,26 @@
  * its sources by the platform's bundler, set as the site's theme, and rendering the page models
  * the build wrote, in a Worker Loader isolate. A notebook edit and rebuild change the themed page
  * without a new theme build, and the themed page's cells run in Chromium.
+ *
+ * Last, the themed site exported as static files (POST /nb/<site>/export), served by a plain file
+ * server with nothing of the platform behind it, and its cells run in Chromium from those files.
  */
-import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { dirname, extname, join, resolve } from "node:path";
 import { chromiumOptions } from "../../../packages/platform/scripts/chromium.js";
 import { readTree } from "../../../packages/platform-core/src/tree.js";
+import { unzip } from "../../../packages/platform-core/src/util.js";
 
 type Check = (host: string, name: string, fn: () => Promise<string>) => Promise<boolean>;
 interface Tools {
@@ -165,6 +180,8 @@ async function themedDemo(host: string, site: string, t: Tools) {
     },
   );
 
+  await exportDemo(host, site, t);
+
   if (!browserOn) return;
   await check(host, "notebooks: the themed page's cells run in Chromium", async () => {
     const b = await playwright().chromium.launch(chromiumOptions());
@@ -187,4 +204,113 @@ async function themedDemo(host: string, site: string, t: Tools) {
       await b.close();
     }
   });
+}
+
+/** A static file server over `dir`: a directory answers with its index.html. */
+function staticServer(dir: string) {
+  const types: Record<string, string> = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".wasm": "application/wasm",
+    ".woff2": "font/woff2",
+  };
+  const server = createServer((req, res) => {
+    let file = join(dir, decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname));
+    if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html");
+    if (!existsSync(file)) return res.writeHead(404).end();
+    res.writeHead(200, { "content-type": types[extname(file)] ?? "application/octet-stream" });
+    res.end(readFileSync(file));
+  });
+  return new Promise<{ url: string; close: () => void }>((ok) =>
+    server.listen(0, "127.0.0.1", () =>
+      ok({
+        url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        close: () => server.close(),
+      }),
+    ),
+  );
+}
+
+async function exportDemo(host: string, site: string, t: Tools) {
+  const { check, browserOn, playwright } = t;
+  const assert: Tools["assert"] = t.assert;
+  let out = "";
+  const exported = await check(
+    host,
+    "notebooks: the themed site exported as static files",
+    async () => {
+      const res = await fetch(`${site}/export`, { method: "POST" });
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      assert(res.ok, `export ${res.status}: ${new TextDecoder().decode(bytes).slice(0, 300)}`);
+      assert(res.headers.get("content-type") === "application/zip", "not a ZIP");
+      const files = await unzip(bytes);
+      // unzip names entries as absolute paths in the archive's tree
+      for (const p of ["/index.html", "/nb/demo/t/index.html", "/nb/demo/t/plots/index.html"])
+        assert(files.has(p), `${p} missing from the export`);
+      const models = (await (await fetch(`${site}/models.json`)).json()) as {
+        pins: Record<string, string>;
+      };
+      for (const url of Object.values(models.pins))
+        assert(files.has(url), `module ${url} missing from the export`);
+      out = mkdtempSync(join(tmpdir(), "webrun-notebooks-export-"));
+      for (const [p, b] of files) {
+        mkdirSync(dirname(join(out, p)), { recursive: true });
+        writeFileSync(join(out, p), b);
+      }
+      return `${res.headers.get("x-export-pages")} pages, ${res.headers.get("x-export-modules")} module files, ${(bytes.length / 1e6).toFixed(1)} MB`;
+    },
+  );
+  if (!exported || !browserOn) return;
+  await check(
+    host,
+    "notebooks: the exported site's cells run in Chromium, from files",
+    async () => {
+      const files = await staticServer(out);
+      const b = await playwright().chromium.launch(chromiumOptions());
+      try {
+        const page = await b.newPage();
+        const errors: string[] = [];
+        const offOrigin: string[] = [];
+        const missing: string[] = [];
+        page.on("pageerror", (e: Error) => errors.push(e.message));
+        page.on("request", (r: { url(): string }) => {
+          if (!r.url().startsWith(files.url)) offOrigin.push(r.url());
+        });
+        page.on("response", (r: { url(): string; status(): number }) => {
+          // a browser asks for /favicon.ico on its own; the export has none
+          if (r.status() >= 400 && !r.url().endsWith("/favicon.ico"))
+            missing.push(`${r.status()} ${r.url()}`);
+        });
+        await page.goto(`${files.url}/`); // the root's index.html redirects to the home page
+        await page.waitForURL(`${files.url}/nb/demo/t/`, { timeout: 15000 });
+        await page.click('.site-nav a[href="/nb/demo/t/plots"]');
+        await page.waitForSelector("#summary", { timeout: 60000 });
+        const summary = await page.textContent("#summary");
+        assert(summary?.includes("60 points"), `summary: ${summary}`);
+        await page.waitForSelector("svg circle", { timeout: 30000 });
+        const dots = await page.$$eval("svg circle", (c: Element[]) => c.length);
+        assert(dots === 60, `Plot drew ${dots} dots`);
+        assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
+        assert(missing.length === 0, `failed loads: ${missing.join("; ")}`);
+        // Every file of the site came from the file server. The only requests that leave it are
+        // notebook-kit's own: its stdlib imports its built-ins (Inputs, htl, …) from esm.sh,
+        // hosted pages included. Serving those from the site is milestone 2 of the notebook
+        // runtime design.
+        const other = offOrigin.filter((u) => !u.startsWith("https://esm.sh/"));
+        assert(other.length === 0, `off-origin requests: ${other.join("; ")}`);
+        const pkg = (u: string) => {
+          const [a = "", b = ""] = new URL(u).pathname.split("/").slice(1);
+          return (a.startsWith("@") ? `${a}/${b}` : a).replace(/(.)@[^/]*$/, "$1");
+        };
+        const builtins = [...new Set(offOrigin.map(pkg))];
+        return `root redirected home, navigation led to plots, Plot drew 60 dots; every site file from the file server; notebook-kit built-ins from esm.sh: ${builtins.join(", ") || "none"}`;
+      } finally {
+        await b.close();
+        files.close();
+      }
+    },
+  );
 }

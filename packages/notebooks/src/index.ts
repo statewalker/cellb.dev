@@ -9,6 +9,7 @@
  *   GET  /nb/<site>/models.json       the page models of the last build (page-models.ts)
  *   PUT  /nb/<site>/theme             { build: <id> }: a bundler build of an Astro theme
  *   GET  /nb/<site>/t/<page>          a page rendered by the theme, from the page models
+ *   POST /nb/<site>/export            the themed site as static files, a ZIP
  *
  * The build is `@statewalker/notebook-build` in hosted mode: Markdown and notebook-kit HTML
  * become pages that import notebook-kit's runtime and their own `npm:` imports from the site's
@@ -27,10 +28,15 @@ import { passthroughCss } from "@statewalker/cellb-esm-cdn";
 import type { PlatformEnv } from "@statewalker/cellb-platform-core/env";
 import { registryFetch } from "@statewalker/cellb-platform-core/registry";
 import { SqlFilesApi } from "@statewalker/cellb-platform-core/sql-files";
-import { json, readUpload, text } from "@statewalker/cellb-platform-core/util";
+import { json, readUpload, text, zip } from "@statewalker/cellb-platform-core/util";
 import { ensureLightningCss, hasLightningCss } from "@statewalker/cellb-platform-core/wasm";
-import { type NotebookFailure, newNotebookBuild } from "@statewalker/notebook-build";
+import {
+  materializeDeps,
+  type NotebookFailure,
+  newNotebookBuild,
+} from "@statewalker/notebook-build";
 import { newNotebookSite } from "@statewalker/notebook-site";
+import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { type ModuleServer, newModuleServer, npmRegistrySource } from "@statewalker/webrun-modules";
 import { DOMParser, parseHTML } from "linkedom";
 import { buildPageModels, type PageModels } from "./page-models.js";
@@ -48,6 +54,7 @@ interface WorkerLoaderLike {
 /** The page models as the theme reads them, with the version that names its loader isolate. */
 interface StoredModels {
   version: string;
+  pins: PageModels["pins"];
   site: PageModels["site"];
   pages: Record<string, PageModels["pages"][number]>;
 }
@@ -111,6 +118,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       .join("");
     const stored: StoredModels = {
       version,
+      pins: models.pins,
       site: models.site,
       pages: Object.fromEntries(models.pages.map((p) => [p.id, p])),
     };
@@ -137,7 +145,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       const res = await builds.fetch(`${origin}/b/${theme.build}/loader.json`);
       if (!res.ok) throw new Error(`theme build ${theme.build}: loader.json ${res.status}`);
       const payload = (await res.json()) as Record<string, unknown>;
-      const { version: _v, ...data } = models;
+      const { version: _v, pins: _p, ...data } = models;
       return { ...payload, env: { NOTEBOOK_MODELS: data }, globalOutbound: null };
     });
     const inner = new URL(request.url);
@@ -197,6 +205,116 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     };
   }
 
+  /**
+   * The themed site as static files: the theme's pages, crawled from `/nb/<site>/t/` through
+   * their links, and the modules they import (a crawler cannot see those: the pages import them
+   * from JavaScript), materialized from the page models' pins. Paths stay as served, so nothing
+   * is rewritten: serve the ZIP's root, and `index.html` there redirects to the home page.
+   */
+  async exportSite(request: Request, site: string): Promise<Response> {
+    if (!(await this.#readJson("/theme.json")))
+      return text(`no theme: PUT /nb/${site}/theme { "build": "<build id>" }\n`, 404);
+    const models = await this.#readJson<StoredModels>("/models.json");
+    if (!models) return text(`no page models: POST /nb/${site}/build first\n`, 404);
+    const origin = new URL(request.url).origin;
+    const prefix = `/nb/${site}`;
+    const out = new Map<string, Uint8Array>();
+    const addFiles = async (files: MemFilesApi, paths: string[]) => {
+      for (const p of paths) {
+        const chunks: Uint8Array[] = [];
+        for await (const c of files.read(p)) chunks.push(c);
+        out.set(p.slice(1), new Uint8Array(await new Blob(chunks as BlobPart[]).arrayBuffer()));
+      }
+    };
+
+    // The modules: the pins' whole closure, with the .css/.wasm/font files their packages ship.
+    await ensureLightningCss();
+    const modules = new MemFilesApi();
+    const written = await materializeDeps(
+      new Map(Object.entries(models.pins)),
+      this.moduleServer(site),
+      modules,
+      `${prefix}/_m/`,
+    );
+    await addFiles(modules, written);
+    const asModules = await this.#staticModuleImports(out, site);
+
+    // The pages, and any other same-site file they link (a theme asset, a stylesheet).
+    const queue = [`${prefix}/t/`];
+    const seen = new Set(queue);
+    const failed: string[] = [];
+    while (queue.length) {
+      const path = queue.shift() as string;
+      const res = path.startsWith(`${prefix}/t/`)
+        ? await this.themed(new Request(origin + path), site, path.slice(`${prefix}/t`.length))
+        : await this.fetch(new Request(origin + path));
+      if (!res.ok) {
+        failed.push(`${path} ${res.status}`);
+        continue;
+      }
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const html = (res.headers.get("content-type") ?? "").includes("text/html");
+      out.set(html ? `${path.replace(/\/$/, "")}/index.html`.slice(1) : path.slice(1), bytes);
+      if (!html) continue;
+      for (const [, link] of new TextDecoder().decode(bytes).matchAll(/(?:href|src)="([^"#?]+)/g)) {
+        const u = new URL(link, origin + path);
+        if (u.origin !== origin || !u.pathname.startsWith(`${prefix}/`)) continue;
+        if (seen.has(u.pathname) || out.has(u.pathname.slice(1))) continue;
+        seen.add(u.pathname);
+        queue.push(u.pathname);
+      }
+    }
+    if (failed.length) return text(`export: ${failed.join(", ")}\n`, 502);
+    const home = `${prefix}/t/`;
+    out.set(
+      "index.html",
+      new TextEncoder().encode(
+        `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=${home}"><a href="${home}">${models.site.title}</a>\n`,
+      ),
+    );
+    const pages = [...out.keys()].filter(
+      (p) => p.startsWith(`${prefix.slice(1)}/t/`) && p.endsWith(".html"),
+    );
+    return new Response(zip(out) as BodyInit, {
+      headers: {
+        "content-type": "application/zip",
+        "content-disposition": `attachment; filename="${site}-site.zip"`,
+        "x-export-pages": String(pages.length),
+        "x-export-modules": String(written.length + asModules),
+      },
+    });
+  }
+
+  /**
+   * `import "./x.css?module"`: the module server answers a file with `?module` as a JS module (a
+   * stylesheet that adopts itself), but a static file server ignores the query and sends the CSS,
+   * which a browser refuses as a module script (notebook-kit's `stdlib/inputs.js` does this).
+   * Each such import is rewritten to `./x.css.module.js`, and that file is the module server's
+   * answer for `x.css?module`. Returns how many files were added.
+   */
+  async #staticModuleImports(out: Map<string, Uint8Array>, site: string): Promise<number> {
+    const server = this.moduleServer(site);
+    const QUERY = /(["'])([^"'\s]+?)\?module\1/g;
+    let added = 0;
+    for (const [path, bytes] of [...out]) {
+      if (!path.endsWith(".js")) continue;
+      const source = new TextDecoder().decode(bytes);
+      if (!source.includes("?module")) continue;
+      const base = new URL(`http://local/${path}`);
+      for (const [, , spec] of source.matchAll(QUERY)) {
+        const url = new URL(spec, base);
+        const target = `${url.pathname.slice(1)}.module.js`;
+        if (out.has(target)) continue;
+        const res = await server.fetch(new Request(`${url.href}?module`));
+        if (!res.ok) throw new Error(`export: ${url.pathname}?module ${res.status}`);
+        out.set(target, new Uint8Array(await res.arrayBuffer()));
+        added++;
+      }
+      out.set(path, new TextEncoder().encode(source.replace(QUERY, "$1$2.module.js$1")));
+    }
+    return added;
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const [, , site, area, ...rest] = url.pathname.split("/");
@@ -233,6 +351,9 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       if (!build || !/^[\w-]+$/.test(build)) return text("{ build: <build id> } expected\n", 400);
       await this.#writeJson("/theme.json", { build });
       return new Response(null, { status: 204 });
+    }
+    if (area === "export" && rest.length === 0 && request.method === "POST") {
+      return this.exportSite(request, site);
     }
     if (area === "t") {
       return this.themed(request, site, `/${rest.map(decodeURIComponent).join("/")}`);

@@ -59,7 +59,12 @@ For each host, the platform is started on it, then for each demo:
   - an edit of `index.md` and a rebuild change the themed page and the models, with no new
     theme build;
   - in Chromium, the themed page's cells run (Plot draws 60 dots) and its navigation lists both
-    notebooks.
+    notebooks;
+  - the themed site is exported (`POST /nb/demo/export`) with both pages and every module the
+    pins name, served by a plain Node file server, and opened in Chromium: the root redirects to
+    the home page, its navigation leads to the plots, and Plot draws 60 dots. Every file of the
+    site loads from the file server; the only other requests are notebook-kit's built-ins from
+    esm.sh, which the check lists.
 
 ## Internals
 

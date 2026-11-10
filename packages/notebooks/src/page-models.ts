@@ -56,6 +56,8 @@ export interface SiteModel {
 export interface PageModels {
   site: SiteModel;
   pages: PageModel[];
+  /** Every module the pages import, `npm:` specifier → URL (the runtime included): an export's closure. */
+  pins: Record<string, string>;
 }
 
 const RUNTIME_SPECIFIER = "npm:@observablehq/notebook-kit/runtime";
@@ -138,12 +140,14 @@ export async function buildPageModels(opts: {
   siteTitle: string;
   base?: string;
 }): Promise<PageModels & { failures: { notebook: string; error: string }[] }> {
+  const allPins: Record<string, string> = {};
   const base = (opts.base ?? "").replace(/\/$/, "");
   const md = new MarkdownIt({ html: true });
   const runtimeUrl = (await opts.moduleServer.resolve(toModuleRef(RUNTIME_SPECIFIER))).url;
   // The runtime is `<modules>/@observablehq/notebook-kit@<version>/dist/src/runtime/index.js`;
   // the stylesheet sits beside it in the same package.
   const stylesUrl = runtimeUrl.replace(/\/dist\/.*$/, "/dist/src/styles/index.css");
+  allPins[RUNTIME_SPECIFIER] = runtimeUrl;
 
   const paths: string[] = [];
   for await (const p of walk(opts.notebooks, "/")) if (/\.(md|html)$/.test(p)) paths.push(p);
@@ -163,6 +167,7 @@ export async function buildPageModels(opts: {
       const text = await readText(opts.notebooks, file);
       const nb = file.endsWith(".md") ? parseMarkdown(text) : parseNotebookHtml(text, opts.dom);
       const pins = await resolveNotebook(nb, { moduleServer: opts.moduleServer }, file);
+      for (const [k, v] of pins) allPins[k] = v;
       const cells = transpileNotebook(nb, pins);
       const source = new Map(nb.cells.map((c) => [c.id, c.value]));
 
@@ -208,5 +213,5 @@ export async function buildPageModels(opts: {
     home: `${base}/`,
     pages: pages.map(({ id, path, title }) => ({ id, path, title })),
   };
-  return { site, pages, failures };
+  return { site, pages, pins: allPins, failures };
 }

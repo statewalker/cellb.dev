@@ -25,6 +25,7 @@ The demo notebooks are in
 | `GET /nb/<site>/models.json` | the page models of the last build: `{ version, site, pages }` |
 | `PUT /nb/<site>/theme` | `{ "build": "<id>" }`: a bundler build of an Astro theme (`POST /builds`) |
 | `GET /nb/<site>/t/<page>` | a page rendered by the theme from the page models (`t/` is the home page) |
+| `POST /nb/<site>/export` | the themed site as static files, a ZIP (`x-export-pages`, `x-export-modules`) |
 
 ## How it works
 
@@ -70,6 +71,30 @@ GET  /nb/<site>/t/<page> ─► the theme's build in a Worker Loader isolate,
 - **The theme pins `astro` 7.4.4**, so its build does not change under it with each Astro
   release. The platform's Astro demo takes the latest 7.x; between them both places Astro has
   kept its client directives in are checked.
+
+### Static export
+
+`POST /nb/<site>/export` returns the themed site as a ZIP that any static file server serves:
+
+- **pages**, crawled from `/nb/<site>/t/` through their links, each saved as `<path>/index.html`;
+- **modules**, which a crawler cannot find because the pages import them from JavaScript: the
+  closure of the page models' pins (notebook-kit's runtime and the notebooks' `npm:` imports),
+  materialized with notebook-build's `materializeDeps`, with the `.css`, `.wasm` and font files
+  their packages ship;
+- a root `index.html` that redirects to `/nb/<site>/t/`.
+
+Paths stay as served (`/nb/<site>/t/…`, `/nb/<site>/_m/…`), so no page is rewritten. One kind of
+module is: an `import "./x.css?module"` (notebook-kit's `stdlib/inputs.js` has one) asks the
+module server for a JS module, but a static server ignores the query and sends CSS. The export
+writes the module server's answer to `x.css.module.js` and points the import there.
+
+notebook-kit's stdlib imports its built-ins from esm.sh (`Inputs`, `htl`, the recommended
+libraries such as `d3` or `duckdb`), on hosted pages and exported ones alike. A notebook that
+uses one needs that CDN at run time. The export check lists the ones the demo uses.
+
+```sh
+curl -X POST -o site.zip localhost:8787/nb/demo/export && unzip site.zip -d site && python3 -m http.server -d site
+```
 
 ```sh
 (cd theme && zip -r - . -x 'node_modules/*') | curl -X POST --data-binary @- 'localhost:8787/builds?tier=object&sourcemap=0'

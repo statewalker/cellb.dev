@@ -466,6 +466,9 @@ importers:
       '@statewalker/webrun-files':
         specifier: 'catalog:'
         version: 0.10.3
+      '@statewalker/webrun-files-mem':
+        specifier: 'catalog:'
+        version: 0.10.3
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
         version: 0.3.6

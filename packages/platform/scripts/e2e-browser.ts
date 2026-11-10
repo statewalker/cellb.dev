@@ -264,7 +264,9 @@ try {
       const summary = await p.textContent("#summary");
       assert(summary?.includes("60 points"), summary);
       await p.close();
-      return `theme build ${s.id} in the tab; /nb/demo/t/plots: ${summary}`;
+      const exp = await call("/nb/demo/export", { method: "POST" });
+      assert(exp.status === 200, `export ${exp.status}: ${exp.text.slice(0, 300)}`);
+      return `theme build ${s.id} in the tab; /nb/demo/t/plots: ${summary}; exported in the tab`;
     },
   );
 } finally {
