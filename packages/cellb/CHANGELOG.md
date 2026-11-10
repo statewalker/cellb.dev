@@ -1,5 +1,12 @@
 # @statewalker/cellb
 
+## 0.8.1
+
+### Patch Changes
+
+- c7d25a8: The browser Worker Loader rewrote a loaded module's imports (`cloudflare:workers` → its shim, relative paths → sibling Blob URLs) with a regex over the whole text, so the same words inside a string, a template, a comment or a regular expression were rewritten too: a code generator whose template contains `from "cloudflare:workers"` emitted a `blob:` URL. The module is now scanned as code, and only its own `import … from`, `import "…"`, `export … from` and `import(…)` specifiers are rewritten.
+- bb9d50d: `lowerAwait` (the fallback that lowers async functions for a browser build with a top-level await, such as a `.wasm` import) passed `arguments` to a lowered async arrow whenever the word appeared in its body, in a string, a comment or a nested function's own `arguments`. In a class field or a static block that is a SyntaxError (`'arguments' is not allowed in class field initializer`), so such a bundle failed to load. An arrow now gets its enclosing function's `arguments` only when it reads them itself.
+
 ## 0.8.0
 
 ### Minor Changes
