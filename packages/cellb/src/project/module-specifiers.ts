@@ -8,7 +8,8 @@
  * A small scanner rather than a parser: the browser module loader runs in every isolate and
  * shard worker, where a full JS parser would add its whole size.
  *
- * `resolve(spec)` returns the replacement specifier, or undefined to keep it.
+ * `resolve(spec)` returns the replacement specifier, or undefined to keep it. A dynamic import
+ * is rewritten only when its argument is one literal (a string, or a template without `${`).
  */
 export function rewriteModuleSpecifiers(
   code: string,
@@ -16,15 +17,30 @@ export function rewriteModuleSpecifiers(
 ): string {
   const edits: { start: number; end: number; text: string }[] = [];
   const n = code.length;
-  let i = 0;
-  // The last significant token, to tell a regular expression from a division.
+  // The last significant token, to tell a regular expression from a division: a punctuator
+  // (`(`, `=`, …), "id" (an identifier or a keyword not in REGEX_AFTER_WORD), "num", "str",
+  // "re", "++"/"--", or ")" / "]" / "}" (a division follows, unless the `)` closed the head of
+  // `if`/`while`/`for`/`with`, which a statement, and so a regex, may follow).
   let prev = "";
-  // Template literals being scanned and, for each `${`, the brace depth it opened at.
-  const braces: number[] = [];
+  let prevWord = ""; // the identifier `prev` stands for, when it is "id"
+  // Template literals being scanned: for each `${`, the brace depth it opened at.
+  const templates: number[] = [];
   let depth = 0;
+  // For each open `(`: whether it is the head of if/while/for/with.
+  const parens: boolean[] = [];
 
-  const isIdStart = (c: string) => /[A-Za-z_$\u0080-￿]/.test(c);
-  const isId = (c: string) => /[A-Za-z0-9_$\u0080-￿]/.test(c);
+  const WORD_START = new Uint8Array(128);
+  const WORD = new Uint8Array(128);
+  for (let c = 0; c < 128; c++) {
+    const ch = String.fromCharCode(c);
+    WORD_START[c] = /[A-Za-z_$]/.test(ch) ? 1 : 0;
+    WORD[c] = /[A-Za-z0-9_$]/.test(ch) ? 1 : 0;
+  }
+  const isIdStart = (c: number) => (c < 128 ? WORD_START[c] === 1 : c > 0xa0 || c === 0x5c);
+  const isId = (c: number) => (c < 128 ? WORD[c] === 1 : c > 0xa0 || c === 0x5c);
+  const isSpace = (c: number) =>
+    c === 32 || (c >= 9 && c <= 13) || c === 0xa0 || c === 0xfeff || c === 0x2028 || c === 0x2029;
+
   const REGEX_AFTER_WORD = new Set([
     "return",
     "typeof",
@@ -40,16 +56,22 @@ export function rewriteModuleSpecifiers(
     "else",
     "yield",
     "await",
+    "default",
+    "extends",
   ]);
-  const regexAllowed = () =>
-    prev === "" || /^[(,=:[!&|?{};+\-*%<>~^]$/.test(prev) || REGEX_AFTER_WORD.has(prev);
+  const HEADS = new Set(["if", "while", "for", "with"]);
+  const regexAllowed = () => {
+    if (prev === "id") return REGEX_AFTER_WORD.has(prevWord);
+    if (prev === "" || prev === "head)") return true;
+    return /^[(,=:[!&|?{};+\-*%<>~^]$/.test(prev);
+  };
 
   const skipSpace = (from: number): number => {
     let j = from;
     for (;;) {
-      while (j < n && /\s/.test(code[j] as string)) j++;
+      while (j < n && isSpace(code.charCodeAt(j))) j++;
       if (code.startsWith("//", j)) {
-        while (j < n && code[j] !== "\n") j++;
+        while (j < n && code[j] !== "\n" && code[j] !== "\r") j++;
       } else if (code.startsWith("/*", j)) {
         const end = code.indexOf("*/", j + 2);
         j = end < 0 ? n : end + 2;
@@ -61,29 +83,65 @@ export function rewriteModuleSpecifiers(
     const q = code[from];
     let j = from + 1;
     while (j < n && code[j] !== q) {
-      if (code[j] === "\\") j++;
-      else if (code[j] === "\n") break;
+      if (code[j] === "\\") {
+        j++;
+        if (code[j] === "\r" && code[j + 1] === "\n") j++; // a CRLF line continuation
+      } else if (code[j] === "\n" || code[j] === "\r") break;
       j++;
     }
     return j + 1;
   };
-  /** A string literal at `from` (after spaces and comments): its range, or undefined. */
-  const stringAt = (from: number) => {
+  /** The string's value, decoding the simple escapes; undefined for anything else. */
+  const decode = (raw: string): string | undefined => {
+    let out = "";
+    for (let j = 0; j < raw.length; j++) {
+      const c = raw[j] as string;
+      if (c !== "\\") {
+        out += c;
+        continue;
+      }
+      const e = raw[++j];
+      const hex = (len: number) => {
+        const h = raw.slice(j + 1, j + 1 + len);
+        if (!new RegExp(`^[0-9a-fA-F]{${len}}$`).test(h)) return undefined;
+        j += len;
+        return String.fromCharCode(Number.parseInt(h, 16));
+      };
+      const d =
+        e === "x"
+          ? hex(2)
+          : e === "u"
+            ? hex(4)
+            : e === "'" || e === '"' || e === "\\" || e === "/"
+              ? e
+              : undefined;
+      if (d === undefined) return undefined;
+      out += d;
+    }
+    return out;
+  };
+  /** A string literal (or, for import(), a template without `${`) at `from`, after spaces. */
+  const literalAt = (from: number, template: boolean) => {
     const j = skipSpace(from);
     const q = code[j];
-    if (q !== '"' && q !== "'") return undefined;
-    return { start: j, end: stringEnd(j) };
+    if (q === '"' || q === "'") return { start: j, end: stringEnd(j) };
+    if (template && q === "`") {
+      const end = code.indexOf("`", j + 1);
+      if (end < 0) return undefined;
+      const raw = code.slice(j + 1, end);
+      if (raw.includes("${") || raw.includes("\\")) return undefined;
+      return { start: j, end: end + 1 };
+    }
+    return undefined;
   };
   const take = (s: { start: number; end: number } | undefined) => {
     if (!s) return;
-    // The text between the quotes (no eval: isolates and CSP pages refuse it). A specifier
-    // with an escape in it is left as it is.
-    const spec = code.slice(s.start + 1, s.end - 1);
-    if (spec.includes("\\")) return;
+    const spec = decode(code.slice(s.start + 1, s.end - 1));
+    if (spec === undefined) return;
     const to = resolve(spec);
     if (to !== undefined) edits.push({ start: s.start, end: s.end, text: JSON.stringify(to) });
   };
-  /** Scans template text from `from` (just after a backtick or a `}` closing `${…}`). */
+  /** Scans template text from `from` (just after a backtick, or a `}` closing `${…}`). */
   const templateText = (from: number): number => {
     let j = from;
     while (j < n) {
@@ -91,7 +149,7 @@ export function rewriteModuleSpecifiers(
       if (c === "\\") j += 2;
       else if (c === "`") return j + 1;
       else if (c === "$" && code[j + 1] === "{") {
-        braces.push(depth);
+        templates.push(depth);
         depth++;
         return j + 2;
       } else j++;
@@ -99,13 +157,16 @@ export function rewriteModuleSpecifiers(
     return n;
   };
 
+  let i = 0;
+  if (code.startsWith("#!")) while (i < n && code[i] !== "\n") i++; // a hashbang line
   while (i < n) {
+    const cc = code.charCodeAt(i);
     const c = code[i] as string;
-    if (/\s/.test(c)) {
+    if (isSpace(cc)) {
       i++;
       continue;
     }
-    if (code.startsWith("//", i) || code.startsWith("/*", i)) {
+    if (c === "/" && (code[i + 1] === "/" || code[i + 1] === "*")) {
       i = skipSpace(i);
       continue;
     }
@@ -122,40 +183,81 @@ export function rewriteModuleSpecifiers(
     if (c === "/" && regexAllowed()) {
       let j = i + 1;
       let inClass = false;
-      while (j < n && code[j] !== "\n") {
+      let closed = false;
+      while (j < n && code[j] !== "\n" && code[j] !== "\r") {
         const d = code[j];
         if (d === "\\") j++;
         else if (d === "[") inClass = true;
         else if (d === "]") inClass = false;
-        else if (d === "/" && !inClass) break;
+        else if (d === "/" && !inClass) {
+          closed = true;
+          break;
+        }
         j++;
       }
-      j++;
-      while (j < n && isId(code[j] as string)) j++;
+      if (closed) {
+        j++;
+        while (j < n && isId(code.charCodeAt(j))) j++; // flags
+      }
       i = j;
       prev = "re";
       continue;
     }
-    if (isIdStart(c)) {
+    if (isIdStart(cc)) {
       let j = i + 1;
-      while (j < n && isId(code[j] as string)) j++;
+      while (j < n && isId(code.charCodeAt(j))) j++;
       const word = code.slice(i, j);
-      const member = prev === ".";
-      if (!member && word === "from") take(stringAt(j));
+      const member = prev === "." || prev === "?.";
+      if (!member && word === "from" && (prev === "}" || prev === "*" || prev === "id"))
+        take(literalAt(j, false));
       else if (!member && word === "import") {
         const k = skipSpace(j);
-        if (code[k] === "(") take(stringAt(k + 1));
-        else take(stringAt(j)); // a side-effect import of a bare string
+        if (code[k] === "(") {
+          // import(x): only a whole literal argument (not "./a/" + b).
+          const s = literalAt(k + 1, true);
+          const after = s && code[skipSpace(s.end)];
+          if (after === ")" || after === ",") take(s);
+        } else take(literalAt(j, false)); // a side-effect import of a bare string
       }
       i = j;
-      prev = word;
+      prev = "id";
+      prevWord = word;
+      continue;
+    }
+    if (cc >= 48 && cc <= 57) {
+      let j = i + 1;
+      while (j < n && (isId(code.charCodeAt(j)) || code[j] === ".")) j++;
+      i = j;
+      prev = "num";
+      continue;
+    }
+    if ((c === "+" || c === "-") && code[i + 1] === c) {
+      // `a++ / b` divides; `x = ++a` has the operator before an operand, which then sets prev.
+      prev = c + c;
+      i += 2;
+      continue;
+    }
+    if (c === "?" && code[i + 1] === "." && !/[0-9]/.test(code[i + 2] ?? "")) {
+      prev = "?.";
+      i += 2;
+      continue;
+    }
+    if (c === "(") {
+      parens.push(prev === "id" && HEADS.has(prevWord));
+      prev = "(";
+      i++;
+      continue;
+    }
+    if (c === ")") {
+      prev = parens.pop() ? "head)" : ")";
+      i++;
       continue;
     }
     if (c === "{") depth++;
     else if (c === "}") {
       depth--;
-      if (braces.length && braces[braces.length - 1] === depth) {
-        braces.pop();
+      if (templates.length && templates[templates.length - 1] === depth) {
+        templates.pop();
         i = templateText(i + 1);
         prev = "str";
         continue;
