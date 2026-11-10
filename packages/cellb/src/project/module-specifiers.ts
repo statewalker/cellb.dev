@@ -145,7 +145,7 @@ export function rewriteModuleSpecifiers(
       else if (!member && word === "import") {
         const k = skipSpace(j);
         if (code[k] === "(") take(stringAt(k + 1));
-        else take(stringAt(j)); // import "x"
+        else take(stringAt(j)); // a side-effect import of a bare string
       }
       i = j;
       prev = word;
