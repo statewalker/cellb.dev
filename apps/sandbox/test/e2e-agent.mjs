@@ -24,6 +24,7 @@ import {
   startFakeOpenAi,
   toolResults,
 } from "../../../examples/fake-openai/src/index.ts";
+import { startGitServer } from "./git-server.mjs";
 
 if (process.env.HTTPS === "1") {
   // The https run (test/e2e.mjs) checks requests on an https page; this one adds nothing there.
@@ -301,7 +302,9 @@ try {
     throw new Error(`node: api → ${JSON.stringify(apiRes)}`);
   await writeFile(join(dir, "ok"), "");
 
-  step("history: the checkpoint before the agent run restores the project");
+  step(
+    "history: the checkpoint before the agent run restores the project; the history pushed to a git server",
+  );
   await page.getByRole("tab", { name: "Ship" }).click();
   const historyPanel = page.getByTestId("history-panel");
   await historyPanel
@@ -325,6 +328,24 @@ try {
     window.cellbSandbox.call("read_file", { path: ".git/HEAD" }),
   );
   if (hidden.ok) throw new Error("an outside tool read .git");
+
+  // The history, pushed to a git server over smart HTTP (git http-backend), read back by git.
+  const gitServer = await startGitServer();
+  try {
+    const remoteUrl = gitServer.create("agent-ui.git");
+    await historyPanel.getByText("Push to a git remote").click();
+    await historyPanel.getByLabel("Remote URL").fill(remoteUrl);
+    await historyPanel.getByRole("button", { name: "Push", exact: true }).click();
+    await historyPanel
+      .getByTestId("push-status")
+      .filter({ hasText: /^pushed / })
+      .waitFor({ timeout: 60_000 });
+    const remoteLog = gitServer.git("agent-ui.git", "log", "--format=%s", "main");
+    if (!remoteLog.includes("Before the agent: Rename")) throw new Error(`git log: ${remoteLog}`);
+    gitServer.git("agent-ui.git", "fsck", "--strict");
+  } finally {
+    await gitServer.close();
+  }
 
   step(
     "a project in the browser's own storage (OPFS): opened, run, and written through a capability",

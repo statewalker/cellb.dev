@@ -1,0 +1,13 @@
+{
+  // A CORS proxy for git's smart HTTP protocol, so a browser tab (the sandbox's History → Push)
+  // can push to and fetch from GitHub, GitLab or any git host. Deploy it (wrangler deploy, celld,
+  // cellb on Node) and use https://<proxy>/<host>/<owner>/<repo>.git as the remote.
+  "name": "cellb-git-proxy",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "vars": {
+    // The git hosts it forwards to (exact host names), and the origins allowed to use it.
+    "ALLOWED_HOSTS": "github.com,gitlab.com,codeberg.org",
+    "ALLOWED_ORIGINS": "*"
+  }
+}

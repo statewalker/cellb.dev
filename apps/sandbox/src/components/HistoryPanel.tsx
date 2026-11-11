@@ -1,4 +1,4 @@
-import { GitCommitHorizontal, History, RotateCcw } from "lucide-react";
+import { CloudUpload, GitCommitHorizontal, History, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Changes, CommitInfo, ProjectHistory } from "@/sandbox/history";
@@ -23,6 +23,18 @@ export function HistoryPanel(props: {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
+  const [remote, setRemote] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("cellb-sandbox-remote") ?? "{}") as {
+        url?: string;
+        branch?: string;
+      };
+    } catch {
+      return {};
+    }
+  });
+  const [remoteToken, setRemoteToken] = useState("");
+  const [pushed, setPushed] = useState<string>();
   const { history, version, log, onRestored } = props;
 
   const refresh = useCallback(async () => {
@@ -119,6 +131,74 @@ export function HistoryPanel(props: {
           {error}
         </p>
       )}
+      <details className="rounded-md border px-3 py-2">
+        <summary className="cursor-pointer text-xs select-none">Push to a git remote</summary>
+        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_8rem]">
+          <label className="grid gap-1">
+            <span className="text-muted-foreground text-xs">
+              Remote (smart HTTP; GitHub through a proxy that adds CORS headers)
+            </span>
+            <input
+              aria-label="Remote URL"
+              className="bg-background h-8 rounded-md border px-2 font-mono text-xs"
+              placeholder="https://git-proxy.example/github.com/owner/repo.git"
+              value={remote.url ?? ""}
+              onChange={(e) => setRemote((r) => ({ ...r, url: e.target.value }))}
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-muted-foreground text-xs">Branch</span>
+            <input
+              aria-label="Remote branch"
+              className="bg-background h-8 rounded-md border px-2 font-mono text-xs"
+              placeholder="main"
+              value={remote.branch ?? ""}
+              onChange={(e) => setRemote((r) => ({ ...r, branch: e.target.value }))}
+            />
+          </label>
+          <label className="grid gap-1 sm:col-span-2">
+            <span className="text-muted-foreground text-xs">Token (optional, not stored)</span>
+            <input
+              aria-label="Remote token"
+              type="password"
+              autoComplete="off"
+              className="bg-background h-8 rounded-md border px-2 font-mono text-xs"
+              value={remoteToken}
+              onChange={(e) => setRemoteToken(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!!busy || !remote.url || commits.length === 0}
+            onClick={() =>
+              task("push", async () => {
+                try {
+                  localStorage.setItem("cellb-sandbox-remote", JSON.stringify(remote));
+                } catch {}
+                const r = await (await history()).push(remote.url as string, {
+                  branch: remote.branch || "main",
+                  token: remoteToken || undefined,
+                });
+                const text = r.ok
+                  ? `pushed ${r.commit?.slice(0, 7)} to ${r.branch}`
+                  : `push refused: ${r.message}`;
+                setPushed(text);
+                log(`history: ${text} (${r.remote})`, r.ok ? "info" : "error");
+              })
+            }
+          >
+            <CloudUpload /> {busy === "push" ? "Pushing…" : "Push"}
+          </Button>
+          {pushed && (
+            <span role="status" className="text-muted-foreground text-xs" data-testid="push-status">
+              {pushed}
+            </span>
+          )}
+        </div>
+      </details>
       <ol className="divide-y rounded-md border" data-testid="history-commits">
         {commits.length === 0 && (
           <li className="text-muted-foreground p-2 text-xs">No commits yet</li>

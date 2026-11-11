@@ -55,6 +55,22 @@ export interface ProjectHistory {
   restore(id: string): Promise<void>;
   /** A file's bytes at a commit, or undefined. */
   fileAt(id: string, path: string): Promise<Uint8Array | undefined>;
+  /**
+   * Pushes the history (its main branch) to a git remote over smart HTTP: any server, or GitHub
+   * through a proxy that adds CORS headers. A token goes as HTTP Basic `x-access-token:<token>`.
+   */
+  push(
+    remote: string,
+    opts?: { branch?: string; token?: string; force?: boolean },
+  ): Promise<PushInfo>;
+}
+
+export interface PushInfo {
+  remote: string;
+  branch: string;
+  commit?: string;
+  ok: boolean;
+  message?: string;
 }
 
 export async function openHistory(files: FilesApi): Promise<ProjectHistory> {
@@ -213,8 +229,38 @@ export async function openHistory(files: FilesApi): Promise<ProjectHistory> {
       return undefined;
     },
   };
+  async function push(
+    remote: string,
+    opts: { branch?: string; token?: string; force?: boolean } = {},
+  ): Promise<PushInfo> {
+    const branch = opts.branch ?? "main";
+    const current = (await workingCopy.getCurrentBranch()) ?? "main";
+    const commit = await head();
+    if (!commit) throw new Error("nothing to push: commit first");
+    let cmd = git
+      .push()
+      .setRemote(remote)
+      .setRefSpecs(`refs/heads/${current}:refs/heads/${branch}`);
+    if (opts.token) cmd = cmd.setCredentials({ token: opts.token } as never);
+    if (opts.force) cmd = cmd.setForce(true);
+    const result = (await cmd.call()) as {
+      remoteUpdates?: { status?: string; message?: string }[];
+      ok?: boolean;
+    };
+    const updates = result.remoteUpdates ?? [];
+    const failed = updates.find((u) => u.status && !/^(OK|UP_TO_DATE)$/i.test(String(u.status)));
+    return {
+      remote,
+      branch,
+      commit,
+      ok: !failed,
+      message: failed ? `${failed.status} ${failed.message ?? ""}`.trim() : undefined,
+    };
+  }
+
   return {
     git,
+    push: serial(push),
     commitAll: serial(api.commitAll),
     log: serial(api.log),
     changes: serial(api.changes),

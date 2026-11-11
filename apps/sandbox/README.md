@@ -221,6 +221,14 @@ project's `.gitignore` files are honored too.
   files written back, files the commit lacks removed; ignored files untouched).
 - **Checkpoints**: with the box ticked, every agent run starts with a commit ("Before the agent:
   …"), so undoing an agent is a Restore.
+- **Push to a git remote**: the history goes to any git server over smart HTTP (webrun-vcs builds
+  the pack in the tab; a token goes as HTTP Basic `x-access-token`). A browser needs CORS from the
+  server: GitHub, GitLab and Codeberg send none, so push through **`git-proxy/`**, a small Worker
+  (deploy it with `wrangler deploy`, or run it on celld or cellb) that forwards only git's smart
+  HTTP requests to `ALLOWED_HOSTS` and adds CORS headers for `ALLOWED_ORIGINS`; the remote is then
+  `https://<proxy>/github.com/<owner>/<repo>.git`. Checked against `git http-backend`: directly
+  from Chromium, and through the proxy on cellb in Node (`git log` and `git fsck --strict` on the
+  server).
 - The page works on it through its owner capability; agents' and other tools' tokens carry one
   more Biscuit block (`NO_GIT`) that keeps `.cellb/` and `.git/` out of their reach.
 
