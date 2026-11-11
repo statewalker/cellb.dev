@@ -1,5 +1,6 @@
 import type { ValueCodec } from "../ports.js";
 import { serialize } from "../v8/serialize.js";
+import { nativeAsyncContext } from "./async-context.js";
 import { CELLD_SCHEMA } from "./celld-schema.js";
 import type { InputGate } from "./gates.js";
 import type { SqlStorage } from "./sql-storage.js";
@@ -235,13 +236,21 @@ export class DurableObjectStorage extends AsyncKvApi {
   }
   /** Settles when the last async transaction() started so far has. */
   #txnTail: Promise<void> = Promise.resolve();
+  /** Set inside a running transaction's callback, where the platform tracks async context. */
+  #txnScope = txnScope();
+  #txnDepth = 0;
   /**
    * Async transaction spanning awaits: the input gate stays closed (no new event is delivered)
-   * and auto-commit is held. Transactions run one at a time, as workerd's critical sections
-   * keep them: events already in flight could otherwise open theirs on the same savepoint
-   * stack, and one's rollback would undo what another, already released, wrote.
+   * and auto-commit is held. Transactions from different events run one at a time, as workerd's
+   * critical sections keep them: events already in flight could otherwise open theirs on the same
+   * savepoint stack, and one's rollback would undo what another, already released, wrote.
+   *
+   * A transaction awaited inside another's callback nests, as in workerd, and runs at once on its
+   * own savepoint. Telling it apart needs async context (AsyncLocalStorage on Node, or the
+   * engine's AsyncContext); without it, such a nested call waits for its parent and never runs.
    */
   transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
+    if (this.#txnScope?.get() === this) return this.#transaction(closure);
     const previous = this.#txnTail;
     let done!: () => void;
     this.#txnTail = new Promise<void>((resolve) => (done = resolve));
@@ -250,11 +259,12 @@ export class DurableObjectStorage extends AsyncKvApi {
   #transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
     return this.gate.runClosed(async () => {
       const release = this.sql.hold();
-      const sp = "_cf_atx";
+      const sp = `_cf_atx${++this.#txnDepth}`;
       this.sql.internalExec(`SAVEPOINT ${sp}`);
       const txn = new DurableObjectTransaction(this.kv, this.gate);
       try {
-        const r = await closure(txn);
+        const scope = this.#txnScope;
+        const r = await (scope ? scope.run(this, () => closure(txn)) : closure(txn));
         if (txn.rolledBack) this.#rollbackTo(sp);
         else this.sql.internalExec(`RELEASE ${sp}`);
         return r;
@@ -262,6 +272,7 @@ export class DurableObjectStorage extends AsyncKvApi {
         this.#rollbackTo(sp);
         throw e;
       } finally {
+        this.#txnDepth--;
         release();
       }
     });
@@ -387,4 +398,33 @@ export class DurableObjectStorage extends AsyncKvApi {
     this.sql.internalExec("DELETE FROM _cf_ALARM WHERE scope = ?", [this.kv.scope]);
     this.onAlarmChange(null);
   }
+}
+
+interface TxnScope {
+  get(): unknown;
+  run<R>(value: unknown, fn: () => R): R;
+}
+
+/** An async-context slot marking "inside this storage's transaction", where the platform has one. */
+function txnScope(): TxnScope | undefined {
+  const hooks = (
+    globalThis as { process?: { getBuiltinModule?(id: string): unknown } }
+  ).process?.getBuiltinModule?.("node:async_hooks") as
+    | {
+        AsyncLocalStorage?: new () => {
+          getStore(): unknown;
+          run<R>(store: unknown, fn: () => R): R;
+        };
+      }
+    | undefined;
+  if (hooks?.AsyncLocalStorage) {
+    const als = new hooks.AsyncLocalStorage();
+    return { get: () => als.getStore(), run: (v, fn) => als.run(v, fn) };
+  }
+  const native = nativeAsyncContext();
+  if (native) {
+    const v = new native.Variable<unknown>({ name: "cellb.storage.transaction" });
+    return { get: () => v.get(), run: (value, fn) => v.run(value, fn) };
+  }
+  return undefined;
 }
