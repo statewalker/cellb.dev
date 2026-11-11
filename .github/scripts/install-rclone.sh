@@ -20,4 +20,4 @@ curl -fsSL --retry 3 -o "$dir/rclone.zip" \
 echo "$SHA256  $dir/rclone.zip" | sha256sum -c --quiet
 unzip -q "$dir/rclone.zip" -d "$dir"
 sudo install -m 0755 "$dir/rclone-$VERSION-linux-amd64/rclone" /usr/local/bin/rclone
-rclone version | head -1
+rclone version | sed -n 1p # reads all of it: no SIGPIPE under pipefail
