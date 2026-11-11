@@ -53,6 +53,19 @@ describe("P08b D1 = workerd's d1-api.ts client + Miniflare's D1 simulator, both 
     expect((await db.prepare("SELECT x FROM t ORDER BY x").raw()).flat()).toEqual([1, 2]);
   });
 
+  it("a failing query in flight does not roll back a concurrent query's write", async () => {
+    // EmDash 1.5's D1 driver: buffered SELECTs on missing tables fail while Kysely's migrator
+    // creates its lock table; each query is a storage.transaction() of the simulator.
+    const db = setup();
+    const failing = db
+      .prepare("SELECT * FROM missing")
+      .all()
+      .catch((e: Error) => e.message);
+    await db.prepare('CREATE TABLE IF NOT EXISTS "lock" ("id" TEXT PRIMARY KEY)').all();
+    expect(await failing).toMatch(/no such table: missing/);
+    expect(await db.prepare('SELECT "id" FROM "lock"').all()).toMatchObject({ results: [] });
+  });
+
   it("errors carry D1's messages; BLOBs round-trip", async () => {
     const db = setup();
     await expect(db.prepare("SELEC nope").all()).rejects.toThrow(/D1_ERROR|syntax/i);

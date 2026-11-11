@@ -240,6 +240,32 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
       expect(r.order).toEqual(["a:start", "a:rolled back", "b:start"]);
     });
 
+    it("async transaction(): nests, as in workerd (inner rollback, outer rollback)", async () => {
+      const { inObject } = probeRuntime();
+      const r = await inObject("tx3", async (ctx) => {
+        await ctx.storage.transaction(async (outer) => {
+          await outer.put("a", 1);
+          await ctx.storage.transaction(async (inner) => {
+            await new Promise((res) => setTimeout(res, 1));
+            await inner.put("b", 1);
+            inner.rollback();
+          });
+          await ctx.storage.transaction(async (inner) => {
+            await new Promise((res) => setTimeout(res, 1));
+            await inner.put("c", 1);
+          });
+        });
+        await ctx.storage.transaction(async (outer) => {
+          await ctx.storage.transaction(async (inner) => {
+            await inner.put("d", 1);
+          });
+          outer.rollback();
+        });
+        return [...(await ctx.storage.list()).keys()];
+      });
+      expect(r).toEqual(["a", "c"]);
+    });
+
     it("deleteAll wipes KV and user tables", async () => {
       const { inObject } = probeRuntime();
       const r = await inObject("da", async (ctx) => {

@@ -1,5 +1,6 @@
 import type { ValueCodec } from "../ports.js";
 import { serialize } from "../v8/serialize.js";
+import { nativeAsyncContext } from "./async-context.js";
 import { CELLD_SCHEMA } from "./celld-schema.js";
 import type { InputGate } from "./gates.js";
 import type { SqlStorage } from "./sql-storage.js";
@@ -242,10 +243,17 @@ export class DurableObjectStorage extends AsyncKvApi {
    * Transactions of one object run one after another, as on workerd. The gate alone does not
    * order them: events already past it (Miniflare's D1 object awaits each request's body
    * first) opened their savepoints into each other, and one's rollback undid the other's
-   * writes. A transaction() called inside another's closure would wait for it forever: use
-   * the `txn` argument there.
+   * writes.
+   *
+   * A transaction() awaited inside another's closure nests, as on workerd, and runs at once on
+   * a savepoint of its own. Telling it apart from another event's call needs async context
+   * (AsyncLocalStorage on Node, or the engine's AsyncContext); without it, such a call waits
+   * for its parent forever: use the `txn` argument there.
    */
+  #txnScope = txnScope();
+  #txnDepth = 0;
   transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
+    if (this.#txnScope?.get() === this) return this.#transaction(closure);
     const run = () => this.#transaction(closure);
     const result = this.#transactions.then(run, run);
     this.#transactions = result.catch(() => {});
@@ -254,11 +262,12 @@ export class DurableObjectStorage extends AsyncKvApi {
   #transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
     return this.gate.runClosed(async () => {
       const release = this.sql.hold();
-      const sp = "_cf_atx";
+      const sp = `_cf_atx${++this.#txnDepth}`;
       this.sql.internalExec(`SAVEPOINT ${sp}`);
       const txn = new DurableObjectTransaction(this.kv, this.gate);
       try {
-        const r = await closure(txn);
+        const scope = this.#txnScope;
+        const r = await (scope ? scope.run(this, () => closure(txn)) : closure(txn));
         if (txn.rolledBack) this.#rollbackTo(sp);
         else this.sql.internalExec(`RELEASE ${sp}`);
         return r;
@@ -266,6 +275,7 @@ export class DurableObjectStorage extends AsyncKvApi {
         this.#rollbackTo(sp);
         throw e;
       } finally {
+        this.#txnDepth--;
         release();
       }
     });
@@ -391,4 +401,33 @@ export class DurableObjectStorage extends AsyncKvApi {
     this.sql.internalExec("DELETE FROM _cf_ALARM WHERE scope = ?", [this.kv.scope]);
     this.onAlarmChange(null);
   }
+}
+
+interface TxnScope {
+  get(): unknown;
+  run<R>(value: unknown, fn: () => R): R;
+}
+
+/** An async-context slot marking "inside this storage's transaction", where the platform has one. */
+function txnScope(): TxnScope | undefined {
+  const hooks = (
+    globalThis as { process?: { getBuiltinModule?(id: string): unknown } }
+  ).process?.getBuiltinModule?.("node:async_hooks") as
+    | {
+        AsyncLocalStorage?: new () => {
+          getStore(): unknown;
+          run<R>(store: unknown, fn: () => R): R;
+        };
+      }
+    | undefined;
+  if (hooks?.AsyncLocalStorage) {
+    const als = new hooks.AsyncLocalStorage();
+    return { get: () => als.getStore(), run: (v, fn) => als.run(v, fn) };
+  }
+  const native = nativeAsyncContext();
+  if (native) {
+    const v = new native.Variable<unknown>({ name: "cellb.storage.transaction" });
+    return { get: () => v.get(), run: (value, fn) => v.run(value, fn) };
+  }
+  return undefined;
 }
