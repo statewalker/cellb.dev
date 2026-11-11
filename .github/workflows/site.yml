@@ -41,6 +41,7 @@ on:
       - "pnpm-workspace.yaml"
       - ".github/workflows/site.yml"
       - ".github/scripts/install-chromium.sh"
+      - ".github/scripts/install-rclone.sh"
   pull_request:
     paths:
       - "site/**"
@@ -61,6 +62,7 @@ on:
       - "pnpm-workspace.yaml"
       - ".github/workflows/site.yml"
       - ".github/scripts/install-chromium.sh"
+      - ".github/scripts/install-rclone.sh"
   workflow_dispatch:
 
 # One publish at a time, the latest commit last; pull requests cancel their own older runs.
@@ -132,7 +134,7 @@ jobs:
           test -f site/dist/index.html || { echo "::error::site/dist/index.html is missing."; exit 1; }
           test -f site/dist/sandbox/app/index.html || { echo "::error::site/dist/sandbox/app/index.html is missing."; exit 1; }
 
-          sudo apt-get install -y -qq rclone >/dev/null
+          bash "${{ github.workspace }}/.github/scripts/install-rclone.sh"
           # Within the site's own prefix: files the build no longer has are removed, after the
           # new ones are uploaded (rclone's default), so the site is never half missing.
           rclone sync site/dist "httpeers:sites/$SITE_DOMAIN" --checksum --stats-one-line -v
