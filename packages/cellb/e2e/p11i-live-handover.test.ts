@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,7 +13,7 @@ import {
   runInDurableObject,
 } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
-import { freePort } from "../test/free-port.js";
+import { startCelldDev } from "../test/celld-dev.js";
 
 // Hand-over while BOTH runtimes are up (celld dev and cellb on one bucket): each refuses
 // a cell whose owner is live, the cell moves only when its owner stops or loses its lease, and a
@@ -23,20 +23,8 @@ const counter = join(__dirname, "../conformance/celld-examples/counter");
 
 // `until`: the log line to wait for. A node that never becomes ready (it refuses a cell) exits
 // at its own 30 s readiness deadline: wait for it to listen instead.
-async function celldDev(dir: string, until = "ready") {
-  const port = await freePort();
-  const p = spawn(CELLD!, ["dev", ".", "--port", String(port), "--logs"], {
-    cwd: dir,
-    env: { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let log = "";
-  p.stdout!.on("data", (d) => (log += d));
-  p.stderr!.on("data", (d) => (log += d));
-  for (let i = 0; i < 150 && !log.includes(until); i++)
-    await new Promise((r) => setTimeout(r, 200));
-  return { p, base: `http://127.0.0.1:${port}`, log: () => log };
-}
+const celldDev = (dir: string, until: "ready" | "listening" = "ready") =>
+  startCelldDev(dir, { until });
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => {
     if (p.exitCode !== null || p.signalCode !== null) return r();
@@ -94,7 +82,7 @@ describe.skipIf(!CELLD)("P11i live hand-over between celld and cellb", { concurr
     ).toEqual({ n: 3 });
     // cellb owns the cell, so this celld refuses it and never logs "ready": waiting for that would
     // run into its own 30 s readiness deadline, where it exits and the next request is refused.
-    const c2 = await celldDev(dir, "celld listening on");
+    const c2 = await celldDev(dir, "listening");
     try {
       const refused = await inc((u) => fetch(c2.base + u)); // cellb is live: celld refuses
       expect(refused, JSON.stringify(refused)).toEqual({
@@ -186,7 +174,7 @@ describe.skipIf(!CELLD)("P11i celld 0.6.3: a lost ownership record", () => {
       // not become ready)
       // Asked while it listens, well before its readiness deadline (30 s), when it exits: a
       // request after that reaches no cell, and nothing logs the lost record.
-      const c2 = await celldDev(dir, "celld listening on");
+      const c2 = await celldDev(dir, "listening");
       const ask = () =>
         inc((u) =>
           fetch(c2.base + u, { signal: AbortSignal.timeout(8_000) }).catch(

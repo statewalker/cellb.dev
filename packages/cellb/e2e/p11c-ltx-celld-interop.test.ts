@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +8,7 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { filesApiLtxLog, wasmMemoryOpener } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
-import { freePort } from "../test/free-port.js";
+import { startCelldDev } from "../test/celld-dev.js";
 
 // Both directions through celld's own storage format: the REAL celld writes a cell; cellb's
 // LTX log restores that database from celld's LTX files (same bucket keys); a new
@@ -19,24 +19,8 @@ const CELLD = process.env.CELLD_BIN;
 const example = join(__dirname, "../conformance/celld-examples/counter");
 
 async function startCelld(dir: string): Promise<ChildProcess & { base: string }> {
-  const port = await freePort();
-  const env = { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` };
-  const p = spawn(CELLD!, ["dev", ".", "--port", String(port), "--logs"], {
-    cwd: dir,
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let log = "";
-  p.stdout!.on("data", (d) => (log += d));
-  p.stderr!.on("data", (d) => (log += d));
-  for (let i = 0; i < 150 && !log.includes("ready"); i++)
-    await new Promise((r) => setTimeout(r, 200));
-  if (!log.includes("ready")) {
-    p.kill("SIGKILL");
-    throw new Error(`celld did not start:\n${log.slice(-600)}`);
-  }
-  (p as ChildProcess & { log: () => string }).log = () => log;
-  return Object.assign(p, { base: `http://127.0.0.1:${port}` });
+  const { p, base, log } = await startCelldDev(dir);
+  return Object.assign(p, { base, log });
 }
 const stop = async (p: ChildProcess) => {
   if (p.exitCode !== null || p.signalCode !== null) return;
