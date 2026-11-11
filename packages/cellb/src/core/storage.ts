@@ -233,11 +233,25 @@ export class DurableObjectStorage extends AsyncKvApi {
   transactionSync<T>(fn: () => T): T {
     return this.sql.transactionSync(fn);
   }
+  /** The last async transaction() queued: each one starts once the one before has settled. */
+  #transactions: Promise<unknown> = Promise.resolve();
   /**
    * Async transaction spanning awaits: the input gate stays closed (no other
    * event can interleave writes into the savepoint) and auto-commit is held.
+   *
+   * Transactions of one object run one after another, as on workerd. The gate alone does not
+   * order them: events already past it (Miniflare's D1 object awaits each request's body
+   * first) opened their savepoints into each other, and one's rollback undid the other's
+   * writes. A transaction() called inside another's closure would wait for it forever: use
+   * the `txn` argument there.
    */
   transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
+    const run = () => this.#transaction(closure);
+    const result = this.#transactions.then(run, run);
+    this.#transactions = result.catch(() => {});
+    return result;
+  }
+  #transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
     return this.gate.runClosed(async () => {
       const release = this.sql.hold();
       const sp = "_cf_atx";

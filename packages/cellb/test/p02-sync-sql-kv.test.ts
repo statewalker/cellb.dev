@@ -211,6 +211,35 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
       expect(r).toEqual(["a"]);
     });
 
+    it("async transactions that overlap run one after another: a rollback undoes only its own writes", async () => {
+      // Miniflare's D1 object awaits each request's body, then runs it in transaction(): two
+      // requests in flight overlapped their transactions, and the one that failed rolled back
+      // the other's CREATE TABLE (EmDash 1.5's migration lock table).
+      const { inObject } = probeRuntime();
+      const r = await inObject("tx-overlap", async (ctx) => {
+        const order: string[] = [];
+        const failing = ctx.storage
+          .transaction(async () => {
+            order.push("a:start");
+            await new Promise((res) => setTimeout(res, 5));
+            ctx.storage.sql.exec("SELECT * FROM missing");
+          })
+          .catch(() => order.push("a:rolled back"));
+        const creating = ctx.storage.transaction(async () => {
+          order.push("b:start");
+          ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS kept (id TEXT)");
+          await Promise.resolve();
+        });
+        await Promise.all([failing, creating]);
+        const tables = ctx.storage.sql
+          .exec("SELECT name FROM sqlite_master WHERE name = 'kept'")
+          .toArray();
+        return { order, kept: tables.length };
+      });
+      expect(r.kept).toBe(1);
+      expect(r.order).toEqual(["a:start", "a:rolled back", "b:start"]);
+    });
+
     it("deleteAll wipes KV and user tables", async () => {
       const { inObject } = probeRuntime();
       const r = await inObject("da", async (ctx) => {
