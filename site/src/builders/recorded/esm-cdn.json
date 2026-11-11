@@ -20,7 +20,7 @@
         "body": "",
         "bodyLang": "txt",
         "bytes": 0,
-        "ms": 358
+        "ms": 292
       }
     },
     {
@@ -41,7 +41,7 @@
         "body": "// @observablehq/plot v0.6.19 Copyright 2020-2025 Observable, Inc.\nimport { descending, ascending, timeSecond, timeMinute, timeHour, timeDay, timeMonday, timeTuesday, timeWednesday, timeThursday, timeFriday,…\n\nvar version = \"0.6.19\";\n\nfunction defined(x) {\n  return x != null && !Number.isNaN(x);\n}\n\nfunction ascendingDefined(a, b) {\n  return +defined(b) - +defined(a) || ascending(a, b);\n}\n\nfunction descendingDefined(a, b) {\n  return +defined(b) - +defined(a) || descending(a, b);\n}\n\nfunction nonempty(x) {\n// … 14977 more lines",
         "bodyLang": "js",
         "bytes": 498876,
-        "ms": 695
+        "ms": 809
       }
     },
     {
@@ -82,7 +82,7 @@
         "body": "[\n  \"/npm/browser/@observablehq/plot@0.6.19/dist/plot.js\",\n  \"/npm/browser/@observablehq/plot@0.6.19/~deps/d3/index.js\",\n  \"/npm/browser/d3-array@3.2.5/dist/d3-array.mjs\",\n  \"/npm/browser/d3-axis@3.0.1/dist/d3-axis.mjs\",\n  \"/npm/browser/d3-brush@3.0.1/dist/d3-brush.mjs\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-dispatch/index.js\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-drag/index.js\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-interpolate/index.js\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-selection/index.js\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-transition/index.js\",\n  \"… 89 more\"\n]",
         "bodyLang": "json",
         "bytes": 5518,
-        "ms": 4201
+        "ms": 4232
       }
     },
     {
@@ -101,7 +101,7 @@
         "body": "[\n  \"LICENSE\",\n  \"README.md\",\n  \"bin/dsv2dsv.js\",\n  \"bin/dsv2json.js\",\n  \"bin/json2dsv.js\",\n  \"dist/d3-dsv.js\",\n  \"dist/d3-dsv.min.js\",\n  \"dist/d3-dsv.min.mjs\",\n  \"… 2 more\"\n]",
         "bodyLang": "json",
         "bytes": 200,
-        "ms": 10
+        "ms": 4
       }
     },
     {
@@ -122,7 +122,7 @@
         "body": "const css = \":host, :root {\\n  --pico-font-family-emoji: \\\"Apple Color Emoji\\\",\\\"Segoe UI Emoji\\\",\\\"Segoe UI Symbol\\\",\\\"Noto Color Emoji\\\";\\n  --pico-font-family-sans-serif: system-ui,\\\"Segoe UI\\\",Roboto,Oxygen,Ubuntu,Cantarell,Helvetica,Arial,\\\"…\" /* 95891 chars */;\nif (typeof document !== \"undefined\") {\n  const el = document.createElement(\"style\");\n  el.textContent = css;\n  document.head.appendChild(el);\n}\nexport default css;",
         "bodyLang": "js",
         "bytes": 100365,
-        "ms": 371
+        "ms": 319
       }
     },
     {
@@ -143,7 +143,7 @@
         "body": "import { urlAlphabet as scopedUrlAlphabet } from './url-alphabet/index.js'\n\nexport { urlAlphabet } from './url-alphabet/index.js'\n\nexport let random = bytes => crypto.getRandomValues(new Uint8Array(bytes))\n\nexport let customRandom = (alphabet, defaultSize, getRandom) => {\n  let safeByteCutoff = 256 - (256 % alphabet.length)\n\n  if (safeByteCutoff === 256) {\n// … 46 more lines",
         "bodyLang": "js",
         "bytes": 1394,
-        "ms": 16
+        "ms": 15
       }
     },
     {
@@ -164,7 +164,7 @@
         "body": "import { Buffer } from \"./~deps/~globals.js\";\nimport { webcrypto as crypto } from 'node:crypto'\n\nimport { urlAlphabet as scopedUrlAlphabet } from './url-alphabet/index.js'\n\nexport { urlAlphabet } from './url-alphabet/index.js'\n\nconst POOL_SIZE_MULTIPLIER = 128\nlet pool, poolOffset\n\n// … 75 more lines",
         "bodyLang": "js",
         "bytes": 2019,
-        "ms": 13
+        "ms": 18
       }
     }
   ],
@@ -184,7 +184,7 @@
   ],
   "facts": {
     "plotPinned": "/npm/browser/@observablehq/plot@0.6.19/dist/plot.js",
-    "coldMs": 695,
+    "coldMs": 809,
     "warmMs": 12,
     "plotModules": 99,
     "pageModules": 103

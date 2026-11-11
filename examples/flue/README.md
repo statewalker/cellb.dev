@@ -140,7 +140,9 @@ CORS preflights, since the worker's origin is the Vite server's) and a fresh OPF
 ### Dependencies
 
 `@flue/runtime`, `@flue/vite` and `@flue/sdk` (pinned together, because the build and the client
-must agree), `@earendil-works/pi-ai` (Flue's model layer), `hono` (the app's router),
+must agree), `@earendil-works/pi-ai` (Flue's model layer, pinned to 1.4.0: Flue 2.3 imports
+`Type` from it, which pi-ai 1.5 no longer exports, so `examples/pnpm-workspace.yaml` keeps Flue's
+own pi-ai and pi-agent-core on 1.4.0 too, one copy for the app and Flue), `hono` (the app's router),
 `@cloudflare/vite-plugin` and `wrangler` (Flue's Cloudflare build), `@statewalker/cellb` (the
 runtime under test), `agents` (the plain Agents SDK app), `@statewalker/fake-openai` (the fake
 model), and `@playwright/test`, `@sparticuz/chromium` and `@sqlite.org/sqlite-wasm` (the browser

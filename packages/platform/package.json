@@ -34,11 +34,11 @@
     "lightningcss-wasm": "catalog:"
   },
   "devDependencies": {
-    "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
+    "@sqlite.org/sqlite-wasm": "^3.54.1-build1",
     "@statewalker/cellb": "workspace:*",
     "@types/node": "catalog:",
     "esbuild": "catalog:",
-    "playwright": "^1.64.1",
+    "playwright": "^1.65.0",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",

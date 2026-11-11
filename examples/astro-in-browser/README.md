@@ -117,6 +117,11 @@ crashes at 2.5 GB.
   client evaluates every define in the host page and its workers, which have no `process` yet).
 - **`Could not resolve "…": Failed to fetch`** in a cold build is a download from the npm
   registry that failed. Building again downloads only the packages still missing.
+- **`LinkError: … "napi_create_async_work": function import requires a callable`** when Astro's
+  compiler loads means `@napi-rs/wasm-runtime` got emnapi 2 (a beta), whose imports the compiler's
+  WebAssembly does not match. The runtime's peer range admits `2.0.0-beta.*`, and pnpm reuses the
+  one rolldown (in Vite) brings, so `package.json` names `@emnapi/core` and `@emnapi/runtime` 1.11.3,
+  as `packages/astro-builder` does.
 
 ## License
 

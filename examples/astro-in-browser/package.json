@@ -16,25 +16,27 @@
   "dependencies": {
     "@astrojs/compiler": "4.0.0",
     "@statewalker/webrun-bundler": "^0.1.1",
-    "@statewalker/webrun-files-mem": "^0.10.0",
+    "@statewalker/webrun-files-mem": "^0.10.3",
     "esbuild-wasm": "0.28.2",
-    "@napi-rs/wasm-runtime": "1.2.6",
+    "@emnapi/core": "1.11.3",
+    "@emnapi/runtime": "1.11.3",
+    "@napi-rs/wasm-runtime": "1.2.7",
     "@statewalker/webrun-modules": "0.3.6",
     "@statewalker/webrun-files-sqlite": "0.11.0",
     "@statewalker/db-sqlite-browser": "0.2.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.65.0",
     "@sparticuz/chromium": "^153.0.0",
-    "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
-    "@statewalker/cellb": "~0.5.0",
+    "@sqlite.org/sqlite-wasm": "^3.54.1-build1",
+    "@statewalker/cellb": "~0.8.1",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
     "@astrojs/compiler-rs": "0.5.3",
-    "tsx": "^4.21.0",
+    "tsx": "^4.23.15",
     "@statewalker/db-sqlite-node": "0.3.0",
-    "@statewalker/webrun-files-browser": "^0.10.0"
+    "@statewalker/webrun-files-browser": "^0.10.2"
   }
 }
