@@ -23,7 +23,7 @@ import { docHref } from "@/lib/docs";
       <tr><td><code>OpenCellSql</code></td><td>A synchronous SQLite database per cell</td><td>node:sqlite, SQLite WASM on OPFS, SQLite WASM in memory</td></tr>
       <tr><td><code>CellStorage</code></td><td>Durability, backup, ownership and R2 objects</td><td><code>celldBucket</code>, <code>filesApiLtxLog</code>, <code>filesApiChangeLog</code></td></tr>
       <tr><td><code>Lease</code></td><td>Per-cell ownership with an epoch and a "lost" signal</td><td><code>celldBucket(…).ownership</code></td></tr>
-      <tr><td><code>ObjectStore</code></td><td>A bucket with conditional writes</td><td>S3, celld dev's SQLite store, memory, OPFS</td></tr>
+      <tr><td><code>ObjectStore</code></td><td>A bucket with conditional writes</td><td>S3 (<code>s3ObjectStore</code>), celld dev's SQLite store, memory, OPFS, IndexedDB (<code>idbObjectStore</code>)</td></tr>
     </tbody>
   </table>
   <p>
@@ -82,10 +82,15 @@ import { docHref } from "@/lib/docs";
 
   <h2>Loaded Workers get a realm of their own</h2>
   <p>
-    A Worker Loader binding runs each loaded Worker in its own isolate: a worker thread in Node, a
-    Dedicated Worker in a browser. Plain values in its <code>env</code> are copied, and bindings
-    become stubs back to the parent. This is how a host runs plugin or agent-written code apart
-    from its own globals.
+    In Node, a Worker Loader binding always runs each loaded Worker in an isolate of its own: a
+    worker thread. In a browser it does so when the host gives an <code>isolateScript</code>, which
+    the browser's <code>loadProject</code> sets by default: each loaded Worker then gets a
+    Dedicated Worker. Without one (<code>browserProjectRuntime</code> and the shard functions
+    unless you pass it), loaded code runs in the realm of the project's worker. In an isolate,
+    plain values in its <code>env</code> are copied, and bindings become stubs back to the parent.
+    This is how a host runs plugin or agent-written code apart from its own globals; the
+    <a href={docHref("packages/cellb/docs/services/dynamic-workers.md")}>Dynamic Workers</a> page
+    has the details.
   </p>
 
   <h2>Read more</h2>

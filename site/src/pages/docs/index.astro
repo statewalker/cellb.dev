@@ -5,49 +5,28 @@ import Docs from "@/layouts/Docs.astro";
 import { docHref } from "@/lib/docs";
 import { REPO } from "@/lib/site";
 import cellb from "../../../../packages/cellb/package.json";
----
 
-<Docs title="Getting started" description="Run a Worker and its Durable Objects with CellB in Node and in a browser.">
-  <Badge variant="brand" class="mb-4">@statewalker/cellb {cellb.version} · on npm</Badge>
-  <h1>Getting started</h1>
-  <p>
-    CellB (<code>@statewalker/cellb</code>) is a Durable Objects runtime written in TypeScript. It
-    runs the same Workers code in a browser and in Node. A Worker module and its Durable Object
-    classes get synchronous SQLite storage, input and output gates, stubs with
-    <code>fetch</code> and RPC, alarms, WebSockets, Worker Loaders and facets, all without
-    modification.
-  </p>
+const nodeCode = `import { loadProject } from "@statewalker/cellb/node";
 
-  <h2>Install</h2>
-  <CodeBlock code={`npm install @statewalker/cellb\nnpm install esbuild   # for loadNodeProject and bundleWorkerForBrowser`} />
-  <p>
-    The published package is JavaScript with type declarations. Node 22.13 or later is needed for
-    <code>node:sqlite</code>. esbuild is an optional peer dependency: install it to load wrangler
-    projects or bundle them for browsers. In a browser app, the bundler must handle
-    <code>new Worker(new URL("…", import.meta.url))</code>, which Vite does. The sources live in
-    the <a href={REPO}>cellb.dev monorepo</a>.
-  </p>
+// A folder with wrangler.json(c) and its \`main\`, bundled with esbuild as it loads
+const project = await loadProject("./counter", { data: "./data" });
 
-  <h2>Entry points</h2>
-  <p>Callers differ by platform, so the package is split by platform, plus two entry points for bundling:</p>
-  <table>
-    <thead><tr><th>Import</th><th>What it gives</th></tr></thead>
-    <tbody>
-      <tr><td><code>@statewalker/cellb</code></td><td>The isomorphic runtime: <code>createCellRuntime</code>, <code>createProjectRuntime</code>, <code>DurableObject</code>, <code>WorkerEntrypoint</code>, <code>celldBucket</code>, the object stores, links over ports, <code>CellRouter</code></td></tr>
-      <tr><td><code>@statewalker/cellb/node</code></td><td><code>nodeSqliteOpener</code>, <code>sqliteObjectStore</code>, <code>loadNodeProject</code>, D1 migrations, and celld's peer protocol</td></tr>
-      <tr><td><code>@statewalker/cellb/browser</code></td><td><code>browserProjectRuntime</code>; <code>startProjectShards</code>, <code>joinProjectShards</code> and <code>serveProjectShard</code> (shards in workers and tabs); <code>installProjectRouter</code> (the ServiceWorker side); <code>sahpoolOpener</code>, <code>idbObjectStore</code>, <code>serviceWorkerConnector</code></td></tr>
-      <tr><td><code>@statewalker/cellb/tabs</code></td><td><code>joinProjectShards</code> and <code>installProjectRouter</code> without the shard runtime: what a page and its ServiceWorker import</td></tr>
-      <tr><td><code>@statewalker/cellb/site</code></td><td><code>createProjectSite</code>: a project's sources compiled and served in the browser, for <code>{"browserProjectRuntime({ site })"}</code>. Needs the optional peer dependencies <code>@statewalker/webrun-modules</code> and <code>@statewalker/webrun-site-builder</code>; the site is hosted in a ServiceWorker with <code>@statewalker/webrun-site-host</code>, also an optional peer</td></tr>
-      <tr><td><code>@statewalker/cellb/host-modules</code></td><td>For bundlers other than CellB's own: the sources of <code>cloudflare:workers</code>, <code>node:*</code> and the Workers globals as CellB provides them</td></tr>
-      <tr><td><code>@statewalker/cellb/isolate-worker</code></td><td>The Dedicated Worker that runs a Worker Loader's Worker in a realm of its own</td></tr>
-    </tbody>
-  </table>
+const res = await project.fetch(new Request("http://localhost/increment?name=alpha"));
+console.log(project.unsupported); // configuration CellB does not run, e.g. []
+await project.close();`;
 
-  <h2>A Durable Object in Node</h2>
-  <CodeBlock
-    lang="ts"
-    title="counter.ts"
-    code={`import { createCellRuntime, DurableObject } from "@statewalker/cellb";
+const buildCode = `npx cellb build ./counter --out public/apps/counter`;
+
+const browserCode = `// In a Dedicated Worker
+import { loadProject } from "@statewalker/cellb/browser";
+
+// The folder \`cellb build\` wrote, served by any static host
+const project = await loadProject("/apps/counter/", { data: "counter" });
+
+const res = await project.fetch(new Request("http://localhost/increment?name=alpha"));
+await project.close();`;
+
+const runtimeCode = `import { createCellRuntime, DurableObject } from "@statewalker/cellb";
 import { nodeSqliteOpener } from "@statewalker/cellb/node";
 
 class Counter extends DurableObject {
@@ -68,28 +47,15 @@ const runtime = createCellRuntime({
     },
   },
   durableObjects: { COUNTER: { className: "Counter" } },
-  openSql: nodeSqliteOpener("./data"), // a file per cell; () keeps them in memory
+  // In memory. nodeSqliteOpener("./data") keeps a file per cell in ./data, which must exist:
+  // the opener does not create it (mkdirSync("./data", { recursive: true }) first)
+  openSql: nodeSqliteOpener(),
 });
 
 const res = await runtime.fetch(new Request("http://local/counter/a")); // {"n":1}
-await runtime.close();`}
-  />
-  <p>
-    A runtime is a plain <code>(Request) ⇒ Response</code> handler. Mount
-    <code>runtime.fetch</code> on <code>node:http</code>, a ServiceWorker or a test, and call
-    <code>runtime.close()</code> when you are done. Closing takes final backups and closes every
-    database.
-  </p>
+await runtime.close();`;
 
-  <h2>The same project in a browser</h2>
-  <p>
-    In a browser, cells live in SQLite WASM inside a Dedicated Worker, and requests arrive
-    through a ServiceWorker.
-  </p>
-  <CodeBlock
-    lang="ts"
-    title="worker.ts"
-    code={`import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
+const browserRuntimeCode = `import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { browserProjectRuntime } from "@statewalker/cellb/browser";
 
 const host = await browserProjectRuntime({
@@ -99,17 +65,134 @@ const host = await browserProjectRuntime({
   pool: "my-app",    // the OPFS SQLite pool; one per worker
   filesDir: "my-app-files",
 });
-const res = await host.runtime.fetch(new Request("http://browser/"));`}
-  />
+const res = await host.runtime.fetch(new Request("http://browser/"));`;
 
-  <p>Where the cells' data lives is a choice of the <code>bucket</code> option:</p>
+const fleetCode = `import { celldBucket } from "@statewalker/cellb";
+import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "@statewalker/cellb/node";
+import { MemFilesApi } from "@statewalker/webrun-files-mem";
+
+const dir = "./counter"; // wrangler.jsonc and its \`main\`
+const { runtime, unsupported } = await loadNodeProject(dir, {
+  openSql: nodeSqliteOpener(), // in memory: every cell is restored from the bucket on first use
+  files: new MemFilesApi(), // blob store for large KV values
+  storage: celldBucket(sqliteObjectStore(\`\${dir}/.celld/dev/objects.sqlite3\`), { node: "cellb-1" }),
+});
+console.log(unsupported); // configuration CellB does not support, e.g. []
+await runtime.fetch(new Request("http://localhost/increment?name=a"));
+await runtime.close(); // releases the cells, so celld can take them at once`;
+---
+
+<Docs title="Getting started" description="Run a Worker and its Durable Objects with CellB in Node and in a browser, with one loadProject call.">
+  <Badge variant="brand" class="mb-4">@statewalker/cellb {cellb.version} · on npm</Badge>
+  <h1>Getting started</h1>
+  <p>
+    CellB (<code>@statewalker/cellb</code>) is a Durable Objects runtime written in TypeScript. It
+    runs the same Workers code in a browser and in Node. A Worker module and its Durable Object
+    classes get synchronous SQLite storage, input and output gates, stubs with
+    <code>fetch</code> and RPC, alarms, WebSockets, Worker Loaders and facets, all without
+    modification.
+  </p>
+  <p>
+    Two words come up on every page. <strong>celld</strong> (denoland/celld) is a server that runs
+    Cloudflare Workers projects on a fleet of machines sharing one bucket; CellB answers the
+    requests it recorded the same way and stores data in its format. A <strong>cell</strong> is one
+    Durable Object instance with a name, together with its SQLite database, owned by one runtime at
+    a time. The <a href={docHref("packages/cellb/CONTEXT.md")}>glossary</a> defines the rest.
+  </p>
+
+  <h2>Install</h2>
+  <CodeBlock code={`npm install @statewalker/cellb\nnpm install esbuild   # for loadProject and cellb build on Node (an optional peer dependency)`} />
+  <p>
+    The published package is JavaScript with type declarations. Node 22.13 or later is needed for
+    <code>node:sqlite</code>. Two more entry points have optional peer dependencies of their own:
+  </p>
+  <ul>
+    <li><code>@statewalker/cellb/bundle</code> needs <code>@statewalker/webrun-bundler</code>, and the caller passes esbuild-wasm, initialized;</li>
+    <li><code>@statewalker/cellb/site</code> needs <code>@statewalker/webrun-modules</code>, <code>@statewalker/webrun-site-builder</code> and <code>@statewalker/webrun-site-host</code>.</li>
+  </ul>
+  <p>
+    In a browser app, the bundler must handle
+    <code>new Worker(new URL("…", import.meta.url))</code>, which Vite does. The sources live in
+    the <a href={REPO}>cellb.dev monorepo</a>.
+  </p>
+
+  <h2>Load a project</h2>
+  <p>
+    <code>loadProject(source, options)</code> has the same name and options in Node and in a
+    browser. In Node it takes a wrangler project folder and bundles its <code>main</code> with
+    esbuild as it loads it. <code>data</code> is a directory for the cells' SQLite files and the
+    project's files (created if missing); without it, everything stays in memory.
+  </p>
+  <CodeBlock lang="ts" title="node.ts" code={nodeCode} />
+  <p>
+    A browser loads a project built ahead of time, on Node. The folder holds
+    <code>wrangler.json</code>, <code>worker.js</code>, <code>assets/</code> and
+    <code>cellb.json</code>, the manifest of the assets, since a static host cannot list a folder.
+  </p>
+  <CodeBlock lang="sh" title="terminal" code={buildCode} />
+  <p>
+    Then, in a Dedicated Worker, the browser's <code>loadProject</code> loads that folder by URL.
+    There, <code>data</code> is an OPFS name (default: the project's <code>name</code>), and code
+    loaded through a Worker Loader runs in a Dedicated Worker of its own by default
+    (<code>isolateScript</code>).
+  </p>
+  <CodeBlock lang="ts" title="worker.ts" code={browserCode} />
+  <p>
+    A project is a <code>(Request) ⇒ Response</code> handler. Mount <code>project.fetch</code> on
+    <code>node:http</code>, a ServiceWorker or a test, and call <code>project.close()</code> when you
+    are done: it takes final backups and closes every database. A browser can also compile a
+    project from its sources, with no build step: see
+    <a href="/docs/from-sources">Running from sources</a>.
+  </p>
+
+  <h2>Entry points</h2>
+  <p>The package has three entry points, one per platform, and more for bundling and hosting:</p>
+  <table>
+    <thead><tr><th>Import</th><th>What it gives</th></tr></thead>
+    <tbody>
+      <tr><td><code>@statewalker/cellb</code></td><td>The runtime (<code>createCellRuntime</code>, <code>createProjectRuntime</code> with <code>loadProjectBindings</code>), <code>DurableObject</code> and <code>WorkerEntrypoint</code>, the ports and <code>CellStorage</code>, <code>celldBucket</code>, the object stores (<code>s3ObjectStore</code>, <code>memoryObjectStore</code>, <code>filesApiObjectStore</code>), <code>filesApiLtxLog</code>, <code>filesApiChangeLog</code>, <code>filesApiBackup</code>, <code>wasmMemoryOpener</code> (in-memory SQLite WASM), links over ports, <code>CellRouter</code>, <code>createShardWorker</code>, the WebSocket classes, and the errors embedders catch</td></tr>
+      <tr><td><code>@statewalker/cellb/node</code></td><td><code>loadProject</code> and <code>buildProject</code> (the <code>cellb build</code> command), <code>nodeSqliteOpener</code>, <code>sqliteObjectStore</code> (celld dev's local bucket), <code>loadNodeProject</code>, <code>applyNodeD1Migrations</code>, and celld's peer protocol (<code>startCelldPeerServer</code>, <code>celldPeers</code>)</td></tr>
+      <tr><td><code>@statewalker/cellb/browser</code></td><td><code>loadProject</code> (a <code>cellb build</code> folder by URL, or sources with a compiler), <code>browserProjectRuntime</code>, <code>startProjectShards</code>, <code>joinProjectShards</code> and <code>serveProjectShard</code> (shards in workers and tabs), <code>installProjectRouter</code> (the ServiceWorker side), <code>sahpoolOpener</code>, <code>idbObjectStore</code>, <code>serviceWorkerConnector</code></td></tr>
+      <tr><td><code>@statewalker/cellb/tabs</code></td><td>The tab side and the ServiceWorker side of a project shared by the tabs (<code>joinProjectShards</code>, <code>installProjectRouter</code>, <code>shardOwner</code>) without the shard runtime: what a page and its ServiceWorker import</td></tr>
+      <tr><td><code>@statewalker/cellb/site</code></td><td><code>createProjectSite</code>: a project's sources compiled in the browser and served by an in-browser HTTP server (<code>{"browserProjectRuntime({ site })"}</code>); <code>siteCompiler</code> for <code>loadProject</code>, and <code>siteHostOverPort</code> / <code>hostSitesForWorker</code> to host a worker's site from its page. Needs the optional peers <code>@statewalker/webrun-modules</code>, <code>@statewalker/webrun-site-builder</code> and <code>@statewalker/webrun-site-host</code></td></tr>
+      <tr><td><code>@statewalker/cellb/bundle</code></td><td><code>bundleCompiler</code>: a project's sources bundled in the browser for <code>loadProject</code>, with webrun-bundler on esbuild-wasm. Needs the optional peer <code>@statewalker/webrun-bundler</code>; the caller passes esbuild-wasm, initialized</td></tr>
+      <tr><td><code>@statewalker/cellb/host-modules</code></td><td>For bundlers other than CellB's own (webrun-bundler in a browser, say): the sources of <code>cloudflare:workers</code>, <code>node:*</code> and the Workers globals as CellB's realms provide them (<code>cellbHostModule</code>, <code>CELLS_GLOBALS_MODULE</code>)</td></tr>
+      <tr><td><code>@statewalker/cellb/isolate-worker</code></td><td>The Dedicated Worker that runs a Worker Loader's Worker in a realm of its own (<code>isolateScript</code>)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Lower-level calls</h2>
+  <p>
+    <code>loadProject</code> is built on calls you can use directly when you need more control:
+    <code>createCellRuntime</code> for a Worker you hand over as a module object,
+    <code>loadNodeProject</code> for a wrangler project in Node with your own SQLite opener, files
+    and storage, and <code>browserProjectRuntime</code> for a bundle in a browser worker.
+  </p>
+
+  <h3>A Durable Object in Node: createCellRuntime</h3>
+  <CodeBlock lang="ts" title="counter.ts" code={runtimeCode} />
+
+  <h3>A bundle in a browser worker: browserProjectRuntime</h3>
+  <p>
+    In a browser, cells live in SQLite WASM inside a Dedicated Worker, and requests arrive
+    through a ServiceWorker. <code>browserProjectRuntime</code> does not isolate Worker Loader code
+    unless it is given an <code>isolateScript</code>.
+  </p>
+  <CodeBlock lang="ts" title="worker.ts" code={browserRuntimeCode} />
+
+  <p>
+    Where the cells' data lives is a choice of the <code>bucket</code> option (of
+    <code>browserProjectRuntime</code>, and of the browser's <code>loadProject</code>):
+  </p>
   <table>
     <thead><tr><th>Storage</th><th>What it does</th></tr></thead>
     <tbody>
       <tr><td>an OPFS pool (default)</td><td>One SQLite file per cell in the worker's opfs-sahpool pool. Needs no COOP/COEP headers; a pool belongs to one worker</td></tr>
       <tr><td><code>{"{ ltx, node }"}</code></td><td>Each cell as celld keeps it: a snapshot and one LTX file per commit in OPFS, read page by page, so a cell's memory is its page cache. Compacts itself; needs cross-origin isolation</td></tr>
       <tr><td><code>{"{ idb, node }"}</code></td><td>SQLite in memory, persisted through page-level logs in IndexedDB, whose conditional writes are atomic across tabs and workers</td></tr>
-      <tr><td><code>{"{ s3, node }"}</code></td><td>A celld fleet bucket on S3, shared with celld and Node nodes</td></tr>
+      <tr><td><code>{"{ opfs, node }"}</code></td><td>A celld-layout bucket in this origin's OPFS: persistence without a server. Conditional writes are atomic only within one writer, so one tab or worker at a time should own its cells</td></tr>
+      <tr><td><code>{"{ s3, node }"}</code></td><td>A celld fleet bucket on S3 (or an S3-compatible store), shared with celld and Node nodes. The bucket must allow CORS for the page's origin, or be reached through a same-origin proxy</td></tr>
+      <tr><td><code>{"{ store, node }"}</code></td><td>Any <code>ObjectStore</code> you construct yourself</td></tr>
     </tbody>
   </table>
 
@@ -117,23 +200,19 @@ const res = await host.runtime.fetch(new Request("http://browser/"));`}
   <p>
     Give the runtime a <code>celldBucket</code> and it becomes a node of a celld fleet. It uses the
     same bucket layout, ownership records and LTX log, so a cell can move between celld and CellB
-    with no conversion.
+    with no conversion. Here the bucket is the one <code>celld dev</code> keeps on disk:
+    <code>.celld/dev/objects.sqlite3</code> exists in the project folder once <code>celld dev</code>
+    has run there. A fleet on S3 uses <code>s3ObjectStore(…)</code> instead.
+    <code>loadProject(dir, {"{ bucket }"})</code> takes the same <code>celldBucket(…)</code>.
   </p>
-  <CodeBlock
-    lang="ts"
-    code={`const { runtime, unsupported } = await loadNodeProject("./counter", {
-  openSql: nodeSqliteOpener(),
-  files: new MemFilesApi(),
-  storage: celldBucket(sqliteObjectStore("./counter/.celld/dev/objects.sqlite3"), { node: "cellb-1" }),
-});
-console.log(unsupported); // configuration CellB does not support, e.g. []`}
-  />
+  <CodeBlock lang="ts" title="fleet.ts" code={fleetCode} />
 
   <h2>Next steps</h2>
   <ul>
     <li><a href="/docs/how-it-works">How it works</a>: the core, the ports, ownership and durability.</li>
     <li><a href={docHref("packages/cellb/docs/browser-host.md")}>Running in a browser</a>: the four topologies, from one worker to shards shared by tabs.</li>
     <li><a href={docHref("packages/cellb/docs/gaps.md")}>Gaps</a>: what CellB does not do yet.</li>
+    <li><a href={docHref("packages/cellb/CONTEXT.md")}>Glossary</a>: what cell, runtime, host and the other terms mean here.</li>
     <li><a href="/examples">Examples</a>: every project CellB is tested with, ready to run in this browser.</li>
     <li><a href="/docs/from-sources">Running from sources</a>: TypeScript and npm imports compiled in the browser, with no build step.</li>
   </ul>

@@ -69,6 +69,29 @@ const CELLD_ABOUT: Record<string, string> = {
     "A project with static assets only, no Worker code, with _headers and _redirects files.",
 };
 
+/** What each of CellB's probe projects without a header comment shows (assets only, no Worker). */
+const PROBE_ABOUT: Record<string, string> = {
+  "assets-force":
+    'Static assets only, no Worker code, with html_handling "force-trailing-slash" (HTML pages answer at paths ending in "/", other spellings redirect there) and not_found_handling "404-page".',
+  "assets-drop":
+    'Static assets only, no Worker code, with html_handling "drop-trailing-slash" (HTML pages answer at paths without a trailing "/", other spellings redirect there) and not_found_handling "404-page".',
+};
+
+/** A line from the project's wrangler assets config, for a probe with neither comment nor entry. */
+function assetsAbout(files: { path: string; text: string }[]): string {
+  const config = files.find((f) => /^wrangler\.jsonc?$/.test(f.path))?.text ?? "";
+  const handling = (key: string) => new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`).exec(config)?.[1];
+  if (!/"assets"\s*:/.test(config)) return "";
+  const settings = ["html_handling", "not_found_handling"]
+    .map((k) => handling(k) && `${k} "${handling(k)}"`)
+    .filter(Boolean);
+  return `A project with static assets${settings.length ? `, ${settings.join(" and ")}` : ""}.`;
+}
+
+/** The product's name in prose is "CellB" (package names and paths keep "cellb"). */
+const prose = (text: string | undefined) =>
+  text?.replace(/(?<![\w@/.-])cellb(?![\w/.-]| build)/g, "CellB");
+
 const isText = (p: string) => /\.(m?[jt]s|jsonc?|html?|css|txt|md|svg|xml)$/i.test(p);
 
 function listFiles(dir: string, base = dir): string[] {
@@ -158,12 +181,13 @@ for (const [name, s] of Object.entries(scenarios)) {
     name,
     project,
     origin,
-    about:
+    about: prose(
       origin === "celld"
         ? (CELLD_ABOUT[project] ?? "")
         : origin === "workerd"
           ? `workerd's own test file ${upstream?.[2].split("/").pop()}, run by a small Worker that calls each of its tests and answers with their results.`
-          : headerComment(main?.text ?? ""),
+          : headerComment(main?.text ?? "") || PROBE_ABOUT[project] || assetsAbout(files),
+    ),
     source:
       origin === "celld"
         ? `${CELLD_EXAMPLES}/${project}`
@@ -177,8 +201,8 @@ for (const [name, s] of Object.entries(scenarios)) {
     logs: !!s.logs,
     needsServer: !!s.wsServer,
     judge: s.judge === "workerd" ? "workerd" : "celld",
-    knownGap: s.knownGap,
-    workerdDiffers: s.workerdDiffers,
+    knownGap: prose(s.knownGap),
+    workerdDiffers: prose(s.workerdDiffers),
     recorded: golden,
   });
 }

@@ -66,8 +66,9 @@ const steps = [
     </Button>
   </div>
   <p class="text-sm text-muted-foreground">
-    Best in Chrome or Edge: they support the File System Access API, so the sandbox can rerun the
-    app when you save a file. Other browsers read the folder once.
+    Rerun on save works in every browser. Chrome and Edge also support the File System Access API,
+    so the sandbox writes your edits back to the folder and reruns the app when a file changes on
+    disk. Other browsers read the folder once and keep edits in the tab.
   </p>
 
   <h2>What it does</h2>
@@ -78,12 +79,15 @@ const steps = [
       </li>
     ))}
   </ol>
-  <p>Next to the preview, the sandbox has these tools:</p>
+  <p>
+    The page has three tabs, <strong>Preview</strong>, <strong>Code</strong> and
+    <strong>Log</strong>, next to the file tree:
+  </p>
   <ul>
-    <li><strong>Files</strong> shows the folder's tree, collapsible, with the server and client files marked. New file, New folder, rename or move (a path field, or drag a row onto a folder) and delete work there.</li>
-    <li><strong>Code</strong> edits a file in CodeMirror, with syntax support for TS, TSX, JS, JSX, JSON, CSS, HTML and Markdown. Ctrl/Cmd+S saves. In a folder opened from disk, saves and file changes are written back to the folder (the first one asks for write access); for the sample they stay in the tab, and Download .zip keeps them.</li>
+    <li><strong>The file tree</strong> shows the folder, collapsible, with the server and client files marked. New file, New folder, rename or move (a path field, or drag a row onto a folder) and delete work there.</li>
+    <li><strong>Code</strong> edits a file in CodeMirror, with syntax support for TS, TSX, JS, JSX, JSON, CSS, HTML and Markdown. Ctrl/Cmd+S saves. In Chrome or Edge, in a folder opened from disk, saves and file changes are written back to the folder (the first one asks for write access). For the sample, or a folder read once in other browsers, they stay in the tab, and Download .zip keeps them.</li>
     <li><strong>Log</strong> shows each step with its timing: bundling, startup, the URL the app runs at.</li>
-    <li><strong>Rerun on save</strong> restarts the app when a file is saved or changed in the tree, and, for a folder opened from disk, when a file changes there.</li>
+    <li><strong>Rerun on save</strong> restarts the app when a file is saved, added, moved or deleted, in any browser; in Chrome or Edge, for a folder opened from disk, also when a file changes there.</li>
     <li><strong>Download .zip</strong> packs the project's files into a ZIP.</li>
     <li><strong>Open in a new tab</strong>: the running app has a URL, and any tab of the site can open it while the sandbox runs.</li>
   </ul>
@@ -133,7 +137,7 @@ const steps = [
     <tbody>
       <tr>
         <td>Reading the folder</td>
-        <td>File System Access API (<code>showDirectoryPicker</code>), else <code>webkitdirectory</code>; changes are found by polling.</td>
+        <td>File System Access API (<code>showDirectoryPicker</code>, Chrome and Edge), else <code>webkitdirectory</code>, read once; with the File System Access API, changes on disk are found by polling.</td>
       </tr>
       <tr>
         <td>Server: bundle</td>
@@ -168,7 +172,8 @@ const steps = [
     The sandbox is the private workspace package <code>@statewalker/cellb-sandbox</code> in
     <a href={repoFile("apps/sandbox")}>apps/sandbox</a>. The site's build builds it with
     <code>SANDBOX_BASE=/sandbox/app/</code> and copies it in
-    (<a href={repoFile("site/scripts/build-sandbox.mjs")}>build-sandbox.mjs</a>).
+    (<a href={repoFile("site/scripts/build-sandbox.mjs")}>build-sandbox.mjs</a>). Running it
+    locally needs Node 22.23.4 or later (the package's <code>engines</code> field).
   </p>
   <CodeBlock lang="sh" title="terminal" code={runLocally} />
 
