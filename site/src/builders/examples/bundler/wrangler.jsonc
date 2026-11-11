@@ -1,0 +1,10 @@
+{
+  // A Worker with a Durable Object per room, SQLite storage and static assets.
+  // Nothing is installed: the bundler fetches hono at the range package.json declares.
+  "name": "guestbook",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-02-24",
+  "assets": { "directory": "./public" },
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }]
+}

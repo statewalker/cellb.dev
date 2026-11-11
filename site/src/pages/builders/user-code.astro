@@ -1,0 +1,181 @@
+---
+import Files from "@/components/builders/Files.astro";
+import Flow from "@/components/builders/Flow.astro";
+import Pager from "@/components/builders/Pager.astro";
+import RecordedNote from "@/components/builders/RecordedNote.astro";
+import Shots from "@/components/builders/Shots.astro";
+import Transcript from "@/components/builders/Transcript.astro";
+import CodeBlock from "@/components/CodeBlock.astro";
+import Docs from "@/layouts/Docs.astro";
+import { recordedOf } from "@/lib/builders";
+import { docHref } from "@/lib/docs";
+import { repoFile } from "@/lib/site";
+
+const rec = recordedOf("user-code");
+const f = rec.facts;
+const raw = import.meta.glob<string>("../../builders/examples/user-code/**/*", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+const files = Object.fromEntries(
+  [
+    "src/App.tsx",
+    "src/main.tsx",
+    "src/tasks.ts",
+    "src/styles.css",
+    "index.html",
+    "package.json",
+  ].map((p) => [p, raw[`../../builders/examples/user-code/${p}`]]),
+);
+
+const client = `// An editor, a playground or an agent: write files, snapshot, show the page.
+const P = "http://localhost:8787/p/tasks";
+
+await fetch(\`\${P}/import\`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ files }),          // { "src/App.tsx": "…", "package.json": "…", … }
+});
+const { snapshot, base } = await (await fetch(\`\${P}/snapshots\`, { method: "POST" })).json();
+iframe.src = \`\${base}~/index.html\`;          // the app, compiled module by module
+
+// After an edit: write the file, take a new snapshot, point the iframe at it.
+await fetch(\`\${P}/files/src/App.tsx\`, { method: "PUT", body: newSource });
+const next = await (await fetch(\`\${P}/snapshots\`, { method: "POST" })).json();
+iframe.src = \`\${next.base}~/index.html\`;`;
+---
+
+<Docs
+  title="User code as ESM"
+  description="The platform's module server for a project's own files: TypeScript, TSX and CSS served as ES modules from immutable snapshots, npm imports bound to the ESM CDN. A working example with recorded results."
+>
+  <p class="font-mono text-xs uppercase tracking-wider text-primary">Builders · 2 of 5</p>
+  <h1>User code as ESM: a project, served as it is written</h1>
+  <p>
+    The ESM CDN serves packages others published. This builder serves the code you are writing:
+    a project's TypeScript, TSX, JSX and CSS files, each compiled to an ES module when the browser
+    asks for it. Write the files, take a snapshot, and open the snapshot's{" "}
+    <code>index.html</code>. There is no bundling step and no dev server to keep running.
+  </p>
+
+  <h2>What it is for</h2>
+  <ul>
+    <li>
+      <strong>Editors and playgrounds in the browser.</strong> A change recompiles only the file
+      that changed, when it is next requested.
+    </li>
+    <li>
+      <strong>AI agents that write front-end code.</strong> The agent writes files over HTTP and
+      gets a URL that runs them, with real npm packages.
+    </li>
+    <li>
+      <strong>Previews that do not move under you.</strong> Each snapshot has its own URLs. A page
+      that is open keeps importing the version it started with, even after the next edit.
+    </li>
+    <li>
+      <strong>The input of the bundler.</strong> <code>/p/&lt;id&gt;/export/&lt;snapshot&gt;</code>{" "}
+      is the snapshot as a ZIP, and <code>POST /builds?project=&lt;id&gt;&amp;snapshot=&lt;snapshot&gt;</code>{" "}
+      builds it.
+    </li>
+  </ul>
+
+  <h2>How it works</h2>
+  <Flow
+    steps={[
+      { label: "PUT · POST /import", detail: "files go into the project's working tree", kind: "client" },
+      { label: "POST /snapshots", detail: "the tree is frozen under the hash of its contents" },
+      { label: "GET /s/<snap>/~/<path>", detail: "each file compiled to ESM on first request, then cached" },
+      { label: "~deps/ → ESM CDN", detail: "npm imports re-export the CDN's pinned URLs", kind: "external" },
+    ]}
+    caption="One Project object per project. The project's own files are compiled here; npm packages are the CDN's, shared by every project."
+  />
+  <ol>
+    <li>
+      <strong>A working tree.</strong> <code>POST /p/&lt;id&gt;/import</code> replaces the tree
+      with a ZIP or a JSON map of files; <code>PUT /p/&lt;id&gt;/files/&lt;path&gt;</code> writes
+      one file. The tree is stored in the <code>Project</code> object's SQLite.
+    </li>
+    <li>
+      <strong>A snapshot.</strong> <code>POST /p/&lt;id&gt;/snapshots</code> copies the tree
+      under the hash of its contents and returns its base URL. The same files give the same id:
+      the recording's first snapshot is <code>{f.snapshot}</code>, and importing the same six
+      files again anywhere gives it again.
+    </li>
+    <li>
+      <strong>A module per file.</strong> <code>GET &lt;base&gt;~/src/App.tsx</code> is compiled
+      by webrun-modules: types stripped, JSX compiled with React's automatic runtime, CSS imports
+      turned into <code>?module</code> imports (Lightning CSS lowers nesting), and every import
+      made a URL (an import without an extension, <code>"./tasks"</code>, gets the file's,
+      <code>"./tasks.ts"</code>). The answer is <code>immutable</code>, since a snapshot never
+      changes.
+    </li>
+    <li>
+      <strong>npm imports bind to the CDN.</strong> <code>import "react"</code> becomes{" "}
+      <code>../~deps/react/index.js</code>, a module in the snapshot that re-exports the CDN's
+      pinned URL for the range in the project's <code>package.json</code>{" "}
+      (<code>export * from "…/npm/browser/react@19.3.1/index.js"</code>). The project compiles
+      only its own files; every project shares the CDN's packages.
+    </li>
+  </ol>
+  <table>
+    <thead><tr><th>Request</th><th>Answer</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST /p/&lt;id&gt;/import</code></td><td>replaces the working tree: a ZIP, or <code>{`{ files: { path: text } }`}</code></td></tr>
+      <tr><td><code>PUT /p/&lt;id&gt;/files/&lt;path&gt;</code>, <code>DELETE …</code></td><td>writes or removes one file</td></tr>
+      <tr><td><code>POST /p/&lt;id&gt;/snapshots</code></td><td><code>{`{ snapshot, base }`}</code></td></tr>
+      <tr><td><code>GET /p/&lt;id&gt;/s/&lt;snap&gt;/~/&lt;path&gt;</code></td><td>a source as ESM; <code>index.html</code> as it is</td></tr>
+      <tr><td><code>POST /p/&lt;id&gt;/s/&lt;snap&gt;/resolve</code></td><td>entry URLs and the project modules to preload</td></tr>
+      <tr><td><code>GET /p/&lt;id&gt;/live/…</code></td><td>302 to the latest snapshot, made on demand</td></tr>
+      <tr><td><code>GET /p/&lt;id&gt;/export/&lt;snap|live&gt;</code></td><td>the snapshot as a ZIP</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Usage</h2>
+  <p>
+    The example is a small task list: React, a TSX component, a TypeScript helper that uses{" "}
+    <code>nanoid</code> for ids, and nested CSS. Nothing in it is installed or built; the{" "}
+    <code>package.json</code> only says which versions to use.
+  </p>
+  <Files
+    files={files}
+    source={{ label: "site/src/builders/examples/user-code/", href: repoFile("site/src/builders/examples/user-code/src/App.tsx") }}
+  />
+  <p>From a shell, in the example's folder:</p>
+  <CodeBlock
+    lang="sh"
+    code={`node -e 'const fs=require("fs");const files={};for(const p of process.argv.slice(1))files[p]=fs.readFileSync(p,"utf8");console.log(JSON.stringify({files}))' index.html package.json src/* \\
+  | curl -X POST -H 'content-type: application/json' --data-binary @- http://localhost:8787/p/tasks/import
+curl -X POST http://localhost:8787/p/tasks/snapshots     # → { snapshot, base }: open <base>~/index.html`}
+  />
+  <p>From an app, the same three calls:</p>
+  <CodeBlock lang="js" code={client} />
+
+  <h2>Results</h2>
+  <RecordedNote recorded={rec} />
+  <h3>The page</h3>
+  <Shots shots={rec.shots} />
+  <h3>The requests</h3>
+  <Transcript steps={rec.steps} />
+  <p>
+    After the edit the project has two snapshots, <code>{f.snapshot}</code> and{" "}
+    <code>{f.snapshot2}</code>. The recorder checked that the first one still serves the
+    original <code>src/main.tsx</code>.
+  </p>
+
+  <h2>Limits</h2>
+  <ul>
+    <li>
+      A project's <code>~deps</code> module for a CDN package emits <code>default</code> only
+      when the importer asks for it, since the project does not analyse the CDN's exports.
+    </li>
+    <li>
+      The transforms are per file (sucrase), with no type checking and no Vite plugins. For a
+      framework build, use the <a href="/builders/astro">Astro builder</a>.
+    </li>
+  </ul>
+  <p>
+    API reference: <a href={docHref("packages/esm-cdn/README.md")}>ESM CDN &amp; user code</a>.
+  </p>
+  <Pager slug="user-code" />
+</Docs>

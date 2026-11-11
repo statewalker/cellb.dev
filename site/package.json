@@ -14,7 +14,8 @@
     "sandbox": "node scripts/build-sandbox.mjs",
     "preview": "astro preview",
     "check:examples": "node scripts/check-examples.mjs",
-    "check:snippets": "node scripts/check-snippets.mjs"
+    "check:snippets": "node scripts/check-snippets.mjs",
+    "record:builders": "tsx scripts/record-builders.ts"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.5",

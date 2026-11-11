@@ -1,0 +1,23 @@
+---
+import type { Recorded } from "@/builders/types";
+import { repoFile } from "@/lib/site";
+
+// Where the results on a page come from.
+interface Props {
+  recorded: Recorded;
+}
+
+const { recorded } = Astro.props;
+---
+
+<aside class="not-prose my-6 rounded-xl border border-primary/25 bg-primary/5 p-4 text-sm leading-6">
+  <p class="my-0 font-medium text-foreground">Real results, recorded</p>
+  <p class="mt-1 mb-0 text-muted-foreground">
+    Everything below was produced on {recorded.recordedAt} by running this page's example against
+    {recorded.host}, starting from empty storage, so the first requests include the downloads from
+    npm. The answers are cut to a readable length; the timings and sizes are those of the whole
+    answers. <a class="text-primary underline underline-offset-4" href={repoFile("site/scripts/record-builders.ts")}>scripts/record-builders.ts</a>{" "}
+    makes the same requests: run <code class="rounded bg-muted px-1 font-mono text-[0.85em]">pnpm --filter @statewalker/cellb-site record:builders {recorded.kind}</code>{" "}
+    to record them again.
+  </p>
+</aside>
