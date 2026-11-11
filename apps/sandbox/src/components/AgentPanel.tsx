@@ -63,6 +63,9 @@ export function AgentPanel(props: {
   hasProject: boolean;
   mcpUrl?: string;
   webmcp: boolean;
+  /** The rights of the IDE's tools for other agents (their own capability). */
+  outsideMode: AgentMode;
+  onOutsideMode(mode: AgentMode): void;
 }) {
   const [settings, setSettings] = useState(loadSettings);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -277,6 +280,21 @@ export function AgentPanel(props: {
           )}
           .
         </p>
+        <label className="text-muted-foreground mt-2 flex flex-wrap items-center gap-2 text-xs">
+          Rights of other agents (their tools' capability):
+          <select
+            aria-label="Rights of other agents"
+            className="bg-background h-7 rounded-md border px-1"
+            value={props.outsideMode}
+            onChange={(e) => props.onOutsideMode(e.target.value as AgentMode)}
+          >
+            {MODES.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </details>
 
       <div className="min-h-0 flex-1 overflow-auto px-3 py-3 text-sm" aria-live="polite">

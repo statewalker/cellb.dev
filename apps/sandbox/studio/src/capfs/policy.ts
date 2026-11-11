@@ -23,6 +23,7 @@ export const OPS: Record<string, Op> = {
   lstat: "list",
   readdir: "list",
   readdirStat: "list",
+  readTree: "list", // studio: each entry is authorized again (read for files)
   realpath: "list",
   writeFile: "write",
   writeFileBuffer: "write",

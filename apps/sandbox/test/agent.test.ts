@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentEvent } from "../src/sandbox/agent/events";
-import { type Change, createFlueAgent, llmOf, type StudioReply } from "../src/sandbox/agent/flue";
+import { createFlueAgent, llmOf } from "../src/sandbox/agent/flue";
 import { createMcpHandler } from "../src/sandbox/agent/mcp";
 import {
   callTool,
@@ -23,7 +23,20 @@ function memoryHost(initial: Record<string, string>) {
   let state: RunState = { kind: "empty" };
   let runs = 0;
   const host: StudioHost = {
-    project: () => ({ name: "demo", files, dirs, onDisk: false }),
+    project: () => ({ name: "demo", source: "memory", rights: "yolo" }),
+    async tree(opts = {}) {
+      return [
+        ...[...files].map(([path, b]) => ({
+          path,
+          size: b.length,
+          data: opts.contents ? b : undefined,
+        })),
+        ...[...dirs].map((path) => ({ path, size: 0, dir: true })),
+      ];
+    },
+    async read(path) {
+      return files.get(path);
+    },
     async writeFile(path, bytes) {
       files.set(path, bytes);
     },
@@ -241,30 +254,15 @@ describe("MCP endpoint", () => {
   });
 });
 
-describe("Flue agent client (the page as the Workspace's admin)", () => {
-  it("syncs, gets a token per mode, runs, follows progress and mirrors the journal", async () => {
-    const calls: { path: string; method: string; body?: any; headers?: Record<string, string> }[] =
-      [];
-    const applied: Change[] = [];
-    let runs = 0;
-    const studio = async (
+describe("Flue agent client (the page holds the project's capabilities)", () => {
+  it("runs on a token for the mode, with the scope, the model and the key, and follows progress", async () => {
+    const calls: { path: string; body?: unknown; headers?: Record<string, string> }[] = [];
+    const modes: string[] = [];
+    const request = async (
       path: string,
       init: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
-    ): Promise<StudioReply> => {
-      calls.push({ path, method: init.method ?? "GET", body: init.body, headers: init.headers });
-      if (path.endsWith("/sync"))
-        return { status: 200, value: { written: 2, deleted: 0, cursor: 7 } };
-      if (path.endsWith("/sessions"))
-        return {
-          status: 200,
-          value: { session: "s", token: `tok-${(init.body as { mode: string }).mode}` },
-        };
-      if (path.includes("/changes?since=7"))
-        return {
-          status: 200,
-          value: { cursor: 9, changes: [{ seq: 9, path: "/a.txt", kind: "write", text: "agent" }] },
-        };
-      if (path.includes("/changes")) return { status: 200, value: { cursor: 9, changes: [] } };
+    ) => {
+      calls.push({ path, body: init.body, headers: init.headers });
       if (path.includes("/runs/"))
         return {
           status: 200,
@@ -274,24 +272,21 @@ describe("Flue agent client (the page as the Workspace's admin)", () => {
           },
         };
       if (path.endsWith("/run")) {
-        runs++;
         await new Promise((r) => setTimeout(r, 30));
         return { status: 200, value: { reply: "ok", stopReason: "stop", turns: 2 } };
       }
       return { status: 404, error: "not found" };
     };
     const agent = createFlueAgent({
-      studio,
-      adminKey: "k",
-      workspace: () => "demo",
-      files: () =>
-        new Map([
-          ["/a.txt", encode("mine")],
-          ["/b.bin", new Uint8Array([0, 1, 2])],
-        ]),
-      apply: async (c) => {
-        applied.push(...c);
-      },
+      studio: { request: request as never },
+      project: () => ({
+        ws: "demo-1",
+        tokenFor: async (mode, o) => {
+          modes.push(`${mode}:${o?.model}`);
+          return `tok-${mode}`;
+        },
+      }),
+      instructions: () => "Use Hono.",
       pollMs: 5,
     });
     const events: AgentEvent[] = [];
@@ -303,13 +298,10 @@ describe("Flue agent client (the page as the Workspace's admin)", () => {
       onEvent: (e) => events.push(e),
     });
     expect(r).toMatchObject({ reply: "ok", turns: 2 });
-    const sync = calls.find((c) => c.path === "/api/w/demo/sync");
-    expect(sync?.headers?.authorization).toBe("Bearer k");
-    expect(sync?.body.files).toEqual({ "/a.txt": "mine", "/b.bin": { $b64: "AAEC" } });
-    expect(sync?.body.prune).toBe(true);
-    const run = calls.find((c) => c.path === "/api/agents/agent-demo/run");
+    expect(modes).toEqual(["readonly:true"]);
+    const run = calls.find((c) => c.path === "/api/agents/agent-demo-1/run");
     expect(run?.body).toMatchObject({
-      workspace: "demo",
+      workspace: "demo-1",
       token: "tok-readonly",
       narrow: { scope: "/client" },
       task: {
@@ -317,13 +309,11 @@ describe("Flue agent client (the page as the Workspace's admin)", () => {
         llm: { api: "openai-completions", baseUrl: "http://m/v1", model: "m" },
       },
     });
+    expect((run?.body as { task: { instructions: string } }).task.instructions).toContain(
+      "<agents_md>",
+    );
     expect(run?.headers?.["x-llm-token"]).toBeTruthy();
-    expect(applied).toEqual([{ seq: 9, path: "/a.txt", kind: "write", text: "agent" }]);
     expect(events.some((e) => e.type === "tool_call")).toBe(true);
-    // A second run in the same mode reuses the token.
-    await agent.send("again", { mode: "readonly", model, onEvent: () => {} });
-    expect(calls.filter((c) => c.path.endsWith("/sessions"))).toHaveLength(1);
-    expect(runs).toBe(2);
   });
 
   it("names Claude through pi-ai's Anthropic API", () => {

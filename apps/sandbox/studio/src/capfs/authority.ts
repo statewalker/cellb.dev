@@ -4,9 +4,10 @@
 // transports go through it: an in-runtime FilteredFiles stub and a token-string call.
 
 import { Biscuit, generateKeypair, type VerifiedBiscuit } from "@statewalker/webrun-biscuit";
+import type { FilesStore } from "./files-store.ts"; // studio: the gate works on any FilesApi
 import { asResource, fsError, join, normalise } from "./path.ts";
 import { authorityBlock, isMode, MODES, OPS, type Op } from "./policy.ts";
-import type { DirEntryStat, SqlFs } from "./sql-fs.ts";
+import type { DirEntryStat } from "./store-types.ts";
 
 interface SqlLike {
   exec(query: string, ...bindings: unknown[]): { toArray(): Record<string, unknown>[] };
@@ -377,6 +378,24 @@ export class Authority {
   }
 }
 
+export interface ReadTreeOptions {
+  /** Directory names left out wherever they are (node_modules, .git…). */
+  skip?: string[];
+  /** Each file's bytes too (default: sizes and dates only). */
+  contents?: boolean;
+  /** Directories (empty ones included) too. */
+  dirs?: boolean;
+  maxFiles?: number;
+}
+
+export interface TreeEntry {
+  path: string;
+  size: number;
+  mtime: string;
+  dir?: boolean;
+  data?: Uint8Array;
+}
+
 export type FsRequest =
   | { op: "model"; action: ModelAction; metered?: boolean; usage?: ModelUsage }
   | { op: "call"; method: string; path: string; args?: unknown[] }
@@ -407,11 +426,11 @@ export type ChangeListener = (path: string, kind: "write" | "delete" | "mkdir") 
 const WRITE_METHODS = new Set(["writeFile", "writeFileBuffer", "appendFile", "appendFileBuffer"]);
 
 export class FsGate {
-  #store: SqlFs;
+  #store: FilesStore;
   #auth: Authority;
   #token: string;
   #onChange?: ChangeListener;
-  constructor(store: SqlFs, auth: Authority, token: string, onChange?: ChangeListener) {
+  constructor(store: FilesStore, auth: Authority, token: string, onChange?: ChangeListener) {
     this.#store = store;
     this.#auth = auth;
     this.#token = token;
@@ -436,6 +455,7 @@ export class FsGate {
     const op = Object.hasOwn(OPS, method) ? OPS[method] : undefined;
     if (!op) throw fsError("ENOSYS", `method not available '${method}'`);
     if (method === "readdir") return this.readdir(p);
+    if (method === "readTree") return this.readTree(p, args[0] as ReadTreeOptions);
     if (method === "readdirStat") return this.readdirStat(p);
     // Releasing a stream needs no right: it only gives back what its owner holds (a revoked or
     // read-only capability can still close what it opened). Owner and path still have to match.
@@ -477,6 +497,40 @@ export class FsGate {
     if (WRITE_METHODS.has(method)) this.#onChange?.(path, "write");
     else if (method === "rm") this.#onChange?.(path, "delete");
     else if (method === "mkdir") this.#onChange?.(path, "mkdir");
+    return out;
+  }
+
+  /**
+   * studio: a whole subtree in one call, as the token sees it: every file it may read (and, with
+   * `contents`, its bytes), directories named in `skip` left out. What a host loads a project
+   * with, a build snapshots, and a watcher compares (sizes and dates, without contents).
+   */
+  async readTree(p: string, opts: ReadTreeOptions = {}): Promise<TreeEntry[]> {
+    const root = await this.#authorize("list", p);
+    const skip = new Set(opts.skip ?? []);
+    const max = Math.min(Number(opts.maxFiles) || 5000, 20_000);
+    const out: TreeEntry[] = [];
+    const walk = async (dir: string) => {
+      for (const e of await this.#store.readdirStat(dir)) {
+        const path = join(dir, e.name);
+        if (e.isDirectory) {
+          if (skip.has(e.name)) continue;
+          if (await this.#auth.check(this.#token, "list", path)) await walk(path);
+          else continue;
+          if (opts.dirs) out.push({ path, dir: true, size: 0, mtime: e.mtime });
+          continue;
+        }
+        if (!(await this.#auth.check(this.#token, "read", path))) continue;
+        if (out.length >= max) throw fsError("EFBIG", `more than ${max} files under '${root}'`);
+        out.push({
+          path,
+          size: e.size,
+          mtime: e.mtime,
+          data: opts.contents ? await this.#store.readFileBuffer(path) : undefined,
+        });
+      }
+    };
+    await walk(root);
     return out;
   }
 

@@ -1,21 +1,18 @@
-// The page's side of the Flue agents. The agents run in the studio Worker (studio/), on CellB in
-// the runner: a Workspace cell holds a copy of the project and the Biscuit root key, an Agent
-// cell runs a Flue agent loop whose tools hold only a capability. The page owns the real folder,
-// so it is the Workspace's admin:
+// The page's side of the Flue agents. The agents run in the studio worker (studio/ on CellB):
+// an Agent cell runs a Flue agent loop whose tools hold only a capability on the project's real
+// files (the FilesApi the studio worker owns, filtered by the token's Datalog). The page:
 //
-//   send(prompt)  1. sync: the project's files into the Workspace (unchanged files cost nothing)
-//                 2. a session token for the chosen mode (yolo · plan · readonly), cached
-//                 3. the run, with an optional narrowing (a scope such as "client"), the model
-//                    and the person's key (x-llm-token)
-//                 4. while it runs: its progress events, and the Workspace's journal of what the
-//                    agent changed, applied to the folder (on disk when it is open)
+//   send(prompt)  a token for the chosen rights (yolo · plan · readonly, from the session), an
+//                 optional narrowing (a scope such as "client"), the model and the person's key
+//                 (x-llm-token); while the run is under way, its progress events.
 //
-// Host calls (the agent's run_app, read_logs, http_request) come back through the runner; the
-// page answers them after applying the journal, so the app runs with the agent's changes.
+// Nothing is copied or mirrored: the agent's writes are the files' writes, and the page sees them
+// as it sees any change (the studio's change notices, its watcher).
 
+import type { AgentMode, StudioConnection } from "../session";
 import type { AgentEvent } from "./events";
 
-export type AgentMode = "yolo" | "plan" | "readonly";
+export type { AgentMode };
 
 export interface ModelChoice {
   provider: "anthropic" | "openai";
@@ -23,17 +20,6 @@ export interface ModelChoice {
   apiKey: string;
   baseUrl?: string;
 }
-
-export interface StudioReply<T = unknown> {
-  status: number;
-  value?: T;
-  error?: string;
-}
-
-export type StudioFetch = (
-  path: string,
-  init?: { method?: string; body?: unknown; headers?: Record<string, string> },
-) => Promise<StudioReply>;
 
 /** The model as the studio's agent loop names it (pi-ai's APIs). */
 export function llmOf(m: ModelChoice) {
@@ -51,44 +37,6 @@ export function llmOf(m: ModelChoice) {
   };
 }
 
-export interface Change {
-  seq: number;
-  path: string;
-  kind: "write" | "delete" | "mkdir";
-  text?: string;
-  $b64?: string;
-}
-
-export interface FlueAgentOptions {
-  studio: StudioFetch;
-  /** The admin key of the studio (the page owns the Workspace). */
-  adminKey: string;
-  /** The Workspace's name: one per project. */
-  workspace: () => string;
-  /** The project's files now. */
-  files: () => Map<string, Uint8Array>;
-  /** The project's own instructions for agents (AGENTS.md), added to the agent's prompt. */
-  instructions?: () => string | undefined;
-  /** Applies what the agent changed to the project (and the folder on disk). */
-  apply: (changes: Change[]) => Promise<void>;
-  pollMs?: number;
-}
-
-const toB64 = (b: Uint8Array) => {
-  let s = "";
-  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
-  return btoa(s);
-};
-const isText = (b: Uint8Array) => {
-  if (b.subarray(0, 8192).includes(0)) return false;
-  try {
-    new TextDecoder("utf-8", { fatal: true }).decode(b);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 export interface FlueRunResult {
   reply: string;
   stopReason: string;
@@ -96,74 +44,18 @@ export interface FlueRunResult {
   turns: number;
 }
 
+export interface FlueAgentOptions {
+  studio: Pick<StudioConnection, "request">;
+  /** The open project: its workspace and a token per mode (with the model right). */
+  project: () =>
+    | { ws: string; tokenFor(mode: AgentMode, o?: { model?: boolean }): Promise<string> }
+    | undefined;
+  /** The project's own instructions for agents (AGENTS.md), added to the agent's prompt. */
+  instructions?: () => string | undefined;
+  pollMs?: number;
+}
+
 export function createFlueAgent(opts: FlueAgentOptions) {
-  const admin = { authorization: `Bearer ${opts.adminKey}` };
-  const tokens = new Map<string, string>();
-  let cursor: number | undefined;
-  let workspaceName: string | undefined;
-  let pulling: Promise<void> = Promise.resolve();
-
-  const ok = <T>(r: StudioReply, what: string): T => {
-    if (r.status >= 400) throw new Error(`${what}: ${r.error ?? r.status}`);
-    return r.value as T;
-  };
-
-  async function sync() {
-    const ws = opts.workspace();
-    if (ws !== workspaceName) {
-      workspaceName = ws;
-      tokens.clear();
-      cursor = undefined;
-    }
-    const files: Record<string, string | { $b64: string }> = {};
-    for (const [p, b] of opts.files())
-      files[p] = isText(b) ? new TextDecoder().decode(b) : { $b64: toB64(b) };
-    const r = ok<{ cursor: number }>(
-      await opts.studio(`/api/w/${encodeURIComponent(ws)}/sync`, {
-        method: "POST",
-        headers: admin,
-        body: { files, prune: true },
-      }),
-      "sync",
-    );
-    // Changes before this sync are the folder's already.
-    cursor ??= r.cursor;
-  }
-
-  async function token(mode: AgentMode) {
-    const ws = opts.workspace();
-    let t = tokens.get(mode);
-    if (!t) {
-      const s = ok<{ token: string }>(
-        await opts.studio(`/api/w/${encodeURIComponent(ws)}/sessions`, {
-          method: "POST",
-          headers: admin,
-          body: { user: "owner", rights: ["/"], mode, model: true },
-        }),
-        "session",
-      );
-      t = s.token;
-      tokens.set(mode, t);
-    }
-    return t;
-  }
-
-  /** Applies the journal's new entries (one pull at a time). */
-  function pull(): Promise<void> {
-    pulling = pulling.then(async () => {
-      if (cursor === undefined || !workspaceName) return;
-      const r = ok<{ cursor: number; changes: Change[] }>(
-        await opts.studio(`/api/w/${encodeURIComponent(workspaceName)}/changes?since=${cursor}`, {
-          headers: admin,
-        }),
-        "changes",
-      );
-      if (r.changes.length) await opts.apply(r.changes);
-      cursor = r.cursor;
-    });
-    return pulling;
-  }
-
   function projectInstructions() {
     const text = opts.instructions?.();
     return text ? `The project's AGENTS.md:\n<agents_md>\n${text}\n</agents_md>` : undefined;
@@ -181,35 +73,38 @@ export function createFlueAgent(opts: FlueAgentOptions) {
       signal?: AbortSignal;
     },
   ): Promise<FlueRunResult> {
-    await sync();
-    const t = await token(run.mode);
+    const project = opts.project();
+    if (!project) throw new Error("no project is open");
+    const token = await project.tokenFor(run.mode, { model: true });
     const runId = crypto.randomUUID();
-    const agentName = `agent-${opts.workspace()}`;
+    const agent = `agent-${project.ws}`;
     const scope = run.scope?.trim().replace(/^\/+|\/+$/g, "");
     let seen = 0;
     let done = false;
+    const drain = async () => {
+      const p = await opts.studio.request<{ events?: (AgentEvent & { n: number })[] }>(
+        `/api/agents/${agent}/runs/${runId}?since=${seen}`,
+      );
+      for (const e of p.value?.events ?? []) {
+        seen = e.n;
+        run.onEvent(e);
+      }
+    };
     const follow = (async () => {
       while (!done) {
         await new Promise((r) => setTimeout(r, opts.pollMs ?? 400));
-        const p = await opts.studio(`/api/agents/${agentName}/runs/${runId}?since=${seen}`);
-        const events = (p.value as { events?: (AgentEvent & { n: number })[] })?.events ?? [];
-        for (const e of events) {
-          seen = e.n;
-          run.onEvent(e);
-        }
-        await pull().catch(() => {});
+        if (!done) await drain().catch(() => {});
       }
     })();
     const onAbort = () =>
-      void opts.studio(`/api/agents/${agentName}/runs/${runId}/stop`, { method: "POST" });
+      void opts.studio.request(`/api/agents/${agent}/runs/${runId}/stop`, { method: "POST" });
     run.signal?.addEventListener("abort", onAbort);
     try {
-      const r = await opts.studio(`/api/agents/${agentName}/run`, {
-        method: "POST",
+      const r = await opts.studio.request<FlueRunResult>(`/api/agents/${agent}/run`, {
         headers: { "x-llm-token": run.model.apiKey || "no-key-local-model" },
         body: {
-          workspace: opts.workspace(),
-          token: t,
+          workspace: project.ws,
+          token,
           narrow: scope ? { scope: `/${scope}` } : undefined,
           task: {
             prompt,
@@ -220,21 +115,17 @@ export function createFlueAgent(opts: FlueAgentOptions) {
           },
         },
       });
-      return ok<FlueRunResult>(r, "agent");
+      if (r.status >= 400 || !r.value) throw new Error(`agent: ${r.error ?? r.status}`);
+      return r.value;
     } finally {
       run.signal?.removeEventListener("abort", onAbort);
       done = true;
       await follow.catch(() => {});
-      // The last events and changes.
-      const p = await opts
-        .studio(`/api/agents/${agentName}/runs/${runId}?since=${seen}`)
-        .catch(() => undefined);
-      for (const e of (p?.value as { events?: AgentEvent[] })?.events ?? []) run.onEvent(e);
-      await pull().catch(() => {});
+      await drain().catch(() => {});
     }
   }
 
-  return { send, sync, pull };
+  return { send };
 }
 
 export type FlueAgent = ReturnType<typeof createFlueAgent>;

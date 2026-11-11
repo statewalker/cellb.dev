@@ -317,7 +317,14 @@ try {
     window.showDirectoryPicker = async () => dir;
   }, picked);
   await page.getByRole("button", { name: "Open folder" }).click();
-  await frame.getByRole("heading", { name: "My tasks" }).waitFor({ timeout: 60_000 });
+  try {
+    await frame.getByRole("heading", { name: "My tasks" }).waitFor({ timeout: 60_000 });
+  } catch (err) {
+    await page.getByRole("tab", { name: "Log" }).click();
+    await showLog();
+    console.log("page errors:", errors);
+    throw err;
+  }
   step("the folder runs");
 
   await page.evaluate(async () => {

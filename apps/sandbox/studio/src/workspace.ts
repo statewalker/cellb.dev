@@ -1,35 +1,38 @@
-// The owner cell: one Workspace per project. It owns the files (SqlFs on its own SQLite), the
-// root key and the sessions (Authority), and hands out capabilities: FilteredFiles RpcTargets,
-// each bound to a Biscuit token whose Datalog decides every file operation. Adapted from
-// statewalker-sandbox/apps/flue-capfs-do/src/workspace.ts.
+// The owner cell: one Workspace per project. It owns the root key and the sessions (Authority)
+// and hands out capabilities: FilteredFiles RpcTargets (by reference, to cells of this runtime)
+// or token calls (`fsCall`, from anywhere), both bound to a Biscuit token whose Datalog decides
+// every file operation. Adapted from statewalker-sandbox/apps/flue-capfs-do/src/workspace.ts.
 //
-// studio: two additions for a host that owns the real folder (the sandbox's page, a git sync):
-//   sync(files)     the host's files in (an admin act: no rights checks, no journal entry)
-//   changes(since)  what writes through capabilities changed, with the new contents, so the host
-//                   can mirror agents' work back to its folder
+// studio: the files are not the cell's own. The gate (FsGate) works on a FilesStore over the
+// FilesApi the host provides for this workspace (`cellbStudioHost.store(ws)`: the folder on
+// disk, memory, OPFS, S3, a composite…); without a host, on the cell's own SQLite
+// (SqlFilesApi). Capabilities filter the real files: there is no copy to keep in step.
 
 import { DurableObject, RpcTarget } from "cloudflare:workers";
+import { SqlFilesApi } from "@statewalker/cellb-platform-core/sql-files";
 import { Biscuit } from "@statewalker/webrun-biscuit";
+import type { FilesApi } from "@statewalker/webrun-files";
 import {
   Authority,
   type ChangeListener,
   FsGate,
+  type FsRequest,
   type ModelAction,
   type ModelGrant,
   type ModelUsage,
 } from "./capfs/authority.ts";
-import { bytesToString } from "./capfs/bytes.ts";
-import { normalise } from "./capfs/path.ts";
+import { FilesStore } from "./capfs/files-store.ts";
+import { fsError, normalise } from "./capfs/path.ts";
 import { attenuationBlock } from "./capfs/policy.ts";
-import { SqlFs } from "./capfs/sql-fs.ts";
+import { studioHost } from "./host-tools.ts";
 
 export class FilteredFiles extends RpcTarget {
   #gate: FsGate;
   #token: string;
   #auth: Authority;
-  #store: SqlFs;
+  #store: FilesStore;
   #onChange: ChangeListener;
-  constructor(store: SqlFs, auth: Authority, token: string, onChange: ChangeListener) {
+  constructor(store: FilesStore, auth: Authority, token: string, onChange: ChangeListener) {
     super();
     this.#store = store;
     this.#auth = auth;
@@ -60,56 +63,55 @@ export class FilteredFiles extends RpcTarget {
   }
 }
 
-/** A file the host sends: text, `{ $b64 }` for bytes, or null to delete it. */
-export type SyncValue = string | { $b64: string } | null;
-
-export interface Change {
-  seq: number;
-  path: string;
-  kind: "write" | "delete" | "mkdir";
-  /** The file's content now (writes): text, or `$b64` for binary; absent when too large. */
-  text?: string;
-  $b64?: string;
-}
-
-const MAX_CHANGE_BYTES = 4 * 1024 * 1024;
-const isText = (b: Uint8Array) => {
-  if (b.subarray(0, 8192).includes(0)) return false;
-  try {
-    new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(b);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 export class Workspace extends DurableObject {
-  #store: SqlFs;
   #auth: Authority;
   #sql: SqlStorage;
+  #stores = new WeakMap<FilesApi, FilesStore>();
+  #own?: FilesStore;
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never);
     this.#sql = ctx.storage.sql;
-    this.#store = new SqlFs(ctx.storage.sql);
     this.#auth = new Authority(ctx.storage.sql);
-    this.#sql.exec(
-      "CREATE TABLE IF NOT EXISTS studio_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, kind TEXT NOT NULL)",
-    );
   }
 
-  #record: ChangeListener = (path, kind) => {
-    this.#sql.exec("INSERT INTO studio_changes (path, kind) VALUES (?, ?)", path, kind);
-  };
+  /** The store of workspace `ws`: the host's FilesApi for it, else this cell's SQLite. */
+  #store(ws: string): FilesStore {
+    const host = studioHost();
+    const provided = host?.store?.(ws);
+    // A host that provides stores provides every workspace's: an unknown one is closed, never
+    // an empty store of this cell's own.
+    if (!provided && host?.store) throw fsError("ENOENT", `the project '${ws}' is not open`);
+    if (provided) {
+      let s = this.#stores.get(provided);
+      if (!s) {
+        s = new FilesStore(provided);
+        this.#stores.set(provided, s);
+      }
+      return s;
+    }
+    this.#own ??= new FilesStore(new SqlFilesApi(this.#sql, "ws"));
+    return this.#own;
+  }
 
-  // ---- admin (the host: the page that owns the folder, or a deployment's gateway) ----
+  #notify(ws: string): ChangeListener {
+    return (path, kind) => studioHost()?.notify?.(ws, path, kind);
+  }
 
-  async startSession(user: string, rights: string[], mode?: string, model?: ModelGrant) {
+  // ---- admin (the host that owns the project, or a deployment's gateway) ----
+
+  async startSession(
+    ws: string,
+    user: string,
+    rights: string[],
+    mode?: string,
+    model?: ModelGrant,
+  ) {
     const started = this.#auth.startSession(user, rights, mode, model);
+    const store = this.#store(ws);
     for (const r of rights) {
       const p = normalise(r);
-      if (p !== "/" && !(await this.#store.exists(p)))
-        await this.#store.mkdir(p, { recursive: true });
+      if (p !== "/" && !(await store.exists(p))) await store.mkdir(p, { recursive: true });
     }
     return started;
   }
@@ -123,85 +125,31 @@ export class Workspace extends DurableObject {
     return this.#auth.sessionInfo(session);
   }
 
-  /**
-   * The host's files: each changed file written, each null deleted; with `prune`, every file the
-   * host did not list is deleted too (the host's folder is the truth). Returns what changed.
-   */
-  async sync(files: Record<string, SyncValue>, prune = false) {
-    let written = 0;
-    let deleted = 0;
-    const listed = new Set<string>();
-    for (const [raw, value] of Object.entries(files ?? {})) {
-      const p = normalise(raw);
-      listed.add(p);
-      if (value === null) {
-        if (await this.#store.exists(p)) {
-          await this.#store.rm(p, { recursive: true });
-          deleted++;
-        }
-        continue;
-      }
-      const next =
-        typeof value === "string"
-          ? new TextEncoder().encode(value)
-          : Uint8Array.from(atob(value.$b64), (c) => c.charCodeAt(0));
-      if (await this.#store.exists(p)) {
-        const now = await this.#store.readFileBuffer(p);
-        if (now.length === next.length && now.every((b, i) => b === next[i])) continue;
-      }
-      await this.#store.writeFileBuffer(p, next);
-      written++;
-    }
-    if (prune)
-      for (const e of await this.#store.entries("/"))
-        if (e.kind === "file" && !listed.has(e.path)) {
-          await this.#store.rm(e.path, {});
-          deleted++;
-        }
-    return { written, deleted, cursor: this.#cursor() };
-  }
+  // ---- transport 1: capability by reference (cells of this runtime) ----
 
-  #cursor(): number {
-    const row = this.#sql.exec("SELECT MAX(seq) AS seq FROM studio_changes").toArray()[0];
-    return Number(row?.seq ?? 0);
-  }
-
-  /** What capability writes changed after `since`, the latest change per path, with contents. */
-  async changes(since = 0): Promise<{ cursor: number; changes: Change[] }> {
-    const rows = this.#sql
-      .exec("SELECT seq, path, kind FROM studio_changes WHERE seq > ? ORDER BY seq", since)
-      .toArray() as unknown as { seq: number; path: string; kind: Change["kind"] }[];
-    const latest = new Map<string, Change>();
-    for (const r of rows) {
-      latest.delete(r.path);
-      latest.set(r.path, { seq: r.seq, path: r.path, kind: r.kind });
-    }
-    const out: Change[] = [];
-    for (const c of latest.values()) {
-      if (c.kind === "write") {
-        if (!(await this.#store.exists(c.path))) continue; // written, then deleted under a tree
-        const bytes = await this.#store.readFileBuffer(c.path);
-        if (bytes.length <= MAX_CHANGE_BYTES) {
-          if (isText(bytes)) c.text = new TextDecoder().decode(bytes);
-          else c.$b64 = bytesToString(bytes, "base64");
-        }
-      }
-      out.push(c);
-    }
-    return { cursor: rows.at(-1)?.seq ?? since, changes: out };
-  }
-
-  // ---- capabilities ----
-
-  /** A capability for the token, attenuated further by `narrow` (e.g. a scope) when given. */
   async open(
+    ws: string,
     token: string,
     narrow?: { scope?: string | string[]; readOnly?: boolean },
   ): Promise<FilteredFiles> {
     await this.#auth.sessionOf(token); // reject forged tokens before handing anything out
-    const files = new FilteredFiles(this.#store, this.#auth, token, this.#record);
+    const files = new FilteredFiles(this.#store(ws), this.#auth, token, this.#notify(ws));
     return narrow && (narrow.scope || narrow.readOnly)
       ? files.attenuate(attenuationBlock(narrow))
       : files;
+  }
+
+  // ---- transport 2: the token per request (another worker, node or runtime) ----
+
+  async fsCall(
+    ws: string,
+    token: string,
+    req: FsRequest | { op: "revocationId" },
+  ): Promise<unknown> {
+    if (req?.op === "revocationId") return (await this.#auth.revocationIds(token)).at(-1);
+    await this.#auth.sessionOf(token);
+    return new FsGate(this.#store(ws), this.#auth, token, this.#notify(ws)).dispatch(
+      req as FsRequest,
+    );
   }
 }

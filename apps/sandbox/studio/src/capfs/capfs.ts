@@ -6,7 +6,7 @@
 import { asBytes, bytesToString, encodingOf, isUtf8, ownBytes, stringToBytes } from "./bytes.ts";
 import type { Cap } from "./caps.ts";
 import { fsError, normalise } from "./path.ts";
-import { bytesArg, type DirEntryStat } from "./sql-fs.ts";
+import { bytesArg, type DirEntryStat } from "./store-types.ts";
 
 /**
  * What a write stores: UTF-8 text as text; bytes (a Uint8Array, or a string in a byte encoding

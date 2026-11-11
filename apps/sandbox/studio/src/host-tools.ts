@@ -1,4 +1,4 @@
-// Tools the host gives the agent beyond files: running and testing the app. The studio cannot
+// The host seam, and the tools the host gives the agent beyond files: running and testing the app. The studio cannot
 // run the app itself (the host owns the folder and the runner), so each call goes to the host,
 // which first applies what the agent wrote to its folder (Workspace.changes), then acts.
 //
@@ -6,13 +6,24 @@
 // where CellB runs this Worker. Elsewhere (wrangler, celld, Node) there is none, and the agent
 // has only its file tools.
 
+import type { FilesApi } from "@statewalker/webrun-files";
 import { Type } from "typebox";
 
+/**
+ * What the host gives the studio, at `globalThis.cellbStudioHost` (the sandbox's studio worker
+ * sets it; a server deployment may set it, or not):
+ *   store(ws)   the FilesApi a workspace's capabilities filter (the folder on disk, memory, OPFS,
+ *               S3, a composite…); without it the Workspace keeps files in its own SQLite
+ *   notify      what a write through a capability changed (the host refreshes its views)
+ *   call        the agent's host tools: run the app, read its log, call it
+ */
 export interface StudioHost {
   call(
     tool: "run_app" | "read_logs" | "http_request",
     args: Record<string, unknown>,
   ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }>;
+  store?(workspace: string): FilesApi | undefined;
+  notify?(workspace: string, path: string, kind: "write" | "delete" | "mkdir"): void;
 }
 
 export function studioHost(): StudioHost | undefined {

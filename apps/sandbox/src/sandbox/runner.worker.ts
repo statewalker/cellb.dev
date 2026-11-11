@@ -8,6 +8,7 @@
 //   both    one site (createAppSite), hosted by the page's ServiceWorker (siteHostOverPort ↔
 //           hostSitesForWorker), so the preview iframe and any tab of this origin can open it
 
+import { linkOverPort } from "@statewalker/cellb";
 import { type LoadedProject, loadProject } from "@statewalker/cellb/browser";
 import { bundleCompiler } from "@statewalker/cellb/bundle";
 import { type HostedProjectSite, siteHostOverPort } from "@statewalker/cellb/site";
@@ -16,10 +17,11 @@ import { npmPackages } from "@statewalker/webrun-bundler";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import * as esbuild from "esbuild-wasm";
 import wasmURL from "esbuild-wasm/esbuild.wasm?url";
+import { TokenCap } from "../../studio/src/capfs/token-cap";
 import { createAppSite } from "./app-site";
 import { assembleDeploy } from "./deploy";
 import { exportClient } from "./export";
-import { clientFilesOf, describeProject } from "./project";
+import { clientFilesOf, describeProject, SKIPPED_DIRS } from "./project";
 import type { FromRunner, ToRunner } from "./protocol";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
@@ -149,41 +151,19 @@ async function run(entries: [string, Uint8Array][], folderName: string) {
   });
 }
 
-// The studio: the agents' side (studio/: Workspace and Agent cells, Flue agents on a capability
-// file system), a second CellB project in this worker, loaded the first time the page asks.
-// Its Worker code runs in this realm, so `globalThis.cellbStudioHost` is how its agents reach
-// the page: run the app, read the log, call the app (the page applies the agents' writes to its
-// folder first).
-let studio: Promise<LoadedProject> | undefined;
-function openStudio(url: string) {
-  // Its cells keep their state (conversations, sessions) in OPFS; a pool another tab holds
-  // cannot be opened, so that tab's studio gets one of its own.
-  const open = (data: string) => loadProject(new URL(url), { data });
-  studio ??= open("cellb-sandbox-studio")
-    .catch((err) => {
-      if (!/lock|busy|access handle|NoModificationAllowed/i.test(String(err))) throw err;
-      return open(`cellb-sandbox-studio-${Date.now().toString(36)}`);
-    })
-    .catch((err) => {
-      studio = undefined;
-      throw err;
-    });
-  return studio;
+// The project's files come through a capability: the studio checks the token on every call,
+// and this worker never holds the folder (or the memory, OPFS, S3… behind it).
+let latestRun = 0;
+let studioLink: Promise<{ send: (r: Request) => Promise<Response> }> | undefined;
+async function snapshot(workspace: string, token: string): Promise<[string, Uint8Array][]> {
+  if (!studioLink) throw new Error("the runner has no link to the studio");
+  const { send } = await studioLink;
+  const tree = await new TokenCap(send, workspace, token).readTree("/", {
+    contents: true,
+    skip: [...SKIPPED_DIRS],
+  });
+  return tree.filter((e) => !e.dir && e.data).map((e) => [e.path, e.data as Uint8Array]);
 }
-let hostCallId = 0;
-const hostCalls = new Map<
-  number,
-  (out: { ok: true; result: unknown } | { ok: false; error: string }) => void
->();
-(globalThis as { cellbStudioHost?: unknown }).cellbStudioHost = {
-  call(tool: "run_app" | "read_logs" | "http_request", args: Record<string, unknown>) {
-    const id = ++hostCallId;
-    return new Promise((resolve) => {
-      hostCalls.set(id, resolve);
-      post({ type: "host-call", id, tool, args });
-    });
-  },
-};
 
 /**
  * The deployable folder: the server bundled by buildProject (a no_bundle Worker), the client
@@ -224,43 +204,25 @@ async function build(id: number, entries: [string, Uint8Array][], folderName: st
 scope.addEventListener("message", (e: MessageEvent<ToRunner>) => {
   const msg = e.data as ToRunner | undefined;
   if (!msg || typeof msg !== "object" || !("type" in msg)) return; // site-host traffic
-  if (msg.type === "run") {
+  if (msg.type === "studio-port") {
+    studioLink = linkOverPort(msg.port);
+  } else if (msg.type === "run") {
+    // A run waiting in the queue is replaced by a newer one: only the latest files run.
+    const mine = ++latestRun;
     queue = queue
-      .then(() => run(msg.files, msg.folderName))
+      .then(async () => {
+        if (mine !== latestRun) return;
+        await run(await snapshot(msg.workspace, msg.token), msg.folderName);
+      })
       .catch(async (err) => {
         await stop();
         const text = String((err as Error)?.message ?? err);
         log(text, "error");
         post({ type: "failed", error: text });
       });
-  } else if (msg.type === "studio") {
-    // Not queued behind runs: an agent's run_app waits on a run while its request is open.
-    void (async () => {
-      try {
-        const project = await openStudio(msg.studioUrl);
-        const res = await project.fetch(
-          new Request(`http://studio${msg.path}`, {
-            method: msg.method,
-            headers: msg.headers,
-            body: msg.body,
-          }),
-        );
-        post({ type: "studio-reply", id: msg.id, status: res.status, body: await res.text() });
-      } catch (err) {
-        post({
-          type: "studio-reply",
-          id: msg.id,
-          status: 500,
-          body: JSON.stringify({ error: String((err as Error)?.message ?? err) }),
-        });
-      }
-    })();
-  } else if (msg.type === "host-reply") {
-    hostCalls.get(msg.id)?.(msg.out);
-    hostCalls.delete(msg.id);
   } else if (msg.type === "build") {
     queue = queue
-      .then(() => build(msg.id, msg.files, msg.folderName))
+      .then(async () => build(msg.id, await snapshot(msg.workspace, msg.token), msg.folderName))
       .catch((err) => {
         const text = String((err as Error)?.message ?? err);
         log(`build: ${text}`, "error");

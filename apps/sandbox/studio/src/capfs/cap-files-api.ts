@@ -13,7 +13,7 @@
 import type { FilesApi, ListOptions, ReadOptions } from "@statewalker/webrun-files";
 import { type FileInfo, type FileStats, listInPathOrder } from "@statewalker/webrun-files";
 import type { Cap } from "./caps.ts";
-import type { DirEntryStat } from "./sql-fs.ts";
+import type { DirEntryStat } from "./store-types.ts";
 
 /** Bytes per chunk: one store block. */
 export const CHUNK_BYTES = 1024 * 1024;

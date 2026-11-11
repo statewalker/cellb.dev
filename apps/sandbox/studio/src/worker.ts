@@ -1,13 +1,13 @@
 // The studio's HTTP surface (one Worker; the host reaches it through the sandbox's runner).
 //
 //   admin (Authorization: Bearer ADMIN_KEY): the host that owns the project
-//     POST /api/w/:ws/sync               { files: {path: text | {$b64} | null}, prune? }
-//     GET  /api/w/:ws/changes?since=n    what agents changed, with contents
 //     POST /api/w/:ws/sessions           { user, rights, mode, model? } → { session, token }
 //     GET  /api/w/:ws/sessions/:sid      mode, revocations, model budget
 //     POST /api/w/:ws/sessions/:sid/mode { mode }    yolo · plan · readonly
 //     POST /api/w/:ws/sessions/:sid/revoke { rid? } one capability (and its descendants), or all
 //   holder (a session token, no admin key):
+//     POST /api/fs/:ws                   { token, req } a file call through the capability
+//                                        (bytes as { $b64 }): the token transport
 //     POST /api/agents/:name/run         { workspace, token, narrow?, task } (x-llm-token: the model key)
 //     GET  /api/agents/:name/runs/:id?since=n   progress events
 //     POST /api/agents/:name/runs/:id/stop
@@ -19,8 +19,9 @@ import { restoreNodeVersions } from "./capfs/node-probe-guard.ts";
 import type { Agent } from "./agent.ts";
 import type { AgentRunRequest } from "./agent-loop.ts";
 import type { FilesStub } from "./capfs/caps.ts";
+import { decodeWire, encodeWire } from "./capfs/wire.ts";
 import { studioHost } from "./host-tools.ts";
-import type { SyncValue, Workspace } from "./workspace.ts";
+import type { Workspace } from "./workspace.ts";
 
 restoreNodeVersions();
 
@@ -36,7 +37,7 @@ interface Env {
 }
 
 const json = (value: unknown, status = 200) =>
-  new Response(JSON.stringify(status < 400 ? { value } : { error: value }), {
+  new Response(JSON.stringify(status < 400 ? { value: encodeWire(value) } : { error: value }), {
     status,
     headers: { "content-type": "application/json" },
   });
@@ -83,12 +84,6 @@ export default {
         if (!isAdmin(request, env)) return json("admin key required", 401);
         const ws = env.WORKSPACE.get(env.WORKSPACE.idFromName(parts[2]));
         const [, , , what, sid, action] = parts;
-        if (what === "sync" && request.method === "POST") {
-          const b = await body<{ files: Record<string, SyncValue>; prune?: boolean }>();
-          return json(await ws.sync(b.files, !!b.prune));
-        }
-        if (what === "changes")
-          return json(await ws.changes(Number(url.searchParams.get("since") ?? 0)));
         if (what === "sessions" && !sid && request.method === "POST") {
           const b = await body<{
             user: string;
@@ -96,7 +91,7 @@ export default {
             mode?: string;
             model?: boolean;
           }>();
-          return json(await ws.startSession(b.user, b.rights, b.mode, b.model));
+          return json(await ws.startSession(parts[2], b.user, b.rights, b.mode, b.model));
         }
         if (what === "sessions" && sid && !action) return json(await ws.sessionInfo(sid));
         if (what === "sessions" && sid && action === "mode")
@@ -104,6 +99,12 @@ export default {
         if (what === "sessions" && sid && action === "revoke")
           return json(await ws.revoke(sid, (await body<{ rid?: string }>()).rid));
         return json("not found", 404);
+      }
+
+      if (parts[1] === "fs" && parts[2] && request.method === "POST") {
+        const b = decodeWire(await request.json()) as { token: string; req: never };
+        const ws = env.WORKSPACE.get(env.WORKSPACE.idFromName(parts[2]));
+        return json(await ws.fsCall(parts[2], b.token, b.req));
       }
 
       if (parts[1] === "agents" && parts[2]) {
@@ -116,7 +117,7 @@ export default {
             task: AgentRunRequest & { runId?: string };
           }>();
           const ws = env.WORKSPACE.get(env.WORKSPACE.idFromName(b.workspace));
-          const files = (await ws.open(b.token, b.narrow)) as unknown as FilesStub;
+          const files = (await ws.open(b.workspace, b.token, b.narrow)) as unknown as FilesStub;
           const llmToken = request.headers.get("x-llm-token") ?? undefined;
           return json(await agent.run(files, b.task, llmToken));
         }

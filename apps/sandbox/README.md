@@ -97,45 +97,71 @@ folder once (`webkitdirectory`) and keep edits in the tab.
 - **The Code tab** is CodeMirror 6. The language comes from the file's extension and is loaded
   when a file of that kind is first opened: TS, TSX, JS, JSX, JSON/JSONC, CSS, HTML/SVG,
   Markdown. Ctrl/Cmd+S or Save writes the file; unsaved files are marked in the tree.
-- **Where saves go:** a folder opened with the File System Access API is changed on disk (the
-  first edit asks for write access). The sample, or a folder read once, is changed in the tab
-  only: Download .zip keeps the edits.
+- **Where saves go:** to the project's source, through the page's owner capability: a folder
+  opened with the File System Access API is changed on disk (the first edit asks for write
+  access), browser storage in OPFS, a bucket in S3. A template, the sample or a folder read once
+  live in memory in the studio worker: Download .zip keeps the edits.
 - With **Rerun on save**, every save, new file, move and delete reruns the app.
 - Ctrl/Cmd+S saves the open file from anywhere on the page. With unsaved edits, opening another
   project asks first, and the browser asks before the tab closes.
-- Edits run one at a time, each on the state the one before left; the folder watcher pauses
-  while one runs. A move on disk uses the browser's `move()` where it has one, else copies the
-  entry from disk (with what the sandbox skips, such as `node_modules`) and removes it; a
-  case-only rename goes through a temporary name.
+- Edits run one at a time, each on the state the one before left; the watcher pauses while one
+  runs. A move is the source's own (`FilesApi.move`: the whole entry, with what the view leaves
+  out, such as `node_modules`); a case-only rename goes through a temporary name.
 
 ## Agents
+
+### Files, capabilities, and who holds what
+
+The project's files are a `@statewalker/webrun-files` **FilesApi** owned by one worker, the
+**studio worker** (`src/sandbox/studio.worker.ts`), opened from a source (`src/sandbox/sources.ts`):
+
+| Source | FilesApi | Opened by |
+|---|---|---|
+| a folder on disk | `BrowserFilesApi` over the picked handle | Open folder (File System Access API) |
+| memory | `MemFilesApi` | a template, the sample, a `webkitdirectory` folder, a GitHub branch |
+| browser storage | `BrowserFilesApi` over an OPFS directory | "Open from browser storage" |
+| S3 (AWS, R2, MinIO, RustFS…) | `S3FilesApi` | "An S3 bucket" (the bucket must allow CORS) |
+| composite | `CompositeFilesApi`: a root and sources mounted at paths | `{ kind: "composite", root, mounts }` |
+
+Nobody else holds the files. Everyone reaches them through a **capability**, a Biscuit token
+the studio's Workspace cell checks on every operation (mode, scope, revocations):
+
+| Holder | Token | Through |
+|---|---|---|
+| the page (the project's owner, the Workspace's admin) | `yolo` on `/` | `CapFilesApi` over `TokenCap` (`POST /api/fs/:ws`), served over a MessagePort: every edit, the tree, the watcher |
+| the runner (builds and runs the app, in its own worker) | `readonly` | one `readTree` call per run or build |
+| the Flue agent (studio's Agent cell) | the mode chosen in the Agent tab, narrowed by its scope | an RPC stub of `FilteredFiles` |
+| other agents' tools (`window.cellbSandbox`, WebMCP, MCP) | "Rights of other agents" in the Agent tab | `TokenCap` |
+
+Agents' writes, other tabs' and the disk's are seen the same way: the studio's change notices
+and a watcher comparing the tree's sizes and dates (one `readTree` call) refresh the view and
+rerun the app. There is no copy to keep in step.
 
 ### The Flue agent (Agent tab)
 
 `studio/` is an ordinary Worker project (`wrangler.jsonc`, `src/worker.ts`), the agents' side
-of the IDE, built for CellB (`scripts/build-studio.ts` → `public/studio/`) and run by the runner
-next to the app, the first time the Agent tab sends something:
+of the IDE, built for CellB (`scripts/build-studio.ts` → `public/studio/`) and run by the studio
+worker, in a realm of its own (the app's Worker code runs in the runner, never next to it):
 
 | Cell | Does |
 |---|---|
-| `Workspace` (one per project) | holds a copy of the project (SqlFs on the cell's SQLite), the Biscuit root key and the sessions; hands out capabilities (`FilteredFiles` RpcTargets bound to a token); journals what writes through capabilities changed |
+| `Workspace` (one per project) | holds the Biscuit root key and the sessions; hands out capabilities on the FilesApi the host provides (`cellbStudioHost.store(ws)`), as `FilteredFiles` RpcTargets or token calls; without a host (a server deployment), on its own SQLite (`SqlFilesApi`) |
 | `Agent` (one per project's agent) | runs a Flue agent loop (pi-agent-core + Flue's `read`, `write`, `edit`, `grep`, `glob`, `bash` over a just-bash sandbox whose only file system is the capability) and keeps its conversation; reports progress while it runs |
 
-The capability core (`studio/src/capfs/`: Authority, FsGate, policy, SqlFs, CapFs) is vendored
-from `statewalker-sandbox/apps/flue-capfs-do`. A run, from the page (`src/sandbox/agent/flue.ts`):
+The capability core (`studio/src/capfs/`: Authority, FsGate, policy, CapFs, CapFilesApi) is
+vendored from `statewalker-sandbox/apps/flue-capfs-do`; `files-store.ts` gives its gate the store
+it expects over any FilesApi, `token-cap.ts` is the token transport. A run, from the page
+(`src/sandbox/agent/flue.ts`):
 
-1. **sync**: the project's files into the Workspace (unchanged files cost nothing; the folder is
-   the truth, so files gone are pruned);
-2. a **session token** for the chosen rights: `yolo` (edit), `plan` (read everything, write only
+1. a **session token** for the chosen rights: `yolo` (edit), `plan` (read everything, write only
    under `/plans/`), `readonly`; narrowed by a **scope** (an attenuation block: one folder);
-3. the **run**: the model (`llm`) and the person's key (`x-llm-token`) come with it
+2. the **run**: the model (`llm`) and the person's key (`x-llm-token`) come with it
    (`LLM_FROM_REQUEST`); a deployment can name its own model (`LLM`, `LLM_API_KEY`) instead;
-4. while it runs, the page polls its **progress** and the Workspace's **journal**, and applies the
-   agent's writes to the project through its own edit queue (disk, tree, editor).
+3. while it runs, the page polls its **progress**; its writes are the files' writes.
 
 Beyond files, the agent has `run_app`, `read_logs` and `http_request`: host tools that go from
-the studio to the page (`globalThis.cellbStudioHost`, set by the runner), which applies the
-journal first, then runs its own tools. A denied operation comes back to the model as `EACCES`.
+the studio worker to the page, which reads the latest files and runs its own tools. A denied
+operation comes back to the model as `EACCES`.
 
 ### Other agents: the IDE's tools
 
@@ -185,7 +211,10 @@ write access when you press Send (the browser asks only during a click).
 | `src/sandbox/runner.worker.ts` | The runner (Dedicated Worker): CellB, esbuild-wasm, the hosted site |
 | `src/components/AgentPanel.tsx` | The Agent tab: model, rights and scope, transcript, Stop |
 | `studio/` | The studio Worker: Workspace and Agent cells, Flue agents on a capability file system |
-| `src/sandbox/agent/flue.ts` | The page's side of the Flue agent: sync, session, run, progress, journal |
+| `src/sandbox/agent/flue.ts` | The page's side of the Flue agent: token, run, progress |
+| `src/sandbox/studio.worker.ts` | The studio worker: the files (any FilesApi), the studio Worker on CellB |
+| `src/sandbox/sources.ts` | The sources: folder, memory, OPFS, S3, composite |
+| `src/sandbox/session.ts` | The page's capabilities on a project: owner, build, per mode |
 | `src/components/ShipPanel.tsx` | The Ship tab: build, download, GitHub push/pull, deploy branch |
 | `src/sandbox/agent/` | The IDE's tools, the MCP handler, the page bridge, the Flue client |
 | `src/sandbox/deploy.ts`, `export.ts` | The deployable folder, the static client export |

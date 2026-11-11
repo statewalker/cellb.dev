@@ -3,8 +3,10 @@
 // Every action an agent needs to build an app here — read the files, change them, run the app,
 // read its log, call it over HTTP — is a tool with a name, a description and a JSON Schema for
 // its input, the shape MCP, WebMCP (`navigator.modelContext`) and model APIs share. The page
-// implements `StudioHost` (the same edits as its buttons, on disk when the folder is open with
-// the File System Access API); `createTools(host)` turns it into tools; `bridge.ts` publishes them.
+// implements `StudioHost` over a capability (a Biscuit token on the project's files, with the
+// rights the person gives outside agents); `createTools(host)` turns it into tools; `bridge.ts`
+// publishes them. Reads and writes both go through the capability: a scope or a read-only mode
+// holds for these tools as it does for the Flue agent.
 //
 // Results are plain JSON (text for files), short enough for a model's context: listings and
 // bodies are capped, and a cap that cuts says so.
@@ -47,15 +49,26 @@ export interface StudioLogLine {
 
 export interface StudioProject {
   name: string;
-  files: Map<string, Uint8Array>;
-  dirs: Set<string>;
-  /** True when edits reach a folder on the local disk. */
-  onDisk: boolean;
+  /** Where the files are (a folder on disk, memory, OPFS, S3…). */
+  source: string;
+  /** The rights the tools hold (the capability's mode). */
+  rights: string;
 }
 
-/** What the page gives the tools: its project, its edits, its runner. */
+export interface TreeItem {
+  path: string;
+  size: number;
+  dir?: boolean;
+  data?: Uint8Array;
+}
+
+/** What the page gives the tools: the project through a capability, and its runner. */
 export interface StudioHost {
   project(): StudioProject | undefined;
+  /** The files (and empty folders) the capability may list; with contents when asked. */
+  tree(opts?: { contents?: boolean }): Promise<TreeItem[]>;
+  /** A file's bytes, or undefined when it does not exist (or is not visible). */
+  read(path: string): Promise<Uint8Array | undefined>;
   /** Writes a file, making it (and its folders) when it is new. */
   writeFile(path: string, bytes: Uint8Array): Promise<void>;
   mkdir(path: string): Promise<void>;
@@ -108,6 +121,17 @@ function needProject(host: StudioHost): StudioProject {
   return p;
 }
 
+async function readText(host: StudioHost, path: string): Promise<string> {
+  let bytes: Uint8Array | undefined;
+  try {
+    bytes = await host.read(path);
+  } catch (err) {
+    throw new ToolError((err as Error).message);
+  }
+  if (!bytes) throw new ToolError(`${path.slice(1)} does not exist`);
+  return textOf(path, bytes);
+}
+
 function textOf(path: string, bytes: Uint8Array): string {
   if (bytes.subarray(0, 8192).includes(0))
     throw new ToolError(`${path.slice(1)} is a binary file (${bytes.length} bytes)`);
@@ -153,11 +177,13 @@ export function createTools(host: StudioHost): Tool[] {
       readOnly: true,
       async execute() {
         const p = host.project();
+        const files = p ? (await host.tree()).filter((e) => !e.dir).length : 0;
         return {
           open: !!p,
           name: p?.name,
-          onDisk: p?.onDisk ?? false,
-          files: p?.files.size ?? 0,
+          source: p?.source,
+          rights: p?.rights,
+          files,
           state: host.state(),
           conventions: {
             server:
@@ -180,16 +206,21 @@ export function createTools(host: StudioHost): Tool[] {
       },
       readOnly: true,
       async execute(args) {
-        const p = needProject(host);
+        needProject(host);
         const pattern = str(args, "pattern", false);
         const re = pattern ? globToRegExp(pattern) : undefined;
-        const all = [...p.files]
-          .map(([path, b]) => ({ path: path.slice(1), size: b.length }))
+        const tree = await host.tree();
+        const all = tree
+          .filter((e) => !e.dir)
+          .map((e) => ({ path: e.path.slice(1), size: e.size }))
           .filter((f) => !re || re.test(f.path))
           .sort((a, b) => a.path.localeCompare(b.path));
+        const dirs = tree.filter((e) => e.dir).map((e) => e.path);
         return {
           files: all.slice(0, MAX_LIST),
-          emptyDirs: [...p.dirs].map((d) => d.slice(1)),
+          emptyDirs: dirs
+            .filter((d) => !tree.some((e) => !e.dir && e.path.startsWith(`${d}/`)))
+            .map((d) => d.slice(1)),
           truncated: all.length > MAX_LIST,
         };
       },
@@ -209,11 +240,9 @@ export function createTools(host: StudioHost): Tool[] {
       },
       readOnly: true,
       async execute(args) {
-        const p = needProject(host);
+        needProject(host);
         const path = projectPath(str(args, "path"));
-        const bytes = p.files.get(path);
-        if (!bytes) throw new ToolError(`${path.slice(1)} does not exist`);
-        const text = textOf(path, bytes);
+        const text = await readText(host, path);
         const lines = text.split("\n");
         const offset = Math.max(1, Number(args.offset ?? 1) || 1);
         const limit = args.limit === undefined ? lines.length : Math.max(0, Number(args.limit));
@@ -257,11 +286,9 @@ export function createTools(host: StudioHost): Tool[] {
         required: ["path", "old_text", "new_text"],
       },
       async execute(args) {
-        const p = needProject(host);
+        needProject(host);
         const path = projectPath(str(args, "path"));
-        const bytes = p.files.get(path);
-        if (!bytes) throw new ToolError(`${path.slice(1)} does not exist`);
-        const text = textOf(path, bytes);
+        const text = await readText(host, path);
         const oldText = str(args, "old_text");
         const newText = str(args, "new_text");
         if (!oldText) throw new ToolError('"old_text" is empty: use write_file to write a file');
@@ -295,7 +322,7 @@ export function createTools(host: StudioHost): Tool[] {
       },
       readOnly: true,
       async execute(args) {
-        const p = needProject(host);
+        needProject(host);
         let re: RegExp;
         try {
           re = new RegExp(str(args, "query"), args.ignore_case === true ? "i" : "");
@@ -305,7 +332,9 @@ export function createTools(host: StudioHost): Tool[] {
         const glob = str(args, "pattern", false);
         const files = glob ? globToRegExp(glob) : undefined;
         const matches: string[] = [];
-        for (const [path, bytes] of [...p.files].sort(([a], [b]) => a.localeCompare(b))) {
+        const tree = (await host.tree({ contents: true })).filter((e) => !e.dir && e.data);
+        for (const { path, data } of tree.sort((a, b) => a.path.localeCompare(b.path))) {
+          const bytes = data as Uint8Array;
           if (files && !files.test(path.slice(1))) continue;
           if (bytes.subarray(0, 8192).includes(0)) continue;
           const lines = decoder.decode(bytes).split("\n");

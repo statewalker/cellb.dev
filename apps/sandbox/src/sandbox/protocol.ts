@@ -1,27 +1,15 @@
 // The page ↔ runner worker messages (the runner's own; site-host messages share the channel).
+//
+// The runner reads a project's files through a capability: a read-only Biscuit token the page
+// gives with each run or build, checked by the studio (over the port `studio-port` gives).
 
 export type ToRunner =
-  | { type: "run"; files: [string, Uint8Array][]; folderName: string }
+  /** The runner's link to the studio (its HTTP, served over this port by the studio worker). */
+  | { type: "studio-port"; port: MessagePort }
+  | { type: "run"; workspace: string; token: string; folderName: string }
   | { type: "stop" }
   /** A deployable folder of the project: a no_bundle Worker with the client as its assets. */
-  | { type: "build"; id: number; files: [string, Uint8Array][]; folderName: string }
-  /** A request to the studio Worker (the agents' side: Workspace and Agent cells). */
-  | {
-      type: "studio";
-      id: number;
-      /** Where the studio's `cellb build` is served (<base>studio/). */
-      studioUrl: string;
-      path: string;
-      method: string;
-      headers: [string, string][];
-      body?: string;
-    }
-  /** The page's answer to a host call the studio made (`host-call`). */
-  | {
-      type: "host-reply";
-      id: number;
-      out: { ok: true; result: unknown } | { ok: false; error: string };
-    };
+  | { type: "build"; id: number; workspace: string; token: string; folderName: string };
 
 export type FromRunner =
   | { type: "phase"; phase: "idle" | "building" | "stopped" }
@@ -29,12 +17,4 @@ export type FromRunner =
   | { type: "running"; baseUrl: string; name: string; server: boolean; client: boolean }
   | { type: "failed"; error: string }
   | { type: "built"; id: number; files: [string, Uint8Array][]; summary: string }
-  | { type: "build-failed"; id: number; error: string }
-  | { type: "studio-reply"; id: number; status: number; body: string }
-  /** The studio's agent asks the page to act (run the app, read the log, call the app). */
-  | {
-      type: "host-call";
-      id: number;
-      tool: "run_app" | "read_logs" | "http_request";
-      args: Record<string, unknown>;
-    };
+  | { type: "build-failed"; id: number; error: string };

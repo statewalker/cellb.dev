@@ -199,7 +199,7 @@ try {
   await panel.getByLabel("Model").fill("fake");
   await panel.getByLabel("Endpoint").fill(fake.baseUrl);
   await panel.getByLabel("API key").fill("fake-key-123");
-  await panel.getByLabel("Rights").selectOption("yolo");
+  await panel.getByLabel("Rights", { exact: true }).selectOption("yolo");
   await panel.getByLabel("Message to the agent").fill("Rename the screen's title");
   await panel.getByRole("button", { name: "Send" }).click();
   try {
@@ -228,7 +228,7 @@ try {
 
   step("a read-only capability: the agent's write is refused, the project is unchanged");
   if (!(await settings.evaluate((d) => d.open))) await settings.locator("summary").click();
-  await panel.getByLabel("Rights").selectOption("readonly");
+  await panel.getByLabel("Rights", { exact: true }).selectOption("readonly");
   await panel.getByLabel("Message to the agent").fill("WRITE a file");
   await panel.getByRole("button", { name: "Send" }).click();
   await panel.getByText(/^Could not write:/).waitFor({ timeout: 120_000 });
@@ -238,6 +238,20 @@ try {
     window.cellbSandbox.call("list_files", { pattern: "**/sneaky.ts" }),
   );
   if (sneaky.result.files.length) throw new Error("a read-only agent wrote a file");
+
+  step("other agents' tools hold their own capability: read-only refuses their writes");
+  await panel.getByLabel("Rights of other agents").selectOption("readonly");
+  const refused = await page.evaluate(() =>
+    window.cellbSandbox.call("write_file", { path: "server/outside.ts", content: "x" }),
+  );
+  if (refused.ok || !/EACCES|denied/i.test(refused.error))
+    throw new Error(`a read-only tool wrote: ${JSON.stringify(refused)}`);
+  const stillReads = await page.evaluate(() =>
+    window.cellbSandbox.call("read_file", { path: "AGENTS.md" }),
+  );
+  if (!stillReads.ok)
+    throw new Error(`a read-only tool cannot read: ${JSON.stringify(stillReads)}`);
+  await panel.getByLabel("Rights of other agents").selectOption("yolo");
 
   step("Ship: the deployable build (with the agent's edit), run by cellb on Node");
   await page.getByRole("tab", { name: "Ship" }).click();
@@ -286,6 +300,39 @@ try {
   if (apiRes?.status !== 200 || !apiRes.body.includes(NEW_TITLE))
     throw new Error(`node: api → ${JSON.stringify(apiRes)}`);
   await writeFile(join(dir, "ok"), "");
+
+  step(
+    "a project in the browser's own storage (OPFS): opened, run, and written through a capability",
+  );
+  const opfsPage = await context.newPage();
+  await opfsPage.goto(APP);
+  await opfsPage.evaluate(async () => {
+    let dir = await navigator.storage.getDirectory();
+    for (const name of ["projects", "e2e-opfs"])
+      dir = await dir.getDirectoryHandle(name, { create: true });
+    const w = await (await dir.getFileHandle("index.html", { create: true })).createWritable();
+    await w.write("<!doctype html><title>OPFS</title><h1>Kept by the browser</h1>");
+    await w.close();
+  });
+  await opfsPage.getByLabel("Browser storage folder").fill("projects/e2e-opfs");
+  await opfsPage.getByRole("button", { name: "Open from browser storage" }).click();
+  await opfsPage
+    .frameLocator('iframe[title="The running app"]')
+    .getByRole("heading", { name: "Kept by the browser" })
+    .waitFor({ timeout: 60_000 });
+  const wrote = await opfsPage.evaluate(async () => {
+    const r = await window.cellbSandbox.call("write_file", {
+      path: "notes.md",
+      content: "# via a capability",
+    });
+    let dir = await navigator.storage.getDirectory();
+    for (const name of ["projects", "e2e-opfs"]) dir = await dir.getDirectoryHandle(name);
+    const text = await (await (await dir.getFileHandle("notes.md")).getFile()).text();
+    return { ok: r.ok, text };
+  });
+  if (!wrote.ok || wrote.text !== "# via a capability")
+    throw new Error(`OPFS write: ${JSON.stringify(wrote)}`);
+  await opfsPage.close();
 
   if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
   console.log("e2e-agent: all good");

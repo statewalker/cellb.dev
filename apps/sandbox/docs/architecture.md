@@ -60,6 +60,7 @@ browser memory limits, and Cloudflare shipping its own in-browser playground wit
 | Client | HTML + TS/TSX/CSS compiled per module, npm from the registry | `@statewalker/webrun-modules` (`newModuleServer`) | [built] |
 | Hosting in the tab | one site per run, served by the page's ServiceWorker | `@statewalker/cellb/site`, `webrun-site-host`, `webrun-http-browser` | [built] |
 | Agent tools | 13 tools over the workspace + runner | `src/sandbox/agent/tools.ts` | [built] |
+| Files | one FilesApi per project (folder, memory, OPFS, S3, composite), owned by the studio worker; everyone else holds capabilities | `src/sandbox/studio.worker.ts`, `sources.ts`, `session.ts`, `studio/src/capfs/files-store.ts`, `token-cap.ts` | [built] |
 | Agents | Flue agents in Durable Objects on CellB, tools over a Biscuit-capability FilesApi | `studio/` (capability core vendored from `statewalker-sandbox/apps/flue-capfs-do`), `@flue/runtime`, `@earendil-works/pi-agent-core`, `just-bash`, `@statewalker/webrun-biscuit` | [built] |
 | Agent ingress for other agents | `window.cellbSandbox`, WebMCP, MCP endpoint | `agent/bridge.ts`, `agent/mcp.ts` | [built] |
 | Ship | deployable folder, GitHub push/pull, CI deploy workflow | `deploy.ts`, `export.ts`, `github.ts`, `@statewalker/cellb-bundler` (`buildProject`) | [built] |
@@ -120,45 +121,48 @@ the tools point external agents to. Templates ship one.
 ### 5.3 Flue agents on a capability file system [built]
 
 The in-tab agent is not a loop in the page: it is a **Flue agent in a Durable Object**, in the
-studio Worker (`studio/`), which the runner runs on CellB next to the app. The design is
-`statewalker-sandbox/apps/flue-capfs-do`'s, whose capability core it vendors:
+studio Worker (`studio/`), which the **studio worker** runs on CellB, in a realm of its own. The
+design is `statewalker-sandbox/apps/flue-capfs-do`'s, whose capability core it vendors; the gate
+works on **any FilesApi** the host provides, so capabilities filter the real files:
 
 ```
- page (owns the folder; Workspace admin)          runner: CellB, studio Worker
- ───────────────────────────────────────          ──────────────────────────────────────────────
- sync(files) ───────────────────────────────────▶ Workspace  SqlFs copy · Authority (root key,
- session(mode) ─────────────────── token ◀──────              sessions, modes, revocations)
- run(token, scope, llm, key) ──────────────────▶   open(token, scope) → FilteredFiles (RpcTarget)
-                                                  Agent      Flue loop (pi-agent-core)
-                                                             read/write/edit/grep/glob/bash
-                                                               → just-bash → CapFs → capability
-                                                               → FsGate: Datalog per entry
- poll progress, journal ◀──── changes ──────────  Workspace  journal of capability writes
- apply to folder (disk, tree)
- run_app / read_logs / http_request ◀── host ───  Agent      host tools (globalThis.cellbStudioHost)
+ studio worker (owns the files)                          page        runner        other agents
+ ──────────────────────────────────────────────────      ─────       ──────        ────────────
+ source FilesApi: folder · memory · OPFS · S3 · composite
+   └ FilesStore (POSIX-like surface for the gate)
+ Workspace  Authority: root key, sessions, modes, revocations
+            FsGate: Datalog per entry (recursive ops too)
+   ├ FilteredFiles RpcTarget ──▶ Agent: Flue loop (read/write/edit/grep/glob/bash → just-bash
+   │                                    → CapFs → capability) + host tools (run_app…)
+   └ POST /api/fs/:ws {token, req}  ◀── TokenCap ── owner token  readonly    their own mode
+                                        (MessagePort)  (edits)     (builds)    (window, MCP)
+ change notices ──────────────────────────────────▶ page watcher: refresh, rerun
 ```
 
 - **Rights are a token, not a flag**: the session's authority block holds `right("/")` facts,
   the mode (`yolo`, `plan`: writes only under `/plans/`, `readonly`) is a policy the Workspace
   applies, a **scope** is an attenuation block (`check if resource($p), $p.starts_with("/client/")`)
-  that can only narrow. Every entry an operation touches is authorized (recursive `rm`, `cp`,
-  `mv` included); `ls /` shows only what the token may list.
-- **The agent never holds the folder**: the Agent cell receives an RPC stub of `FilteredFiles`,
-  nothing else. Mode changes and revocations apply at the next file call or model turn.
-- **The page stays the owner of the truth**: it syncs the folder in before each run and applies
-  the journal (writes, deletions, moves) back through its edit queue, so agents' edits are
-  ordinary edits (on disk, undoable with git).
-- **The same project elsewhere**: on wrangler, celld or cellb on Node the studio runs unchanged;
-  there a git checkout (not a page) feeds the Workspace, the model is the deployment's (`LLM`,
-  `LLM_API_KEY`, budgets as in flue-capfs-do), and the host tools are absent until a deployment
-  provides them.
-- **Checked**: `test/studio-node.ts` (cellb in Node: an edit journaled with its content, a
-  read-only write refused, a scope that hides the rest of the tree) and `test/e2e-agent.mjs`
-  (Chromium: the Agent tab's Flue agent edits, runs and calls the app; a read-only run's write
-  is refused and the project is unchanged).
+  that can only narrow, offline. Every entry an operation touches is authorized (recursive
+  `rm`, `cp`, `mv` included); `ls /` shows only what the token may list.
+- **Two transports, one gate**: cells of the studio's runtime get an RPC stub; any other worker,
+  tab or node gets the token and sends calls as JSON (`POST /api/fs/:ws`, bytes as `$b64`). A
+  token can be stored and attenuated without the key.
+- **Nobody else holds the files**: the page edits, the runner builds and the agents work through
+  tokens; the app's Worker code (in the runner) never shares a realm with the files or the
+  studio.
+- **Sources**: a picked folder (`BrowserFilesApi`), memory (`MemFilesApi`), OPFS, S3
+  (`S3FilesApi`), a `CompositeFilesApi` of them; on a server, a directory (`NodeFilesApi`), R2/S3
+  or the Workspace's own SQLite (`SqlFilesApi`, used when no host provides a store).
+- **Checked**: `test/studio-node.ts` (cellb in Node, over memory, a directory on disk and a
+  composite: the owner token's FilesApi writes the store itself, a Flue edit lands in it, a
+  read-only write is refused, a scope hides the rest, a narrowed read-only token's `readTree`);
+  `test/e2e.mjs` (Chromium: every edit of the IDE, on a template and on a picked folder, through
+  the owner capability); `test/e2e-agent.mjs` (the Flue agent edits, runs and calls the app; a
+  read-only run's write is refused; other agents' tools in read-only mode are refused; an OPFS
+  project is opened, run and written through a capability). S3 is wired but not tested here
+  (no bucket in CI).
 
-**[next]**: the token transport (capabilities that survive hibernation and cross nodes),
-sub-agents with attenuated capabilities (flue-capfs-do's `chain`), untrusted tools in Worker
+**[next]**: sub-agents with attenuated capabilities (flue-capfs-do's `chain`), untrusted tools in Worker
 Loader isolates, Python (Pyodide) and Wasmer sandboxes on the same capability, model budgets per
 session, and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
 
@@ -260,7 +264,7 @@ Observable-style notebooks — Markdown with fenced reactive `js` cells, `npm:` 
 | Phase | Content |
 |---|---|
 | 1 (this change) | Flue agents in Durable Objects on CellB with a Biscuit-capability file system (studio Worker), IDE tools for other agents (window/WebMCP/MCP), console capture, deployable build, GitHub snapshot push/pull, CI deploy workflow, agent-ui template, AGENTS.md |
-| 2 | FilesApi over the folder (`BrowserFilesApi`); webrun-vcs history in `.git`; per-module server compile (`siteCompiler`) for fast reruns; TypeScript language service in the editor |
+| 2 | webrun-vcs history in `.git` (on the same FilesApi); per-module server compile (`siteCompiler`) for fast reruns; TypeScript language service in the editor |
 | 3 | HTTPeers: publish the app and the MCP mount; Biscuit permission modes; desktop-agent bridge; promote cell state to celld |
 | 4 | Notebooks and Astro project types; json-render/A2UI templates; agent screenshots of the preview as a tool |
 
