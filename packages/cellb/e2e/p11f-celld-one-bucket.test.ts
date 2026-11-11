@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -6,38 +6,18 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it, vi } from "vitest";
 import { celldBucket, type OpenCellSql, wasmMemoryOpener } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
-import { freePort } from "../test/free-port.js";
+import { type CelldDev, startCelldDev } from "../test/celld-dev.js";
 
 // Interop the way it is meant to be used: celld and cellb share ONE bucket (celld dev's
 // objects.sqlite3) and hand cells over through celld's own ownership protocol — own.json
 // epochs, node leases — with no manual step. Each project: celld, then cellb, then
 // celld again; the state continues on each side.
 const CELLD = process.env.CELLD_BIN;
-const ESBUILD_DIR = process.env.ESBUILD_DIR ?? "";
 // The tests run 4 at a time: each has its own project dir, so its own bucket
 // (.celld/dev/objects.sqlite3), node records and leases, and its own celld port.
 vi.setConfig({ maxConcurrency: 4 });
 
-async function celldDev(
-  dir: string,
-): Promise<{ p: ChildProcess; base: string; log: () => string }> {
-  const at = await freePort();
-  const p = spawn(CELLD!, ["dev", ".", "--port", String(at), "--logs"], {
-    cwd: dir,
-    env: { ...process.env, PATH: `${ESBUILD_DIR}:${process.env.PATH}` },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let log = "";
-  p.stdout!.on("data", (d) => (log += d));
-  p.stderr!.on("data", (d) => (log += d));
-  for (let i = 0; i < 150 && !log.includes("ready"); i++)
-    await new Promise((r) => setTimeout(r, 200));
-  if (!log.includes("ready")) {
-    p.kill("SIGKILL");
-    throw new Error(`celld dev did not start:\n${log.slice(-2500)}`);
-  }
-  return { p, base: `http://127.0.0.1:${at}`, log: () => log };
-}
+const celldDev = (dir: string): Promise<CelldDev> => startCelldDev(dir);
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => {
     if (p.exitCode !== null || p.signalCode !== null) return r();
