@@ -211,6 +211,32 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
       expect(r).toEqual(["a"]);
     });
 
+    it("async transaction(): one in flight rolling back keeps what another wrote", async () => {
+      const { inObject } = probeRuntime();
+      const r = await inObject("tx2", async (ctx) => {
+        let releaseA!: () => void;
+        let releaseB!: () => void;
+        const a = ctx.storage.transaction(async () => {
+          ctx.storage.sql.exec("CREATE TABLE t (x)");
+          await new Promise<void>((res) => (releaseA = res));
+        });
+        const b = ctx.storage
+          .transaction(async () => {
+            await new Promise<void>((res) => (releaseB = res));
+            throw new Error("b");
+          })
+          .catch(() => {});
+        await new Promise((res) => setTimeout(res, 5));
+        releaseA();
+        await a;
+        await new Promise((res) => setTimeout(res, 5));
+        releaseB();
+        await b;
+        return ctx.storage.sql.exec("SELECT name FROM sqlite_master WHERE name = 't'").toArray();
+      });
+      expect(r).toEqual([{ name: "t" }]);
+    });
+
     it("deleteAll wipes KV and user tables", async () => {
       const { inObject } = probeRuntime();
       const r = await inObject("da", async (ctx) => {

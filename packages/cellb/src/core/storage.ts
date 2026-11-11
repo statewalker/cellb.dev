@@ -233,11 +233,21 @@ export class DurableObjectStorage extends AsyncKvApi {
   transactionSync<T>(fn: () => T): T {
     return this.sql.transactionSync(fn);
   }
+  /** Settles when the last async transaction() started so far has. */
+  #txnTail: Promise<void> = Promise.resolve();
   /**
-   * Async transaction spanning awaits: the input gate stays closed (no other
-   * event can interleave writes into the savepoint) and auto-commit is held.
+   * Async transaction spanning awaits: the input gate stays closed (no new event is delivered)
+   * and auto-commit is held. Transactions run one at a time, as workerd's critical sections
+   * keep them: events already in flight could otherwise open theirs on the same savepoint
+   * stack, and one's rollback would undo what another, already released, wrote.
    */
   transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
+    const previous = this.#txnTail;
+    let done!: () => void;
+    this.#txnTail = new Promise<void>((resolve) => (done = resolve));
+    return previous.then(() => this.#transaction(closure)).finally(done);
+  }
+  #transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
     return this.gate.runClosed(async () => {
       const release = this.sql.hold();
       const sp = "_cf_atx";
