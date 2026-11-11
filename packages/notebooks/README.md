@@ -55,9 +55,22 @@ GET  /nb/<site>/t/<page> ─► the theme's build in a Worker Loader isolate,
 - **A page model** is what a theme needs and nothing more: the notebook's title, its prose as
   HTML (headings with ids), its outline, one entry per code cell, and the module script that
   imports notebook-kit's runtime and calls `define()` for each cell. The theme never parses
-  Markdown or transpiles code. The stages are notebook-build's (`parseMarkdown`,
-  `parseNotebookHtml`, `resolveNotebook`, `transpileNotebook`), so a themed page runs the same
-  cells as the plain page.
+  Markdown or transpiles code. The cells are compiled with notebook-build's stages
+  (`resolveNotebook`, `transpileNotebook`), the same as the plain pages'.
+- **A notebook is Portable Text first** (`src/portable-text.ts`): Markdown through
+  `@portabletext/markdown`, a Notebook Kit document cell by cell (its Markdown cells as prose).
+  Runnable fences become `cell` objects with their fence attributes, and `${…}` in prose becomes
+  an `expr` inline object. Keys are deterministic, so the same notebook gives the same document.
+  The model keeps the document as `content`, with cells and expressions numbered, and derives
+  the prose HTML and the cells from it.
+- **Themed pages read the fence's info string**, which the plain pages ignore:
+  - ` ```js echo `: the cell runs, and its source shows under its output;
+  - ` ```js run=false `: the source shows, and the cell is not compiled or run;
+  - ` ```sql database=warehouse output=rows `: the SQL cell queries `warehouse`, and its rows are
+    the variable `rows`;
+  - `${expr}` in prose: a cell of its own, displayed in place in a `<span>`;
+  - cells that do not run in a page (`html`, `tex`, `dot`, `python`…) stay inert, as on the
+    plain pages: `html` as its markup, the others as code.
 - **Content is data.** The models reach the theme in the isolate's `env`, as plain JSON, which
   every host's Worker Loader passes. The isolate is named after the theme's build and the models'
   hash: a notebook edit and a rebuild load the same theme build with new data. The theme is built
