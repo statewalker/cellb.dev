@@ -14,7 +14,7 @@ export const LIVE_DEMOS = {
   astro: {
     href: "https://cellb-astro.httpeers.net/",
     title: "Astro, built in the tab",
-    body: "An Astro app's sources built in the tab (esbuild and Astro's compiler as WebAssembly, packages from the npm registry), then run there on CellB: a small app in a few seconds, or EmDash in about two minutes the first time.",
+    body: "An Astro app's sources built in the tab (esbuild and Astro's compiler as WebAssembly, packages from the npm registry), then run there on CellB: a small app in a few seconds, or EmDash in about two minutes the first time (on a 4-CPU machine).",
     readme: "examples/astro-in-browser/README.md",
   },
 } as const;

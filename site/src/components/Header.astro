@@ -6,7 +6,8 @@ import Logo from "./Logo.astro";
 import ThemeToggle from "./ThemeToggle.astro";
 import Badge from "./ui/Badge.astro";
 
-const path = Astro.url.pathname;
+// Built pages are directories ("/docs/"), so compare without the trailing slash.
+const path = Astro.url.pathname.replace(/\/+$/, "") || "/";
 const nav = [
   { href: "/docs", label: "Docs" },
   { href: "/docs/how-it-works", label: "How it works" },
@@ -14,35 +15,71 @@ const nav = [
   { href: "/examples", label: "Examples" },
   { href: "/examples#live-demos", label: "Live demos" },
   { href: "/sandbox", label: "Sandbox" },
-  { href: "/#compare", label: "Supported" },
-  // Shown from `lg` (`wide`) or `xl` (`widest`) only: below them the bar has no room for them.
-  { href: "/#use-cases", label: "Use cases", wide: true },
+  { href: "/#compare", label: "Supported services" },
+  // Shown from `xl` (`widest`) only: below it the bar has no room for them.
+  { href: "/#use-cases", label: "Use cases", widest: true },
   { href: "/#numbers", label: "Numbers", widest: true },
 ];
+
+/** Pages under an item: links to a section (#) never are; Docs takes the /docs pages no other item claims. */
+const under = (href: string) => path === href || path.startsWith(`${href}/`);
+const isActive = (href: string) =>
+  !href.includes("#") &&
+  (href === "/docs"
+    ? under(href) && !nav.some((o) => o.href !== href && !o.href.includes("#") && under(o.href))
+    : under(href));
 ---
 
 <header class="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
   <div class="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:px-6">
     <Logo />
     <Badge variant="outline" class="hidden font-mono text-[10px] sm:inline-flex">v{cellb.version} · on npm</Badge>
-    <nav class="hidden items-center gap-5 text-sm md:flex">
+    <nav aria-label="Main" class="hidden items-center gap-5 text-sm lg:flex">
       {nav.map((item) => (
         <a
           href={item.href}
           class:list={[
             "whitespace-nowrap transition-colors hover:text-foreground",
-            "wide" in item && item.wide && "hidden lg:inline",
             "widest" in item && item.widest && "hidden xl:inline",
-            path === item.href || (item.href !== "/docs" && path.startsWith(item.href))
-              ? "text-foreground"
-              : "text-muted-foreground",
+            isActive(item.href) ? "text-foreground" : "text-muted-foreground",
           ]}
+          aria-current={isActive(item.href) ? "page" : undefined}
         >
           {item.label}
         </a>
       ))}
     </nav>
     <div class="ml-auto flex items-center gap-1">
+      <!-- Below lg the bar has no room for the nav: a menu that works without JavaScript. -->
+      <details class="group relative lg:hidden">
+        <summary
+          class="inline-flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground group-open:text-foreground [&::-webkit-details-marker]:hidden"
+        >
+          <Icon name="menu" />
+          Menu
+        </summary>
+        <nav
+          aria-label="Site"
+          class="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border bg-background p-2 text-sm shadow-lg"
+        >
+          <ul>
+            {nav.map((item) => (
+              <li>
+                <a
+                  href={item.href}
+                  class:list={[
+                    "block rounded-md px-3 py-2 hover:bg-accent hover:text-accent-foreground",
+                    isActive(item.href) ? "font-medium text-foreground" : "text-muted-foreground",
+                  ]}
+                  aria-current={isActive(item.href) ? "page" : undefined}
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </details>
       <a
         href={REPO}
         aria-label="GitHub"

@@ -17,7 +17,7 @@ const apps = [
     image: "/showcase/emdash-built-in-tab.png",
     alt: "The host tab's build log: EmDash's 225 routes built in the browser in about 73 seconds",
     title: "Built from source, in the same tab",
-    body: "Astro's compiler and esbuild run as WebAssembly in workers, with packages from the npm registry kept in a package store that is itself a Durable Object. EmDash's 225 routes build in about 65–115 s on 4 CPUs and run on CellB at once, with their cells on LTX files in OPFS.",
+    body: "Astro's compiler and esbuild run as WebAssembly in workers, with packages from the npm registry kept in a package store that is itself a Durable Object. EmDash's 225 routes build in about 65–78 s warm and 115 s cold (4-CPU machine, Chrome for Testing 153) and run on CellB at once, each cell kept in OPFS as LTX files, celld's one-file-per-commit page log.",
     href: docHref("examples/astro-in-browser/README.md"),
     demo: LIVE_DEMOS.astro.href,
   },
