@@ -252,6 +252,11 @@ export function createProjectRuntime(
       continue; // the host's bundler maps node:*
     else if (f === "websocket_standard_binary_type")
       continue; // the host picks the project's WebSocketPair
+    else if (
+      f === "nodejs_compat_populate_process_env" ||
+      f === "nodejs_compat_do_not_populate_process_env"
+    )
+      continue; // the host fills process.env or not (populatesProcessEnv)
     else unsupported.push(`compatibility_flags: ${f}`);
   }
 
@@ -526,12 +531,6 @@ export function withResourceIds(config: WranglerConfig): WranglerConfig {
   };
 }
 
-/**
- * workerd fills `process.env` with the project's text `vars` under nodejs_compat from
- * compatibility date 2025-04-01 (`nodejs_compat_populate_process_env`), unless
- * `nodejs_compat_do_not_populate_process_env` is set. Frameworks read their settings there
- * (EmDash's `EMDASH_SITE_URL`, for one).
- */
 /** Whether `config` asks for nodejs_compat (the flag, or a `nodejs_compat_*` one). */
 export function hasNodeCompat(config: WranglerConfig): boolean {
   return (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
@@ -540,6 +539,12 @@ export function hasNodeCompat(config: WranglerConfig): boolean {
 /** The configuration files of a project folder, in the order celld reads them. */
 export const WRANGLER_FILES = ["wrangler.jsonc", "wrangler.json"];
 
+/**
+ * workerd fills `process.env` with the project's text `vars` under nodejs_compat from
+ * compatibility date 2025-04-01 (`nodejs_compat_populate_process_env`), unless
+ * `nodejs_compat_do_not_populate_process_env` is set. Frameworks read their settings there
+ * (EmDash's `EMDASH_SITE_URL`, for one).
+ */
 export function populatesProcessEnv(config: WranglerConfig): boolean {
   const flags = config.compatibility_flags ?? [];
   if (!hasNodeCompat(config)) return false;

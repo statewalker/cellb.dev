@@ -46,7 +46,8 @@ answers with celld's recording ([Conformance](../conformance.md)).
   ([Security & isolation](../security.md)). Under `nodejs_compat`, the project's text `vars` are
   added to `process.env` wherever the host has not already set them.
 - **In a browser, `process.env` holds the project's text `vars`** under `nodejs_compat` (from
-  compatibility date 2025-04-01, as on workerd). `node:fs` and `node:os` load with no host behind
+  compatibility date 2025-04-01, as on workerd; `nodejs_compat_populate_process_env` and
+  `nodejs_compat_do_not_populate_process_env` override the date, on both hosts). `node:fs` and `node:os` load with no host behind
   them (`existsSync` is false, `os.cpus()` is empty). Other Node.js modules without a browser
   polyfill load as stubs that throw when called.
 - **Firefox has no streaming request body.** CellB gives Worker code a `request.body` that reads the
