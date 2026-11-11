@@ -48,7 +48,10 @@ jobs:
         run: pnpm run test:unit
       - name: Build
         run: pnpm run build
-      - run: pnpm exec playwright install --with-deps chromium
+      # Chromium and its system packages. When apt cannot reach Ubuntu's mirrors (runners lost
+      # DNS for them on 2026-11-11), the browser alone, from Playwright's CDN: the steps that run
+      # Chromium then show whether it starts.
+      - run: pnpm exec playwright install --with-deps chromium || pnpm exec playwright install chromium
       - name: The published package (pack, install, Node, types, Vite + Chromium)
         run: node scripts/pack-check.mjs
 

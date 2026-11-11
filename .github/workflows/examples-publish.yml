@@ -40,7 +40,7 @@ jobs:
           node-version-file: cellb.dev/.nvmrc
       - run: pnpm install --frozen-lockfile
       - name: Chromium
-        run: pnpm --dir emdash exec playwright install --with-deps chromium
+        run: pnpm --dir emdash exec playwright install --with-deps chromium || pnpm --dir emdash exec playwright install chromium
 
       - name: EmDash's static build, tested
         working-directory: cellb.dev/examples/emdash

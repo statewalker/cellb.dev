@@ -86,7 +86,10 @@ jobs:
         run: pnpm --filter @statewalker/cellb-site build
       # Every example page, run in Chromium as a visitor runs it (about two minutes: `cron` waits
       # for its trigger).
-      - run: pnpm --filter @statewalker/cellb-site exec playwright install --with-deps chromium
+      # Chromium and its system packages. When apt cannot reach Ubuntu's mirrors (runners lost
+      # DNS for them on 2026-11-11), the browser alone, from Playwright's CDN: the steps that run
+      # Chromium then show whether it starts.
+      - run: pnpm --filter @statewalker/cellb-site exec playwright install --with-deps chromium || pnpm --filter @statewalker/cellb-site exec playwright install chromium
       - name: Example pages
         run: pnpm --filter @statewalker/cellb-site check:examples
       # The home page's Durable Object code: serve-node.ts on Node, and the demo in Chromium.

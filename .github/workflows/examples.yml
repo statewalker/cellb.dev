@@ -93,7 +93,7 @@ jobs:
       - name: Chromium
         if: matrix.browser
         working-directory: cellb.dev/examples/${{ matrix.dir }}
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium || pnpm exec playwright install chromium
       - name: Run
         working-directory: cellb.dev/examples/${{ matrix.dir || '.' }}
         run: ${{ matrix.run }}
