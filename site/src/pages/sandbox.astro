@@ -80,9 +80,10 @@ const steps = [
   </ol>
   <p>Next to the preview, the sandbox has these tools:</p>
   <ul>
-    <li><strong>Files</strong> shows the folder's tree and which files are the server and which are the client.</li>
+    <li><strong>Files</strong> shows the folder's tree, collapsible, with the server and client files marked. New file, New folder, rename or move (a path field, or drag a row onto a folder) and delete work there.</li>
+    <li><strong>Code</strong> edits a file in CodeMirror, with syntax support for TS, TSX, JS, JSX, JSON, CSS, HTML and Markdown. Ctrl/Cmd+S saves. In a folder opened from disk, saves and file changes are written back to the folder (the first one asks for write access); for the sample they stay in the tab, and Download .zip keeps them.</li>
     <li><strong>Log</strong> shows each step with its timing: bundling, startup, the URL the app runs at.</li>
-    <li><strong>Rerun on save</strong> watches the folder and restarts the app when a file changes.</li>
+    <li><strong>Rerun on save</strong> restarts the app when a file is saved or changed in the tree, and, for a folder opened from disk, when a file changes there.</li>
     <li><strong>Download .zip</strong> packs the project's files into a ZIP.</li>
     <li><strong>Open in a new tab</strong>: the running app has a URL, and any tab of the site can open it while the sandbox runs.</li>
   </ul>
@@ -175,7 +176,8 @@ const steps = [
   <ul>
     <li>Only <code>&lt;script src&gt;</code> modules are compiled, not inline <code>&lt;script type="module"&gt;</code> blocks.</li>
     <li>The server is re-bundled whole on each run (under a second for the sample). <code>siteCompiler</code> could recompile a single module instead.</li>
-    <li>Files are read-only. The next steps toward a CodeSandbox-like tool are an editor that writes back through the folder handle (or to an OPFS copy), a server compiled per module, and a "Deploy" button that pushes the build and the cells' state to a celld bucket.</li>
+    <li>The editor has no type checking or cross-file completion yet (no TypeScript language service).</li>
+    <li>The next steps toward a CodeSandbox-like tool are a server compiled per module, edits kept in an OPFS copy between visits, and a "Deploy" button that pushes the build and the cells' state to a celld bucket.</li>
   </ul>
   <p>
     More on the pieces it uses: <a href="/docs/from-sources">Running from sources</a>,{" "}

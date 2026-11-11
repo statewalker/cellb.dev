@@ -6,13 +6,15 @@
 //   3. "Open folder": a folder handle (an OPFS directory standing in for the picker's answer)
 //      is read, run, then changed on disk; the sandbox reruns the app with the change.
 //   4. "Download .zip" gives the folder's files.
+//   5. The tree folds; files are edited in CodeMirror (Ctrl+S saves and reruns), added, moved
+//      and deleted: in the tab for the sample, and on disk for a picked folder.
 //
 // CHROME=/path/to/chrome node test/e2e.mjs   (default: Playwright's own Chromium)
 // SANDBOX_BASE=/sandbox/app/ for a build made with that base (as cellb.dev serves it): the site is
 // then served under that path only, as on cellb.dev.
 // HTTPS=1 serves it over https (a self-signed certificate made with openssl), as cellb.dev does:
-// requests reach the page's handlers through webrun-http-browser, which rebuilt them as http://
-// (cellb's newHostedSiteBuilder gives them the page's scheme back).
+// requests reach the page's handlers through webrun-http-browser, which before 0.12.5 rebuilt
+// them as http://, so on https no request reached its handler.
 
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readdir, readFile } from "node:fs/promises";
@@ -137,6 +139,36 @@ try {
       await page.evaluate(() => document.querySelector('[data-testid="log"]')?.textContent),
     );
 
+  const tree = page.getByRole("navigation", { name: "Project files" });
+  const re = (text) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  // A row, by its path (its spoken name may go on: ", server", ", unsaved").
+  const row = (path) => tree.getByRole("button", { name: new RegExp(`^File ${re(path)}(,|$)`) });
+  const folder = (path) =>
+    tree.getByRole("button", { name: new RegExp(`^Folder ${re(path)}(,|$)`) });
+  // Replaces the open file's text in CodeMirror with `text`, as one input (no auto-closed
+  // brackets). CodeMirror renders only the lines in view, so the text comes from the test.
+  const editorText = async (text) => {
+    const content = page.locator('[data-testid="code-editor"] .cm-content');
+    await content.waitFor();
+    await content.click();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.insertText(text);
+  };
+  const sample = await sampleFolder();
+  const fetchApp = (path) =>
+    page.evaluate(async (p) => {
+      const src = document.querySelector('iframe[title="The running app"]').src;
+      return (await fetch(new URL(p, src))).text();
+    }, path);
+  const rerun = async () => {
+    await page.getByRole("tab", { name: "Preview" }).click();
+    await page
+      .getByText("building")
+      .waitFor({ state: "detached", timeout: 60_000 })
+      .catch(() => {});
+    await status.waitFor({ timeout: 60_000 });
+  };
+
   step("try the sample");
   await page.getByRole("button", { name: "Try the sample" }).click();
   try {
@@ -184,6 +216,68 @@ try {
   await frame.getByText("1 of 2 left").waitFor({ timeout: 60_000 });
   step("rerun: the Durable Object's SQLite data is still there");
 
+  step("the tree folds and unfolds");
+  await row("client/src/main.tsx").waitFor();
+  await tree.getByRole("button", { name: "Collapse client/src" }).click();
+  await row("client/src/main.tsx").waitFor({ state: "detached" });
+  await tree.getByRole("button", { name: "Expand client/src" }).click();
+  await row("client/src/main.tsx").waitFor();
+  await tree.getByRole("button", { name: "Collapse all folders" }).click();
+  await row("server/index.ts").waitFor({ state: "detached" });
+  // Selecting a folder opens it.
+  await folder("server").click();
+  await row("server/index.ts").waitFor();
+
+  step("edit a file in CodeMirror; Ctrl+S saves it and reruns the app");
+  await row("server/index.ts").click();
+  await page.locator(".cm-content .cm-line").first().waitFor();
+  const serverText = sample["server/index.ts"];
+  if (!serverText.includes('hello: "from the server"')) throw new Error("the sample changed");
+  await editorText(
+    serverText.replace('hello: "from the server"', 'hello: "edited in the sandbox"'),
+  );
+  const unsavedRow = tree.getByRole("button", { name: /^File server\/index\.ts, .*unsaved$/ });
+  await unsavedRow.waitFor();
+  // Opening another project asks before an unsaved edit is dropped.
+  let asked = "";
+  page.once("dialog", (d) => {
+    asked = d.message();
+    void d.dismiss();
+  });
+  await page.getByRole("button", { name: "Open folder" }).click();
+  if (!asked.includes("Discard the unsaved changes"))
+    throw new Error(`no discard prompt: ${asked}`);
+  await unsavedRow.waitFor();
+  // Ctrl+S saves with the focus outside the editor too.
+  await folder("server").click();
+  await page.keyboard.press("ControlOrMeta+S");
+  await unsavedRow.waitFor({ state: "detached" });
+  await rerun();
+  const edited = JSON.parse(await fetchApp("api/hello"));
+  if (edited.hello !== "edited in the sandbox")
+    throw new Error(`api/hello: ${JSON.stringify(edited)}`);
+
+  step("add, move (path field, drag) and delete files and folders");
+  await tree.getByRole("button", { name: "New file" }).click();
+  await page.getByRole("textbox", { name: "New file" }).fill("client/src/notes.md");
+  await page.keyboard.press("Enter");
+  await row("client/src/notes.md").waitFor();
+  await row("client/src/notes.md").dragTo(folder("server"));
+  await row("server/notes.md").waitFor();
+  await tree.getByRole("button", { name: "Move or rename server/notes.md", exact: true }).click();
+  await page.getByRole("textbox", { name: "Move or rename server/notes.md" }).fill("docs/notes.md");
+  await page.keyboard.press("Enter");
+  await folder("docs").waitFor();
+  await tree.getByRole("button", { name: "New folder" }).click();
+  await page.getByRole("textbox", { name: "New folder" }).fill("docs");
+  await page.keyboard.press("Enter");
+  await tree.getByRole("alert").filter({ hasText: "already a folder" }).waitFor();
+  await page.keyboard.press("Escape");
+  page.once("dialog", (d) => d.accept());
+  await tree.getByRole("button", { name: "Delete docs", exact: true }).click();
+  await folder("docs").waitFor({ state: "detached" });
+  await row("docs/notes.md").waitFor({ state: "detached" });
+
   step("download the app as a ZIP");
   const [download] = await Promise.all([
     page.waitForEvent("download"),
@@ -196,10 +290,15 @@ try {
     throw new Error("no wrangler.jsonc in the ZIP");
   if (!zip.includes(Buffer.from("tasks/client/src/main.tsx")))
     throw new Error("no main.tsx in the ZIP");
+  if (zip.includes(Buffer.from("notes.md"))) throw new Error("a deleted file is in the ZIP");
 
   step("open a local folder (File System Access API)");
-  const folder = await sampleFolder();
-  folder["client/src/main.tsx"] = folder["client/src/main.tsx"].replace(
+  const picked = await sampleFolder();
+  picked["client/logo.bin"] = "\u0000\u0001binary\u0000";
+  // The sandbox does not load node_modules; moving its folder must keep it.
+  picked["docs/readme.md"] = "# Docs";
+  picked["docs/node_modules/pkg/index.js"] = "export default 1;";
+  picked["client/src/main.tsx"] = picked["client/src/main.tsx"].replace(
     "<h1>Tasks</h1>",
     "<h1>My tasks</h1>",
   );
@@ -216,7 +315,7 @@ try {
       await w.close();
     }
     window.showDirectoryPicker = async () => dir;
-  }, folder);
+  }, picked);
   await page.getByRole("button", { name: "Open folder" }).click();
   await frame.getByRole("heading", { name: "My tasks" }).waitFor({ timeout: 60_000 });
   step("the folder runs");
@@ -237,6 +336,75 @@ try {
   });
   await frame.getByRole("heading", { name: "Saved on disk" }).waitFor({ timeout: 60_000 });
   step("a change on disk reruns the app");
+
+  // The picked folder's main.tsx, read from disk (OPFS stands in for it).
+  const onDisk = (path) =>
+    page.evaluate(async (p) => {
+      let d = await (await navigator.storage.getDirectory()).getDirectoryHandle("picked");
+      const parts = p.split("/");
+      for (const x of parts.slice(0, -1)) d = await d.getDirectoryHandle(x);
+      return (await (await d.getFileHandle(parts.at(-1))).getFile()).text();
+    }, path);
+  await row("client/src/main.tsx").click();
+  await editorText(sample["client/src/main.tsx"].replace("<h1>Tasks</h1>", "<h1>Edited here</h1>"));
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await rerun();
+  await frame
+    .getByRole("heading", { name: "Edited here" })
+    .waitFor({ timeout: 60_000 })
+    .catch(async (err) => {
+      await page.getByRole("tab", { name: "Log" }).click();
+      await showLog();
+      throw err;
+    });
+  if (!(await onDisk("client/src/main.tsx")).includes("<h1>Edited here</h1>"))
+    throw new Error("the edit was not written to the folder");
+  await tree.getByRole("button", { name: "New file" }).click();
+  await page.getByRole("textbox", { name: "New file" }).fill("client/src/extra.ts");
+  await page.keyboard.press("Enter");
+  await row("client/src/extra.ts").waitFor();
+  await tree
+    .getByRole("button", { name: "Move or rename client/src/extra.ts", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Move or rename client/src/extra.ts" })
+    .fill("server/extra.ts");
+  await page.keyboard.press("Enter");
+  await row("server/extra.ts").waitFor();
+  await onDisk("server/extra.ts");
+  if (
+    await onDisk("client/src/extra.ts").then(
+      () => true,
+      () => false,
+    )
+  )
+    throw new Error("the moved file is still at its old path on disk");
+  // A folder moved on disk keeps what the sandbox did not load (node_modules).
+  await tree.getByRole("button", { name: "Move or rename docs", exact: true }).click();
+  await page.getByRole("textbox", { name: "Move or rename docs" }).fill("guide");
+  await page.keyboard.press("Enter");
+  await row("guide/readme.md").waitFor();
+  if ((await onDisk("guide/node_modules/pkg/index.js")) !== "export default 1;")
+    throw new Error("node_modules was not moved with its folder");
+  if (
+    await onDisk("docs/readme.md").then(
+      () => true,
+      () => false,
+    )
+  )
+    throw new Error("the moved folder is still at its old path on disk");
+  // A rename that changes only the case.
+  await tree.getByRole("button", { name: "Move or rename guide/readme.md", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Move or rename guide/readme.md" })
+    .fill("guide/README.md");
+  await page.keyboard.press("Enter");
+  await row("guide/README.md").waitFor();
+  if ((await onDisk("guide/README.md")) !== "# Docs")
+    throw new Error("the case-only rename lost the file");
+  await row("client/logo.bin").click();
+  await page.getByText("not editable here").waitFor();
+  step("edits, new files and moves reach the folder on disk; a binary file is not editable");
 
   if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
   await page.getByRole("tab", { name: "Log" }).click();
