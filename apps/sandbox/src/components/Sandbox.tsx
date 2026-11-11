@@ -8,26 +8,50 @@ import {
   FolderOpen,
   Play,
   RefreshCw,
+  Save,
   ScrollText,
   Sparkles,
   Square,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CodeEditor } from "@/components/CodeEditor";
+import { FileTree } from "@/components/FileTree";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
+  assertAbsentInFolder,
   canPickFolder,
+  ensureWritable,
   filesFromInput,
   folderSignature,
   type LocalFolder,
+  mkdirInFolder,
+  moveInFolder,
   pickFolder,
   readFolder,
+  removeFromFolder,
+  writeToFolder,
 } from "@/sandbox/folder";
-import { decode, describeProject, normalizePath, type ProjectFiles } from "@/sandbox/project";
+import {
+  decode,
+  describeProject,
+  encode,
+  normalizePath,
+  type ProjectFiles,
+} from "@/sandbox/project";
 import type { FromRunner, ToRunner } from "@/sandbox/protocol";
 import { SAMPLE_NAME, sampleFiles } from "@/sandbox/sample";
+import {
+  addDir,
+  addFile,
+  EditError,
+  move,
+  remove,
+  type Workspace,
+  writeFile,
+} from "@/sandbox/workspace";
 
 type Status =
   | { kind: "empty" }
@@ -46,9 +70,13 @@ interface LogLine {
 interface Loaded {
   name: string;
   files: ProjectFiles;
+  /** Folders with no file in them yet (made in the tree). */
+  dirs?: Set<string>;
   folder?: LocalFolder;
   signature?: string;
 }
+
+const workspaceOf = (l: Loaded): Workspace => ({ files: l.files, dirs: l.dirs ?? new Set() });
 
 const WATCH_MS = 1500;
 let logId = 0;
@@ -59,12 +87,28 @@ export default function Sandbox() {
   const [status, setStatus] = useState<Status>({ kind: "empty" });
   const [log, setLog] = useState<LogLine[]>([]);
   const [tab, setTab] = useState("preview");
+  // The tree's selection (a file or a folder: where new things go) and the file in the editor
+  // (the last file selected; selecting a folder keeps it).
   const [selected, setSelected] = useState<string>();
+  const [openFile, setOpenFile] = useState<string>();
   const [watch, setWatch] = useState(true);
   const [previewPath, setPreviewPath] = useState("");
   const [frameKey, setFrameKey] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const picker = useMemo(canPickFolder, []);
+  // Unsaved editor text, by path; and the folders closed in the tree.
+  const [drafts, setDrafts] = useState<Map<string, string>>(new Map());
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [saveError, setSaveError] = useState<{ path: string; message: string }>();
+  // The latest state, for edits that finish after an await.
+  const loadedRef = useRef<Loaded | undefined>(undefined);
+  loadedRef.current = loaded;
+  const watchRef = useRef(watch);
+  watchRef.current = watch;
+  // Edits run one at a time, each on the state the one before left (see `edit`).
+  const editQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const editsInFlight = useRef(0);
+  const editCount = useRef(0);
 
   const addLog = useCallback((text: string, level: LogLine["level"] = "info") => {
     setLog((l) => [...l.slice(-400), { id: ++logId, at: Date.now(), text, level }]);
@@ -117,46 +161,66 @@ export default function Sandbox() {
   const load = useCallback(
     (l: Loaded) => {
       setLoaded(l);
+      setDrafts(new Map());
+      setCollapsed(new Set());
+      setSaveError(undefined);
       const layout = describeProject(l.files, l.name);
       const first =
         (layout.config?.main && normalizePath(`/${layout.config.main}`)) ??
         layout.wranglerPath ??
         [...l.files.keys()][0];
       setSelected(first);
+      setOpenFile(first);
       setTab("preview");
       run(l);
     },
     [run],
   );
 
-  // Watch the folder (File System Access only): a change on disk reruns the app.
+  // Watch the folder (File System Access only): a change on disk reruns the app. It pauses while
+  // an edit of this tab is under way, and drops a reading that an edit overtook: that edit
+  // already brought the change, and the reading may have caught it halfway (a move copied, not
+  // yet removed).
+  const handle = loaded?.folder?.handle;
   useEffect(() => {
-    const handle = loaded?.folder?.handle;
-    if (!watch || !handle || !loaded) return;
+    if (!watch || !handle) return;
     let busy = false;
+    let alive = true;
     const timer = setInterval(async () => {
-      if (busy) return;
+      const start = loadedRef.current;
+      if (busy || editsInFlight.current > 0 || !start) return;
       busy = true;
+      const edits = editCount.current;
+      const overtaken = () =>
+        !alive ||
+        editsInFlight.current > 0 ||
+        editCount.current !== edits ||
+        loadedRef.current !== start;
       try {
         const sig = await folderSignature(handle);
-        if (sig !== loaded.signature) {
-          const { files, signature } = await readFolder(handle);
-          addLog("the folder changed on disk");
-          const next = { ...loaded, files, signature };
-          setLoaded(next);
-          run(next);
-        }
+        if (sig === start.signature || overtaken()) return;
+        const { files, signature } = await readFolder(handle);
+        if (overtaken()) return;
+        addLog("the folder changed on disk");
+        const next = { ...start, files, signature };
+        loadedRef.current = next;
+        setLoaded(next);
+        run(next);
       } catch (err) {
-        addLog(`watching ${loaded.name}: ${(err as Error).message}`, "error");
+        addLog(`watching ${start.name}: ${(err as Error).message}`, "error");
         setWatch(false);
       } finally {
         busy = false;
       }
     }, WATCH_MS);
-    return () => clearInterval(timer);
-  }, [watch, loaded, run, addLog]);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [watch, handle, run, addLog]);
 
   async function openFolder() {
+    if (!mayDiscard()) return;
     try {
       if (!picker) return input.current?.click();
       const folder = await pickFolder();
@@ -191,6 +255,202 @@ export default function Sandbox() {
       run(next);
     } else run(loaded);
   }
+
+  // Edits: applied to the folder on disk first, when it was opened with the File System Access
+  // API, then to this tab's copy. Without a folder handle (the sample, or a folder read once)
+  // they live in this tab: Download .zip keeps them.
+  //
+  // Write access is asked for at once, in the click or key that makes the edit (the browser
+  // shows its prompt only then). The edit itself waits in a queue, so that each one starts from
+  // the state the one before left: two quick edits never write over each other.
+  async function edit(
+    op: (current: Loaded, handle?: FileSystemDirectoryHandle) => Promise<Workspace>,
+    { rerun, after }: { rerun: boolean; after?: () => void },
+  ): Promise<void> {
+    const handle = loadedRef.current?.folder?.handle;
+    if (handle && !(await ensureWritable(handle)))
+      throw new EditError("write access to the folder was refused: nothing was changed");
+    const task = editQueue.current.then(async () => {
+      const current = loadedRef.current;
+      if (!current) return;
+      editsInFlight.current++;
+      editCount.current++;
+      try {
+        const ws = await op(current, current.folder?.handle);
+        // The new files first, with what goes with them (drafts, selection) in the same render.
+        let next: Loaded = { ...current, files: ws.files, dirs: ws.dirs };
+        loadedRef.current = next;
+        setLoaded(next);
+        after?.();
+        // Then the folder's new signature, so the watcher does not take this edit for a change.
+        const h = current.folder?.handle;
+        if (h) {
+          const signature = await folderSignature(h);
+          next = { ...(loadedRef.current ?? next), signature };
+          loadedRef.current = next;
+          setLoaded(next);
+        }
+        if (rerun && watchRef.current) run(next);
+      } finally {
+        editsInFlight.current--;
+      }
+    });
+    editQueue.current = task.catch(() => {});
+    return task;
+  }
+
+  const reveal = (path: string) =>
+    setCollapsed((c) => new Set([...c].filter((d) => !`${path}/`.startsWith(`${d}/`))));
+
+  const createFile = (path: string) =>
+    edit(
+      async (current, handle) => {
+        const ws = addFile(workspaceOf(current), path);
+        if (handle) {
+          await assertAbsentInFolder(handle, path);
+          await writeToFolder(handle, path, new Uint8Array());
+        }
+        return ws;
+      },
+      {
+        rerun: true,
+        after: () => {
+          reveal(path);
+          setSelected(path);
+          setOpenFile(path);
+          setTab("files");
+        },
+      },
+    );
+
+  const createDir = (path: string) =>
+    edit(
+      async (current, handle) => {
+        const ws = addDir(workspaceOf(current), path);
+        if (handle) {
+          await assertAbsentInFolder(handle, path);
+          await mkdirInFolder(handle, path);
+        }
+        return ws;
+      },
+      {
+        rerun: false,
+        after: () => {
+          reveal(path);
+          setSelected(path);
+        },
+      },
+    );
+
+  const movePath = (from: string, to: string) => {
+    const follow = (p: string) =>
+      p === from || p.startsWith(`${from}/`) ? `${to}${p.slice(from.length)}` : p;
+    return edit(
+      async (current, handle) => {
+        const { ws } = move(workspaceOf(current), from, to);
+        if (handle) await moveInFolder(handle, from, to);
+        return ws;
+      },
+      {
+        rerun: true,
+        after: () => {
+          setDrafts((d) => new Map([...d].map(([p, t]) => [follow(p), t])));
+          setCollapsed((c) => new Set([...c].map(follow)));
+          setSelected((s) => (s ? follow(s) : s));
+          setOpenFile((s) => (s ? follow(s) : s));
+          setSaveError((e) => (e ? { ...e, path: follow(e.path) } : e));
+          reveal(to);
+        },
+      },
+    );
+  };
+
+  const deletePath = (path: string) => {
+    const under = (p: string) => p === path || p.startsWith(`${path}/`);
+    return edit(
+      async (current, handle) => {
+        const { ws } = remove(workspaceOf(current), path);
+        if (handle)
+          await removeFromFolder(handle, path).catch((err: Error) => {
+            if (err.name !== "NotFoundError") throw err;
+          });
+        return ws;
+      },
+      {
+        rerun: true,
+        after: () => {
+          setDrafts((d) => new Map([...d].filter(([p]) => !under(p))));
+          setSelected((s) => (s && under(s) ? undefined : s));
+          setOpenFile((s) => (s && under(s) ? undefined : s));
+        },
+      },
+    );
+  };
+
+  async function save(path: string) {
+    const text = drafts.get(path);
+    if (text === undefined) return;
+    const bytes = encode(text);
+    try {
+      await edit(
+        async (current, handle) => {
+          const ws = writeFile(workspaceOf(current), path, bytes);
+          if (handle) await writeToFolder(handle, path, bytes);
+          return ws;
+        },
+        {
+          rerun: true,
+          // Cleared with the new bytes in the same render, and only if nothing was typed since:
+          // the editor never shows the old text in between.
+          after: () => {
+            setDrafts((d) => {
+              if (d.get(path) !== text) return d;
+              const next = new Map(d);
+              next.delete(path);
+              return next;
+            });
+            setSaveError((e) => (e?.path === path ? undefined : e));
+          },
+        },
+      );
+    } catch (err) {
+      setSaveError({ path, message: (err as Error).message });
+      addLog(`saving ${path.slice(1)}: ${(err as Error).message}`, "error");
+    }
+  }
+
+  // Ctrl/Cmd+S anywhere on the page saves the open file (not the browser's "Save page as").
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const openRef = useRef(openFile);
+  openRef.current = openFile;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "s" || e.altKey) return;
+      e.preventDefault();
+      if (openRef.current) void saveRef.current(openRef.current);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Unsaved edits: the browser asks before the tab closes or reloads, and opening another
+  // project asks first.
+  const unsaved = drafts.size > 0;
+  useEffect(() => {
+    if (!unsaved) return;
+    const onLeave = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onLeave);
+    return () => window.removeEventListener("beforeunload", onLeave);
+  }, [unsaved]);
+  const mayDiscard = () =>
+    !unsaved ||
+    confirm(
+      `Discard the unsaved changes in ${drafts.size === 1 ? "1 file" : `${drafts.size} files`}?`,
+    );
 
   function download(files: ProjectFiles, name: string) {
     const entries: [string, Uint8Array][] = [...files].map(([p, b]) => [`${name}${p}`, b]);
@@ -240,17 +500,22 @@ export default function Sandbox() {
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {loaded && (
             <>
-              {loaded.folder?.handle && (
-                <label className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={watch}
-                    onChange={(e) => setWatch(e.target.checked)}
-                    className="accent-primary"
-                  />
-                  Rerun on save
-                </label>
-              )}
+              <label
+                className="text-muted-foreground flex items-center gap-1.5 text-sm"
+                title={
+                  loaded.folder?.handle
+                    ? "Rerun the app when a file is saved, here or on disk"
+                    : "Rerun the app when a file is saved here"
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={watch}
+                  onChange={(e) => setWatch(e.target.checked)}
+                  className="accent-primary"
+                />
+                Rerun on save
+              </label>
               {status.kind === "running" ? (
                 <Button
                   size="sm"
@@ -291,15 +556,15 @@ export default function Sandbox() {
       {!loaded ? (
         <Welcome
           onOpen={openFolder}
-          onSample={() => load({ name: SAMPLE_NAME, files: sampleFiles() })}
+          onSample={() => mayDiscard() && load({ name: SAMPLE_NAME, files: sampleFiles() })}
           onDownloadSample={() => download(sampleFiles(), SAMPLE_NAME)}
           picker={picker}
         />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <aside className="max-h-56 shrink-0 overflow-auto border-b md:max-h-none md:w-64 md:border-r md:border-b-0">
+          <aside className="max-h-64 shrink-0 overflow-auto border-b md:max-h-none md:w-64 md:border-r md:border-b-0">
             <FileTree
-              files={loaded.files}
+              ws={workspaceOf(loaded)}
               clientRoot={layout?.clientRoot}
               serverFiles={
                 new Set(
@@ -310,10 +575,27 @@ export default function Sandbox() {
                 )
               }
               selected={selected}
+              dirty={new Set(drafts.keys())}
+              collapsed={collapsed}
+              onToggle={(dir) =>
+                setCollapsed((c) => {
+                  const next = new Set(c);
+                  if (!next.delete(dir)) next.add(dir);
+                  return next;
+                })
+              }
+              onCollapseAll={(dirs) => setCollapsed(new Set(dirs))}
               onSelect={(p) => {
                 setSelected(p);
-                setTab("files");
+                if (loaded.files.has(p)) {
+                  setOpenFile(p);
+                  setTab("files");
+                }
               }}
+              onCreateFile={createFile}
+              onCreateDir={createDir}
+              onMove={movePath}
+              onDelete={deletePath}
             />
           </aside>
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -324,7 +606,12 @@ export default function Sandbox() {
                     <Eye /> Preview
                   </TabsTrigger>
                   <TabsTrigger value="files">
-                    <FileCode2 /> Files
+                    <FileCode2 /> Code
+                    {drafts.size > 0 && (
+                      <span className="bg-primary size-1.5 rounded-full">
+                        <span className="sr-only">unsaved changes</span>
+                      </span>
+                    )}
                   </TabsTrigger>
                   <TabsTrigger value="log">
                     <ScrollText /> Log
@@ -393,11 +680,29 @@ export default function Sandbox() {
                   <PreviewPlaceholder status={status} onLog={() => setTab("log")} />
                 )}
               </TabsContent>
-              <TabsContent value="files" className="min-h-0 overflow-auto">
-                {selected && loaded.files.has(selected) ? (
-                  <FileView path={selected} bytes={loaded.files.get(selected) as Uint8Array} />
+              <TabsContent value="files" className="flex min-h-0 flex-col">
+                {openFile && loaded.files.has(openFile) ? (
+                  <FileEditor
+                    path={openFile}
+                    bytes={loaded.files.get(openFile) as Uint8Array}
+                    draft={drafts.get(openFile)}
+                    onDisk={!!loaded.folder?.handle}
+                    error={saveError?.path === openFile ? saveError.message : undefined}
+                    onChange={(text) =>
+                      setDrafts((d) => {
+                        const next = new Map(d);
+                        const saved = decode(loaded.files.get(openFile) as Uint8Array);
+                        if (text === saved) next.delete(openFile);
+                        else next.set(openFile, text);
+                        return next;
+                      })
+                    }
+                    onSave={() => void save(openFile)}
+                  />
                 ) : (
-                  <p className="text-muted-foreground p-6 text-sm">Select a file on the left.</p>
+                  <p className="text-muted-foreground p-6 text-sm">
+                    Select a file on the left, or make one with New file.
+                  </p>
                 )}
               </TabsContent>
               <TabsContent value="log" className="min-h-0 overflow-auto">
@@ -515,117 +820,77 @@ function Part(props: { tone: "server" | "client"; title: string; path: string; t
   );
 }
 
-interface TreeRow {
-  path: string;
-  name: string;
-  depth: number;
-  dir: boolean;
-}
+const TEXT = /\.(?:[cm]?[jt]sx?|json[c5]?|html?|css|md|txt|svg|toml|ya?ml|sql|gitignore|env)$/i;
 
-/** Folders first, then files, each sorted by name; a folder row before its contents. */
-function treeRows(paths: string[]): TreeRow[] {
-  type Node = { dirs: Map<string, Node>; files: string[] };
-  const root: Node = { dirs: new Map(), files: [] };
-  for (const p of paths) {
-    const parts = p.split("/").filter(Boolean);
-    let n = root;
-    for (const d of parts.slice(0, -1)) {
-      if (!n.dirs.has(d)) n.dirs.set(d, { dirs: new Map(), files: [] });
-      n = n.dirs.get(d) as Node;
-    }
-    n.files.push(p);
+/** Shown as text: a known text extension, or bytes that decode as UTF-8 with no NUL. */
+function textOf(path: string, bytes: Uint8Array): string | undefined {
+  if (bytes.length > 1024 * 1024) return undefined;
+  if (TEXT.test(path)) return decode(bytes);
+  if (bytes.subarray(0, 8192).includes(0)) return undefined;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return undefined;
   }
-  const rows: TreeRow[] = [];
-  const walk = (n: Node, prefix: string, depth: number) => {
-    for (const [name, child] of [...n.dirs].sort(([a], [b]) => a.localeCompare(b))) {
-      rows.push({ path: `${prefix}/${name}`, name, depth, dir: true });
-      walk(child, `${prefix}/${name}`, depth + 1);
-    }
-    for (const f of n.files.sort())
-      rows.push({ path: f, name: f.slice(f.lastIndexOf("/") + 1), depth, dir: false });
-  };
-  walk(root, "", 0);
-  return rows;
 }
 
-function FileTree(props: {
-  files: ProjectFiles;
-  clientRoot?: string;
-  serverFiles: Set<string>;
-  selected?: string;
-  onSelect(path: string): void;
+function FileEditor(props: {
+  path: string;
+  bytes: Uint8Array;
+  draft?: string;
+  onDisk: boolean;
+  error?: string;
+  onChange(text: string): void;
+  onSave(): void;
 }) {
-  const rows = treeRows([...props.files.keys()]);
-  const inClient = (p: string) =>
-    !!props.clientRoot &&
-    (props.clientRoot === "/" || p === props.clientRoot || p.startsWith(`${props.clientRoot}/`));
-  const roleOf = (p: string) =>
-    props.serverFiles.has(p) ? "server" : inClient(p) ? "client" : undefined;
+  const text = textOf(props.path, props.bytes);
+  const dirty = props.draft !== undefined;
   return (
-    <nav aria-label="Project files" className="py-2">
-      <ul className="font-mono text-[13px]">
-        {rows.map((r) => {
-          const role = roleOf(r.path);
-          const rail = cn(
-            "flex w-full items-center gap-1.5 border-l-2 border-transparent py-1 pr-3 text-left",
-            role === "server" && "border-l-accent-2",
-            role === "client" && "border-l-primary/60",
-          );
-          const indent = { paddingLeft: `${12 + r.depth * 14}px` };
-          if (r.dir)
-            return (
-              <li key={r.path} className={cn(rail, "text-muted-foreground")} style={indent}>
-                <FolderOpen className="size-3.5 shrink-0" aria-hidden />
-                {r.name}
-                {role === "client" && r.path === props.clientRoot && (
-                  <span className="text-primary ml-auto font-sans text-[11px]">client</span>
-                )}
-              </li>
-            );
-          return (
-            <li key={r.path}>
-              <button
-                type="button"
-                onClick={() => props.onSelect(r.path)}
-                aria-current={props.selected === r.path ? "true" : undefined}
-                className={cn(
-                  rail,
-                  "hover:bg-accent",
-                  props.selected === r.path && "bg-accent text-accent-foreground",
-                )}
-                style={indent}
-                title={role ? `${r.path.slice(1)} (${role})` : r.path.slice(1)}
-              >
-                <span className="truncate">{r.name}</span>
-                {role === "server" && (
-                  <span className="text-accent-2 ml-auto shrink-0 font-sans text-[11px]">
-                    server
-                  </span>
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
-
-const TEXT = /\.(?:[cm]?[jt]sx?|json[c5]?|html?|css|md|txt|svg|toml|ya?ml|sql|gitignore)$/i;
-
-function FileView({ path, bytes }: { path: string; bytes: Uint8Array }) {
-  const text = TEXT.test(path) && bytes.length < 512 * 1024 ? decode(bytes) : undefined;
-  return (
-    <div>
-      <div className="text-muted-foreground border-b px-4 py-2 font-mono text-xs">
-        {path.slice(1)}, {bytes.length.toLocaleString()} bytes, read only
+    <>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5">
+        <span className="min-w-0 truncate font-mono text-xs">{props.path.slice(1)}</span>
+        <span className="text-muted-foreground text-xs">
+          {dirty ? "unsaved" : `${props.bytes.length.toLocaleString()} bytes`}
+          {" · "}
+          {props.onDisk
+            ? "saves to the folder on disk"
+            : "saves in this tab (Download .zip keeps it)"}
+          <span className="max-md:hidden">{" · Tab indents; Esc then Tab leaves the editor"}</span>
+        </span>
+        {props.error && (
+          <span role="alert" className="text-destructive text-xs">
+            {props.error}
+          </span>
+        )}
+        <Button
+          size="sm"
+          variant={dirty ? "default" : "outline"}
+          className="ml-auto h-7"
+          disabled={!dirty || text === undefined}
+          onClick={props.onSave}
+          title="Save (Ctrl/Cmd+S)"
+        >
+          <Save /> Save
+        </Button>
       </div>
-      {text !== undefined ? (
-        <pre className="overflow-x-auto p-4 font-mono text-[13px] leading-6">{text}</pre>
-      ) : (
-        <p className="text-muted-foreground p-4 text-sm">A binary or large file: not shown.</p>
-      )}
-    </div>
+      <div className="relative min-h-0 flex-1">
+        {text !== undefined ? (
+          <div className="absolute inset-0">
+            <CodeEditor
+              key={props.path}
+              path={props.path}
+              value={props.draft ?? text}
+              onChange={props.onChange}
+              onSave={props.onSave}
+            />
+          </div>
+        ) : (
+          <p className="text-muted-foreground p-4 text-sm">
+            A binary or large file ({props.bytes.length.toLocaleString()} bytes): not editable here.
+          </p>
+        )}
+      </div>
+    </>
   );
 }
 
