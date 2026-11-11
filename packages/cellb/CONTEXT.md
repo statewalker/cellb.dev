@@ -6,6 +6,34 @@ something different elsewhere.
 
 ## Language
 
+### Other runtimes and tools
+
+**celld**:
+denoland/celld, a server that runs Cloudflare Workers projects on a fleet of machines sharing one
+bucket. CellB answers its recorded requests the same way and stores cells in its format, so a cell
+can move between celld and CellB. The pinned version is 0.6.3.
+
+**workerd**:
+Cloudflare's open-source Workers runtime, a native binary. Where celld and workerd disagree on
+something CellB supports, such as stubs passed by reference, CellB follows workerd.
+
+**Miniflare**:
+Cloudflare's local simulator for Workers, built on workerd. CellB vendors its D1 simulator.
+
+**Golden**:
+A recorded celld answer: the responses and console lines of one conformance scenario, run on celld
+and kept in `conformance/golden/<name>.json`. A scenario judged by workerd has its golden in
+`conformance/golden-workerd/`.
+_Avoid_: snapshot, fixture
+
+### Names that are not boundaries
+
+"Dynamic Workers" is Cloudflare's product name for the Worker Loader binding, and the docs use it
+as a page title; the code it runs is a loaded Worker. "CellB sandbox" is the name of the app that
+runs a folder of Workers code in the browser. Neither name promises an isolation boundary: what is
+isolated, and from what, is in [Security & isolation](docs/security.md). The _Avoid_ notes below
+apply to the terms, not to these names.
+
 ### Code and where it runs
 
 **Worker**:
@@ -90,6 +118,16 @@ _Avoid_: sub-object, child cell
 
 **Root cell**:
 The cell a facet belongs to.
+
+**RpcPromise**:
+What a call on a stub returns, as on workerd: a promise that also takes further calls and property
+reads (`stub.a().b()`), sent before the first call settles. It is `instanceof Promise` but not a
+native promise.
+
+**cells-http**:
+CellB's HTTP wire between runtimes: one handler (`cellsHttpHandler`) serves a runtime's ingress and
+its internal calls, which carry `x-cellb*` control headers. Shards, isolates and CellB peers talk
+over it; celld nodes are reached over celld's own tunnel.
 
 ### Placement
 
@@ -213,6 +251,24 @@ An image saved periodically, outside the log; writes made after the last backup 
 **RPO**:
 How much acknowledged writing can be lost: none with a log, up to one backup interval with backups
 alone.
+
+**LTX**:
+The log file format celld writes (LTX v3): one file per commit, holding the pages of the cell's
+database it changed, with periodic snapshots. CellB writes and reads the same files.
+_Avoid_: WAL, changeset (CellB's other log, `filesApiChangeLog`, writes SQLite changesets)
+
+**FilesApi**:
+The file-system interface of `@statewalker/webrun-files`, with implementations for memory, Node
+and the browser (OPFS). CellB keeps a project's files, large KV values, logs and backups on one.
+
+**OPFS**:
+The Origin Private File System, a browser's per-origin file storage. CellB keeps a browser's cells
+there.
+
+**sahpool**:
+SQLite WASM's `opfs-sahpool` VFS: a pool of OPFS files with synchronous access handles, one pool
+per worker, which lets SQLite read and write OPFS synchronously. `sahpoolOpener` opens cells on it.
+_Avoid_: pool (alone, when a connection pool could be meant)
 
 ### Alarms
 

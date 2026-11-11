@@ -62,9 +62,15 @@ made twice.
 ### Node runner and CLI
 
 ```sh
-npx tsx bin/webrun-build.ts <project dir> --out <dir> [--platform <origin>] [--spec <json>]
-npx tsx bin/webrun-build.ts --runner <origin> [--once]
+npx tsx bin/webrun-build.ts <project dir> [--out <dir>] [--platform <origin>] [--entry <path>]
+                            [--minify] [--no-sourcemap] [--lower-await] [--wasm] [--spec <json>]
+npx tsx bin/webrun-build.ts --runner <origin> [--once] [--wasm]
 ```
+
+A local build writes to `<project dir>/dist-webrun` unless `--out` says otherwise. Packages come
+from the project's `node_modules`, then from the platform's package store (`--platform`), else
+from the npm registry. Native esbuild is the default; `--wasm` uses esbuild-wasm, as the Durable
+Object does. The runner sends `WEBRUN_PLATFORM_TOKEN` when the platform has a `PLATFORM_TOKEN`.
 
 ## How it works
 

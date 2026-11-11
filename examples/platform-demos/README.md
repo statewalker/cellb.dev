@@ -1,8 +1,8 @@
-# @statewalker/platform-demos
+# Platform demos
 
-Whole apps, built with their own toolchains where they have one, then bundled or compiled by
+`@statewalker/platform-demos`: whole apps, built with their own toolchains where they have one, then bundled or compiled by
 the platform ([`packages/platform`](../../packages/platform)), and run on Wrangler, celld and
-cellb. Private, in the examples' workspace. Unlike the other examples, which use cellb from npm,
+CellB. Private, in the examples' workspace. Unlike the other examples, which use CellB from npm,
 these exercise the platform as it is in this checkout: they read its build
 (`packages/platform/dist`) and its scripts.
 
@@ -10,16 +10,16 @@ these exercise the platform as it is in this checkout: they read its build
 |---|---|---|
 | [`../platform-astro`](../platform-astro) | Astro SSR: pages, an API route, a React island, a Durable Object (`Visits`) | `astro build`, then the bundler, in its object (1.2 MB worker) |
 | [`../emdash`](../emdash) | [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare` template (D1, KV sessions, R2 media, cron, passkeys), the example next to this one | `astro build`, then the bundler: 758 files, 38.5 MB in, a 22.9 MB worker out, on the Node runner (or in the object on hosts without the 128 MB limit) |
-| `platform-astro`, from sources (`astro-src`) | the same app's sources alone, no `dist/` | built by the platform's port of cellb.dev's in-browser Astro builder, in its object |
+| `platform-astro`, from sources (`astro-src`) | the same app's sources alone, no `dist/` | built by the platform's port of the in-browser Astro builder of [`../astro-in-browser`](../astro-in-browser), in its object |
 | `emdash`, from sources (`emdash-src`) | EmDash's sources alone (28 files, 0.2 MB) | built by the same builder: on the Node runner by default, in the object with `--emdash-src-tier object` |
-| `notebooks/` | a Markdown notebook (from statewalker-knowledge's demo) and an Observable Notebook Kit HTML document with Inputs, d3 and Observable Plot | sent as sources; compiled to pages in a `NotebookSite` object; their npm imports come from the site's module server |
+| `notebooks/` | a Markdown notebook and an Observable Notebook Kit HTML document with Inputs, d3 and Observable Plot | sent as sources; compiled to pages in a `NotebookSite` object; their npm imports come from the site's module server |
 
 ## How to use it
 
 ```sh
 pnpm install                         # in examples/ (their own workspace)
 (cd ../../packages/platform && pnpm run build)   # the platform's per-host builds (root workspace)
-npx tsx scripts/e2e.ts all           # every demo on Wrangler, celld and cellb
+npx tsx scripts/e2e.ts all           # every demo on Wrangler, celld and CellB
 npx tsx scripts/e2e.ts celld emdash  # one host, one demo
 npx tsx scripts/e2e.ts all astro-src emdash-src                      # built from sources by the platform
 CELLD_V8_HEAP_LIMIT_MB=4096 npx tsx scripts/e2e.ts all emdash-src --emdash-src-tier object
@@ -28,7 +28,7 @@ CELLD_V8_HEAP_LIMIT_MB=2048 npx tsx scripts/e2e.ts all emdash --emdash-tier obje
 
 `scripts/e2e.ts` builds an Astro demo when its `dist/` is missing. celld is found at `CELLD_BIN`,
 else `~/.cache/celld/celld` (`packages/platform/scripts/get-celld.sh`). The browser checks need
-a Chromium: `PW_CHROMIUM` names its binary, as in cellb's suites; pass `--no-browser` to skip
+a Chromium: `PW_CHROMIUM` names its binary, as in CellB's suites; pass `--no-browser` to skip
 them.
 
 ## What each check proves

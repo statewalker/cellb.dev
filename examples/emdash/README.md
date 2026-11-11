@@ -1,6 +1,6 @@
-# @statewalker/emdash-example
+# EmDash on CellB
 
-[EmDash](https://github.com/emdash-cms/emdash), the Astro CMS, as its `blog-cloudflare` template
+`@statewalker/emdash-example`: [EmDash](https://github.com/emdash-cms/emdash), the Astro CMS, as its `blog-cloudflare` template
 builds it for Cloudflare, run unchanged on CellB: in Node, and entirely in a browser tab served by
 any static file server. The package is private, since it is a test of CellB and not a library.
 
@@ -24,7 +24,7 @@ instead builds the same template from these sources inside a browser tab, and it
 ## How to use it
 
 ```
-pnpm install              # in examples/ (their own workspace; cellb from npm); needs network
+pnpm install              # in examples/ (their own workspace; CellB from npm); needs network
 pnpm test                 # astro build, then vitest (Node)
 pnpm build:static         # astro build, the browser bundle, the static site in dist/static
 pnpm serve:static         # python3 -m http.server on 127.0.0.1:8080

@@ -1,6 +1,6 @@
-# @statewalker/flue-example
+# A Flue app on CellB
 
-A [Flue](https://flueframework.com/) agent app, built with Flue's own Cloudflare build and run on
+`@statewalker/flue-example`: a [Flue](https://flueframework.com/) agent app, built with Flue's own Cloudflare build and run on
 CellB instead of Cloudflare. One agent, `Assistant`, has one tool, and its model is a fake
 OpenAI-compatible endpoint, so the whole thing runs offline once the packages are installed. The
 package is private, since it is a test of CellB and not a library.
@@ -17,7 +17,7 @@ together, the way a real Agents SDK app uses them.
 ## How to use it
 
 ```
-pnpm install            # in examples/ (their own workspace; cellb from npm); needs network
+pnpm install            # in examples/ (their own workspace; CellB from npm); needs network
 pnpm test               # in this directory: vite build, then vitest run (Node)
 pnpm test:browser       # vite build, then Playwright in Chromium
 ```

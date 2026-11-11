@@ -86,9 +86,17 @@ r2/<bucket>/<key>                        R2 objects (owned by no cell)
 ### A browser origin: one shard per Web Lock
 
 `shardOf(id, N)` places a cell in one of N shards for the lifetime of the deployment. A shard is one
-Web Lock (`cellb:shard:<i>`), one OPFS SQLite pool, and one Dedicated Worker. Only the tab that holds
-the lock starts that shard's worker; a second tab queues on the lock and takes over when the first
-closes. Details are in [Running in a browser](browser-host.md).
+Web Lock, one OPFS SQLite pool, and one Dedicated Worker, and only the tab that holds the lock runs
+that shard's worker. Two topologies use this ([Running in a browser](browser-host.md)):
+
+- **`CellRouter` in the ServiceWorker** (`cellb:shard:<i>`). The first tab takes every shard's
+  lock. A second tab queues on the locks, is served by the first tab's workers, and takes the
+  shards over when that tab closes.
+- **`joinProjectShards` and `installProjectRouter`** (`@statewalker/cellb/tabs`). The tabs present
+  split the shards evenly, so a project of 4 shards runs 2 / 2 in two tabs. When a tab joins or
+  leaves, the shards whose owner changes are handed over: the router holds their new requests, the
+  old worker finishes the ones in flight and closes, and the new owner opens the shard. Cells stay
+  in the shard their id hashes to.
 
 ## Durability: a log, a backup, or both
 

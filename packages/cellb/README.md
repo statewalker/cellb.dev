@@ -308,8 +308,10 @@ docs/               topic pages
   the server end acknowledges the bytes of each message it dispatched and a client's
   `bufferedAmount` counts the bytes not acknowledged yet: the WHATWG signal a sender throttles on.
   workerd's server-side WebSocket has no `bufferedAmount`, and cellb's has none.
-- **Each loaded Worker gets a realm of its own**, a thread or a Dedicated Worker: as in celld's
-  isolates, loaded code must not see the host's globals or env.
+- **Each loaded Worker gets a realm of its own**, a worker thread in Node, or in a browser a
+  Dedicated Worker when `isolateScript` is set (the browser `loadProject` sets it;
+  `browserProjectRuntime` and the shard functions do not): as in celld's isolates, loaded code must
+  not see the host's globals or env.
 - **`idFromName` is synchronous**, with `@noble/hashes` instead of `crypto.subtle`, which is
   asynchronous only; Worker code relies on getting the id at once.
 - **Ownership depends on the deployment**: a Web Lock per shard in an origin, celld's ownership

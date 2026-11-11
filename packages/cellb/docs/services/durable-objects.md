@@ -46,8 +46,8 @@ copied unchanged and run by the conformance suite on Node and in Chromium.
 
 - **Ids** are derived from the script name and class as celld derives them, synchronously.
 - **Storage** uses celld's internal tables (`_cf_KV`, `_cf_ALARM`, `_cf_METADATA`, …) plus CellB's
-  own `_cf_LOG`, in the object's SQLite. Values are in V8 serialization format version 15; in
-  browsers a TypeScript serializer writes them.
+  own `_cf_LOG`, in the object's SQLite. Values are in V8 serialization format version 15,
+  written by CellB's TypeScript V8 serializer on every platform.
 - **Logs** are LTX v3, as celld writes them, so a cell CellB wrote is one celld can continue.
 
 ## Every platform keeps Cloudflare's guarantees inside a cell

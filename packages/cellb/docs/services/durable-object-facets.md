@@ -85,6 +85,16 @@ unchanged and run by the conformance suite on Node and in Chromium.
 classes from loaded code. partyserver's `this.name` is then the name of the facet's id instead of
 its parent's. Either way, the facet's storage is still found by the facet's name.
 
+## Aborting and deleting a facet
+
+- **`ctx.facets.abort(name, reason)`** restarts the facet. Calls on stubs taken before the abort
+  reject with `reason` (by default `Facet "<name>" was aborted`). The database stays: the next
+  `ctx.facets.get(name, …)` returns a stub to a fresh instance over the same storage.
+- **`await ctx.facets.delete(name)`** deletes the facet's storage (`deleteAll()`) and restarts it,
+  if the facet has been started since its parent woke; a facet not started yet keeps its storage.
+  Calls on stubs taken before it reject with `Facet "<name>" was deleted`; a later `get` starts the
+  facet again.
+
 ## How it is checked
 
 celld's `facets` example and CellB's `facets-api` project, on Node and in Chromium. partyserver

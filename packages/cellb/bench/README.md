@@ -13,8 +13,8 @@ BENCH_JSON=bench/results/node.json pnpm bench        # also write the results
 BENCH_JSON=bench/results/chromium.json pnpm bench:browser   # Chromium (BENCH_CELLS, default 1000)
 ```
 
-`results/` holds the last recorded run of each, and the website (`site/` at the repository root)
-reads them.
+`bench/results/` holds the last recorded run of each, and the numbers on cellb.dev are read from
+those files.
 
 ## What each scenario measures
 
@@ -54,7 +54,7 @@ The Worker is the partyserver extension of `test/partyserver`, run as a facet. E
 
 ```sh
 pnpm build && BENCH_JSON=bench/results/sockets-node.json node bench/socket-bench.mjs
-BENCH_JSON=bench/results/sockets-chromium.json pnpm bench:browser socket
+BENCH_JSON=bench/results/sockets-chromium.json pnpm probes:browser socket
 ```
 
 A socket's frames used to be relayed over the isolate's multiplexed port. Now the socket's own

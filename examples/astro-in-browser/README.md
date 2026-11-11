@@ -1,6 +1,6 @@
-# @statewalker/astro-in-browser-example
+# Astro built in a browser tab
 
-An Astro SSR app built from its sources **inside a browser tab** and run there on CellB. Astro's
+`@statewalker/astro-in-browser-example`: an Astro SSR app built from its sources **inside a browser tab** and run there on CellB. Astro's
 compiler and esbuild run as WebAssembly, packages come from the npm registry, and the built Worker
 runs in CellB's shards with its Durable Objects on CellB's LTX storage. Two apps are built this way,
 a small Astro app (`app/`) and [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare`
@@ -19,7 +19,7 @@ builds it and runs it. EmDash built ahead of time and served from static files:
 host tab (browser/host.ts, emdash.html or index.html)
  ├─ ServiceWorker (browser/sw.ts): COOP/COEP headers (SharedArrayBuffer), routes the origin to the
  │    project's shards (installProjectRouter)
- ├─ package store: a Durable Object project on cellb (src/pkgstore/worker.js), on the LTX storage
+ ├─ package store: a Durable Object project on CellB (src/pkgstore/worker.js), on the LTX storage
  │    (bucket: { ltx: "pkgstore-ltx" }); packs in 256 KiB deflated blocks, served by range
  ├─ builder worker (browser/builder-worker.ts)
  │    ├─ download workers: fetch a package from the registry, pack it, PUT it to the store
@@ -27,7 +27,7 @@ host tab (browser/host.ts, emdash.html or index.html)
  │    ├─ esbuild-wasm in a worker of its own, restarted after each large bundle
  │    └─ src/builder: astro.config.mjs and its integrations, routes, virtual modules, the server
  │       bundle (ONE Worker module) and the client bundles
- └─ site shard (browser/shard-worker.ts): the built Worker on cellb, its Durable Objects (D1, KV,
+ └─ site shard (browser/shard-worker.ts): the built Worker on CellB, its Durable Objects (D1, KV,
       R2 included) on the LTX storage (bucket: { ltx: "<app>-ltx" })
 ```
 

@@ -1,8 +1,9 @@
 # @statewalker/cellb-platform
 
-> Private, not published. The webrun apps as Durable Object applications, composed into one
-> Worker, with their per-host builds and end-to-end checks. The apps themselves are the packages
-> next to this one:
+> Private, not published. Five apps (a package store, an ESM CDN, user code as ESM, a bundler and
+> notebooks) written as Durable Objects and composed into one Worker that runs unchanged on
+> Wrangler, celld, CellB in Node and CellB in a browser tab. This package holds that Worker, its
+> per-host builds and its end-to-end checks; the apps themselves are the packages next to this one:
 >
 > | Package | What it holds |
 > |---|---|
@@ -15,7 +16,7 @@
 ## What it is
 
 Five apps, each a set of Durable Objects with a `wrangler.jsonc`, composed into one Worker. The
-same build runs on Wrangler (workerd, as on Cloudflare), celld 0.6.3, cellb in Node, and cellb in
+same build runs on Wrangler (workerd, as on Cloudflare), celld 0.6.3, CellB in Node, and CellB in
 a browser tab:
 
 | App | Routes | Durable Object | Built on |
@@ -50,15 +51,15 @@ a browser tab:
 
 ## Why it exists
 
-The plan was to turn three webrun functions into Durable Object apps that run on every host the
-statewalker stack targets: the ESM CDN, user code as ESM, and the bundler. This package is that
-prototype, in one place, with demos that prove it on small apps and on EmDash.
+It shows that tools usually run as services (an ESM CDN, user code served as ESM, a bundler) can
+be written once as Durable Object apps and run on every host the statewalker stack targets, from
+Cloudflare to a browser tab. The demos check this on small apps and on EmDash.
 
 ## How to use it
 
 Node 22.23 or later (the repository's `.nvmrc`: Node 24), and pnpm, from the repository root
-(`pnpm install`). In this repository cellb's entry points are its TypeScript sources, so the scripts
-that load cellb on Node run through `tsx`.
+(`pnpm install`). In this repository CellB's entry points are its TypeScript sources, so the scripts
+that load CellB on Node run through `tsx`.
 
 ```sh
 cd packages/platform
@@ -96,7 +97,7 @@ npx tsx ../bundler/bin/webrun-build.ts --runner http://localhost:8787   # the No
 
 `scripts/e2e-browser.ts` checks the platform in a Chromium tab on cellb: CDN, project page,
 bundler (esbuild-wasm in the tab), notebooks, and the Astro demo built from its sources in the
-tab, then run on cellb in Node with its island hydrated.
+tab, then run on CellB in Node with its island hydrated.
 
 `examples/platform-demos` (in the examples' workspace) has whole apps; see
 [its README](../../examples/platform-demos/README.md):
@@ -107,9 +108,9 @@ tab, then run on cellb in Node with its island hydrated.
 
 Each demo is built and run on every host.
 
-### Results on this prototype
+### Results on each host
 
-| | Wrangler | celld | cellb Node | cellb in Chromium |
+| | Wrangler | celld | CellB Node | CellB in Chromium |
 |---|---|---|---|---|
 | ESM CDN (react-dom, Observable Plot) | yes | yes | yes | yes |
 | User code as ESM (React page renders) | yes | yes | yes | yes |
@@ -120,7 +121,7 @@ Each demo is built and run on every host.
 | EmDash: bundled (runner), setup seeds D1, pages | yes | yes | yes | n/a |
 | EmDash bundled inside the object (38.5 MB input) | 29 s | 10 s with `CELLD_V8_HEAP_LIMIT_MB=2048` | 16 s | n/a |
 | Notebooks compiled in the object, cells run | yes | yes | yes | yes |
-| Astro demo built from its sources in the object, then run and hydrated | yes (Worker Loader) | yes (Worker Loader) | yes | yes (built in the tab, run on cellb) |
+| Astro demo built from its sources in the object, then run and hydrated | yes (Worker Loader) | yes (Worker Loader) | yes | yes (built in the tab, run on CellB) |
 | EmDash built from its sources on the Node runner (225 routes), setup seeds D1 | yes | yes | yes | n/a |
 | EmDash built from its sources in the object | 146 s (Worker Loader) | 102 s (Worker Loader, `CELLD_V8_HEAP_LIMIT_MB=4096`) | 87 s | not tried |
 
@@ -132,7 +133,7 @@ Each demo is built and run on every host.
 
 - `dist/<name>/workerd/` keeps the `.wasm` imports as WebAssembly modules next to `worker.js`
   (`no_bundle`). workerd and celld forbid compiling WebAssembly from bytes at run time.
-- `dist/<name>/cellb/` compiles the WebAssembly from bytes embedded in the bundle, because cellb's
+- `dist/<name>/cellb/` compiles the WebAssembly from bytes embedded in the bundle, because CellB's
   project bundler has no `.wasm` loader.
 
 Both alias `cjs-module-lexer` to its pure-JS build: its ESM build compiles inline WebAssembly,
@@ -204,8 +205,8 @@ an Astro build gets the same host compatibility as any Worker.
 
 What changed from the original:
 
-- **It builds for every host, not only cellb's browser realm.** `cloudflare:*` and `node:*`
-  stay imports, so the output runs on workerd, celld and cellb alike.
+- **It builds for every host, not only CellB's browser realm.** `cloudflare:*` and `node:*`
+  stay imports, so the output runs on workerd, celld and CellB alike.
 - **Where the project's config is evaluated.** The config is project code and npm packages, and
   workerd and celld refuse to evaluate code: no `import("data:…")`, no `new Function`, no Blob
   URLs. There, `astro-builder/src/loader.ts` runs the whole Astro build in a Worker Loader isolate:
@@ -214,9 +215,9 @@ What changed from the original:
     the platform), the config, `esbuild.wasm` and the compiler are loaded as the modules of a
     Worker, so the config is imported statically, in an isolate of its own.
 
-  cellb and browsers evaluate the config in the object's own realm with a data: URL import.
+  CellB and browsers evaluate the config in the object's own realm with a data: URL import.
 - **Where the compiler comes from.** Astro's compiler is the wasm32-wasi build of compiler-rs,
-  which needs a shared WebAssembly memory. workerd, celld and cellb on Node provide one; a
+  which needs a shared WebAssembly memory. workerd, celld and CellB on Node provide one; a
   browser tab must be cross-origin isolated, so `browser/sw.ts` adds COOP/COEP.
   - It comes from the package store at run time, so the platform does not carry its 6 MB.
   - The Node runner uses the native `@astrojs/compiler-rs`.
@@ -268,17 +269,17 @@ Build each with its config in `deploy/`.
   bundler's object, with that object's bindings in reach. On workerd and celld it runs in a
   Worker Loader isolate of its own. Build only projects you trust on a CellB host.
 
-- **The apps call each other through Durable Object stubs within one script.** cellb and celld
+- **The apps call each other through Durable Object stubs within one script.** CellB and celld
   support no service bindings to other scripts. Split deployments (`deploy/*.jsonc`) contain
   every object they use.
 - **celld's isolate heap is the limit for large builds there.** Raise it with
   `CELLD_V8_HEAP_LIMIT_MB`, or leave them to the runner.
-- **The Chromium checks take `PW_CHROMIUM`, as cellb's own suites do.** The repository's
+- **The Chromium checks take `PW_CHROMIUM`, as CellB's own suites do.** The repository's
   Playwright may expect a browser build that is not installed: point `PW_CHROMIUM` at a Chromium
   binary. Where outbound HTTPS has a proxy (`HTTPS_PROXY`), Chromium gets it too, since the pages
   fetch from registry.npmjs.org (`scripts/chromium.ts`).
-- **This package uses cellb from the workspace, not from npm.** The platform is checked against
-  cellb as it is in this checkout; the examples use the released one.
+- **This package uses CellB from the workspace, not from npm.** The platform is checked against
+  CellB as it is in this checkout; the examples use the released one.
 - **An Astro build in a browser tab needs cross-origin isolation.** The host page reloads once
   so the ServiceWorker can add COOP/COEP. Without them, the other apps work and Astro builds
   fail with a message about the shared memory.
@@ -296,10 +297,10 @@ Build each with its config in `deploy/`.
 | Script | What it does |
 |---|---|
 | `pnpm run build` | `scripts/build.mjs`: dist/platform/{workerd,cellb} |
-| `pnpm run build:browser` | `scripts/build-browser.mjs`: dist/browser, the platform in a tab on cellb |
-| `scripts/e2e.ts [host\|all]` | the platform's checks on Wrangler, celld, cellb |
-| `scripts/e2e-browser.ts` | the platform in Chromium on cellb |
-| `tsx scripts/serve-cellb.mjs <dir>` | a wrangler project on cellb in Node over HTTP |
+| `pnpm run build:browser` | `scripts/build-browser.mjs`: dist/browser, the platform in a tab on CellB |
+| `scripts/e2e.ts [host\|all]` | the platform's checks on Wrangler, celld, CellB |
+| `scripts/e2e-browser.ts` | the platform in Chromium on CellB |
+| `tsx scripts/serve-cellb.mjs <dir>` | a wrangler project on CellB in Node over HTTP |
 | `scripts/hosts.mjs` | start/stop a project on any host (used by the e2e scripts) |
 | `scripts/get-celld.sh` | downloads celld 0.6.3 to ~/.cache/celld |
 | `../bundler/bin/webrun-build.ts` | the bundler's Node tier: a local build (Astro projects included), or `--runner <origin>` |
