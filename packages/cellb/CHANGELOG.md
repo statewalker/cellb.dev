@@ -1,5 +1,16 @@
 # @statewalker/cellb
 
+## 0.8.5
+
+### Patch Changes
+
+- b97e764: On a celld bucket, commits are logged from the WAL also for cells without a data directory. `nodeSqliteOpener(undefined, { pageCapture: true })` keeps each cell in a temporary file (not synced, removed when the cell closes or the process exits), so its commits' pages are read from the WAL instead of imaging and diffing the whole database per commit. `loadProject` on Node turns page capture on when its storage logs pages, and Node isolates' facets use it too. The runtime's own databases are never page-captured, and a captured database whose pages nobody reads keeps its WAL bounded.
+- 487d52c: An object's async `ctx.storage.transaction()` calls now run one after another, as on workerd. Before, two calls that had both passed the input gate could overlap. Each opened the same savepoint, so when one rolled back it also undid the other's writes.
+  
+  D1 hit this. Miniflare's D1 object reads each request's body before it starts the request's transaction, so concurrent queries overlapped. EmDash 1.5's first start then failed with `no such table: _emdash_migrations_lock`: a failing read rolled back the `CREATE TABLE` that a concurrent migration had just run.
+  
+  A `transaction()` awaited inside another transaction's closure nests, as on workerd, wherever async context is available (Node, and engines with `AsyncContext`). Elsewhere, in most browsers today, such a call waits forever: use the closure's `txn` argument there.
+
 ## 0.8.4
 
 ### Patch Changes
