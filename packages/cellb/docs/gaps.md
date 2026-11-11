@@ -70,9 +70,10 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   compatibility flags it does not know. Renaming a Flue agent renames its class, so it needs
   `renamed_classes`. Browser tabs log it (`cellb: project … shard …: unsupported: …`).
 - **On Node, the project's text `vars` do not overwrite `process.env`.** Under nodejs_compat from
-  compatibility date 2025-04-01, both hosts fill `process.env` with them, as workerd does. A Node
-  host shares its real `process` with the Worker, so a variable the host process already set keeps
-  its value there.
+  compatibility date 2025-04-01, both hosts fill `process.env` with them, as workerd does
+  (`nodejs_compat_populate_process_env` and `nodejs_compat_do_not_populate_process_env` override
+  the date). A Node host shares its real `process` with the Worker, so a variable the host process
+  already set keeps its value there.
 - **`waitUntil` of `cloudflare:workers` runs in the runtime's background** until `drain()`. It is
   not tied to the event that called it, since nothing in CellB cancels an event's work after its
   response.
