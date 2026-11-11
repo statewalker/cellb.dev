@@ -93,11 +93,11 @@ await runtime.close(); // releases the cells, so celld can take them at once`;
     modification.
   </p>
   <p>
-    Two words come up on every page. <strong>celld</strong> (denoland/celld) is a server that runs
-    Cloudflare Workers projects on a fleet of machines sharing one bucket; CellB answers the
-    requests it recorded the same way and stores data in its format. A <strong>cell</strong> is one
-    Durable Object instance with a name, together with its SQLite database, owned by one runtime at
-    a time. The <a href={docHref("packages/cellb/CONTEXT.md")}>glossary</a> defines the rest.
+    Two words come up on every page. <strong>celld</strong> is Deno's server that runs Workers
+    projects on a fleet of machines sharing one bucket; CellB answers its recorded requests the same
+    way and stores data in its format. A <strong>cell</strong> is one Durable Object instance: its
+    name, its SQLite database, and exactly one owner at a time. The
+    <a href={docHref("packages/cellb/CONTEXT.md")}>glossary</a> defines the rest.
   </p>
 
   <h2>Install</h2>
@@ -120,8 +120,8 @@ await runtime.close(); // releases the cells, so celld can take them at once`;
   <p>
     <code>loadProject(source, options)</code> has the same name and options in Node and in a
     browser. In Node it takes a wrangler project folder and bundles its <code>main</code> with
-    esbuild as it loads it. <code>data</code> is a directory for the cells' SQLite files and the
-    project's files (created if missing); without it, everything stays in memory.
+    esbuild as it loads it. <code>data</code> is where the cells are stored: a directory in Node
+    (created if missing), an OPFS name in a browser. Leave it out to keep everything in memory.
   </p>
   <CodeBlock lang="ts" title="node.ts" code={nodeCode} />
   <p>
@@ -132,9 +132,8 @@ await runtime.close(); // releases the cells, so celld can take them at once`;
   <CodeBlock lang="sh" title="terminal" code={buildCode} />
   <p>
     Then, in a Dedicated Worker, the browser's <code>loadProject</code> loads that folder by URL.
-    There, <code>data</code> is an OPFS name (default: the project's <code>name</code>), and code
-    loaded through a Worker Loader runs in a Dedicated Worker of its own by default
-    (<code>isolateScript</code>).
+    Its <code>data</code> defaults to the project's <code>name</code>, and code loaded through a
+    Worker Loader runs in a Dedicated Worker of its own by default (<code>isolateScript</code>).
   </p>
   <CodeBlock lang="ts" title="worker.ts" code={browserCode} />
   <p>
@@ -200,10 +199,10 @@ await runtime.close(); // releases the cells, so celld can take them at once`;
   <p>
     Give the runtime a <code>celldBucket</code> and it becomes a node of a celld fleet. It uses the
     same bucket layout, ownership records and LTX log, so a cell can move between celld and CellB
-    with no conversion. Here the bucket is the one <code>celld dev</code> keeps on disk:
-    <code>.celld/dev/objects.sqlite3</code> exists in the project folder once <code>celld dev</code>
-    has run there. A fleet on S3 uses <code>s3ObjectStore(…)</code> instead.
-    <code>loadProject(dir, {"{ bucket }"})</code> takes the same <code>celldBucket(…)</code>.
+    with no conversion. This example uses the bucket <code>celld dev</code> keeps on disk
+    (<code>.celld/dev/objects.sqlite3</code>, there once <code>celld dev</code> has run). For a real
+    fleet, pass <code>s3ObjectStore(…)</code>; <code>loadProject(dir, {"{ bucket }"})</code> takes
+    the same <code>celldBucket(…)</code>.
   </p>
   <CodeBlock lang="ts" title="fleet.ts" code={fleetCode} />
 

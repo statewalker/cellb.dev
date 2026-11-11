@@ -60,7 +60,7 @@ const pillars = [
   {
     icon: "database",
     title: "Durable",
-    body: "Each cell owns a synchronous SQLite database. Logged as LTX, celld's format of one page-log file per commit, every acknowledged write survives a crash.",
+    body: "Each cell owns a synchronous SQLite database. Every commit is logged in celld's format before the reply leaves, so every acknowledged write survives a crash.",
   },
   {
     icon: "refresh",
@@ -388,9 +388,10 @@ const lifecycle = [
         </p>
         <p class="max-w-xl text-sm text-muted-foreground text-pretty">
           <a href={CELLD} class="text-foreground underline-offset-4 hover:underline">celld</a> is
-          Deno's server that runs Workers projects on a fleet of nodes sharing one bucket. A{" "}
+          Deno's server that runs Workers projects on a fleet of machines sharing one bucket. A{" "}
           <a href={docHref("packages/cellb/CONTEXT.md")} class="text-foreground underline-offset-4 hover:underline">cell</a>{" "}
-          is one Durable Object: its name, its SQLite database, and exactly one owner at a time.
+          is one Durable Object instance: its name, its SQLite database, and exactly one owner at a
+          time.
         </p>
         <div class="flex flex-wrap gap-3">
           <Button href="/docs" size="lg">Get started <Icon name="arrowRight" /></Button>

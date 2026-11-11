@@ -18,7 +18,8 @@ Cloudflare's open-source Workers runtime, a native binary. Where celld and worke
 something CellB supports, such as stubs passed by reference, CellB follows workerd.
 
 **Miniflare**:
-Cloudflare's local simulator for Workers, built on workerd. CellB vendors its D1 simulator.
+Cloudflare's local simulator for Workers, built on workerd. CellB vendors its D1 simulator (its KV simulator is vendored
+too, but unused: KV runs celld's code).
 
 **Golden**:
 A recorded celld answer: the responses and console lines of one conformance scenario, run on celld
