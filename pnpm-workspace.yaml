@@ -36,3 +36,8 @@ catalog:
   vitest: ^5.0.3
   wrangler: ^4.158.0
   ws: ^8.22.0
+
+overrides:
+  '@earendil-works/pi-agent-core': ~1.4.0
+  '@modelcontextprotocol/client@<2.2.0': ^2.2.0
+  undici@<7.29.1: ^7.30.0

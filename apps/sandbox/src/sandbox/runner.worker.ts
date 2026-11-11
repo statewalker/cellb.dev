@@ -149,6 +149,42 @@ async function run(entries: [string, Uint8Array][], folderName: string) {
   });
 }
 
+// The studio: the agents' side (studio/: Workspace and Agent cells, Flue agents on a capability
+// file system), a second CellB project in this worker, loaded the first time the page asks.
+// Its Worker code runs in this realm, so `globalThis.cellbStudioHost` is how its agents reach
+// the page: run the app, read the log, call the app (the page applies the agents' writes to its
+// folder first).
+let studio: Promise<LoadedProject> | undefined;
+function openStudio(url: string) {
+  // Its cells keep their state (conversations, sessions) in OPFS; a pool another tab holds
+  // cannot be opened, so that tab's studio gets one of its own.
+  const open = (data: string) => loadProject(new URL(url), { data });
+  studio ??= open("cellb-sandbox-studio")
+    .catch((err) => {
+      if (!/lock|busy|access handle|NoModificationAllowed/i.test(String(err))) throw err;
+      return open(`cellb-sandbox-studio-${Date.now().toString(36)}`);
+    })
+    .catch((err) => {
+      studio = undefined;
+      throw err;
+    });
+  return studio;
+}
+let hostCallId = 0;
+const hostCalls = new Map<
+  number,
+  (out: { ok: true; result: unknown } | { ok: false; error: string }) => void
+>();
+(globalThis as { cellbStudioHost?: unknown }).cellbStudioHost = {
+  call(tool: "run_app" | "read_logs" | "http_request", args: Record<string, unknown>) {
+    const id = ++hostCallId;
+    return new Promise((resolve) => {
+      hostCalls.set(id, resolve);
+      post({ type: "host-call", id, tool, args });
+    });
+  },
+};
+
 /**
  * The deployable folder: the server bundled by buildProject (a no_bundle Worker), the client
  * exported from a site made of the same sources (so no running app is needed).
@@ -197,6 +233,31 @@ scope.addEventListener("message", (e: MessageEvent<ToRunner>) => {
         log(text, "error");
         post({ type: "failed", error: text });
       });
+  } else if (msg.type === "studio") {
+    // Not queued behind runs: an agent's run_app waits on a run while its request is open.
+    void (async () => {
+      try {
+        const project = await openStudio(msg.studioUrl);
+        const res = await project.fetch(
+          new Request(`http://studio${msg.path}`, {
+            method: msg.method,
+            headers: msg.headers,
+            body: msg.body,
+          }),
+        );
+        post({ type: "studio-reply", id: msg.id, status: res.status, body: await res.text() });
+      } catch (err) {
+        post({
+          type: "studio-reply",
+          id: msg.id,
+          status: 500,
+          body: JSON.stringify({ error: String((err as Error)?.message ?? err) }),
+        });
+      }
+    })();
+  } else if (msg.type === "host-reply") {
+    hostCalls.get(msg.id)?.(msg.out);
+    hostCalls.delete(msg.id);
   } else if (msg.type === "build") {
     queue = queue
       .then(() => build(msg.id, msg.files, msg.folderName))

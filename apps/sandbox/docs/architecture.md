@@ -18,11 +18,14 @@ on one bucket), **cellb on Node**, or **Cloudflare** Durable Objects.
  local folder (FSA)                    the tab                                   hosts
  ┌────────────────┐   read/write   ┌──────────────────────────────────┐   build  ┌──────────────────────┐
  │ wrangler.jsonc │ ─────────────▶ │ IDE (Astro + React island)       │ ───────▶ │ Cloudflare (wrangler)│
- │ server/*.ts    │ ◀───────────── │  ├ tools  ◀── Agent tab (BYOK)   │          │ celld (bucket fleet) │
+ │ server/*.ts    │ ◀───────────── │  ├ tools  ◀── window / WebMCP    │          │ celld (bucket fleet) │
  │ client/*       │                │  │        ◀── window.cellbSandbox│   git    │ cellb on Node        │
- │ AGENTS.md      │                │  │        ◀── WebMCP / MCP       │ ───────▶ │ CellB in a tab,      │
+ │ AGENTS.md      │                │  │        ◀── MCP                │ ───────▶ │ CellB in a tab,      │
  └────────────────┘                │  └ runner worker                 │          │   over HTTPeers      │
-                                   │     ├ CellB: Worker + DOs (OPFS) │          └──────────────────────┘
+                                   │     ├ CellB: app Worker + DOs    │          └──────────────────────┘
+                                   │     ├ CellB: studio Worker       │
+                                   │     │   Workspace (capabilities) │
+                                   │     │   Agent (Flue loop)        │
                                    │     └ webrun-modules: client     │
                                    │  ServiceWorker: preview, /mcp    │
                                    └──────────────────────────────────┘
@@ -57,7 +60,8 @@ browser memory limits, and Cloudflare shipping its own in-browser playground wit
 | Client | HTML + TS/TSX/CSS compiled per module, npm from the registry | `@statewalker/webrun-modules` (`newModuleServer`) | [built] |
 | Hosting in the tab | one site per run, served by the page's ServiceWorker | `@statewalker/cellb/site`, `webrun-site-host`, `webrun-http-browser` | [built] |
 | Agent tools | 13 tools over the workspace + runner | `src/sandbox/agent/tools.ts` | [built] |
-| Agent ingress | in-tab agent, `window.cellbSandbox`, WebMCP, MCP endpoint | `agent/agent.ts`, `agent/bridge.ts`, `agent/mcp.ts` | [built] |
+| Agents | Flue agents in Durable Objects on CellB, tools over a Biscuit-capability FilesApi | `studio/` (capability core vendored from `statewalker-sandbox/apps/flue-capfs-do`), `@flue/runtime`, `@earendil-works/pi-agent-core`, `just-bash`, `@statewalker/webrun-biscuit` | [built] |
+| Agent ingress for other agents | `window.cellbSandbox`, WebMCP, MCP endpoint | `agent/bridge.ts`, `agent/mcp.ts` | [built] |
 | Ship | deployable folder, GitHub push/pull, CI deploy workflow | `deploy.ts`, `export.ts`, `github.ts`, `@statewalker/cellb-bundler` (`buildProject`) | [built] |
 | Remote reach | the running app and the tools for people/agents outside this browser | `@statewalker/httpeers-member` (`createSession`, `createMounts`), `httpeers-access` (Biscuit) | [next] |
 | Real git | history, branches, merge, any remote | `@statewalker/vcs-commands` + `vcs-store-files` (smart HTTP; needs a CORS proxy for github.com) | [next] |
@@ -104,22 +108,59 @@ act on ("old_text occurs 2 times: make it unique"), paths confined to the projec
 
 | Who | How | Where |
 |---|---|---|
-| A person with a model key | **Agent tab**: Claude (Anthropic SDK, BYOK, key stays in the tab) or any OpenAI-compatible endpoint (Ollama, LM Studio, LiteLLM, OpenRouter, httpeers' `llm` service) | `agent/agent.ts` |
+| A person with a model key | **Agent tab**: a **Flue agent** in the studio's Agent cell (Claude through pi-ai's Anthropic API, or any OpenAI-compatible endpoint: Ollama, LM Studio, LiteLLM, OpenRouter, httpeers' `llm` service), its file tools on a capability | `studio/`, `agent/flue.ts` (§5.3) |
 | Browser-driving agents (Playwright, extensions, computer use) | `window.cellbSandbox.call(name, args)`, `.tools` | `agent/bridge.ts` |
 | Agents built into the browser | **WebMCP** `navigator.modelContext.registerTool` (feature-detected) | `agent/bridge.ts` |
 | Any MCP client that can reach the origin | **MCP** Streamable HTTP (stateless JSON) at `<origin>/<id>/mcp`, served by the page's ServiceWorker | `agent/mcp.ts` |
 | Agents elsewhere (desktop Claude Code, a CI agent, a teammate's agent) | the same MCP handler as an **HTTPeers mount**, Biscuit-guarded **[next]** | §7 |
 
-`AGENTS.md` at the project's root is read into the in-tab agent's system prompt and is the first
-thing the tools point external agents to. Templates ship one.
+`AGENTS.md` at the project's root goes into the Flue agent's instructions and is the first thing
+the tools point external agents to. Templates ship one.
 
-### 5.3 Permissions [next]
+### 5.3 Flue agents on a capability file system [built]
 
-Today an agent can do what the page can. The model to adopt is the one
-`statewalker-sandbox/apps/flue-capfs-do` proves: modes `readonly` / `plan` / `yolo` mapped to
-tool subsets (`createMcpHandler(tools, { readOnly: true })` already exists), and for remote
-agents Biscuit tokens with Datalog rules (`capability("studio:write") <- role("owner")`), checked
-by `withAccess` on the HTTPeers mount, revocable.
+The in-tab agent is not a loop in the page: it is a **Flue agent in a Durable Object**, in the
+studio Worker (`studio/`), which the runner runs on CellB next to the app. The design is
+`statewalker-sandbox/apps/flue-capfs-do`'s, whose capability core it vendors:
+
+```
+ page (owns the folder; Workspace admin)          runner: CellB, studio Worker
+ ───────────────────────────────────────          ──────────────────────────────────────────────
+ sync(files) ───────────────────────────────────▶ Workspace  SqlFs copy · Authority (root key,
+ session(mode) ─────────────────── token ◀──────              sessions, modes, revocations)
+ run(token, scope, llm, key) ──────────────────▶   open(token, scope) → FilteredFiles (RpcTarget)
+                                                  Agent      Flue loop (pi-agent-core)
+                                                             read/write/edit/grep/glob/bash
+                                                               → just-bash → CapFs → capability
+                                                               → FsGate: Datalog per entry
+ poll progress, journal ◀──── changes ──────────  Workspace  journal of capability writes
+ apply to folder (disk, tree)
+ run_app / read_logs / http_request ◀── host ───  Agent      host tools (globalThis.cellbStudioHost)
+```
+
+- **Rights are a token, not a flag**: the session's authority block holds `right("/")` facts,
+  the mode (`yolo`, `plan`: writes only under `/plans/`, `readonly`) is a policy the Workspace
+  applies, a **scope** is an attenuation block (`check if resource($p), $p.starts_with("/client/")`)
+  that can only narrow. Every entry an operation touches is authorized (recursive `rm`, `cp`,
+  `mv` included); `ls /` shows only what the token may list.
+- **The agent never holds the folder**: the Agent cell receives an RPC stub of `FilteredFiles`,
+  nothing else. Mode changes and revocations apply at the next file call or model turn.
+- **The page stays the owner of the truth**: it syncs the folder in before each run and applies
+  the journal (writes, deletions, moves) back through its edit queue, so agents' edits are
+  ordinary edits (on disk, undoable with git).
+- **The same project elsewhere**: on wrangler, celld or cellb on Node the studio runs unchanged;
+  there a git checkout (not a page) feeds the Workspace, the model is the deployment's (`LLM`,
+  `LLM_API_KEY`, budgets as in flue-capfs-do), and the host tools are absent until a deployment
+  provides them.
+- **Checked**: `test/studio-node.ts` (cellb in Node: an edit journaled with its content, a
+  read-only write refused, a scope that hides the rest of the tree) and `test/e2e-agent.mjs`
+  (Chromium: the Agent tab's Flue agent edits, runs and calls the app; a read-only run's write
+  is refused and the project is unchanged).
+
+**[next]**: the token transport (capabilities that survive hibernation and cross nodes),
+sub-agents with attenuated capabilities (flue-capfs-do's `chain`), untrusted tools in Worker
+Loader isolates, Python (Pyodide) and Wasmer sandboxes on the same capability, model budgets per
+session, and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
 
 ## 6. From the tab to the hosts
 
@@ -218,7 +259,7 @@ Observable-style notebooks — Markdown with fenced reactive `js` cells, `npm:` 
 
 | Phase | Content |
 |---|---|
-| 1 (this change) | agent tools, Agent tab (BYOK, Claude + OpenAI-compatible), window/WebMCP/MCP ingresses, console capture, deployable build, GitHub snapshot push/pull, CI deploy workflow, agent-ui template, AGENTS.md |
+| 1 (this change) | Flue agents in Durable Objects on CellB with a Biscuit-capability file system (studio Worker), IDE tools for other agents (window/WebMCP/MCP), console capture, deployable build, GitHub snapshot push/pull, CI deploy workflow, agent-ui template, AGENTS.md |
 | 2 | FilesApi over the folder (`BrowserFilesApi`); webrun-vcs history in `.git`; per-module server compile (`siteCompiler`) for fast reruns; TypeScript language service in the editor |
 | 3 | HTTPeers: publish the app and the MCP mount; Biscuit permission modes; desktop-agent bridge; promote cell state to celld |
 | 4 | Notebooks and Astro project types; json-render/A2UI templates; agent screenshots of the preview as a tool |
@@ -226,7 +267,11 @@ Observable-style notebooks — Markdown with fenced reactive `js` cells, `npm:` 
 ## 11. Security notes
 
 - Keys (model, GitHub) live in the tab; stored only when the person ticks "remember"; sent only to
-  the provider's API. The Anthropic SDK's browser mode is enabled for that reason only.
+  the provider's API (the model key reaches the studio's Agent cell with the run, never the
+  tools or the model's context, and is redacted from errors).
+- The studio's admin key in the browser build is public (`public/studio/wrangler.json`): in a
+  tab the studio has no network ingress, only the page's runner reaches it. Deployed elsewhere,
+  it is a secret.
 - The preview runs on the sandbox's origin under its own path; apps from untrusted sources should
   move to a separate origin (the HTTPeers `*.p.httpeers.net` session origins are built for that).
 - The MCP endpoint is reachable only by code on the same origin (it is served by the page's

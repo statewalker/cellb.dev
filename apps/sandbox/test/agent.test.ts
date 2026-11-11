@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type AgentEvent, createAgentSession } from "../src/sandbox/agent/agent";
+import type { AgentEvent } from "../src/sandbox/agent/events";
+import { type Change, createFlueAgent, llmOf, type StudioReply } from "../src/sandbox/agent/flue";
 import { createMcpHandler } from "../src/sandbox/agent/mcp";
 import {
   callTool,
@@ -240,45 +241,93 @@ describe("MCP endpoint", () => {
   });
 });
 
-describe("agent loop (OpenAI-compatible endpoint)", () => {
-  it("runs the tool calls the model makes, then ends with its answer", async () => {
-    const { host, files } = memoryHost({ "/hello.txt": "hi" });
-    const requests: { messages: { role: string; content: string | null }[] }[] = [];
-    const replies = [
-      {
-        content: null,
-        tool_calls: [
-          {
-            id: "c1",
-            type: "function",
-            function: {
-              name: "write_file",
-              arguments: JSON.stringify({ path: "hello.txt", content: "hello" }),
-            },
+describe("Flue agent client (the page as the Workspace's admin)", () => {
+  it("syncs, gets a token per mode, runs, follows progress and mirrors the journal", async () => {
+    const calls: { path: string; method: string; body?: any; headers?: Record<string, string> }[] =
+      [];
+    const applied: Change[] = [];
+    let runs = 0;
+    const studio = async (
+      path: string,
+      init: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
+    ): Promise<StudioReply> => {
+      calls.push({ path, method: init.method ?? "GET", body: init.body, headers: init.headers });
+      if (path.endsWith("/sync"))
+        return { status: 200, value: { written: 2, deleted: 0, cursor: 7 } };
+      if (path.endsWith("/sessions"))
+        return { status: 200, value: { session: "s", token: `tok-${(init.body as any).mode}` } };
+      if (path.includes("/changes?since=7"))
+        return {
+          status: 200,
+          value: { cursor: 9, changes: [{ seq: 9, path: "/a.txt", kind: "write", text: "agent" }] },
+        };
+      if (path.includes("/changes")) return { status: 200, value: { cursor: 9, changes: [] } };
+      if (path.includes("/runs/"))
+        return {
+          status: 200,
+          value: {
+            done: true,
+            events: [{ n: 1, type: "tool_call", id: "t1", name: "edit", input: {} }],
           },
-        ],
+        };
+      if (path.endsWith("/run")) {
+        runs++;
+        await new Promise((r) => setTimeout(r, 30));
+        return { status: 200, value: { reply: "ok", stopReason: "stop", turns: 2 } };
+      }
+      return { status: 404, error: "not found" };
+    };
+    const agent = createFlueAgent({
+      studio,
+      adminKey: "k",
+      workspace: () => "demo",
+      files: () =>
+        new Map([
+          ["/a.txt", encode("mine")],
+          ["/b.bin", new Uint8Array([0, 1, 2])],
+        ]),
+      apply: async (c) => {
+        applied.push(...c);
       },
-      { content: "Done: hello.txt says hello." },
-    ];
-    const fakeFetch = (async (_url: string, init: RequestInit) => {
-      requests.push(JSON.parse(String(init.body)));
-      const message = { role: "assistant", ...replies[requests.length - 1] };
-      return new Response(JSON.stringify({ choices: [{ message }] }), {
-        headers: { "content-type": "application/json" },
-      });
-    }) as typeof fetch;
-    const session = createAgentSession({
-      config: { provider: "openai", model: "m", apiKey: "", baseUrl: "http://model/v1" },
-      tools: () => createTools(host),
-      instructions: () => "Always greet.",
-      fetch: fakeFetch,
+      pollMs: 5,
     });
     const events: AgentEvent[] = [];
-    await session.send("make hello.txt say hello", (e) => events.push(e));
-    expect(decode(files.get("/hello.txt") as Uint8Array)).toBe("hello");
-    expect(events.map((e) => e.type)).toEqual(["tool_call", "tool_result", "text", "done"]);
-    expect(requests[0].messages[0].content).toContain("Always greet.");
-    // The tool's result went back to the model.
-    expect(requests[1].messages.at(-1)).toMatchObject({ role: "tool" });
+    const model = { provider: "openai" as const, model: "m", apiKey: "", baseUrl: "http://m/v1/" };
+    const r = await agent.send("do it", {
+      mode: "readonly",
+      scope: "/client/",
+      model,
+      onEvent: (e) => events.push(e),
+    });
+    expect(r).toMatchObject({ reply: "ok", turns: 2 });
+    const sync = calls.find((c) => c.path === "/api/w/demo/sync");
+    expect(sync?.headers?.authorization).toBe("Bearer k");
+    expect(sync?.body.files).toEqual({ "/a.txt": "mine", "/b.bin": { $b64: "AAEC" } });
+    expect(sync?.body.prune).toBe(true);
+    const run = calls.find((c) => c.path === "/api/agents/agent-demo/run");
+    expect(run?.body).toMatchObject({
+      workspace: "demo",
+      token: "tok-readonly",
+      narrow: { scope: "/client" },
+      task: {
+        prompt: "do it",
+        llm: { api: "openai-completions", baseUrl: "http://m/v1", model: "m" },
+      },
+    });
+    expect(run?.headers?.["x-llm-token"]).toBeTruthy();
+    expect(applied).toEqual([{ seq: 9, path: "/a.txt", kind: "write", text: "agent" }]);
+    expect(events.some((e) => e.type === "tool_call")).toBe(true);
+    // A second run in the same mode reuses the token.
+    await agent.send("again", { mode: "readonly", model, onEvent: () => {} });
+    expect(calls.filter((c) => c.path.endsWith("/sessions"))).toHaveLength(1);
+    expect(runs).toBe(2);
+  });
+
+  it("names Claude through pi-ai's Anthropic API", () => {
+    expect(llmOf({ provider: "anthropic", model: "claude-opus-5-5", apiKey: "x" })).toMatchObject({
+      api: "anthropic-messages",
+      baseUrl: "https://api.anthropic.com",
+      model: "claude-opus-5-5",
+    });
   });
 });

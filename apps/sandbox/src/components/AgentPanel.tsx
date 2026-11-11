@@ -2,15 +2,23 @@ import { Bot, ChevronRight, Copy, Send, Square, Wrench } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  type AgentEvent,
-  type AgentSession,
-  createAgentSession,
-  DEFAULT_MODELS,
-  type ModelConfig,
-  type ProviderKind,
-} from "@/sandbox/agent/agent";
-import type { Tool } from "@/sandbox/agent/tools";
+import type { AgentEvent } from "@/sandbox/agent/events";
+import type { AgentMode, FlueAgent, ModelChoice } from "@/sandbox/agent/flue";
+
+type ProviderKind = ModelChoice["provider"];
+
+const DEFAULT_MODELS: Record<ProviderKind, string> = {
+  anthropic: "claude-opus-5-5",
+  openai: "gpt-oss:20b",
+};
+
+const MODES: { value: AgentMode; label: string; hint: string }[] = [
+  { value: "yolo", label: "Edit", hint: "read and write the project (within the scope)" },
+  { value: "plan", label: "Plan", hint: "read everything, write only under /plans/" },
+  { value: "readonly", label: "Read-only", hint: "read and answer: every write is refused" },
+];
+
+type Settings = ModelChoice & { remember: boolean; mode: AgentMode; scope: string };
 
 type Entry = { key: number } & (
   | { kind: "user"; text: string }
@@ -24,13 +32,15 @@ const nextKey = () => ++entryKey;
 
 const SETTINGS_KEY = "cellb-sandbox-agent";
 
-function loadSettings(): ModelConfig & { remember: boolean } {
-  const fallback = {
-    provider: "anthropic" as const,
+function loadSettings(): Settings {
+  const fallback: Settings = {
+    provider: "anthropic",
     model: DEFAULT_MODELS.anthropic,
     apiKey: "",
     baseUrl: "",
     remember: false,
+    mode: "yolo",
+    scope: "",
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -40,15 +50,14 @@ function loadSettings(): ModelConfig & { remember: boolean } {
   }
 }
 
-function saveSettings(s: ModelConfig & { remember: boolean }) {
+function saveSettings(s: Settings) {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s.remember ? s : { ...s, apiKey: "" }));
   } catch {}
 }
 
 export function AgentPanel(props: {
-  tools: () => Tool[];
-  instructions: () => string | undefined;
+  agent: FlueAgent;
   /** Called in the click that sends: asks for write access to the folder while a click allows it. */
   prepare(): Promise<void>;
   hasProject: boolean;
@@ -59,7 +68,11 @@ export function AgentPanel(props: {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const session = useRef<{ key: string; session: AgentSession } | null>(null);
+  const [showSettings, setShowSettings] = useState(
+    () => settings.provider === "anthropic" && !settings.apiKey,
+  );
+  // One conversation per panel: the studio keeps its history (per capability).
+  const conversation = useRef(crypto.randomUUID());
   const abort = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement>(null);
 
@@ -69,44 +82,19 @@ export function AgentPanel(props: {
     if (count) end.current?.scrollIntoView({ block: "end" });
   }, [count]);
 
-  const [showSettings, setShowSettings] = useState(
-    () => settings.provider === "anthropic" && !settings.apiKey,
-  );
-  const update = (patch: Partial<typeof settings>) => setSettings((s) => ({ ...s, ...patch }));
+  const update = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
   const needsKey = settings.provider === "anthropic";
-
-  function sessionFor(config: ModelConfig): AgentSession {
-    const key = JSON.stringify([config.provider, config.model, config.baseUrl, config.apiKey]);
-    if (session.current?.key !== key)
-      session.current = {
-        key,
-        session: createAgentSession({
-          config,
-          tools: props.tools,
-          instructions: props.instructions,
-        }),
-      };
-    return session.current.session;
-  }
+  const note = (text: string, error = false) =>
+    setEntries((e) => [...e, { key: nextKey(), kind: "note", text, error }]);
 
   async function send() {
     const text = input.trim();
     if (!text || busy) return;
-    if (needsKey && !settings.apiKey) {
-      setEntries((e) => [
-        ...e,
-        { key: nextKey(), kind: "note", text: "Add an API key first.", error: true },
-      ]);
-      return;
-    }
+    if (needsKey && !settings.apiKey) return note("Add an API key first.", true);
     try {
       await props.prepare();
     } catch (err) {
-      setEntries((e) => [
-        ...e,
-        { key: nextKey(), kind: "note", text: (err as Error).message, error: true },
-      ]);
-      return;
+      return note((err as Error).message, true);
     }
     setInput("");
     setBusy(true);
@@ -119,10 +107,12 @@ export function AgentPanel(props: {
           case "text":
             return [...list, { key: nextKey(), kind: "text", text: ev.text }];
           case "tool_call":
-            return [
-              ...list,
-              { key: nextKey(), kind: "tool", id: ev.id, name: ev.name, input: ev.input },
-            ];
+            return list.some((x) => x.kind === "tool" && x.id === ev.id)
+              ? list
+              : [
+                  ...list,
+                  { key: nextKey(), kind: "tool", id: ev.id, name: ev.name, input: ev.input },
+                ];
           case "tool_result":
             return list.map((x) =>
               x.kind === "tool" && x.id === ev.id ? { ...x, output: ev.output, ok: ev.ok } : x,
@@ -135,19 +125,31 @@ export function AgentPanel(props: {
               {
                 key: nextKey(),
                 kind: "note",
-                text: `done in ${ev.steps} step${ev.steps === 1 ? "" : "s"}`,
+                text: `done in ${ev.steps} turn${ev.steps === 1 ? "" : "s"}`,
               },
             ];
         }
       });
     try {
-      await sessionFor(settings).send(text, onEvent, ctrl.signal);
+      const r = await props.agent.send(text, {
+        mode: settings.mode,
+        scope: settings.scope,
+        model: settings,
+        session: conversation.current,
+        onEvent,
+        signal: ctrl.signal,
+      });
+      if (r.error) onEvent({ type: "error", message: r.error });
+      onEvent({ type: "done", steps: r.turns });
+    } catch (err) {
+      onEvent({ type: "error", message: (err as Error).message });
     } finally {
       setBusy(false);
       abort.current = null;
     }
   }
 
+  const field = "bg-background h-8 rounded-md border px-2";
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="agent-panel">
       <details
@@ -156,9 +158,11 @@ export function AgentPanel(props: {
         onToggle={(e) => setShowSettings((e.currentTarget as HTMLDetailsElement).open)}
       >
         <summary className="cursor-pointer select-none font-medium">
-          Model:{" "}
+          Flue agent:{" "}
           <span className="font-mono text-xs">
-            {settings.provider} · {settings.model || DEFAULT_MODELS[settings.provider]}
+            {settings.provider} · {settings.model || DEFAULT_MODELS[settings.provider]} ·{" "}
+            {MODES.find((m) => m.value === settings.mode)?.label}
+            {settings.scope ? ` · /${settings.scope.replace(/^\/+/, "")}` : ""}
           </span>
         </summary>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -166,7 +170,7 @@ export function AgentPanel(props: {
             <span className="text-muted-foreground text-xs">Provider</span>
             <select
               aria-label="Provider"
-              className="bg-background h-8 rounded-md border px-2"
+              className={field}
               value={settings.provider}
               onChange={(e) => {
                 const provider = e.target.value as ProviderKind;
@@ -181,9 +185,36 @@ export function AgentPanel(props: {
             <span className="text-muted-foreground text-xs">Model</span>
             <input
               aria-label="Model"
-              className="bg-background h-8 rounded-md border px-2 font-mono text-xs"
+              className={`${field} font-mono text-xs`}
               value={settings.model}
               onChange={(e) => update({ model: e.target.value })}
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-muted-foreground text-xs">Rights (the agent's capability)</span>
+            <select
+              aria-label="Rights"
+              className={field}
+              value={settings.mode}
+              onChange={(e) => update({ mode: e.target.value as AgentMode })}
+            >
+              {MODES.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}: {m.hint}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1">
+            <span className="text-muted-foreground text-xs">
+              Scope: a folder (empty: the whole project)
+            </span>
+            <input
+              aria-label="Scope"
+              className={`${field} font-mono text-xs`}
+              placeholder="client"
+              value={settings.scope}
+              onChange={(e) => update({ scope: e.target.value })}
             />
           </label>
           {settings.provider === "openai" && (
@@ -193,7 +224,7 @@ export function AgentPanel(props: {
               </span>
               <input
                 aria-label="Endpoint"
-                className="bg-background h-8 rounded-md border px-2 font-mono text-xs"
+                className={`${field} font-mono text-xs`}
                 placeholder="http://localhost:11434/v1"
                 value={settings.baseUrl ?? ""}
                 onChange={(e) => update({ baseUrl: e.target.value })}
@@ -202,14 +233,14 @@ export function AgentPanel(props: {
           )}
           <label className="grid gap-1 sm:col-span-2">
             <span className="text-muted-foreground text-xs">
-              API key {settings.provider === "openai" && "(optional)"} — sent only to the model's
+              API key {settings.provider === "openai" && "(optional)"}: sent only to the model's
               API, from this tab
             </span>
             <input
               aria-label="API key"
               type="password"
               autoComplete="off"
-              className="bg-background h-8 rounded-md border px-2 font-mono text-xs"
+              className={`${field} font-mono text-xs`}
               value={settings.apiKey}
               onChange={(e) => update({ apiKey: e.target.value })}
             />
@@ -225,12 +256,15 @@ export function AgentPanel(props: {
           </label>
         </div>
         <p className="text-muted-foreground mt-2 text-xs">
-          Other agents can use the same tools:{" "}
+          A Flue agent in a Durable Object on CellB, in this tab. Its tools hold a Biscuit
+          capability: the rights and the scope are checked on every file it touches, and its writes
+          come back to the project here. Other agents use the IDE's tools through{" "}
           <code className="font-mono">window.cellbSandbox</code>
-          {props.webmcp && ", WebMCP (navigator.modelContext)"}
+          {props.webmcp && ", WebMCP"}
           {props.mcpUrl && (
             <>
-              , and MCP at{" "}
+              {" "}
+              and MCP at{" "}
               <button
                 type="button"
                 className="hover:text-foreground inline-flex items-center gap-1 font-mono underline-offset-2 hover:underline"
@@ -251,9 +285,8 @@ export function AgentPanel(props: {
             <Bot className="mx-auto size-6" />
             <p>
               Ask for a change: “add a delete button to each task”, “add an endpoint that counts
-              done tasks and test it”. The agent edits the project
-              {" — on disk when a folder is open — "}runs it and checks it, with the same tools as
-              the buttons.
+              done tasks and test it”. The agent works with its capability, runs the app and checks
+              it; its changes come back here (and to disk when a folder is open).
             </p>
           </div>
         )}
@@ -281,6 +314,7 @@ export function AgentPanel(props: {
                     <span data-testid="tool-call">{e.name}</span>
                     <span className="text-muted-foreground truncate">{summarize(e.input)}</span>
                     <span
+                      data-testid="tool-status"
                       className={cn(
                         "ml-auto",
                         e.ok === undefined
@@ -348,6 +382,6 @@ export function AgentPanel(props: {
 function summarize(input: unknown): string {
   if (!input || typeof input !== "object") return "";
   const o = input as Record<string, unknown>;
-  const v = o.path ?? o.pattern ?? o.query ?? o.from;
+  const v = o.path ?? o.pattern ?? o.command ?? o.query;
   return typeof v === "string" ? v : "";
 }

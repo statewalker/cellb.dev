@@ -19,7 +19,11 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
-import { startFakeOpenAi, toolResults } from "../../../examples/fake-openai/src/index.ts";
+import {
+  lastUserText,
+  startFakeOpenAi,
+  toolResults,
+} from "../../../examples/fake-openai/src/index.ts";
 
 if (process.env.HTTPS === "1") {
   // The https run (test/e2e.mjs) checks requests on an https page; this one adds nothing there.
@@ -64,16 +68,22 @@ const server = createServer(async (req, res) => {
 
 // The model: write a file, run the app, read the API, then answer.
 const NEW_TITLE = "Edited by the agent";
+// The model behind the Flue agent: in an edit run, edit the server through the capability, run
+// the app, call it, answer; asked to WRITE (in a read-only run), try a write, then answer.
 const fake = await startFakeOpenAi({
   reply: (req) => {
     const done = toolResults(req).length;
+    if (lastUserText(req).startsWith("WRITE"))
+      return done === 0
+        ? { tool: "write", args: { path: "/server/sneaky.ts", content: "export {};\n" } }
+        : { text: `Could not write: ${toolResults(req).at(-1).slice(0, 120)}` };
     if (done === 0)
       return {
-        tool: "edit_file",
+        tool: "edit",
         args: {
-          path: "server/index.ts",
-          old_text: '"A screen an agent pilots"',
-          new_text: JSON.stringify(NEW_TITLE),
+          path: "/server/index.ts",
+          oldText: '"A screen an agent pilots"',
+          newText: JSON.stringify(NEW_TITLE),
         },
       };
     if (done === 1) return { tool: "run_app", args: {} };
@@ -180,7 +190,7 @@ try {
     throw new Error(`MCP: ${JSON.stringify(mcp)}`);
   await other.close();
 
-  step("the Agent tab: a model edits the server, runs the app and calls it");
+  step("the Agent tab: a Flue agent on CellB edits through its capability, runs the app, calls it");
   await page.getByRole("tab", { name: "Agent" }).click();
   const panel = page.getByTestId("agent-panel");
   const settings = panel.locator("details").first();
@@ -188,16 +198,46 @@ try {
   await panel.getByLabel("Provider").selectOption("openai");
   await panel.getByLabel("Model").fill("fake");
   await panel.getByLabel("Endpoint").fill(fake.baseUrl);
+  await panel.getByLabel("API key").fill("fake-key-123");
+  await panel.getByLabel("Rights").selectOption("yolo");
   await panel.getByLabel("Message to the agent").fill("Rename the screen's title");
   await panel.getByRole("button", { name: "Send" }).click();
-  await panel.getByText("The title is changed and the app runs.").waitFor({ timeout: 90_000 });
+  try {
+    await panel.getByText("The title is changed and the app runs.").waitFor({ timeout: 180_000 });
+  } catch (err) {
+    console.log(await panel.textContent());
+    await page.getByRole("tab", { name: "Log" }).click();
+    await showLog();
+    throw err;
+  }
   const calls = await panel.getByTestId("tool-call").allTextContents();
-  if (calls.join(",") !== "edit_file,run_app,http_request") throw new Error(`tool calls: ${calls}`);
+  if (calls.join(",") !== "edit,run_app,http_request") throw new Error(`tool calls: ${calls}`);
   const lastToolResult = toolResults(fake.requests.at(-1)).at(-1);
   if (!lastToolResult.includes(NEW_TITLE))
     throw new Error(`http_request result: ${lastToolResult}`);
   if (!fake.requests[0].messages[0].content.includes("<agents_md>"))
     throw new Error("AGENTS.md is not in the system prompt");
+  if (!fake.authorizations.every((a) => a === "Bearer fake-key-123"))
+    throw new Error(`the model key: ${fake.authorizations}`);
+  // The agent's edit came back to the project (the tree, the editor, the build below).
+  const mirrored = await page.evaluate(() =>
+    window.cellbSandbox.call("read_file", { path: "server/index.ts" }),
+  );
+  if (!mirrored.result?.content.includes(NEW_TITLE))
+    throw new Error(`the edit is not in the project: ${JSON.stringify(mirrored).slice(0, 300)}`);
+
+  step("a read-only capability: the agent's write is refused, the project is unchanged");
+  if (!(await settings.evaluate((d) => d.open))) await settings.locator("summary").click();
+  await panel.getByLabel("Rights").selectOption("readonly");
+  await panel.getByLabel("Message to the agent").fill("WRITE a file");
+  await panel.getByRole("button", { name: "Send" }).click();
+  await panel.getByText(/^Could not write:/).waitFor({ timeout: 120_000 });
+  const statuses = await panel.getByTestId("tool-status").allTextContents();
+  if (statuses.at(-1) !== "error") throw new Error(`the write's status: ${statuses}`);
+  const sneaky = await page.evaluate(() =>
+    window.cellbSandbox.call("list_files", { pattern: "**/sneaky.ts" }),
+  );
+  if (sneaky.result.files.length) throw new Error("a read-only agent wrote a file");
 
   step("Ship: the deployable build (with the agent's edit), run by cellb on Node");
   await page.getByRole("tab", { name: "Ship" }).click();

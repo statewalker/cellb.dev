@@ -25,7 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { type PublishedTools, publishTools } from "@/sandbox/agent/bridge";
-import { createTools, type RunState, type StudioHost } from "@/sandbox/agent/tools";
+import { type Change, createFlueAgent, type StudioReply } from "@/sandbox/agent/flue";
+import { callTool, createTools, type RunState, type StudioHost } from "@/sandbox/agent/tools";
 import {
   assertAbsentInFolder,
   canPickFolder,
@@ -125,6 +126,11 @@ export default function Sandbox() {
   const builds = useRef(new Map<number, { resolve(b: Build): void; reject(e: Error): void }>());
   const buildId = useRef(0);
   const [published, setPublished] = useState<PublishedTools>();
+  // The studio (Flue agents on CellB, in the runner): requests to it, and its host calls.
+  const studioReplies = useRef(new Map<number, (r: { status: number; body: string }) => void>());
+  const studioId = useRef(0);
+  const flueRef = useRef<ReturnType<typeof createFlueAgent> | null>(null);
+  const toolsRef = useRef<ReturnType<typeof createTools> | null>(null);
 
   const addLog = useCallback((text: string, level: LogLine["level"] = "info") => {
     const line = { id: ++logId, at: Date.now(), text, level };
@@ -174,6 +180,22 @@ export default function Sandbox() {
       } else if (m.type === "build-failed") {
         builds.current.get(m.id)?.reject(new Error(m.error));
         builds.current.delete(m.id);
+      } else if (m.type === "studio-reply") {
+        studioReplies.current.get(m.id)?.(m);
+        studioReplies.current.delete(m.id);
+      } else if (m.type === "host-call") {
+        // The studio's agent wants the app run, its log or a request: the agent's writes reach
+        // the project first, then the page's own tools act.
+        void (async () => {
+          let out: Awaited<ReturnType<typeof callTool>>;
+          try {
+            await flueRef.current?.pull();
+            out = await callTool(toolsRef.current ?? [], m.tool, m.args);
+          } catch (err) {
+            out = { ok: false, error: (err as Error).message };
+          }
+          w.postMessage({ type: "host-reply", id: m.id, out } satisfies ToRunner);
+        })();
       }
     });
     w.addEventListener("error", (e) => addLog(`runner: ${e.message}`, "error"));
@@ -621,10 +643,80 @@ export default function Sandbox() {
     });
   };
 
-  const agentInstructions = useCallback(() => {
-    const bytes = loadedRef.current?.files.get("/AGENTS.md");
-    return bytes ? decode(bytes) : undefined;
-  }, []);
+  toolsRef.current = tools;
+
+  // The Flue agent's client: the studio reached through the runner (studio/ is built into
+  // <base>studio/ and loaded there the first time), the page as the Workspace's admin.
+  const flue = useMemo(() => {
+    const studioUrl = new URL(
+      `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}studio/`,
+      location.href,
+    ).href;
+    const studio = (
+      path: string,
+      init: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
+    ) =>
+      new Promise<StudioReply>((resolve) => {
+        const id = ++studioId.current;
+        studioReplies.current.set(id, (r) => {
+          let data: { value?: unknown; error?: string } = {};
+          try {
+            data = JSON.parse(r.body);
+          } catch {
+            data = { error: r.body };
+          }
+          resolve({ status: r.status, ...data });
+        });
+        worker.current?.postMessage({
+          type: "studio",
+          id,
+          studioUrl,
+          path,
+          method: init.method ?? "GET",
+          headers: Object.entries({ "content-type": "application/json", ...init.headers }),
+          body: init.body === undefined ? undefined : JSON.stringify(init.body),
+        } satisfies ToRunner);
+      });
+    const apply = async (changes: Change[]) => {
+      for (const c of changes) {
+        const files = loadedRef.current?.files;
+        try {
+          if (c.kind === "delete") {
+            if (
+              files?.has(c.path) ||
+              [...(files?.keys() ?? [])].some((p) => p.startsWith(`${c.path}/`))
+            )
+              await hostImpl.current.remove(c.path);
+          } else if (c.kind === "mkdir") {
+            if (![...(files?.keys() ?? [])].some((p) => p.startsWith(`${c.path}/`)))
+              await hostImpl.current.mkdir(c.path).catch(() => {});
+          } else if (c.text !== undefined || c.$b64 !== undefined) {
+            const bytes =
+              c.text !== undefined
+                ? encode(c.text)
+                : Uint8Array.from(atob(c.$b64 as string), (ch) => ch.charCodeAt(0));
+            await hostImpl.current.writeFile(c.path, bytes);
+          }
+          addLog(`agent: ${c.kind} ${c.path.slice(1)}`);
+        } catch (err) {
+          addLog(`agent: ${c.kind} ${c.path.slice(1)}: ${(err as Error).message}`, "error");
+        }
+      }
+    };
+    return createFlueAgent({
+      studio,
+      adminKey: "sandbox-page",
+      workspace: () =>
+        (loadedRef.current?.name ?? "project").replace(/[^a-z0-9-]/gi, "-").toLowerCase(),
+      files: () => loadedRef.current?.files ?? new Map(),
+      instructions: () => {
+        const bytes = loadedRef.current?.files.get("/AGENTS.md");
+        return bytes ? decode(bytes) : undefined;
+      },
+      apply,
+    });
+  }, [addLog]);
+  flueRef.current = flue;
 
   const layout = useMemo(
     () => (loaded ? describeProject(loaded.files, loaded.name) : undefined),
@@ -881,8 +973,7 @@ export default function Sandbox() {
               </TabsContent>
               <TabsContent value="agent" className="min-h-0" forceMount hidden={tab !== "agent"}>
                 <AgentPanel
-                  tools={getTools}
-                  instructions={agentInstructions}
+                  agent={flue}
                   hasProject={!!loaded}
                   mcpUrl={published?.mcpUrl}
                   webmcp={!!published?.webmcp}

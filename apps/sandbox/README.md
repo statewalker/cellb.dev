@@ -18,10 +18,13 @@ in the browser tab, with nothing uploaded:
   `hostSitesForWorker` from `@statewalker/cellb/site`), shown in a preview frame and openable in any
   tab of the origin.
 - **Download .zip** packs the folder's files (`zip` from `@statewalker/cellb-platform-core/util`).
-- **Agents** work on the project with the same operations as the buttons: the **Agent** tab
-  (bring your own key: Claude, or any OpenAI-compatible endpoint such as a local model), and, for
-  agents outside the page, `window.cellbSandbox`, WebMCP (`navigator.modelContext`, where the
-  browser has it) and an MCP endpoint served by the page's ServiceWorker.
+- **Agents**: the **Agent** tab runs a **Flue agent in a Durable Object on CellB**, in the tab
+  (`studio/`): its file tools hold a Biscuit capability (rights: edit, plan or read-only, and a
+  scope), every file operation is authorized by the token's Datalog, and its writes come back to
+  the project (and to disk). Bring your own key: Claude, or any OpenAI-compatible endpoint such
+  as a local model. Agents outside the page use the IDE's tools through `window.cellbSandbox`,
+  WebMCP (`navigator.modelContext`, where the browser has it) and an MCP endpoint served by the
+  page's ServiceWorker.
 - **Ship**: a deployable folder (the server bundled by `buildProject`, the client compiled into
   `assets/`) that `wrangler deploy`, `celld` and cellb on Node run as is; push to / open from
   GitHub; a `deploy` branch with a workflow that deploys to Cloudflare.
@@ -45,8 +48,8 @@ else the root (a client-only folder). The client calls the server with **relativ
 (`fetch("api/tasks")`): the sandbox serves the app under its own path, and a deployment at the
 root of its origin works the same way. Requests that match no client file go to the server.
 
-An `AGENTS.md` at the root tells agents the project's layout and API; the in-tab agent reads it
-into its instructions.
+An `AGENTS.md` at the root tells agents the project's layout and API; the Flue agent gets it in
+its instructions.
 
 `sample/tasks` is such a folder: a Hono server with a `TaskList` Durable Object, and a React TSX
 client. "Try the sample" runs it; "Download the sample" gives it as a ZIP to open as a folder.
@@ -59,7 +62,8 @@ a Durable Object, rendered from a fixed catalog of components.
 pnpm install
 pnpm --filter @statewalker/cellb-sandbox dev      # http://localhost:4321
 pnpm --filter @statewalker/cellb-sandbox build
-pnpm --filter @statewalker/cellb-sandbox test     # unit tests (Vitest)
+pnpm --filter @statewalker/cellb-sandbox test     # unit tests (Vitest), then the studio on
+                                                  # cellb in Node (test/studio-node.ts)
 pnpm --filter @statewalker/cellb-sandbox e2e      # after build: Chrome, via Playwright
                                                   # (test/e2e.mjs, then test/e2e-agent.mjs)
 ```
@@ -106,9 +110,37 @@ folder once (`webkitdirectory`) and keep edits in the tab.
 
 ## Agents
 
+### The Flue agent (Agent tab)
+
+`studio/` is an ordinary Worker project (`wrangler.jsonc`, `src/worker.ts`), the agents' side
+of the IDE, built for CellB (`scripts/build-studio.ts` → `public/studio/`) and run by the runner
+next to the app, the first time the Agent tab sends something:
+
+| Cell | Does |
+|---|---|
+| `Workspace` (one per project) | holds a copy of the project (SqlFs on the cell's SQLite), the Biscuit root key and the sessions; hands out capabilities (`FilteredFiles` RpcTargets bound to a token); journals what writes through capabilities changed |
+| `Agent` (one per project's agent) | runs a Flue agent loop (pi-agent-core + Flue's `read`, `write`, `edit`, `grep`, `glob`, `bash` over a just-bash sandbox whose only file system is the capability) and keeps its conversation; reports progress while it runs |
+
+The capability core (`studio/src/capfs/`: Authority, FsGate, policy, SqlFs, CapFs) is vendored
+from `statewalker-sandbox/apps/flue-capfs-do`. A run, from the page (`src/sandbox/agent/flue.ts`):
+
+1. **sync**: the project's files into the Workspace (unchanged files cost nothing; the folder is
+   the truth, so files gone are pruned);
+2. a **session token** for the chosen rights: `yolo` (edit), `plan` (read everything, write only
+   under `/plans/`), `readonly`; narrowed by a **scope** (an attenuation block: one folder);
+3. the **run**: the model (`llm`) and the person's key (`x-llm-token`) come with it
+   (`LLM_FROM_REQUEST`); a deployment can name its own model (`LLM`, `LLM_API_KEY`) instead;
+4. while it runs, the page polls its **progress** and the Workspace's **journal**, and applies the
+   agent's writes to the project through its own edit queue (disk, tree, editor).
+
+Beyond files, the agent has `run_app`, `read_logs` and `http_request`: host tools that go from
+the studio to the page (`globalThis.cellbStudioHost`, set by the runner), which applies the
+journal first, then runs its own tools. A denied operation comes back to the model as `EACCES`.
+
+### Other agents: the IDE's tools
+
 | Ingress | For | Where |
 |---|---|---|
-| Agent tab | a person with a model key: Anthropic (Claude, via the Anthropic SDK in the tab) or an OpenAI-compatible Chat Completions endpoint (Ollama, LM Studio, LiteLLM, OpenRouter…) | `src/components/AgentPanel.tsx`, `src/sandbox/agent/agent.ts` |
 | `window.cellbSandbox` | browser-driving agents and scripts: `.tools`, `.call(name, args)`, `.mcpUrl` | `src/sandbox/agent/bridge.ts` |
 | WebMCP | agents built into the browser (`navigator.modelContext.registerTool`, feature-detected) | `src/sandbox/agent/bridge.ts` |
 | MCP | MCP clients on the same origin: Streamable HTTP, stateless JSON, at `<origin>/<id>/mcp` | `src/sandbox/agent/mcp.ts` |
@@ -151,9 +183,11 @@ write access when you press Send (the browser asks only during a click).
 | `src/sandbox/project.ts` | The folder's layout (server, client), HTML rewriting, MIME types |
 | `src/sandbox/app-site.ts` | The app as one handler: client files, compiled modules (`/_modules/`), server |
 | `src/sandbox/runner.worker.ts` | The runner (Dedicated Worker): CellB, esbuild-wasm, the hosted site |
-| `src/components/AgentPanel.tsx` | The Agent tab: model settings, transcript, Stop |
+| `src/components/AgentPanel.tsx` | The Agent tab: model, rights and scope, transcript, Stop |
+| `studio/` | The studio Worker: Workspace and Agent cells, Flue agents on a capability file system |
+| `src/sandbox/agent/flue.ts` | The page's side of the Flue agent: sync, session, run, progress, journal |
 | `src/components/ShipPanel.tsx` | The Ship tab: build, download, GitHub push/pull, deploy branch |
-| `src/sandbox/agent/` | The tools, the agent loop, the MCP handler, the page bridge |
+| `src/sandbox/agent/` | The IDE's tools, the MCP handler, the page bridge, the Flue client |
 | `src/sandbox/deploy.ts`, `export.ts` | The deployable folder, the static client export |
 | `src/sandbox/github.ts` | Push and pull through GitHub's Git Data API |
 | `src/sandbox/templates.ts` | The templates (`sample/tasks`, `templates/*`) |
