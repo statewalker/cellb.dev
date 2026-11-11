@@ -53,6 +53,7 @@ its instructions.
 
 `sample/tasks` is such a folder: a Hono server with a `TaskList` Durable Object, and a React TSX
 client. "Try the sample" runs it; "Download the sample" gives it as a ZIP to open as a folder.
+`templates/notebook-dashboard` is a Durable Object with a notebook as its dashboard.
 `templates/agent-ui` is a screen an agent pilots: a JSON spec (json-render / A2UI shape) kept in
 a Durable Object, rendered from a fixed catalog of components.
 
@@ -180,6 +181,23 @@ complete. The Worker's `console.*` output is in the log (`read_logs`).
 
 Keys stay in the tab and are stored only with "Remember…". A folder opened read-only asks for
 write access when you press Send (the browser asks only during a click).
+
+## Notebooks
+
+A `notebooks/` folder is a part of the project, next to the server and the client: Markdown
+files whose fenced `js` blocks are reactive cells (Observable Notebook Kit: `display()`, `npm:`
+imports, top-level `await`), or Notebook Kit `.html` documents, served at `notebooks/<name>.html`
+(`src/sandbox/notebooks.ts`). Their cells call the project's Worker with relative URLs
+(`fetch("../api/events")`), so a notebook is a dashboard over the app's Durable Objects, a note,
+or a report an agent writes as a file.
+
+- Built by `@statewalker/notebook-build` (linkedom as its DOM, in the runner) on the first visit
+  of each run, served by `@statewalker/notebook-site`; npm modules from a webrun-modules server
+  whose cache lives as long as the runner.
+- A project may be notebooks and a server only (no client): the preview opens on `notebooks/`.
+  `templates/notebook-dashboard` is one (an event log in a Durable Object, its dashboard).
+- Not in the deployable build yet (the pages import their modules from the hosted module server;
+  notebook-build's static mode would export them).
 
 ## History
 

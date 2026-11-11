@@ -10,9 +10,9 @@ catalog:
   '@emnapi/core': 1.11.3
   '@emnapi/runtime': 1.11.3
   '@napi-rs/wasm-runtime': 1.2.6
-  '@statewalker/notebook-build': ^0.1.1
-  '@statewalker/notebook-site': ^0.1.2
-  '@statewalker/webrun-builder': ^0.2.1
+  '@statewalker/notebook-build': 0.1.1
+  '@statewalker/notebook-site': 0.1.2
+  '@statewalker/webrun-builder': 0.2.1
   '@statewalker/webrun-bundler': ^0.1.1
   '@statewalker/webrun-files': ^0.10.3
   '@statewalker/webrun-files-mem': ^0.10.0
@@ -27,11 +27,11 @@ catalog:
   esbuild: 0.28.2
   esbuild-wasm: 0.28.2
   lightningcss-wasm: ^1.33.0
-  linkedom: ^0.18.15
+  linkedom: 0.18.15
   tsx: 4.23.15
   turbo: ^2.11.7
   typescript: ^7.0.2
-  urlpattern-polyfill: ^10.1.0
+  urlpattern-polyfill: 10.1.0
   vite: ^8.3.2
   vitest: ^5.0.3
   wrangler: ^4.158.0

@@ -67,7 +67,7 @@ browser memory limits, and Cloudflare shipping its own in-browser playground wit
 | Remote reach | the running app and the tools for people/agents outside this browser | `@statewalker/httpeers-member` (`createSession`, `createMounts`), `httpeers-access` (Biscuit) | [next] |
 | History | git in `.cellb/history` inside the project's FilesApi: commit, log, changes, restore, checkpoints before agent runs; hidden from agents (`NO_GIT`) | `src/sandbox/history.ts`, `@statewalker/vcs-commands`, `vcs-store-files`, `vcs-working-tree` | [built] |
 | Git remotes | push/fetch of that history over smart HTTP (needs a CORS proxy for github.com), branches, merge | `@statewalker/vcs-commands` (`push`, `fetch`, `merge`) | [next] |
-| Notebooks | Markdown/Observable notebooks as a project type | `@statewalker/notebook-build`, `notebook-site` (as `packages/notebooks` uses them) | [next] |
+| Notebooks | `notebooks/*.md` (Observable Notebook Kit cells) served at `notebooks/`, next to the app, cells calling its Worker | `src/sandbox/notebooks.ts`, `@statewalker/notebook-build`, `notebook-site`, linkedom | [built] (static export: [next]) |
 | Astro | Astro sites built in the tab | `@statewalker/cellb-astro-builder` (needs cross-origin isolation: COOP/COEP from the SW) | [next] |
 
 ## 4. The project format (no proprietary format)
@@ -248,7 +248,7 @@ template, and A2UI message streams for incremental updates.
 `@statewalker/cellb-astro-builder` (the `examples/astro-in-browser` path; needs COOP/COEP from the
 sandbox's ServiceWorker for the compiler's shared memory), deploy with the same folder.
 
-## 9. Notebooks: literate programs by people and agents [next]
+## 9. Notebooks: literate programs by people and agents [built]
 
 Observable-style notebooks — Markdown with fenced reactive `js` cells, `npm:` imports,
 `display()` — as a project type, for notes, dashboards and agent reports:
@@ -267,7 +267,7 @@ Observable-style notebooks — Markdown with fenced reactive `js` cells, `npm:` 
 | 1 (this change) | Flue agents in Durable Objects on CellB with a Biscuit-capability file system (studio Worker), IDE tools for other agents (window/WebMCP/MCP), console capture, deployable build, GitHub snapshot push/pull, CI deploy workflow, agent-ui template, AGENTS.md |
 | 2 | git remotes for the history (a CORS proxy as a cellb Worker); per-module server compile (`siteCompiler`) for fast reruns; TypeScript language service in the editor |
 | 3 | HTTPeers: publish the app and the MCP mount; Biscuit permission modes; desktop-agent bridge; promote cell state to celld |
-| 4 | Notebooks and Astro project types; json-render/A2UI templates; agent screenshots of the preview as a tool |
+| 4 | Notebooks in the deployable build (static mode); Astro project type; json-render/A2UI templates; agent screenshots of the preview as a tool |
 
 ## 11. Security notes
 

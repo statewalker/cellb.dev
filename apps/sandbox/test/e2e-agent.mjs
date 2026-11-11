@@ -359,6 +359,45 @@ try {
     throw new Error(`OPFS write: ${JSON.stringify(wrote)}`);
   await opfsPage.close();
 
+  step(
+    "notebooks: a dashboard over the Durable Object; a report written through the tools is a page",
+  );
+  const nbPage = await context.newPage();
+  await nbPage.goto(APP);
+  await nbPage.getByRole("button", { name: /^Template: Notebook dashboard/ }).click();
+  const nb = nbPage.frameLocator('iframe[title="The running app"]');
+  try {
+    await nb.getByRole("heading", { name: "Events dashboard" }).waitFor({ timeout: 90_000 });
+    await nb.getByText(/30 events, 3 kinds/).waitFor({ timeout: 60_000 });
+    await nb.getByRole("cell", { name: "signup" }).waitFor({ timeout: 60_000 });
+    await nb.locator("svg").first().waitFor({ timeout: 90_000 }); // Plot, from npm
+  } catch (err) {
+    await nbPage.getByRole("tab", { name: "Log" }).click();
+    console.log(
+      await nbPage.evaluate(() => document.querySelector('[data-testid="log"]')?.textContent),
+    );
+    throw err;
+  }
+  const report = await nbPage.evaluate(() =>
+    window.cellbSandbox.call("write_file", {
+      path: "notebooks/report.md",
+      content:
+        '# Weekly report\n\n```js\nconst rows = await (await fetch("../api/events")).json()\n```\n\n```js\ndisplay(`max value ${Math.max(...rows.map((r) => r.value))}`)\n```\n',
+    }),
+  );
+  if (!report.ok) throw new Error(`report: ${JSON.stringify(report)}`);
+  await nbPage
+    .getByText("the files changed")
+    .first()
+    .waitFor({ timeout: 30_000 })
+    .catch(() => {});
+  await nbPage.getByTestId("status").waitFor({ timeout: 60_000 });
+  await nbPage.getByLabel("Path in the app").fill("notebooks/report.html");
+  await nbPage.getByRole("button", { name: "Reload the preview" }).click();
+  await nb.getByRole("heading", { name: "Weekly report" }).waitFor({ timeout: 90_000 });
+  await nb.getByText(/max value \d+/).waitFor({ timeout: 60_000 });
+  await nbPage.close();
+
   if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
   console.log("e2e-agent: all good");
 } finally {

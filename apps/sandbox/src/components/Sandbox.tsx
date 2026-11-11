@@ -265,6 +265,8 @@ export default function Sandbox() {
       setSelected(first);
       setOpenFile(first);
       setTab("preview");
+      // A project whose UI is its notebooks opens on them.
+      setPreviewPath(layout.notebooks && !layout.clientRoot ? "notebooks/" : "");
       run(l);
     },
     [run],

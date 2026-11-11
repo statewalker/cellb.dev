@@ -139,7 +139,10 @@ try {
   await shot("07-agent-changes-in-project");
 
   await page.getByRole("tab", { name: "Ship" }).click();
-  await page.getByTestId("history-panel").getByText(/^Before the agent: Add a note/).waitFor({ timeout: 60_000 });
+  await page
+    .getByTestId("history-panel")
+    .getByText(/^Before the agent: Add a note/)
+    .waitFor({ timeout: 60_000 });
   await shot("08-history-checkpoints");
   await page.getByRole("button", { name: "Build", exact: true }).click();
   await page.getByTestId("build-files").waitFor({ timeout: 120_000 });

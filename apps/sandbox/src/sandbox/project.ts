@@ -31,6 +31,8 @@ export interface ProjectLayout {
   config?: WranglerLike;
   /** The client folder ("/client", or "/" for the root), if the project has a client part. */
   clientRoot?: string;
+  /** True when the project has notebooks (`notebooks/*.md` or Notebook Kit `.html`). */
+  notebooks: boolean;
   /** Problems worth showing (a Wrangler file that does not parse, no part to run). */
   problems: string[];
 }
@@ -77,14 +79,18 @@ export function describeProject(files: ProjectFiles, folderName = "app"): Projec
   const candidates = declared ? [join("/", declared)] : ["/client", "/public", "/"];
   const clientRoot = candidates.find((dir) => files.has(join(dir, "index.html")));
   if (declared && !clientRoot) problems.push(`"client" names ${declared}, which has no index.html`);
-  if (!wranglerPath && !clientRoot)
-    problems.push("no wrangler.jsonc (server part) and no index.html (client part) in the folder");
+  const hasNotebooks = [...files.keys()].some((p) => /^\/notebooks\/.+\.(md|html)$/i.test(p));
+  if (!wranglerPath && !clientRoot && !hasNotebooks)
+    problems.push(
+      "no wrangler.jsonc (server part), no index.html (client part) and no notebooks/ in the folder",
+    );
 
   return {
     name: config?.name ?? folderName,
     wranglerPath,
     config,
     clientRoot,
+    notebooks: hasNotebooks,
     problems,
   };
 }

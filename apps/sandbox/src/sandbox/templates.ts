@@ -43,6 +43,13 @@ export const TEMPLATES: Template[] = [
       "The screen is a JSON spec in a Durable Object (json-render / A2UI style), rendered from a fixed catalog; agents change it over HTTP, clicks come back as actions.",
     files: () => filesUnder(others, "../../templates/agent-ui"),
   },
+  {
+    id: "notebook-dashboard",
+    title: "Notebook dashboard: a Durable Object and a notebook over it",
+    description:
+      "An event log in a Durable Object's SQLite table, and notebooks/index.md as its dashboard: reactive JS cells (Observable Notebook Kit) that fetch the Worker's API and plot it.",
+    files: () => filesUnder(others, "../../templates/notebook-dashboard"),
+  },
 ];
 
 export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id);

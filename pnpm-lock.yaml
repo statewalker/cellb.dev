@@ -25,13 +25,13 @@ catalogs:
       specifier: 1.2.6
       version: 1.2.6
     '@statewalker/notebook-build':
-      specifier: ^0.1.1
+      specifier: 0.1.1
       version: 0.1.1
     '@statewalker/notebook-site':
-      specifier: ^0.1.2
+      specifier: 0.1.2
       version: 0.1.2
     '@statewalker/webrun-builder':
-      specifier: ^0.2.1
+      specifier: 0.2.1
       version: 0.2.1
     '@statewalker/webrun-bundler':
       specifier: ^0.1.1
@@ -76,7 +76,7 @@ catalogs:
       specifier: ^1.33.0
       version: 1.33.0
     linkedom:
-      specifier: ^0.18.15
+      specifier: 0.18.15
       version: 0.18.15
     tsx:
       specifier: 4.23.15
@@ -88,7 +88,7 @@ catalogs:
       specifier: ^7.0.2
       version: 7.0.2
     urlpattern-polyfill:
-      specifier: ^10.1.0
+      specifier: 10.1.0
       version: 10.1.0
     vite:
       specifier: ^8.3.2
@@ -208,6 +208,12 @@ importers:
       '@statewalker/cellb-platform-core':
         specifier: workspace:*
         version: link:../../packages/platform-core
+      '@statewalker/notebook-build':
+        specifier: 'catalog:'
+        version: 0.1.1(@statewalker/webrun-builder@0.2.1)(@statewalker/webrun-files@0.10.3)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      '@statewalker/notebook-site':
+        specifier: 'catalog:'
+        version: 0.1.2(@statewalker/webrun-files@0.10.3)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.3))
       '@statewalker/vcs-commands':
         specifier: ^0.3.2
         version: 0.3.2
@@ -223,6 +229,9 @@ importers:
       '@statewalker/webrun-biscuit':
         specifier: ^0.2.3
         version: 0.2.3
+      '@statewalker/webrun-builder':
+        specifier: 'catalog:'
+        version: 0.2.1
       '@statewalker/webrun-bundler':
         specifier: ^0.1.1
         version: 0.1.1(esbuild-wasm@0.28.2)
@@ -271,6 +280,9 @@ importers:
       just-bash:
         specifier: ^3.6.0
         version: 3.6.0
+      linkedom:
+        specifier: 'catalog:'
+        version: 0.18.15
       lucide-react:
         specifier: ^1.71.0
         version: 1.71.0(@types/react@19.3.0)(react@19.3.1)
@@ -311,6 +323,9 @@ importers:
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
+      urlpattern-polyfill:
+        specifier: 'catalog:'
+        version: 10.1.0
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(jsdom@26.1.0)(vite@8.3.7(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))

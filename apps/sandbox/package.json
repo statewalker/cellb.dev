@@ -41,11 +41,14 @@
     "@statewalker/cellb": "workspace:*",
     "@statewalker/cellb-bundler": "workspace:*",
     "@statewalker/cellb-platform-core": "workspace:*",
+    "@statewalker/notebook-build": "catalog:",
+    "@statewalker/notebook-site": "catalog:",
     "@statewalker/vcs-commands": "^0.3.2",
     "@statewalker/vcs-core": "^0.3.4",
     "@statewalker/vcs-store-files": "^0.3.2",
     "@statewalker/vcs-working-tree": "^0.3.2",
     "@statewalker/webrun-biscuit": "^0.2.3",
+    "@statewalker/webrun-builder": "catalog:",
     "@statewalker/webrun-bundler": "^0.1.1",
     "@statewalker/webrun-files": "catalog:",
     "@statewalker/webrun-files-browser": "^0.10.2",
@@ -62,6 +65,7 @@
     "clsx": "^2.1.1",
     "esbuild-wasm": "catalog:",
     "just-bash": "^3.6.0",
+    "linkedom": "catalog:",
     "lucide-react": "^1.71.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -77,6 +81,7 @@
     "esbuild": "catalog:",
     "playwright": "^1.64.1",
     "tsx": "catalog:",
+    "urlpattern-polyfill": "catalog:",
     "vitest": "catalog:"
   }
 }

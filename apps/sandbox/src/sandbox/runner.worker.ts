@@ -21,6 +21,7 @@ import { TokenCap } from "../../studio/src/capfs/token-cap";
 import { createAppSite } from "./app-site";
 import { assembleDeploy } from "./deploy";
 import { exportClient } from "./export";
+import { createNotebookSite, notebookFilesOf } from "./notebooks";
 import { clientFilesOf, describeProject, SKIPPED_DIRS } from "./project";
 import type { FromRunner, ToRunner } from "./protocol";
 
@@ -66,6 +67,7 @@ let esbuildReady: Promise<void> | undefined;
 // One package store and one module cache for the worker's life: a rerun downloads nothing twice.
 const packages = npmPackages();
 const moduleCache = new MemFilesApi();
+const notebookCache = new MemFilesApi();
 const compile = bundleCompiler({ esbuild, packages });
 const hostSite = siteHostOverPort(scope);
 
@@ -101,7 +103,8 @@ async function run(entries: [string, Uint8Array][], folderName: string) {
   const all = new Map(entries);
   const layout = describeProject(all, folderName);
   for (const p of layout.problems) log(p, "error");
-  if (!layout.wranglerPath && !layout.clientRoot) throw new Error(layout.problems.join("; "));
+  if (!layout.wranglerPath && !layout.clientRoot && !layout.notebooks)
+    throw new Error(layout.problems.join("; "));
 
   let project: LoadedProject | undefined;
   if (layout.wranglerPath && layout.config?.main) {
@@ -128,13 +131,25 @@ async function run(entries: [string, Uint8Array][], folderName: string) {
     );
   } else log("no server part: the client runs alone");
 
+  let sitePath = "/";
+  const notebookFiles = notebookFilesOf(all);
   const site = await createAppSite({
     client: layout.clientRoot ? clientFilesOf(all, layout.clientRoot) : undefined,
     server: project,
     log,
     moduleCache,
+    notebooks: notebookFiles
+      ? createNotebookSite({
+          files: notebookFiles,
+          sitePath: () => sitePath,
+          cache: notebookCache,
+          log,
+        })
+      : undefined,
   });
   const hosted = await hostSite(site);
+  sitePath = new URL(hosted.baseUrl).pathname;
+  if (notebookFiles) log("notebooks: served at notebooks/, built on the first visit");
   current.site = hosted;
   current.handler = site;
   if (layout.clientRoot)
