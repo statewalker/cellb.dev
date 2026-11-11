@@ -96,3 +96,83 @@ export async function filesFromInput(
   }
   return { name, files };
 }
+
+// Writing back to a folder opened with the File System Access API. The folder is opened read-only;
+// the first edit asks for write access (the browser shows a prompt once, on that click). OPFS
+// handles (the e2e's stand-in for a picked folder) are always writable.
+
+type PermissionHandle = FileSystemDirectoryHandle & {
+  queryPermission?(o: { mode: "readwrite" }): Promise<PermissionState>;
+  requestPermission?(o: { mode: "readwrite" }): Promise<PermissionState>;
+};
+
+/** Asks for write access to the folder; false if it is refused. */
+export async function ensureWritable(handle: FileSystemDirectoryHandle): Promise<boolean> {
+  const h = handle as PermissionHandle;
+  const mode = { mode: "readwrite" as const };
+  if (!h.queryPermission || (await h.queryPermission(mode)) === "granted") return true;
+  return (await h.requestPermission?.(mode)) === "granted";
+}
+
+async function dirAt(
+  root: FileSystemDirectoryHandle,
+  path: string,
+  create: boolean,
+): Promise<FileSystemDirectoryHandle> {
+  let dir = root;
+  for (const name of path.split("/").filter(Boolean))
+    dir = await dir.getDirectoryHandle(name, { create });
+  return dir;
+}
+
+const split = (path: string) => {
+  const i = path.lastIndexOf("/");
+  return { dir: path.slice(0, i) || "/", name: path.slice(i + 1) };
+};
+
+/** Writes a file (and its folders) below the folder. */
+export async function writeToFolder(
+  root: FileSystemDirectoryHandle,
+  path: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  const { dir, name } = split(path);
+  const file = await (await dirAt(root, dir, true)).getFileHandle(name, { create: true });
+  const w = await file.createWritable();
+  await w.write(bytes as BufferSource);
+  await w.close();
+}
+
+/** Makes a folder below the folder. */
+export async function mkdirInFolder(root: FileSystemDirectoryHandle, path: string): Promise<void> {
+  await dirAt(root, path, true);
+}
+
+/** Removes a file, or a folder with everything in it. */
+export async function removeFromFolder(
+  root: FileSystemDirectoryHandle,
+  path: string,
+): Promise<void> {
+  const { dir, name } = split(path);
+  await (await dirAt(root, dir, false)).removeEntry(name, { recursive: true });
+}
+
+/**
+ * Moves a file or a folder: its files are written at their new paths (`moved`, old → new), then
+ * the old entry is removed. Copying keeps it to the API every browser with the picker has.
+ */
+export async function moveInFolder(
+  root: FileSystemDirectoryHandle,
+  from: string,
+  to: string,
+  moved: Map<string, string>,
+  bytesOf: (path: string) => Uint8Array | undefined,
+  dir: boolean,
+): Promise<void> {
+  if (dir) await mkdirInFolder(root, to);
+  for (const [, next] of moved) {
+    const bytes = bytesOf(next);
+    if (bytes) await writeToFolder(root, next, bytes);
+  }
+  await removeFromFolder(root, from);
+}

@@ -62,16 +62,34 @@ e2e on that build:
 ```sh
 SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox build
 SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox e2e
-``` Folder access with rerun on save
-needs the File System Access API (Chrome, Edge); other browsers read the folder once
-(`webkitdirectory`).
+```
+
+Folder access with rerun on save, and saving edits back to the folder, needs the File System
+Access API (Chrome, Edge); other browsers read the folder once (`webkitdirectory`) and keep edits
+in the tab.
+
+## Editing
+
+- **The tree** folds (a folder's row, or "Collapse all"). New file and New folder go where the
+  selection is. Each row can be renamed or moved (its path field, or drag it onto a folder) and
+  deleted.
+- **The Code tab** is CodeMirror 6. The language comes from the file's extension and is loaded
+  when a file of that kind is first opened: TS, TSX, JS, JSX, JSON/JSONC, CSS, HTML/SVG,
+  Markdown. Ctrl/Cmd+S or Save writes the file; unsaved files are marked in the tree.
+- **Where saves go:** a folder opened with the File System Access API is changed on disk (the
+  first edit asks for write access). The sample, or a folder read once, is changed in the tab
+  only: Download .zip keeps the edits.
+- With **Rerun on save**, every save, new file, move and delete reruns the app.
 
 ## How it works
 
 | File | Role |
 |---|---|
-| `src/components/Sandbox.tsx` | The UI (React island): folder, file tree, Preview / Files / Log, ZIP |
-| `src/sandbox/folder.ts` | Reading a folder: File System Access API, `webkitdirectory`, change polling |
+| `src/components/Sandbox.tsx` | The UI (React island): folder, Preview / Code / Log, edits, ZIP |
+| `src/components/FileTree.tsx` | The file tree: folding, new file or folder, rename/move, delete, drag |
+| `src/components/CodeEditor.tsx` | CodeMirror 6, with a language per file extension |
+| `src/sandbox/workspace.ts` | Edits as pure functions over the files (add, write, move, remove) |
+| `src/sandbox/folder.ts` | The folder: File System Access API, `webkitdirectory`, polling, writes |
 | `src/sandbox/project.ts` | The folder's layout (server, client), HTML rewriting, MIME types |
 | `src/sandbox/app-site.ts` | The app as one handler: client files, compiled modules (`/_modules/`), server |
 | `src/sandbox/runner.worker.ts` | The runner (Dedicated Worker): CellB, esbuild-wasm, the hosted site |
@@ -88,6 +106,9 @@ needs the File System Access API (Chrome, Edge); other browsers read the folder 
 - Inline `<script type="module">` blocks are not compiled (only `src` scripts).
 - The server is re-bundled whole on each run (under a second for the sample); `siteCompiler`
   would recompile one module instead.
-- Files are read-only here. Next steps toward a CodeSandbox: an editor writing back through
-  the folder handle (or an OPFS copy), the server compiled per module, and "Deploy" pushing the
-  `buildProject` output (`packages/bundler`) and the cells' state to a celld bucket.
+- The editor has no type checking or cross-file completion (no TypeScript language service).
+- A move on disk copies the files to their new paths and removes the old ones (the API every
+  browser with the folder picker has).
+- Next steps toward a CodeSandbox: the server compiled per module, edits kept in an OPFS copy
+  between visits, and "Deploy" pushing the `buildProject` output (`packages/bundler`) and the
+  cells' state to a celld bucket.
