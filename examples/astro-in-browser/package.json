@@ -27,7 +27,7 @@
     "@playwright/test": "^1.63.0",
     "@sparticuz/chromium": "^153.0.0",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
-    "@statewalker/cellb": "~0.5.0",
+    "@statewalker/cellb": "~0.8.1",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

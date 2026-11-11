@@ -78,7 +78,7 @@ Two pnpm workspaces. The root one (`pnpm-workspace.yaml`) holds cellb, the platf
 website. The
 examples are private apps in a workspace of their own (`examples/pnpm-workspace.yaml`, its own
 lockfile) and use cellb as its users do: `@statewalker/cellb` from npm, at a released range
-(`~0.5.0`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
+(a `~` range on the current release); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
 cellb reaches the examples through a release: Dependabot raises the range, and its pull request
 runs them. Cellb's own storage labs (`ltx-lab`, `sqlite-lab`) are in
 `packages/cellb/e2e-browser`. The one exception is `examples/platform-demos`: it checks the platform as it is in this
