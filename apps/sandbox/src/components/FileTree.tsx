@@ -251,45 +251,18 @@ export function FileTree(props: {
           if (hidden(r.path)) return null;
           const role = roleOf(r.path);
           const open = !props.collapsed.has(r.path);
-          const rail = cn(
-            "group flex w-full items-center gap-1.5 border-l-2 border-transparent py-1 pr-1 text-left",
-            role === "server" && "border-l-accent-2",
-            role === "client" && "border-l-primary/60",
-          );
-          const indent = { paddingLeft: `${6 + r.depth * 14}px` };
-          const actions = (
-            <span className="ml-auto flex shrink-0 items-center opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground rounded p-1"
-                aria-label={`Move or rename ${r.path.slice(1)}`}
-                title="Move or rename"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setError(undefined);
-                  setEditing({ mode: "move", from: r.path, value: r.path.slice(1) });
-                }}
-              >
-                <Pencil className="size-3.5" />
-              </button>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-destructive rounded p-1"
-                aria-label={`Delete ${r.path.slice(1)}`}
-                title="Delete"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const what = r.dir
-                    ? `the folder ${r.path.slice(1)} and everything in it`
-                    : r.path.slice(1);
-                  if (!confirm(`Delete ${what}?`)) return;
-                  props.onDelete(r.path).catch((err) => setError((err as Error).message));
-                }}
-              >
-                <Trash2 className="size-3.5" />
-              </button>
-            </span>
-          );
+          const selected = props.selected === r.path;
+          const name = r.path.slice(1);
+          const dirty = props.dirty.has(r.path);
+          // What a screen reader says for the row: its kind, path, part of the app, state.
+          const spoken = [
+            `${r.dir ? "Folder" : "File"} ${name}`,
+            role === "server" && "server",
+            role === "client" && r.path === props.clientRoot && "client",
+            dirty && "unsaved",
+          ]
+            .filter(Boolean)
+            .join(", ");
           const drag = {
             draggable: true,
             onDragStart: (e: React.DragEvent) => {
@@ -297,92 +270,106 @@ export function FileTree(props: {
               e.dataTransfer.effectAllowed = "move";
             },
           };
-          if (r.dir)
-            return (
-              <li key={r.path} {...dropTarget(r.path)}>
-                {/* biome-ignore lint/a11y/useSemanticElements: a tree row with nested buttons */}
-                <div
-                  role="button"
-                  tabIndex={0}
+          const action =
+            "text-muted-foreground inline-flex size-7 items-center justify-center rounded focus-visible:ring-2 focus-visible:ring-ring/50 outline-none";
+          return (
+            <li
+              key={r.path}
+              {...(r.dir ? dropTarget(r.path) : {})}
+              className={cn(
+                "group flex items-center border-l-2 border-transparent pr-1",
+                role === "server" && "border-l-accent-2",
+                role === "client" && "border-l-primary/60",
+                selected
+                  ? r.dir
+                    ? "bg-accent/60"
+                    : "bg-accent text-accent-foreground"
+                  : "hover:bg-accent/50",
+                dropDir === r.path && "bg-primary/10 ring-primary/40 ring-1 ring-inset",
+              )}
+              style={{ paddingLeft: `${4 + r.depth * 14}px` }}
+            >
+              {r.dir ? (
+                <button
+                  type="button"
+                  className={cn(action, "size-6 shrink-0")}
                   aria-expanded={open}
-                  aria-label={`Folder ${r.path.slice(1)}`}
-                  {...drag}
-                  onClick={() => {
-                    props.onToggle(r.path);
-                    props.onSelect(r.path);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.target !== e.currentTarget) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      props.onToggle(r.path);
-                    }
-                  }}
-                  className={cn(
-                    rail,
-                    "text-muted-foreground hover:bg-accent cursor-pointer",
-                    props.selected === r.path && "bg-accent/60",
-                    dropDir === r.path && "bg-primary/10 ring-primary/40 ring-1 ring-inset",
-                  )}
-                  style={indent}
+                  aria-label={`${open ? "Collapse" : "Expand"} ${name}`}
+                  onClick={() => props.onToggle(r.path)}
                 >
                   {open ? (
-                    <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+                    <ChevronDown className="size-3.5" />
                   ) : (
-                    <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+                    <ChevronRight className="size-3.5" />
                   )}
-                  {open ? (
+                </button>
+              ) : (
+                <span className="size-6 shrink-0" aria-hidden />
+              )}
+              <button
+                type="button"
+                {...drag}
+                aria-label={spoken}
+                aria-current={selected ? "true" : undefined}
+                title={role ? `${name} (${role})` : name}
+                className={cn(
+                  "flex min-w-0 flex-1 items-center gap-1.5 rounded py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                  r.dir && "text-muted-foreground",
+                )}
+                onClick={() => {
+                  props.onSelect(r.path);
+                  // Selecting a folder opens it (it never closes it: the chevron does that).
+                  if (r.dir && !open) props.onToggle(r.path);
+                }}
+              >
+                {r.dir &&
+                  (open ? (
                     <FolderOpen className="size-3.5 shrink-0" aria-hidden />
                   ) : (
                     <Folder className="size-3.5 shrink-0" aria-hidden />
-                  )}
-                  <span className="truncate">{r.name}</span>
-                  {role === "client" && r.path === props.clientRoot && (
-                    <span className="text-primary font-sans text-[11px]">client</span>
-                  )}
-                  {actions}
-                </div>
-              </li>
-            );
-          return (
-            <li key={r.path}>
-              {/* biome-ignore lint/a11y/useSemanticElements: a tree row with nested buttons */}
-              <div
-                role="button"
-                tabIndex={0}
-                {...drag}
-                onClick={() => props.onSelect(r.path)}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    props.onSelect(r.path);
-                  }
-                }}
-                aria-label={`File ${r.path.slice(1)}${props.dirty.has(r.path) ? " (unsaved)" : ""}`}
-                aria-current={props.selected === r.path ? "true" : undefined}
-                className={cn(
-                  rail,
-                  "hover:bg-accent cursor-pointer",
-                  props.selected === r.path && "bg-accent text-accent-foreground",
-                )}
-                style={{ paddingLeft: `${6 + r.depth * 14 + 19}px` }}
-                title={role ? `${r.path.slice(1)} (${role})` : r.path.slice(1)}
-              >
+                  ))}
                 <span className="truncate">{r.name}</span>
-                {props.dirty.has(r.path) && (
+                {dirty && (
                   <span
                     className="bg-primary size-1.5 shrink-0 rounded-full"
                     title="Unsaved changes"
-                  >
-                    <span className="sr-only">unsaved</span>
-                  </span>
+                  />
                 )}
-                {role === "server" && (
+                {role === "client" && r.path === props.clientRoot && (
+                  <span className="text-primary font-sans text-[11px]">client</span>
+                )}
+                {role === "server" && !r.dir && (
                   <span className="text-accent-2 shrink-0 font-sans text-[11px]">server</span>
                 )}
-                {actions}
-              </div>
+              </button>
+              {/* Shown on hover and focus with a mouse; always on touch screens. */}
+              <span className="flex shrink-0 items-center opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+                <button
+                  type="button"
+                  className={cn(action, "hover:text-foreground")}
+                  aria-label={`Move or rename ${name}`}
+                  title="Move or rename"
+                  onClick={() => {
+                    setError(undefined);
+                    setEditing({ mode: "move", from: r.path, value: name });
+                  }}
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className={cn(action, "hover:text-destructive")}
+                  aria-label={`Delete ${name}`}
+                  title="Delete"
+                  onClick={() => {
+                    const what = r.dir ? `the folder ${name} and everything in it` : name;
+                    if (!confirm(`Delete ${what}?`)) return;
+                    props.onDelete(r.path).catch((err) => setError((err as Error).message));
+                  }}
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </span>
             </li>
           );
         })}

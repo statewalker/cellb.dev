@@ -80,6 +80,12 @@ in the tab.
   first edit asks for write access). The sample, or a folder read once, is changed in the tab
   only: Download .zip keeps the edits.
 - With **Rerun on save**, every save, new file, move and delete reruns the app.
+- Ctrl/Cmd+S saves the open file from anywhere on the page. With unsaved edits, opening another
+  project asks first, and the browser asks before the tab closes.
+- Edits run one at a time, each on the state the one before left; the folder watcher pauses
+  while one runs. A move on disk uses the browser's `move()` where it has one, else copies the
+  entry from disk (with what the sandbox skips, such as `node_modules`) and removes it; a
+  case-only rename goes through a temporary name.
 
 ## How it works
 
@@ -107,8 +113,6 @@ in the tab.
 - The server is re-bundled whole on each run (under a second for the sample); `siteCompiler`
   would recompile one module instead.
 - The editor has no type checking or cross-file completion (no TypeScript language service).
-- A move on disk copies the files to their new paths and removes the old ones (the API every
-  browser with the folder picker has).
 - Next steps toward a CodeSandbox: the server compiled per module, edits kept in an OPFS copy
   between visits, and "Deploy" pushing the `buildProject` output (`packages/bundler`) and the
   cells' state to a celld bucket.

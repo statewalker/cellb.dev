@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
+  assertAbsentInFolder,
   canPickFolder,
   ensureWritable,
   filesFromInput,
@@ -86,7 +87,10 @@ export default function Sandbox() {
   const [status, setStatus] = useState<Status>({ kind: "empty" });
   const [log, setLog] = useState<LogLine[]>([]);
   const [tab, setTab] = useState("preview");
+  // The tree's selection (a file or a folder: where new things go) and the file in the editor
+  // (the last file selected; selecting a folder keeps it).
   const [selected, setSelected] = useState<string>();
+  const [openFile, setOpenFile] = useState<string>();
   const [watch, setWatch] = useState(true);
   const [previewPath, setPreviewPath] = useState("");
   const [frameKey, setFrameKey] = useState(0);
@@ -95,12 +99,16 @@ export default function Sandbox() {
   // Unsaved editor text, by path; and the folders closed in the tree.
   const [drafts, setDrafts] = useState<Map<string, string>>(new Map());
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [saveError, setSaveError] = useState<string>();
+  const [saveError, setSaveError] = useState<{ path: string; message: string }>();
   // The latest state, for edits that finish after an await.
   const loadedRef = useRef<Loaded | undefined>(undefined);
   loadedRef.current = loaded;
   const watchRef = useRef(watch);
   watchRef.current = watch;
+  // Edits run one at a time, each on the state the one before left (see `edit`).
+  const editQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const editsInFlight = useRef(0);
+  const editCount = useRef(0);
 
   const addLog = useCallback((text: string, level: LogLine["level"] = "info") => {
     setLog((l) => [...l.slice(-400), { id: ++logId, at: Date.now(), text, level }]);
@@ -162,40 +170,57 @@ export default function Sandbox() {
         layout.wranglerPath ??
         [...l.files.keys()][0];
       setSelected(first);
+      setOpenFile(first);
       setTab("preview");
       run(l);
     },
     [run],
   );
 
-  // Watch the folder (File System Access only): a change on disk reruns the app.
+  // Watch the folder (File System Access only): a change on disk reruns the app. It pauses while
+  // an edit of this tab is under way, and drops a reading that an edit overtook: that edit
+  // already brought the change, and the reading may have caught it halfway (a move copied, not
+  // yet removed).
+  const handle = loaded?.folder?.handle;
   useEffect(() => {
-    const handle = loaded?.folder?.handle;
-    if (!watch || !handle || !loaded) return;
+    if (!watch || !handle) return;
     let busy = false;
+    let alive = true;
     const timer = setInterval(async () => {
-      if (busy) return;
+      const start = loadedRef.current;
+      if (busy || editsInFlight.current > 0 || !start) return;
       busy = true;
+      const edits = editCount.current;
+      const overtaken = () =>
+        !alive ||
+        editsInFlight.current > 0 ||
+        editCount.current !== edits ||
+        loadedRef.current !== start;
       try {
         const sig = await folderSignature(handle);
-        if (sig !== loaded.signature) {
-          const { files, signature } = await readFolder(handle);
-          addLog("the folder changed on disk");
-          const next = { ...loaded, files, signature };
-          setLoaded(next);
-          run(next);
-        }
+        if (sig === start.signature || overtaken()) return;
+        const { files, signature } = await readFolder(handle);
+        if (overtaken()) return;
+        addLog("the folder changed on disk");
+        const next = { ...start, files, signature };
+        loadedRef.current = next;
+        setLoaded(next);
+        run(next);
       } catch (err) {
-        addLog(`watching ${loaded.name}: ${(err as Error).message}`, "error");
+        addLog(`watching ${start.name}: ${(err as Error).message}`, "error");
         setWatch(false);
       } finally {
         busy = false;
       }
     }, WATCH_MS);
-    return () => clearInterval(timer);
-  }, [watch, loaded, run, addLog]);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [watch, handle, run, addLog]);
 
   async function openFolder() {
+    if (!mayDiscard()) return;
     try {
       if (!picker) return input.current?.click();
       const folder = await pickFolder();
@@ -232,101 +257,200 @@ export default function Sandbox() {
   }
 
   // Edits: applied to the folder on disk first, when it was opened with the File System Access
-  // API (the first one asks for write access), then to this tab's copy. Without a folder handle
-  // (the sample, or a folder read once) they live in this tab: Download .zip keeps them.
-  async function onDisk(op: (handle: FileSystemDirectoryHandle) => Promise<void>) {
+  // API, then to this tab's copy. Without a folder handle (the sample, or a folder read once)
+  // they live in this tab: Download .zip keeps them.
+  //
+  // Write access is asked for at once, in the click or key that makes the edit (the browser
+  // shows its prompt only then). The edit itself waits in a queue, so that each one starts from
+  // the state the one before left: two quick edits never write over each other.
+  async function edit(
+    op: (current: Loaded, handle?: FileSystemDirectoryHandle) => Promise<Workspace>,
+    { rerun, after }: { rerun: boolean; after?: () => void },
+  ): Promise<void> {
     const handle = loadedRef.current?.folder?.handle;
-    if (!handle) return;
-    if (!(await ensureWritable(handle)))
+    if (handle && !(await ensureWritable(handle)))
       throw new EditError("write access to the folder was refused: nothing was changed");
-    await op(handle);
-  }
-
-  async function commit(ws: Workspace, rerun: boolean) {
-    const current = loadedRef.current;
-    if (!current) return;
-    const handle = current.folder?.handle;
-    // The new signature, so the folder watcher does not take this edit for a change on disk.
-    const signature = handle ? await folderSignature(handle) : current.signature;
-    const next: Loaded = { ...current, files: ws.files, dirs: ws.dirs, signature };
-    loadedRef.current = next;
-    setLoaded(next);
-    if (rerun && watchRef.current) run(next);
+    const task = editQueue.current.then(async () => {
+      const current = loadedRef.current;
+      if (!current) return;
+      editsInFlight.current++;
+      editCount.current++;
+      try {
+        const ws = await op(current, current.folder?.handle);
+        // The new files first, with what goes with them (drafts, selection) in the same render.
+        let next: Loaded = { ...current, files: ws.files, dirs: ws.dirs };
+        loadedRef.current = next;
+        setLoaded(next);
+        after?.();
+        // Then the folder's new signature, so the watcher does not take this edit for a change.
+        const h = current.folder?.handle;
+        if (h) {
+          const signature = await folderSignature(h);
+          next = { ...(loadedRef.current ?? next), signature };
+          loadedRef.current = next;
+          setLoaded(next);
+        }
+        if (rerun && watchRef.current) run(next);
+      } finally {
+        editsInFlight.current--;
+      }
+    });
+    editQueue.current = task.catch(() => {});
+    return task;
   }
 
   const reveal = (path: string) =>
     setCollapsed((c) => new Set([...c].filter((d) => !`${path}/`.startsWith(`${d}/`))));
 
-  async function createFile(path: string) {
-    const current = loadedRef.current;
-    if (!current) return;
-    const ws = addFile(workspaceOf(current), path);
-    await onDisk((h) => writeToFolder(h, path, new Uint8Array()));
-    await commit(ws, true);
-    reveal(path);
-    setSelected(path);
-    setTab("files");
-  }
-
-  async function createDir(path: string) {
-    const current = loadedRef.current;
-    if (!current) return;
-    const ws = addDir(workspaceOf(current), path);
-    await onDisk((h) => mkdirInFolder(h, path));
-    await commit(ws, false);
-    reveal(path);
-    setSelected(path);
-  }
-
-  async function movePath(from: string, to: string) {
-    const current = loadedRef.current;
-    if (!current) return;
-    const isDirectory = !current.files.has(from);
-    const { ws, moved } = move(workspaceOf(current), from, to);
-    await onDisk((h) => moveInFolder(h, from, to, moved, (p) => ws.files.get(p), isDirectory));
-    await commit(ws, true);
-    const follow = (p: string) =>
-      moved.get(p) ?? (p === from || p.startsWith(`${from}/`) ? `${to}${p.slice(from.length)}` : p);
-    setDrafts((d) => new Map([...d].map(([p, t]) => [follow(p), t])));
-    setCollapsed((c) => new Set([...c].map(follow)));
-    setSelected((s) => (s ? follow(s) : s));
-    reveal(to);
-  }
-
-  async function deletePath(path: string) {
-    const current = loadedRef.current;
-    if (!current) return;
-    const { ws, removed } = remove(workspaceOf(current), path);
-    await onDisk((h) =>
-      removeFromFolder(h, path).catch((err: Error) => {
-        if (err.name !== "NotFoundError") throw err;
-      }),
+  const createFile = (path: string) =>
+    edit(
+      async (current, handle) => {
+        const ws = addFile(workspaceOf(current), path);
+        if (handle) {
+          await assertAbsentInFolder(handle, path);
+          await writeToFolder(handle, path, new Uint8Array());
+        }
+        return ws;
+      },
+      {
+        rerun: true,
+        after: () => {
+          reveal(path);
+          setSelected(path);
+          setOpenFile(path);
+          setTab("files");
+        },
+      },
     );
-    await commit(ws, true);
-    setDrafts((d) => new Map([...d].filter(([p]) => !removed.includes(p))));
-    setSelected((s) => (s && (s === path || s.startsWith(`${path}/`)) ? undefined : s));
-  }
+
+  const createDir = (path: string) =>
+    edit(
+      async (current, handle) => {
+        const ws = addDir(workspaceOf(current), path);
+        if (handle) {
+          await assertAbsentInFolder(handle, path);
+          await mkdirInFolder(handle, path);
+        }
+        return ws;
+      },
+      {
+        rerun: false,
+        after: () => {
+          reveal(path);
+          setSelected(path);
+        },
+      },
+    );
+
+  const movePath = (from: string, to: string) => {
+    const follow = (p: string) =>
+      p === from || p.startsWith(`${from}/`) ? `${to}${p.slice(from.length)}` : p;
+    return edit(
+      async (current, handle) => {
+        const { ws } = move(workspaceOf(current), from, to);
+        if (handle) await moveInFolder(handle, from, to);
+        return ws;
+      },
+      {
+        rerun: true,
+        after: () => {
+          setDrafts((d) => new Map([...d].map(([p, t]) => [follow(p), t])));
+          setCollapsed((c) => new Set([...c].map(follow)));
+          setSelected((s) => (s ? follow(s) : s));
+          setOpenFile((s) => (s ? follow(s) : s));
+          setSaveError((e) => (e ? { ...e, path: follow(e.path) } : e));
+          reveal(to);
+        },
+      },
+    );
+  };
+
+  const deletePath = (path: string) => {
+    const under = (p: string) => p === path || p.startsWith(`${path}/`);
+    return edit(
+      async (current, handle) => {
+        const { ws } = remove(workspaceOf(current), path);
+        if (handle)
+          await removeFromFolder(handle, path).catch((err: Error) => {
+            if (err.name !== "NotFoundError") throw err;
+          });
+        return ws;
+      },
+      {
+        rerun: true,
+        after: () => {
+          setDrafts((d) => new Map([...d].filter(([p]) => !under(p))));
+          setSelected((s) => (s && under(s) ? undefined : s));
+          setOpenFile((s) => (s && under(s) ? undefined : s));
+        },
+      },
+    );
+  };
 
   async function save(path: string) {
-    const current = loadedRef.current;
     const text = drafts.get(path);
-    if (!current || text === undefined) return;
+    if (text === undefined) return;
+    const bytes = encode(text);
     try {
-      const bytes = encode(text);
-      const ws = writeFile(workspaceOf(current), path, bytes);
-      await onDisk((h) => writeToFolder(h, path, bytes));
-      setDrafts((d) => {
-        const next = new Map(d);
-        if (next.get(path) === text) next.delete(path);
-        return next;
-      });
-      setSaveError(undefined);
-      await commit(ws, true);
+      await edit(
+        async (current, handle) => {
+          const ws = writeFile(workspaceOf(current), path, bytes);
+          if (handle) await writeToFolder(handle, path, bytes);
+          return ws;
+        },
+        {
+          rerun: true,
+          // Cleared with the new bytes in the same render, and only if nothing was typed since:
+          // the editor never shows the old text in between.
+          after: () => {
+            setDrafts((d) => {
+              if (d.get(path) !== text) return d;
+              const next = new Map(d);
+              next.delete(path);
+              return next;
+            });
+            setSaveError((e) => (e?.path === path ? undefined : e));
+          },
+        },
+      );
     } catch (err) {
-      setSaveError((err as Error).message);
+      setSaveError({ path, message: (err as Error).message });
       addLog(`saving ${path.slice(1)}: ${(err as Error).message}`, "error");
     }
   }
+
+  // Ctrl/Cmd+S anywhere on the page saves the open file (not the browser's "Save page as").
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const openRef = useRef(openFile);
+  openRef.current = openFile;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "s" || e.altKey) return;
+      e.preventDefault();
+      if (openRef.current) void saveRef.current(openRef.current);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Unsaved edits: the browser asks before the tab closes or reloads, and opening another
+  // project asks first.
+  const unsaved = drafts.size > 0;
+  useEffect(() => {
+    if (!unsaved) return;
+    const onLeave = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onLeave);
+    return () => window.removeEventListener("beforeunload", onLeave);
+  }, [unsaved]);
+  const mayDiscard = () =>
+    !unsaved ||
+    confirm(
+      `Discard the unsaved changes in ${drafts.size === 1 ? "1 file" : `${drafts.size} files`}?`,
+    );
 
   function download(files: ProjectFiles, name: string) {
     const entries: [string, Uint8Array][] = [...files].map(([p, b]) => [`${name}${p}`, b]);
@@ -432,7 +556,7 @@ export default function Sandbox() {
       {!loaded ? (
         <Welcome
           onOpen={openFolder}
-          onSample={() => load({ name: SAMPLE_NAME, files: sampleFiles() })}
+          onSample={() => mayDiscard() && load({ name: SAMPLE_NAME, files: sampleFiles() })}
           onDownloadSample={() => download(sampleFiles(), SAMPLE_NAME)}
           picker={picker}
         />
@@ -463,7 +587,10 @@ export default function Sandbox() {
               onCollapseAll={(dirs) => setCollapsed(new Set(dirs))}
               onSelect={(p) => {
                 setSelected(p);
-                if (loaded.files.has(p)) setTab("files");
+                if (loaded.files.has(p)) {
+                  setOpenFile(p);
+                  setTab("files");
+                }
               }}
               onCreateFile={createFile}
               onCreateDir={createDir}
@@ -554,23 +681,23 @@ export default function Sandbox() {
                 )}
               </TabsContent>
               <TabsContent value="files" className="flex min-h-0 flex-col">
-                {selected && loaded.files.has(selected) ? (
+                {openFile && loaded.files.has(openFile) ? (
                   <FileEditor
-                    path={selected}
-                    bytes={loaded.files.get(selected) as Uint8Array}
-                    draft={drafts.get(selected)}
+                    path={openFile}
+                    bytes={loaded.files.get(openFile) as Uint8Array}
+                    draft={drafts.get(openFile)}
                     onDisk={!!loaded.folder?.handle}
-                    error={saveError}
+                    error={saveError?.path === openFile ? saveError.message : undefined}
                     onChange={(text) =>
                       setDrafts((d) => {
                         const next = new Map(d);
-                        const saved = decode(loaded.files.get(selected) as Uint8Array);
-                        if (text === saved) next.delete(selected);
-                        else next.set(selected, text);
+                        const saved = decode(loaded.files.get(openFile) as Uint8Array);
+                        if (text === saved) next.delete(openFile);
+                        else next.set(openFile, text);
                         return next;
                       })
                     }
-                    onSave={() => void save(selected)}
+                    onSave={() => void save(openFile)}
                   />
                 ) : (
                   <p className="text-muted-foreground p-6 text-sm">
@@ -728,6 +855,7 @@ function FileEditor(props: {
           {props.onDisk
             ? "saves to the folder on disk"
             : "saves in this tab (Download .zip keeps it)"}
+          <span className="max-md:hidden">{" · Tab indents; Esc then Tab leaves the editor"}</span>
         </span>
         {props.error && (
           <span role="alert" className="text-destructive text-xs">

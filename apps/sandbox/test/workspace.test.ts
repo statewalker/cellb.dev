@@ -93,6 +93,16 @@ describe("workspace edits", () => {
     expect(allDirs(m.ws).has("/client/assets")).toBe(false);
   });
 
+  it("keeps a folder emptied by a delete or a move, as the disk does", () => {
+    const d = remove(base, "/server/index.ts");
+    expect(allDirs(d.ws).has("/server")).toBe(true);
+    const m = move(base, "/server/index.ts", "/index.ts");
+    expect(allDirs(m.ws).has("/server")).toBe(true);
+    // Not when something is left in it.
+    const k = remove(base, "/client/index.html");
+    expect(k.ws.dirs.has("/client")).toBe(false);
+  });
+
   it("drops a path into a folder", () => {
     expect(intoDir("/server", "/client/src/main.tsx")).toBe("/server/main.tsx");
     expect(intoDir("/", "/client/src")).toBe("/src");

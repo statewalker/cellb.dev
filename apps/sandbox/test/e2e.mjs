@@ -140,7 +140,11 @@ try {
     );
 
   const tree = page.getByRole("navigation", { name: "Project files" });
-  const row = (path) => tree.getByRole("button", { name: `File ${path}`, exact: true });
+  const re = (text) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  // A row, by its path (its spoken name may go on: ", server", ", unsaved").
+  const row = (path) => tree.getByRole("button", { name: new RegExp(`^File ${re(path)}(,|$)`) });
+  const folder = (path) =>
+    tree.getByRole("button", { name: new RegExp(`^Folder ${re(path)}(,|$)`) });
   // Replaces the open file's text in CodeMirror with `text`, as one input (no auto-closed
   // brackets). CodeMirror renders only the lines in view, so the text comes from the test.
   const editorText = async (text) => {
@@ -214,13 +218,15 @@ try {
 
   step("the tree folds and unfolds");
   await row("client/src/main.tsx").waitFor();
-  await tree.getByRole("button", { name: "Folder client/src" }).click();
+  await tree.getByRole("button", { name: "Collapse client/src" }).click();
   await row("client/src/main.tsx").waitFor({ state: "detached" });
-  await tree.getByRole("button", { name: "Folder client/src" }).click();
+  await tree.getByRole("button", { name: "Expand client/src" }).click();
   await row("client/src/main.tsx").waitFor();
   await tree.getByRole("button", { name: "Collapse all folders" }).click();
   await row("server/index.ts").waitFor({ state: "detached" });
-  await tree.getByRole("button", { name: "Folder server" }).click();
+  // Selecting a folder opens it.
+  await folder("server").click();
+  await row("server/index.ts").waitFor();
 
   step("edit a file in CodeMirror; Ctrl+S saves it and reruns the app");
   await row("server/index.ts").click();
@@ -230,27 +236,38 @@ try {
   await editorText(
     serverText.replace('hello: "from the server"', 'hello: "edited in the sandbox"'),
   );
-  await row("server/index.ts (unsaved)").waitFor();
+  const unsavedRow = tree.getByRole("button", { name: /^File server\/index\.ts, .*unsaved$/ });
+  await unsavedRow.waitFor();
+  // Opening another project asks before an unsaved edit is dropped.
+  let asked = "";
+  page.once("dialog", (d) => {
+    asked = d.message();
+    void d.dismiss();
+  });
+  await page.getByRole("button", { name: "Open folder" }).click();
+  if (!asked.includes("Discard the unsaved changes"))
+    throw new Error(`no discard prompt: ${asked}`);
+  await unsavedRow.waitFor();
+  // Ctrl+S saves with the focus outside the editor too.
+  await folder("server").click();
   await page.keyboard.press("ControlOrMeta+S");
-  await row("server/index.ts").waitFor();
+  await unsavedRow.waitFor({ state: "detached" });
   await rerun();
   const edited = JSON.parse(await fetchApp("api/hello"));
   if (edited.hello !== "edited in the sandbox")
     throw new Error(`api/hello: ${JSON.stringify(edited)}`);
 
-  step("add, move and delete files and folders");
+  step("add, move (path field, drag) and delete files and folders");
   await tree.getByRole("button", { name: "New file" }).click();
   await page.getByRole("textbox", { name: "New file" }).fill("client/src/notes.md");
   await page.keyboard.press("Enter");
   await row("client/src/notes.md").waitFor();
-  await tree
-    .getByRole("button", { name: "Move or rename client/src/notes.md", exact: true })
-    .click();
-  await page
-    .getByRole("textbox", { name: "Move or rename client/src/notes.md" })
-    .fill("docs/notes.md");
+  await row("client/src/notes.md").dragTo(folder("server"));
+  await row("server/notes.md").waitFor();
+  await tree.getByRole("button", { name: "Move or rename server/notes.md", exact: true }).click();
+  await page.getByRole("textbox", { name: "Move or rename server/notes.md" }).fill("docs/notes.md");
   await page.keyboard.press("Enter");
-  await tree.getByRole("button", { name: "Folder docs" }).waitFor();
+  await folder("docs").waitFor();
   await tree.getByRole("button", { name: "New folder" }).click();
   await page.getByRole("textbox", { name: "New folder" }).fill("docs");
   await page.keyboard.press("Enter");
@@ -258,7 +275,7 @@ try {
   await page.keyboard.press("Escape");
   page.once("dialog", (d) => d.accept());
   await tree.getByRole("button", { name: "Delete docs", exact: true }).click();
-  await tree.getByRole("button", { name: "Folder docs" }).waitFor({ state: "detached" });
+  await folder("docs").waitFor({ state: "detached" });
   await row("docs/notes.md").waitFor({ state: "detached" });
 
   step("download the app as a ZIP");
@@ -276,8 +293,12 @@ try {
   if (zip.includes(Buffer.from("notes.md"))) throw new Error("a deleted file is in the ZIP");
 
   step("open a local folder (File System Access API)");
-  const folder = await sampleFolder();
-  folder["client/src/main.tsx"] = folder["client/src/main.tsx"].replace(
+  const picked = await sampleFolder();
+  picked["client/logo.bin"] = "\u0000\u0001binary\u0000";
+  // The sandbox does not load node_modules; moving its folder must keep it.
+  picked["docs/readme.md"] = "# Docs";
+  picked["docs/node_modules/pkg/index.js"] = "export default 1;";
+  picked["client/src/main.tsx"] = picked["client/src/main.tsx"].replace(
     "<h1>Tasks</h1>",
     "<h1>My tasks</h1>",
   );
@@ -294,7 +315,7 @@ try {
       await w.close();
     }
     window.showDirectoryPicker = async () => dir;
-  }, folder);
+  }, picked);
   await page.getByRole("button", { name: "Open folder" }).click();
   await frame.getByRole("heading", { name: "My tasks" }).waitFor({ timeout: 60_000 });
   step("the folder runs");
@@ -328,7 +349,14 @@ try {
   await editorText(sample["client/src/main.tsx"].replace("<h1>Tasks</h1>", "<h1>Edited here</h1>"));
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await rerun();
-  await frame.getByRole("heading", { name: "Edited here" }).waitFor({ timeout: 60_000 });
+  await frame
+    .getByRole("heading", { name: "Edited here" })
+    .waitFor({ timeout: 60_000 })
+    .catch(async (err) => {
+      await page.getByRole("tab", { name: "Log" }).click();
+      await showLog();
+      throw err;
+    });
   if (!(await onDisk("client/src/main.tsx")).includes("<h1>Edited here</h1>"))
     throw new Error("the edit was not written to the folder");
   await tree.getByRole("button", { name: "New file" }).click();
@@ -351,7 +379,32 @@ try {
     )
   )
     throw new Error("the moved file is still at its old path on disk");
-  step("edits, new files and moves are written to the folder on disk");
+  // A folder moved on disk keeps what the sandbox did not load (node_modules).
+  await tree.getByRole("button", { name: "Move or rename docs", exact: true }).click();
+  await page.getByRole("textbox", { name: "Move or rename docs" }).fill("guide");
+  await page.keyboard.press("Enter");
+  await row("guide/readme.md").waitFor();
+  if ((await onDisk("guide/node_modules/pkg/index.js")) !== "export default 1;")
+    throw new Error("node_modules was not moved with its folder");
+  if (
+    await onDisk("docs/readme.md").then(
+      () => true,
+      () => false,
+    )
+  )
+    throw new Error("the moved folder is still at its old path on disk");
+  // A rename that changes only the case.
+  await tree.getByRole("button", { name: "Move or rename guide/readme.md", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Move or rename guide/readme.md" })
+    .fill("guide/README.md");
+  await page.keyboard.press("Enter");
+  await row("guide/README.md").waitFor();
+  if ((await onDisk("guide/README.md")) !== "# Docs")
+    throw new Error("the case-only rename lost the file");
+  await row("client/logo.bin").click();
+  await page.getByText("not editable here").waitFor();
+  step("edits, new files and moves reach the folder on disk; a binary file is not editable");
 
   if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
   await page.getByRole("tab", { name: "Log" }).click();

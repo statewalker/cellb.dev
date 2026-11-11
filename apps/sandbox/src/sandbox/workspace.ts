@@ -60,6 +60,13 @@ function prune(dirs: Set<string>, files: ProjectFiles): Set<string> {
   return new Set([...dirs].filter((d) => !paths.some((p) => isUnder(p, d))));
 }
 
+/** Keeps the folder `path` was in when nothing is left in it (the disk keeps it too). */
+function keepParent(dirs: Set<string>, files: ProjectFiles, path: string): Set<string> {
+  const parent = parentOf(path);
+  if (parent === "/" || [...files.keys()].some((p) => isUnder(p, parent))) return dirs;
+  return new Set(dirs).add(parent);
+}
+
 export function addFile(ws: Workspace, path: string, bytes = new Uint8Array()): Workspace {
   assertFree(ws, path);
   const files = new Map(ws.files).set(path, bytes);
@@ -81,13 +88,13 @@ export function remove(ws: Workspace, path: string): { ws: Workspace; removed: s
   if (ws.files.has(path)) {
     const files = new Map(ws.files);
     files.delete(path);
-    return { ws: { files, dirs: ws.dirs }, removed: [path] };
+    return { ws: { files, dirs: keepParent(ws.dirs, files, path) }, removed: [path] };
   }
   if (!isDir(ws, path)) throw new EditError(`${path.slice(1)} does not exist`);
   const removed = [...ws.files.keys()].filter((p) => isUnder(p, path));
   const files = new Map([...ws.files].filter(([p]) => !isUnder(p, path)));
   const dirs = new Set([...ws.dirs].filter((d) => !isUnder(d, path)));
-  return { ws: { files, dirs }, removed };
+  return { ws: { files, dirs: keepParent(dirs, files, path) }, removed };
 }
 
 /**
@@ -114,7 +121,7 @@ export function move(
   const dirs = new Set(
     [...ws.dirs].map((d) => (isUnder(d, from) ? `${to}${d.slice(from.length)}` : d)),
   );
-  return { ws: { files, dirs: prune(dirs, files) }, moved };
+  return { ws: { files, dirs: keepParent(prune(dirs, files), files, from) }, moved };
 }
 
 /** The path `name` gets when dropped into folder `dir` ("/" for the root). */

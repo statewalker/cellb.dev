@@ -106,12 +106,24 @@ type PermissionHandle = FileSystemDirectoryHandle & {
   requestPermission?(o: { mode: "readwrite" }): Promise<PermissionState>;
 };
 
-/** Asks for write access to the folder; false if it is refused. */
+/**
+ * Asks for write access to the folder; false if it is refused. Call it in the click (or key)
+ * that makes the edit: the browser shows its prompt only during a user's action.
+ */
 export async function ensureWritable(handle: FileSystemDirectoryHandle): Promise<boolean> {
   const h = handle as PermissionHandle;
   const mode = { mode: "readwrite" as const };
   if (!h.queryPermission || (await h.queryPermission(mode)) === "granted") return true;
-  return (await h.requestPermission?.(mode)) === "granted";
+  try {
+    return (await h.requestPermission?.(mode)) === "granted";
+  } catch (err) {
+    // No user action to ask in (a long drag, for one).
+    if ((err as Error).name === "SecurityError")
+      throw new Error(
+        "the browser asks for write access on a click: use a button once to allow it",
+      );
+    throw err;
+  }
 }
 
 async function dirAt(
@@ -157,22 +169,96 @@ export async function removeFromFolder(
   await (await dirAt(root, dir, false)).removeEntry(name, { recursive: true });
 }
 
+type Entry = FileSystemFileHandle | DirHandle;
+type Movable = { move?(dir: FileSystemDirectoryHandle, name: string): Promise<void> };
+
+async function entryIn(dir: FileSystemDirectoryHandle, name: string): Promise<Entry | undefined> {
+  try {
+    return await dir.getFileHandle(name);
+  } catch (err) {
+    if ((err as Error).name !== "TypeMismatchError" && (err as Error).name !== "NotFoundError")
+      throw err;
+  }
+  try {
+    return (await dir.getDirectoryHandle(name)) as DirHandle;
+  } catch (err) {
+    if ((err as Error).name === "NotFoundError" || (err as Error).name === "TypeMismatchError")
+      return undefined;
+    throw err;
+  }
+}
+
 /**
- * Moves a file or a folder: its files are written at their new paths (`moved`, old → new), then
- * the old entry is removed. Copying keeps it to the API every browser with the picker has.
+ * Throws if something already is at `path` on disk: also what the sandbox does not load
+ * (node_modules, .git…), and, on a disk that ignores case, a name differing only in case.
+ */
+export async function assertAbsentInFolder(
+  root: FileSystemDirectoryHandle,
+  path: string,
+): Promise<void> {
+  const { dir, name } = split(path);
+  let parent: FileSystemDirectoryHandle;
+  try {
+    parent = await dirAt(root, dir, false);
+  } catch {
+    return; // the folder itself is not there yet
+  }
+  if (await entryIn(parent, name))
+    throw new Error(`${path.slice(1)} already exists in the folder on disk`);
+}
+
+/** Copies a file or a folder, with everything in it (also what the sandbox did not load). */
+async function copyEntry(entry: Entry, into: FileSystemDirectoryHandle, name: string) {
+  if (entry.kind === "file") {
+    const file = await (entry as FileSystemFileHandle).getFile();
+    const w = await (await into.getFileHandle(name, { create: true })).createWritable();
+    await w.write(file);
+    await w.close();
+    return;
+  }
+  const dir = await into.getDirectoryHandle(name, { create: true });
+  for await (const [child, e] of (entry as DirHandle).entries())
+    await copyEntry(e as Entry, dir, child);
+}
+
+/**
+ * Moves a file or a folder on disk, with everything in it: the browser's own `move()` where it
+ * has one, else a copy of the entry (read from disk, so files the sandbox skipped come along)
+ * and then its removal. A rename that changes only the case goes through a temporary name, as
+ * a disk that ignores case would take the new name for the old file.
  */
 export async function moveInFolder(
   root: FileSystemDirectoryHandle,
   from: string,
   to: string,
-  moved: Map<string, string>,
-  bytesOf: (path: string) => Uint8Array | undefined,
-  dir: boolean,
 ): Promise<void> {
-  if (dir) await mkdirInFolder(root, to);
-  for (const [, next] of moved) {
-    const bytes = bytesOf(next);
-    if (bytes) await writeToFolder(root, next, bytes);
+  if (from.toLowerCase() === to.toLowerCase()) {
+    const step = `${to}.sandbox-move-${Date.now().toString(36)}`;
+    await moveInFolder(root, from, step);
+    await moveInFolder(root, step, to);
+    return;
   }
-  await removeFromFolder(root, from);
+  await assertAbsentInFolder(root, to);
+  const src = split(from);
+  const dst = split(to);
+  const srcDir = await dirAt(root, src.dir, false);
+  const entry = await entryIn(srcDir, src.name);
+  if (!entry) throw new Error(`${from.slice(1)} is not in the folder on disk`);
+  const into = await dirAt(root, dst.dir, true);
+  const native = entry as unknown as Movable;
+  if (typeof native.move === "function") {
+    try {
+      await native.move(into, dst.name);
+      return;
+    } catch {
+      // Not for this entry or this browser: copy instead.
+    }
+  }
+  try {
+    await copyEntry(entry, into, dst.name);
+  } catch (err) {
+    await into.removeEntry(dst.name, { recursive: true }).catch(() => {});
+    throw err;
+  }
+  await srcDir.removeEntry(src.name, { recursive: true });
 }
