@@ -1,0 +1,171 @@
+{
+  "kind": "user-code",
+  "recordedAt": "2026-11-11",
+  "host": "the platform on CellB in Node (packages/platform, dist/platform/cellb)",
+  "steps": [
+    {
+      "title": "Write the project's files",
+      "note": "The working tree replaces whatever the project held. A ZIP works too; single files go with PUT /p/tasks/files/<path>.",
+      "curl": "node -e 'const fs=require(\"fs\");const files={};for(const p of process.argv.slice(1))files[p]=fs.readFileSync(p,\"utf8\");console.log(JSON.stringify({files}))' index.html package.json src/* \\\n  | curl -X POST -H 'content-type: application/json' --data-binary @- http://localhost:8787/p/tasks/import",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8787/p/tasks/import",
+        "body": "{ \"files\": { \"index.html\": \"…\", \"package.json\": \"…\", \"src/App.tsx\": \"…\", \"src/main.tsx\": \"…\", \"src/styles.css\": \"…\", \"src/tasks.ts\": \"…\" } }"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"files\": 6\n}",
+        "bodyLang": "json",
+        "bytes": 16,
+        "ms": 41
+      }
+    },
+    {
+      "title": "Take a snapshot",
+      "note": "The snapshot id is the hash of the tree. Everything under its base URL is immutable.",
+      "curl": "curl -X POST http://localhost:8787/p/tasks/snapshots",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8787/p/tasks/snapshots"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"snapshot\": \"02915a7ffc23f663\",\n  \"base\": \"http://localhost:8787/p/tasks/s/02915a7ffc23f663/\"\n}",
+        "bodyLang": "json",
+        "bytes": 99,
+        "ms": 20
+      }
+    },
+    {
+      "title": "A TSX file, served as ESM",
+      "note": "Types are stripped and JSX compiled with the automatic runtime. Every import is now a URL: the project's own files stay under the snapshot, npm packages go to the CDN's pinned URLs (through the snapshot's ~deps proxy) at the ranges in package.json.",
+      "curl": "curl http://localhost:8787/p/tasks/s/02915a7ffc23f663/~/src/App.tsx",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/p/tasks/s/02915a7ffc23f663/~/src/App.tsx"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/javascript",
+          "cache-control": "public, max-age=31536000, immutable",
+          "access-control-allow-origin": "*"
+        },
+        "body": "import {jsxs as _jsxs, jsx as _jsx} from \"../~deps/react/jsx-runtime.js\";import { useState } from \"../~deps/react/index.js\";\nimport { newTask, summary, } from \"./tasks.ts\";\n\nexport function App({ title }) {\n  const [tasks, setTasks] = useState(() =>\n    [\"Write the files\", \"Take a snapshot\", \"Open the page\"].map(newTask),\n  );\n  const [text, setText] = useState(\"\");\n  const toggle = (id) =>\n    setTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));\n  return (\n    _jsxs('main', { className: \"tasks\", children: [\n      _jsx('h1', { children: title})\n      , _jsx('p', { className: \"summary\", children: summary(tasks)})\n      , _jsx('ul', { children: \n        tasks.map((t) => (\n          _jsxs('li', { className: t.done ? \"done\" : \"\", children: [\n            _jsxs('label', { children: [\n              _jsx('input', { type: \"checkbox\", checked: t.done, onChange: () => toggle(t.id),} ), \" \" , t.text\n            ]})\n            , _jsx('code', { children: t.id})\n          ]}, t.id)\n        ))\n      })\n      , _jsxs('form', {\n        onSubmit: (e) => {\n          e.preventDefault();\n          if (text.trim()) setTasks([...tasks, newTask(text.trim())]);\n          setText(\"\");\n        },\n// … 8 more lines",
+        "bodyLang": "js",
+        "bytes": 1416,
+        "ms": 491
+      }
+    },
+    {
+      "title": "CSS, as a module",
+      "note": "Nested CSS is lowered by Lightning CSS for the browsers it targets.",
+      "curl": "curl 'http://localhost:8787/p/tasks/s/02915a7ffc23f663/~/src/styles.css?module'",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/p/tasks/s/02915a7ffc23f663/~/src/styles.css?module"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/javascript",
+          "cache-control": "public, max-age=31536000, immutable",
+          "access-control-allow-origin": "*"
+        },
+        "body": "const css = \".tasks {\\n  max-width: 28rem;\\n  margin: 2rem auto;\\n  font-family: system-ui, sans-serif;\\n}\\n\\n.tasks h1 {\\n  color: #7c3aed;\\n  margin-bottom: 0;\\n}\\n\\n.tasks .summary {\\n  color: #6b7280;\\n}\\n\\n.tasks ul {\\n  padding: 0;\\n  list-styl…\" /* 552 chars */;\nif (typeof document !== \"undefined\") {\n  const el = document.createElement(\"style\");\n  el.textContent = css;\n  document.head.appendChild(el);\n}\nexport default css;",
+        "bodyLang": "js",
+        "bytes": 773,
+        "ms": 8
+      }
+    },
+    {
+      "title": "Resolve the entry points",
+      "note": "The URL of each entry and the project modules to preload.",
+      "curl": "curl -X POST -d '{\"entries\":[\"src/main.tsx\"]}' http://localhost:8787/p/tasks/s/02915a7ffc23f663/resolve",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8787/p/tasks/s/02915a7ffc23f663/resolve",
+        "body": "{ \"entries\": [\"src/main.tsx\"] }"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"urls\": {\n    \"src/main.tsx\": \"/p/tasks/s/02915a7ffc23f663/~/src/main.tsx\"\n  },\n  \"preload\": [\n    \"/p/tasks/s/02915a7ffc23f663/~/src/App.tsx\",\n    \"/p/tasks/s/02915a7ffc23f663/~/src/main.tsx\",\n    \"/p/tasks/s/02915a7ffc23f663/~/src/styles.css\",\n    \"/p/tasks/s/02915a7ffc23f663/~/src/tasks.ts\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/nanoid/index.js\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/react-dom/client.js\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/react/index.js\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/react/jsx-runtime.js\"\n  ]\n}",
+        "bodyLang": "json",
+        "bytes": 548,
+        "ms": 709
+      }
+    },
+    {
+      "title": "Edit one file",
+      "curl": "curl -X PUT --data-binary @src/main.tsx http://localhost:8787/p/tasks/files/src/main.tsx",
+      "request": {
+        "method": "PUT",
+        "url": "http://localhost:8787/p/tasks/files/src/main.tsx",
+        "body": "src/main.tsx, with title=\"Tasks, edited\""
+      },
+      "response": {
+        "status": 204,
+        "headers": {
+          "access-control-allow-origin": "*"
+        },
+        "body": "",
+        "bodyLang": "txt",
+        "bytes": 0,
+        "ms": 8
+      }
+    },
+    {
+      "title": "Snapshot again: a new id",
+      "note": "Only the changed file is transformed again when it is requested; the old snapshot still serves the old file, so an open page never mixes versions.",
+      "curl": "curl -X POST http://localhost:8787/p/tasks/snapshots",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8787/p/tasks/snapshots"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"snapshot\": \"862d3ce67d334733\",\n  \"base\": \"http://localhost:8787/p/tasks/s/862d3ce67d334733/\"\n}",
+        "bodyLang": "json",
+        "bytes": 99,
+        "ms": 7
+      }
+    }
+  ],
+  "shots": [
+    {
+      "src": "/builders/user-code.png",
+      "width": 1600,
+      "height": 720,
+      "alt": "The Tasks app: four tasks, the first checked, summary 1 of 4 done",
+      "caption": "/p/tasks/s/02915a7ffc23f663/~/index.html in Chromium, after a click and a new task: \"1 of 4 done\"",
+      "checks": [
+        "9 requests for the project's modules, 18 for npm modules from the CDN",
+        "TSX compiled, React rendered, nanoid made the ids",
+        "styles.css applied (the heading is violet), no page errors"
+      ]
+    }
+  ],
+  "facts": {
+    "snapshot": "02915a7ffc23f663",
+    "base": "/p/tasks/s/02915a7ffc23f663/",
+    "preload": 8,
+    "pageRequests": 27,
+    "snapshot2": "862d3ce67d334733"
+  }
+}

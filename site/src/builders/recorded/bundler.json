@@ -1,0 +1,214 @@
+{
+  "kind": "bundler",
+  "recordedAt": "2026-11-11",
+  "host": "the platform on CellB in Node (packages/platform, dist/platform/cellb)",
+  "steps": [
+    {
+      "title": "Send the project as a ZIP",
+      "note": "The build runs in its BuildJob object, with esbuild-wasm. hono is not in the ZIP: it comes from the package store at the range package.json declares.",
+      "curl": "zip -r - . | curl -X POST --data-binary @- http://localhost:8787/builds",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8787/builds",
+        "body": "a ZIP of 4 files (2.4 KiB): package.json, public/index.html, src/index.ts, wrangler.jsonc"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"id\": \"b6e03e331adc9c5f41b6\",\n  \"status\": \"done\",\n  \"tier\": \"object\",\n  \"spec\": {},\n  \"stats\": {\n    \"inputFiles\": 4,\n    \"inputBytes\": 2026,\n    \"packages\": [\n      \"hono@4.13.18\"\n    ],\n    \"workerBytes\": 66270,\n    \"ms\": 869,\n    \"warnings\": 0\n  },\n  \"log\": [\n    \"inputs: 4 files, 0.0 MB → tier object\",\n    \"bundling src/index.ts (worker, 4 files, 0.0 MB)\",\n    \"built worker.js: 0.07 MB, 1 packages, 869 ms\"\n  ],\n  \"outputs\": {\n    \"folder\": \"http://localhost:8787/b/b6e03e331adc9c5f41b6/\",\n    \"zip\": \"http://localhost:8787/b/b6e03e331adc9c5f41b6/project.zip\",\n    \"loader\": \"http://localhost:8787/b/b6e03e331adc9c5f41b6/loader.json\",\n    \"files\": [\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/assets/index.html\",\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/worker.js\",\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/worker.js.map\",\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/wrangler.json\"\n    ]\n  }\n}",
+        "bodyLang": "json",
+        "bytes": 945,
+        "ms": 946
+      }
+    },
+    {
+      "title": "The output's files",
+      "curl": "curl http://localhost:8787/b/b6e03e331adc9c5f41b6/",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/b/b6e03e331adc9c5f41b6/"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "[\n  \"/assets/index.html\",\n  \"/worker.js\",\n  \"/worker.js.map\",\n  \"/wrangler.json\"\n]",
+        "bodyLang": "json",
+        "bytes": 82,
+        "ms": 6
+      }
+    },
+    {
+      "title": "wrangler.json: a no_bundle project",
+      "note": "main is the one bundled module; the Durable Object binding and migration are kept; assets point at the copied folder.",
+      "curl": "curl http://localhost:8787/b/b6e03e331adc9c5f41b6/wrangler.json",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/b/b6e03e331adc9c5f41b6/wrangler.json"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "public, max-age=31536000, immutable",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"name\": \"guestbook\",\n  \"main\": \"worker.js\",\n  \"compatibility_date\": \"2026-02-24\",\n  \"assets\": {\n    \"directory\": \"assets\"\n  },\n  \"durable_objects\": {\n    \"bindings\": [\n      {\n        \"name\": \"ROOMS\",\n        \"class_name\": \"Room\"\n      }\n    ]\n  },\n  \"migrations\": [\n    {\n      \"tag\": \"v1\",\n      \"new_sqlite_classes\": [\n        \"Room\"\n      ]\n    }\n  ],\n  \"no_bundle\": true\n}",
+        "bodyLang": "json",
+        "bytes": 382,
+        "ms": 3
+      }
+    },
+    {
+      "title": "worker.js: the project and hono in one module",
+      "note": "cloudflare:workers stays an import, for the host to provide. The host-compatibility entry wraps the default export.",
+      "curl": "curl http://localhost:8787/b/b6e03e331adc9c5f41b6/worker.js",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/b/b6e03e331adc9c5f41b6/worker.js"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "public, max-age=31536000, immutable",
+          "access-control-allow-origin": "*"
+        },
+        "body": "var __defProp = Object.defineProperty;\nvar __name = (target, value) => __defProp(target, \"name\", { value, configurable: true });\n\n// webrun:~/src/index.ts\nimport { DurableObject } from \"cloudflare:workers\";\n\n// webrun:npm:hono@4.13.18/dist/http-exception.js?type=module.mjs\nvar HTTPException = class extends Error {\n  static {\n    __name(this, \"HTTPException\");\n  }\n  res;\n  status;\n  /**\n// … 1981 more lines",
+        "bodyLang": "js",
+        "bytes": 66270,
+        "ms": 6
+      }
+    },
+    {
+      "title": "loader.json: the same build as a Worker Loader payload",
+      "note": "What env.LOADER.get(id, () => payload) takes: a host Worker can run the build by id, with no deploy.",
+      "curl": "curl http://localhost:8787/b/b6e03e331adc9c5f41b6/loader.json",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/b/b6e03e331adc9c5f41b6/loader.json"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"compatibilityDate\": \"2026-02-24\",\n  \"compatibilityFlags\": [],\n  \"mainModule\": \"worker.js\",\n  \"modules\": {\n    \"worker.js\": \"… 66270 chars\"\n  }\n}",
+        "bodyLang": "json",
+        "bytes": 69131,
+        "ms": 4
+      }
+    },
+    {
+      "title": "The same inputs again",
+      "note": "A build id is the hash of the builder version, the inputs and the spec: the finished build is returned, not made again.",
+      "curl": "zip -r - . | curl -X POST --data-binary @- http://localhost:8787/builds",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8787/builds",
+        "body": "the same ZIP"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"id\": \"b6e03e331adc9c5f41b6\",\n  \"status\": \"done\",\n  \"…\": \"as above\"\n}",
+        "bodyLang": "json",
+        "bytes": 945,
+        "ms": 11
+      }
+    },
+    {
+      "title": "Run the output: the static page",
+      "note": "project.zip, unpacked and started on CellB in Node (wrangler dev and celld dev run the same folder).",
+      "curl": "curl -o build.zip http://localhost:8787/b/b6e03e331adc9c5f41b6/project.zip && unzip build.zip -d build\nnpx tsx packages/platform/scripts/serve-cellb.mjs build --port 8788\ncurl http://localhost:8788/",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8788/"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "public, max-age=0, must-revalidate",
+          "etag": "\"2bb2e3f82961cae2dc42bd879fe24f2a53e40d55fb179c6fdc68567150263a49\""
+        },
+        "body": "<!doctype html>\n<meta charset=\"utf-8\" />\n<title>guestbook</title>\n<h1>Guestbook</h1>\n<p>Bundled by the platform. <code>GET</code> or <code>POST /api/rooms/&lt;room&gt;</code>.</p>\n",
+        "bodyLang": "html",
+        "bytes": 180,
+        "ms": 3
+      }
+    },
+    {
+      "title": "Sign the lobby's guestbook (Ada)",
+      "curl": "curl -X POST -d '{\"name\":\"Ada\",\"text\":\"First!\"}' http://localhost:8788/api/rooms/lobby",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8788/api/rooms/lobby",
+        "body": "{\"name\":\"Ada\",\"text\":\"First!\"}"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "[\n  {\n    \"name\": \"Ada\",\n    \"text\": \"First!\",\n    \"at\": \"2026-11-11T11:58:13.220Z\"\n  }\n]",
+        "bodyLang": "json",
+        "bytes": 64,
+        "ms": 17
+      }
+    },
+    {
+      "title": "Sign the lobby's guestbook (Grace)",
+      "curl": "curl -X POST -d '{\"name\":\"Grace\",\"text\":\"Hello from a Durable Object.\"}' http://localhost:8788/api/rooms/lobby",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8788/api/rooms/lobby",
+        "body": "{\"name\":\"Grace\",\"text\":\"Hello from a Durable Object.\"}"
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "[\n  {\n    \"name\": \"Ada\",\n    \"text\": \"First!\",\n    \"at\": \"2026-11-11T11:58:13.220Z\"\n  },\n  {\n    \"name\": \"Grace\",\n    \"text\": \"Hello from a Durable Object.\",\n    \"at\": \"2026-11-11T11:58:13.227Z\"\n  }\n]",
+        "bodyLang": "json",
+        "bytes": 151,
+        "ms": 6
+      }
+    },
+    {
+      "title": "Another room is another object",
+      "note": "getByName('kitchen') is a different Durable Object with its own, empty database.",
+      "curl": "curl http://localhost:8788/api/rooms/kitchen",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8788/api/rooms/kitchen"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "[]",
+        "bodyLang": "json",
+        "bytes": 2,
+        "ms": 5
+      }
+    }
+  ],
+  "shots": [],
+  "facts": {
+    "buildId": "b6e03e331adc9c5f41b6",
+    "buildMs": 946,
+    "workerBytes": 66270
+  }
+}

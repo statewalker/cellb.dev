@@ -1,0 +1,125 @@
+---
+import Flow from "@/components/builders/Flow.astro";
+import CodeBlock from "@/components/CodeBlock.astro";
+import Docs from "@/layouts/Docs.astro";
+import { builderPages, recordedOf } from "@/lib/builders";
+import { docHref } from "@/lib/docs";
+import { repoFile } from "@/lib/site";
+
+const facts = Object.fromEntries(builderPages.map((p) => [p.slug, recordedOf(p.slug)]));
+const stat: Record<string, string> = {
+  "esm-cdn": `${facts["esm-cdn"].facts.plotModules} modules for Observable Plot, the first one in ${facts["esm-cdn"].facts.coldMs} ms, then ${facts["esm-cdn"].facts.warmMs} ms`,
+  "user-code": `a React + TSX app served from snapshot ${facts["user-code"].facts.snapshot}`,
+  bundler: `a Hono + Durable Object Worker bundled in ${facts.bundler.facts.buildMs} ms`,
+  astro: `an Astro app built from its sources in ${(Number(facts.astro.facts.buildMs) / 1000).toFixed(1)} s`,
+  notebooks: `two notebooks compiled in ${facts.notebooks.facts.buildMs} ms`,
+};
+---
+
+<Docs
+  title="Builders"
+  description="The builders of the CellB platform, with working examples: npm packages as ESM, a project's code as ESM, a bundler for Workers with Durable Objects, an Astro builder and notebooks."
+>
+  <h1>Builders: from sources to running code</h1>
+  <p>
+    The platform turns code as people (and agents) write it into code a browser or a Worker runs.
+    It has five builders. Each one is a Durable Object app, so it runs wherever CellB projects run:
+    on Wrangler (workerd, as on Cloudflare), on celld, on CellB in Node, and on CellB in a browser
+    tab. What a builder makes runs on the same hosts.
+  </p>
+  <p>
+    Each page of this section explains what the builder is for and how it works. It shows the
+    example's input files, the code that uses the builder, and the results: the platform's real
+    answers and screenshots of what the example produced.
+  </p>
+
+  <div class="not-prose my-8 grid gap-3 sm:grid-cols-2">
+    {builderPages.map((p) => (
+      <a href={p.href} class="group flex flex-col rounded-xl border no-underline bg-card p-4 shadow-xs transition-colors hover:border-primary/40 hover:bg-accent/40">
+        <span class="font-medium text-foreground group-hover:text-primary">{p.label}</span>
+        <span class="mt-1 text-sm leading-6 text-muted-foreground">{p.summary}</span>
+        <span class="mt-3 font-mono text-[11px] leading-5 text-muted-foreground">
+          <span class="text-foreground/70">in:</span> {p.input}<br />
+          <span class="text-foreground/70">out:</span> {p.output}
+        </span>
+        <span class="mt-3 border-t pt-2 text-xs text-muted-foreground">Recorded: {stat[p.slug]}</span>
+      </a>
+    ))}
+  </div>
+
+  <h2>How they fit together</h2>
+  <p>
+    All five read npm packages through one package store, a caching proxy of the npm registry
+    with one Durable Object per package. A package is downloaded once per deployment, whichever
+    builder asks for it first.
+  </p>
+  <Flow
+    steps={[
+      { label: "registry.npmjs.org", detail: "packuments and tarballs, fetched once", kind: "external" },
+      { label: "PackageRegistry", detail: "the package store: packuments for 10 minutes, tarballs forever" },
+      { label: "ModuleHost · Project", detail: "module by module: the ESM CDN and user code as ESM" },
+      { label: "BuildJob · NotebookSite", detail: "whole projects: the bundler, the Astro builder, notebooks" },
+    ]}
+    caption="The objects of the platform. Each keeps its files in its own SQLite (ctx.storage.sql), as blocks of at most 256 KiB."
+  />
+  <p>They take one of two approaches:</p>
+  <table>
+    <thead><tr><th></th><th>Module by module</th><th>One bundle</th></tr></thead>
+    <tbody>
+      <tr><td>Builders</td><td>ESM CDN, user code as ESM; the notebooks' imports</td><td>Bundler, Astro builder</td></tr>
+      <tr><td>Built on</td><td><code>@statewalker/webrun-modules</code> (sucrase, Lightning CSS)</td><td><code>@statewalker/webrun-bundler</code> on esbuild-wasm</td></tr>
+      <tr><td>When the work happens</td><td>When a module is first requested; then it is cached</td><td>Once per build; the build id is the hash of the inputs</td></tr>
+      <tr><td>What you get</td><td>URLs a browser imports; pinned and immutable</td><td>A folder: <code>wrangler.json</code>, <code>worker.js</code>, assets, as a ZIP or a Worker Loader payload</td></tr>
+      <tr><td>Best for</td><td>Pages, editors, playgrounds: change one file, recompile one module</td><td>Workers and Durable Objects to deploy, store or load at run time</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Run the platform yourself</h2>
+  <p>
+    The examples talk to the platform at <code>http://localhost:8787</code>, the port{" "}
+    <code>wrangler dev</code> uses. Any of these starts it there, from the repository root:
+  </p>
+  <CodeBlock
+    lang="sh"
+    code={`pnpm install
+cd packages/platform
+pnpm run build                                    # dist/platform/workerd and dist/platform/cellb
+
+npx wrangler dev                                  # on workerd, from the sources
+npx tsx scripts/serve-cellb.mjs dist/platform/cellb --port 8787   # on CellB in Node
+pnpm run build:browser && python3 -m http.server -d dist/browser 8787   # in a tab: open /__cellb/`}
+  />
+  <p>
+    Then <code>curl localhost:8787/</code> lists its routes. The HTTP API of every builder is on{" "}
+    <a href="/docs/tools">Tools: ESM CDN, bundler, builders</a>, and each package's README has its
+    functions:
+    {builderPages.map((p, i) => (
+      <>
+        {i > 0 && ", "}
+        <a href={docHref(p.readme)}>{p.label}</a>
+      </>
+    ))}.
+  </p>
+
+  <h2>Where the results come from</h2>
+  <p>
+    The results on these pages are not written by hand.{" "}
+    <a href={repoFile("site/scripts/record-builders.ts")}>scripts/record-builders.ts</a> starts
+    the platform on CellB in Node from empty storage. It then sends each page's requests and opens
+    the pages the examples produced in Chromium, checking them there (the chart is drawn, the
+    island hydrates, the input re-runs the cells). It saves the answers to{" "}
+    <code>site/src/builders/recorded/</code> and the screenshots to <code>site/public/builders/</code>.
+    The pages read those files when the site is built. To record them again:
+  </p>
+  <CodeBlock
+    lang="sh"
+    code={`pnpm --filter @statewalker/cellb-site record:builders              # every example
+pnpm --filter @statewalker/cellb-site record:builders bundler      # one`}
+  />
+  <p>
+    The same builders are checked on every host by the platform's end-to-end scripts, as{" "}
+    <a href={docHref("packages/platform/README.md")}>the platform's README</a> describes, and the
+    larger apps they build (EmDash among them) are in{" "}
+    <a href={docHref("examples/platform-demos/README.md")}>Apps built by the tools</a>.
+  </p>
+</Docs>

@@ -246,8 +246,10 @@ export async function sahpoolOpener(
     installOpfsSAHPoolVfs(opts: { name?: string; initialCapacity?: number }): Promise<{
       OpfsSAHPoolDb: new (path: string) => Oo1Db;
       reserveMinimumCapacity(n: number): Promise<number>;
+      addCapacity?(n: number): Promise<number>;
       getCapacity(): number;
       getFileCount(): number;
+      getFileNames?(): string[];
       // Not in older SQLite WASM builds (sqlite-vec's): there `release()` does nothing.
       pauseVfs?(): unknown;
       isPaused?(): boolean;
@@ -263,38 +265,77 @@ export async function sahpoolOpener(
   // The same pool again in this worker (SQLite WASM keeps one per name), after a `release()`.
   if (pool.isPaused?.()) await pool.unpauseVfs?.();
   // A full pool fails the open (`SAH pool is full`), and opening is synchronous while growing
-  // the pool is not. A cell about to open reserves room first (`room`, awaited by the runtime
-  // before the cell's first event); the pool grows when the reservations would not fit, and in
-  // the background whenever less than half of it is free.
+  // the pool is not. Each new slot is an OPFS file with a sync access handle, made one at a time,
+  // and once the worker is busy each one takes seconds (about 5 s with 32 Flue conversations in
+  // one worker), so the pool grows ahead of need, in small steps:
+  // - a cell about to open reserves room first (`room`, awaited by the runtime before the cell's
+  //   first event): its database, its journal and a spare, and it waits until what was needed
+  //   when it asked fits, one step of 16 slots at a time (not a doubling, nor later reservations);
+  // - an open cell counts its journal until it has one (SQLite makes it at the cell's first
+  //   write), so the pool grows while it still has room, not once the journals fill it;
+  // - at each open (failed ones too: a cell can reopen without `room`), the pool grows in the
+  //   background until two thirds of it are free: an unused slot costs a small file, a missing
+  //   one a wait of seconds per slot, so it grows while the worker is still quiet.
   const SLOTS_PER_CELL = 3; // the database, its journal, and one spare
+  const STEP = 16; // slots per growth step, made in parallel
+  const AHEAD = 3; // the pool's size, in multiples of what it needs, kept by the background growth
   const reserved = new Set<string>();
+  const opened = new Map<string, { path: string }>(); // the open cells' databases
   let growing: Promise<void> | undefined;
-  const grow = (min: number): Promise<void> => {
-    growing ??= pool
-      .reserveMinimumCapacity(Math.max(min, pool.getCapacity() * 2))
+  /**
+   * One growth step toward `target` (one at a time: a second caller joins it). SQLite makes a
+   * pool's new slots one after another, two awaited OPFS calls each, and in a busy worker each
+   * await waits seconds for the event loop: the step asks for its slots in parallel instead,
+   * one `addCapacity(1)` each, so it costs about one slot's wait.
+   */
+  const step = (target: number): Promise<void> => {
+    const n = Math.min(target, pool.getCapacity() + STEP) - pool.getCapacity();
+    growing ??= (
+      pool.addCapacity && n > 0
+        ? Promise.all(Array.from({ length: n }, () => pool.addCapacity?.(1)))
+        : pool.reserveMinimumCapacity(pool.getCapacity() + Math.max(n, 0))
+    )
       .then(() => {})
       .finally(() => {
         growing = undefined;
       });
     return growing;
   };
-  const needed = () => pool.getFileCount() + SLOTS_PER_CELL * reserved.size;
+  const needed = () => {
+    // Journals not made yet. Without the pool's file names (older SQLite WASM builds) none
+    // is counted, as before: the files that exist are.
+    let journals = 0;
+    if (pool.getFileNames) {
+      const files = new Set(pool.getFileNames());
+      for (const { path } of opened.values()) if (!files.has(`${path}-journal`)) journals++;
+    }
+    return pool.getFileCount() + journals + SLOTS_PER_CELL * reserved.size;
+  };
+  /** Grows until `target()` fits; stops when a step of its own adds nothing (the open says why). */
+  const growTo = async (target: () => number): Promise<void> => {
+    while (target() > pool.getCapacity()) {
+      // A step already under way may have added its slots and not ended yet: joining it says
+      // nothing about whether the pool can grow.
+      const joined = growing !== undefined;
+      const before = pool.getCapacity();
+      await step(target());
+      if (!joined && pool.getCapacity() <= before) return;
+    }
+  };
   const room = (cellKey: string): Promise<void> | undefined => {
     reserved.add(cellKey);
-    if (needed() <= pool.getCapacity()) return undefined;
-    // Grow until this reservation (and every other one) fits; the open fails visibly if not.
-    const fit = async (): Promise<void> => {
-      while (needed() > pool.getCapacity()) {
-        const before = pool.getCapacity();
-        await grow(needed());
-        if (pool.getCapacity() <= before) return; // it did not grow: the open will say why
-      }
-    };
-    return fit();
+    const target = needed();
+    if (target <= pool.getCapacity()) return undefined;
+    return growTo(() => target);
   };
+  let ahead: Promise<void> | undefined;
   const keepRoom = () => {
-    const capacity = pool.getCapacity();
-    if (!growing && capacity - needed() < capacity / 2) grow(capacity * 2).catch(() => {});
+    if (ahead || pool.getCapacity() >= AHEAD * needed()) return;
+    ahead = growTo(() => AHEAD * needed())
+      .catch(() => {})
+      .finally(() => {
+        ahead = undefined;
+      });
   };
   // The rollback journal stays in the pool between transactions (PERSIST): DELETE gives its pool
   // slot back and takes it again on every commit, which costs a header write each time. The
@@ -308,20 +349,36 @@ export async function sahpoolOpener(
   const open: OpenCellSql = (cellKey) => {
     const path = `/${cellKey.replace(/[^\w.-]/g, "_")}.sqlite`;
     reserved.delete(cellKey);
-    queueMicrotask(keepRoom); // after this open (and its first slot) is counted
-    return new WasmSqliteDriver(
-      openDb(path),
-      {
-        image: (db) => (sqlite3 as any).capi.sqlite3_js_db_export(db),
-        // Replace the file inside the pool, then reopen it.
-        restore(db, image) {
-          db.close();
-          (pool as any).importDb(path, image);
-          return openDb(path);
+    // Counted from now on, with its journal until it has one; no longer once it is closed.
+    const entry = { path };
+    opened.set(cellKey, entry);
+    keepRoom();
+    let driver: WasmSqliteDriver;
+    try {
+      driver = new WasmSqliteDriver(
+        openDb(path),
+        {
+          image: (db) => (sqlite3 as any).capi.sqlite3_js_db_export(db),
+          // Replace the file inside the pool, then reopen it.
+          restore(db, image) {
+            db.close();
+            (pool as any).importDb(path, image);
+            return openDb(path);
+          },
         },
-      },
-      sqlite3 as never,
-    );
+        sqlite3 as never,
+      );
+    } catch (err) {
+      if (opened.get(cellKey) === entry) opened.delete(cellKey);
+      throw err;
+    }
+    const close = driver.close.bind(driver);
+    driver.close = () => {
+      // Only this driver's entry: the cell may have been opened again since.
+      if (opened.get(cellKey) === entry) opened.delete(cellKey);
+      close();
+    };
+    return driver;
   };
   return Object.assign(open, {
     room,

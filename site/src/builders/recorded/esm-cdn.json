@@ -1,0 +1,192 @@
+{
+  "kind": "esm-cdn",
+  "recordedAt": "2026-11-11",
+  "host": "the platform on CellB in Node (packages/platform, dist/platform/cellb)",
+  "steps": [
+    {
+      "title": "A version range redirects to a pinned version",
+      "note": "The CDN reads the package's packument from the package store (which fetched it from npm) and picks the highest version in the range.",
+      "curl": "curl -i http://localhost:8787/npm/browser/@observablehq/plot@0.6",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/npm/browser/@observablehq/plot@0.6"
+      },
+      "response": {
+        "status": 302,
+        "headers": {
+          "location": "/npm/browser/@observablehq/plot@0.6.19/dist/plot.js",
+          "access-control-allow-origin": "*"
+        },
+        "body": "",
+        "bodyLang": "txt",
+        "bytes": 0,
+        "ms": 409
+      }
+    },
+    {
+      "title": "The pinned URL is the module, as ESM",
+      "note": "First request: the tarball is downloaded into the package store and the file transformed. Bare imports are rewritten to same-origin URLs; the answer is immutable.",
+      "curl": "curl -i http://localhost:8787/npm/browser/@observablehq/plot@0.6.19/dist/plot.js",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/npm/browser/@observablehq/plot@0.6.19/dist/plot.js"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/javascript",
+          "cache-control": "public, max-age=31536000, immutable",
+          "access-control-allow-origin": "*"
+        },
+        "body": "// @observablehq/plot v0.6.19 Copyright 2020-2025 Observable, Inc.\nimport { descending, ascending, timeSecond, timeMinute, timeHour, timeDay, timeMonday, timeTuesday, timeWednesday, timeThursday, timeFriday,…\n\nvar version = \"0.6.19\";\n\nfunction defined(x) {\n  return x != null && !Number.isNaN(x);\n}\n\nfunction ascendingDefined(a, b) {\n  return +defined(b) - +defined(a) || ascending(a, b);\n}\n\nfunction descendingDefined(a, b) {\n  return +defined(b) - +defined(a) || descending(a, b);\n}\n\nfunction nonempty(x) {\n// … 14977 more lines",
+        "bodyLang": "js",
+        "bytes": 498876,
+        "ms": 641
+      }
+    },
+    {
+      "title": "The same URL again",
+      "note": "Second request: the transformed module comes from the object's SQLite.",
+      "curl": "curl -s -o /dev/null -w '%{time_total}s' http://localhost:8787/npm/browser/@observablehq/plot@0.6.19/dist/plot.js",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/npm/browser/@observablehq/plot@0.6.19/dist/plot.js"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/javascript",
+          "cache-control": "public, max-age=31536000, immutable",
+          "access-control-allow-origin": "*"
+        },
+        "body": "(the same 200 answer, from the cache)",
+        "bodyLang": "js",
+        "bytes": 498876,
+        "ms": 11
+      }
+    },
+    {
+      "title": "?graph lists every module an entry needs",
+      "note": "A page can put these in <link rel=modulepreload> and load the whole graph in one round of requests.",
+      "curl": "curl 'http://localhost:8787/npm/browser/@observablehq/plot@0.6?graph'",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/npm/browser/@observablehq/plot@0.6?graph"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "[\n  \"/npm/browser/@observablehq/plot@0.6.19/dist/plot.js\",\n  \"/npm/browser/@observablehq/plot@0.6.19/~deps/d3/index.js\",\n  \"/npm/browser/d3-array@3.2.5/dist/d3-array.mjs\",\n  \"/npm/browser/d3-axis@3.0.1/dist/d3-axis.mjs\",\n  \"/npm/browser/d3-brush@3.0.1/dist/d3-brush.mjs\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-dispatch/index.js\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-drag/index.js\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-interpolate/index.js\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-selection/index.js\",\n  \"/npm/browser/d3-brush@3.0.1/~deps/d3-transition/index.js\",\n  \"… 89 more\"\n]",
+        "bodyLang": "json",
+        "bytes": 5518,
+        "ms": 4310
+      }
+    },
+    {
+      "title": "?meta lists a package's files",
+      "curl": "curl -L 'http://localhost:8787/npm/browser/d3-dsv@3?meta'",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/npm/browser/d3-dsv@3?meta"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "[\n  \"LICENSE\",\n  \"README.md\",\n  \"bin/dsv2dsv.js\",\n  \"bin/dsv2json.js\",\n  \"bin/json2dsv.js\",\n  \"dist/d3-dsv.js\",\n  \"dist/d3-dsv.min.js\",\n  \"dist/d3-dsv.min.mjs\",\n  \"… 2 more\"\n]",
+        "bodyLang": "json",
+        "bytes": 200,
+        "ms": 4
+      }
+    },
+    {
+      "title": "A stylesheet as a module",
+      "note": "?module answers CSS with a module that adds it to the document, so `import \"…css?module\"` works in a page. Lightning CSS processes it first.",
+      "curl": "curl -L 'http://localhost:8787/npm/browser/@picocss/pico@2/css/pico.min.css?module'",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/npm/browser/@picocss/pico@2.1.1/css/pico.min.css?module"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/javascript",
+          "cache-control": "public, max-age=31536000, immutable",
+          "access-control-allow-origin": "*"
+        },
+        "body": "const css = \":host, :root {\\n  --pico-font-family-emoji: \\\"Apple Color Emoji\\\",\\\"Segoe UI Emoji\\\",\\\"Segoe UI Symbol\\\",\\\"Noto Color Emoji\\\";\\n  --pico-font-family-sans-serif: system-ui,\\\"Segoe UI\\\",Roboto,Oxygen,Ubuntu,Cantarell,Helvetica,Arial,\\\"…\" /* 95891 chars */;\nif (typeof document !== \"undefined\") {\n  const el = document.createElement(\"style\");\n  el.textContent = css;\n  document.head.appendChild(el);\n}\nexport default css;",
+        "bodyLang": "js",
+        "bytes": 100365,
+        "ms": 236
+      }
+    },
+    {
+      "title": "The browser profile: nanoid",
+      "note": "/npm/browser/ resolves with the browser conditions: nanoid's browser build, which uses crypto.getRandomValues.",
+      "curl": "curl -L http://localhost:8787/npm/browser/nanoid@5",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/npm/browser/nanoid@5.1.16/index.browser.js"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/javascript",
+          "cache-control": "public, max-age=31536000, immutable",
+          "access-control-allow-origin": "*"
+        },
+        "body": "import { urlAlphabet as scopedUrlAlphabet } from './url-alphabet/index.js'\n\nexport { urlAlphabet } from './url-alphabet/index.js'\n\nexport let random = bytes => crypto.getRandomValues(new Uint8Array(bytes))\n\nexport let customRandom = (alphabet, defaultSize, getRandom) => {\n  let safeByteCutoff = 256 - (256 % alphabet.length)\n\n  if (safeByteCutoff === 256) {\n// … 46 more lines",
+        "bodyLang": "js",
+        "bytes": 1394,
+        "ms": 21
+      }
+    },
+    {
+      "title": "The node profile: nanoid",
+      "note": "/npm/node/ resolves with the node conditions: nanoid's Node build, whose node:crypto import is left for the runtime (a Worker with nodejs_compat, Deno, Node).",
+      "curl": "curl -L http://localhost:8787/npm/node/nanoid@5",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/npm/node/nanoid@5.1.16/index.js"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/javascript",
+          "cache-control": "public, max-age=31536000, immutable",
+          "access-control-allow-origin": "*"
+        },
+        "body": "import { Buffer } from \"./~deps/~globals.js\";\nimport { webcrypto as crypto } from 'node:crypto'\n\nimport { urlAlphabet as scopedUrlAlphabet } from './url-alphabet/index.js'\n\nexport { urlAlphabet } from './url-alphabet/index.js'\n\nconst POOL_SIZE_MULTIPLIER = 128\nlet pool, poolOffset\n\n// … 75 more lines",
+        "bodyLang": "js",
+        "bytes": 2019,
+        "ms": 14
+      }
+    }
+  ],
+  "shots": [
+    {
+      "src": "/builders/esm-cdn.png",
+      "width": 1600,
+      "height": 840,
+      "alt": "A bar chart of rainfall by month, styled by Pico CSS, drawn by Observable Plot",
+      "caption": "index.html in Chromium: 12 rows, parsed by d3-dsv and drawn by Observable Plot 0.6.19.",
+      "checks": [
+        "103 module requests to the CDN, all answered",
+        "12 bars drawn, no page errors",
+        "Pico CSS applied through the ?module stylesheet"
+      ]
+    }
+  ],
+  "facts": {
+    "plotPinned": "/npm/browser/@observablehq/plot@0.6.19/dist/plot.js",
+    "coldMs": 641,
+    "warmMs": 11,
+    "plotModules": 99,
+    "pageModules": 103
+  }
+}

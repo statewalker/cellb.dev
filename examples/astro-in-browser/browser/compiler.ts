@@ -9,7 +9,7 @@ import { npmRegistrySource } from "@statewalker/webrun-modules";
 import type { AstroTransform } from "../src/builder/astro-plugin.ts";
 
 const BINDING = "@astrojs/compiler-binding-wasm32-wasi";
-const VERSION = "0.5.2"; // the binding of @astrojs/compiler-rs 0.5.2, which astro 7.4.4 uses
+const VERSION = "0.5.3"; // the binding of @astrojs/compiler-rs 0.5.3, which astro 7.4.10 installs
 
 async function readBytes(files: { read(p: string): AsyncIterable<Uint8Array> }, path: string) {
   const chunks: Uint8Array[] = [];

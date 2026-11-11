@@ -15,7 +15,7 @@
     "e2e": "node test/e2e.mjs"
   },
   "dependencies": {
-    "@astrojs/react": "^7.1.5",
+    "@astrojs/react": "^7.1.7",
     "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-css": "^6.3.1",
@@ -30,9 +30,9 @@
     "@codemirror/view": "^6.43.15",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
-    "@radix-ui/react-slot": "^1.2.3",
-    "@radix-ui/react-tabs": "^1.1.12",
-    "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
+    "@radix-ui/react-slot": "^1.5.0",
+    "@radix-ui/react-tabs": "^1.2.1",
+    "@sqlite.org/sqlite-wasm": "^3.54.1-build1",
     "@statewalker/cellb": "workspace:*",
     "@statewalker/cellb-platform-core": "workspace:*",
     "@statewalker/webrun-bundler": "^0.1.1",
@@ -42,21 +42,21 @@
     "@statewalker/webrun-modules": "catalog:",
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",
-    "@tailwindcss/vite": "^4.3.3",
-    "astro": "^7.4.4",
+    "@tailwindcss/vite": "^4.3.5",
+    "astro": "^7.4.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "esbuild-wasm": "catalog:",
-    "lucide-react": "^1.71.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "lucide-react": "^1.72.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "tailwind-merge": "^3.7.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.5"
   },
   "devDependencies": {
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
-    "playwright": "^1.64.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "playwright": "^1.65.0",
     "vitest": "catalog:"
   }
 }

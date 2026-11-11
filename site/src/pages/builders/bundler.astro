@@ -1,0 +1,193 @@
+---
+import Files from "@/components/builders/Files.astro";
+import Flow from "@/components/builders/Flow.astro";
+import Pager from "@/components/builders/Pager.astro";
+import RecordedNote from "@/components/builders/RecordedNote.astro";
+import Transcript from "@/components/builders/Transcript.astro";
+import CodeBlock from "@/components/CodeBlock.astro";
+import Docs from "@/layouts/Docs.astro";
+import { recordedOf } from "@/lib/builders";
+import { docHref } from "@/lib/docs";
+import { repoFile } from "@/lib/site";
+
+const rec = recordedOf("bundler");
+const f = rec.facts;
+const raw = import.meta.glob<string>("../../builders/examples/bundler/**/*", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+const files = Object.fromEntries(
+  ["src/index.ts", "wrangler.jsonc", "package.json", "public/index.html"].map((p) => [
+    p,
+    raw[`../../builders/examples/bundler/${p}`],
+  ]),
+);
+const buildSteps = rec.steps.filter((s) => s.request.url.includes(":8787"));
+const runSteps = rec.steps.filter((s) => !s.request.url.includes(":8787"));
+
+const client = `// files: { "wrangler.jsonc": "…", "src/index.ts": "…", … }; a ZIP body works the same way.
+const P = "http://localhost:8787";
+const build = await (
+  await fetch(\`\${P}/builds\`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ files }),       // optionally spec: { minify: true, … }
+  })
+).json();
+if (build.status !== "done") throw new Error(build.error ?? build.log.join("\\n"));
+
+build.outputs.zip;      // project.zip: wrangler dev, celld dev, or CellB's loadProject
+build.outputs.loader;   // loader.json: a Worker Loader payload
+build.outputs.files;    // worker.js, worker.js.map, wrangler.json, assets/…`;
+---
+
+<Docs
+  title="Bundler for Durable Objects"
+  description="The platform's bundler: a Workers project with Durable Objects bundled into one module, in a Durable Object, with esbuild-wasm. The output runs on Wrangler, celld and CellB. A working example with recorded results."
+>
+  <p class="font-mono text-xs uppercase tracking-wider text-primary">Builders · 3 of 5</p>
+  <h1>Bundler: Workers and Durable Objects in one module</h1>
+  <p>
+    <code>wrangler deploy</code> and <code>celld deploy</code> bundle a project on your machine,
+    with Node and native esbuild. The platform's bundler does the same inside a Durable Object:
+    send it a project's sources and it returns one Worker module with its configuration and
+    assets. Wrangler (<code>no_bundle</code>), celld and CellB run that output as it is.
+  </p>
+
+  <h2>What it is for</h2>
+  <ul>
+    <li>
+      <strong>Building where there is no Node.</strong> In a Worker, on a celld fleet, or in a
+      browser tab, where the platform's tab runs esbuild-wasm in its shard worker.
+    </li>
+    <li>
+      <strong>A download.</strong> Sources in, <code>project.zip</code> out, ready for{" "}
+      <code>wrangler dev</code>, <code>celld dev</code> or CellB's <code>loadProject</code>.
+    </li>
+    <li>
+      <strong>Code loaded at run time.</strong> <code>loader.json</code> is the build as a Worker
+      Loader payload: a host Worker runs it by build id, with no deploy (see{" "}
+      <a href={docHref("packages/cellb/docs/services/dynamic-workers.md")}>Dynamic Workers</a>).
+    </li>
+    <li>
+      <strong>One build for every host.</strong> The output carries the fixes that let the same
+      file run on workerd, celld and CellB.
+    </li>
+  </ul>
+
+  <h2>How it works</h2>
+  <Flow
+    steps={[
+      { label: "POST /builds", detail: "a ZIP, JSON { files, spec }, or a user-code snapshot", kind: "client" },
+      { label: "BuildJob (id = hash)", detail: "one object per build; the id hashes the builder, the inputs and the spec" },
+      { label: "webrun-bundler + esbuild-wasm", detail: "one pass from main; npm packages from the package store" },
+      { label: "/b/<id>/…", detail: "wrangler.json, worker.js, assets/, project.zip, loader.json" },
+    ]}
+    caption="A build larger than 8 MB of input, or asked with ?tier=runner, waits in a queue for the Node runner, which builds it with the same code and native esbuild."
+  />
+  <ol>
+    <li>
+      <strong>An id for the inputs.</strong> The build id hashes the builder's version, the
+      inputs and the spec, so the same project is never built twice: the recording sends the same
+      ZIP again and gets the finished build back in a few milliseconds. The same files sent as
+      JSON get the same id, <code>{f.buildId}</code>.
+    </li>
+    <li>
+      <strong>One esbuild pass.</strong> webrun-bundler resolves every import of{" "}
+      <code>main</code> (<code>package.json</code> <code>exports</code> and <code>imports</code>,
+      relative paths, index files) with the conditions <code>workerd, worker, browser</code>.
+      Files come from the ZIP; packages that are not in it come from the package store at the
+      range the importing <code>package.json</code> declares. <code>cloudflare:*</code> and{" "}
+      <code>node:*</code> stay imports, for the host to provide.
+    </li>
+    <li>
+      <strong>Fixes for every host.</strong> The build adds what one file needs to run on
+      workerd, celld and CellB alike:
+      <ul>
+        <li>a stable <code>id</code> for KV namespaces that lack one (celld requires it);</li>
+        <li>a <code>node:module</code> whose <code>createRequire</code> works on celld;</li>
+        <li>an entry that answers table-valued pragmas on celld's internal tables, which Kysely's introspection reads.</li>
+      </ul>
+    </li>
+    <li>
+      <strong>A <code>no_bundle</code> project out.</strong> <code>wrangler.json</code> keeps the
+      bindings and migrations and points <code>main</code> at <code>worker.js</code>; assets and
+      D1 migrations are copied. The same files are served one by one, as a streamed{" "}
+      <code>project.zip</code>, and as <code>loader.json</code>.
+    </li>
+  </ol>
+  <table>
+    <thead><tr><th>Option</th><th>As</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>tier</code></td><td><code>?tier=object|runner</code></td><td>build in the object, or queue for the Node runner</td></tr>
+      <tr><td><code>entry</code></td><td><code>?entry=</code></td><td>the entry module (default: wrangler <code>main</code>)</td></tr>
+      <tr><td><code>kind</code></td><td><code>?kind=</code></td><td><code>worker</code>, <code>browser</code> or <code>astro</code> (default: <code>astro</code> with an <code>astro.config.*</code>)</td></tr>
+      <tr><td><code>minify</code>, <code>sourcemap</code></td><td><code>?minify=1</code>, <code>?sourcemap=0</code></td><td>minify; skip <code>worker.js.map</code></td></tr>
+      <tr><td><code>conditions</code>, <code>external</code>, <code>define</code></td><td><code>x-build-spec</code> header or JSON <code>spec</code></td><td>as in esbuild</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Usage</h2>
+  <p>
+    The example is a guestbook: a Hono app whose rooms are Durable Objects, each with its own
+    SQLite table of entries, plus a static page. <code>hono</code> is declared in{" "}
+    <code>package.json</code> and not installed.
+  </p>
+  <Files
+    files={files}
+    source={{ label: "site/src/builders/examples/bundler/", href: repoFile("site/src/builders/examples/bundler/src/index.ts") }}
+  />
+  <p>From a shell, in the example's folder:</p>
+  <CodeBlock
+    lang="sh"
+    code={`zip -r - . | curl -X POST --data-binary @- http://localhost:8787/builds   # → { id, status, log, outputs }
+curl -o build.zip http://localhost:8787/b/<id>/project.zip && unzip build.zip -d build
+npx wrangler dev -c build/wrangler.json        # or: celld dev, or CellB (below)`}
+  />
+  <p>From an app:</p>
+  <CodeBlock lang="js" code={client} />
+  <p>
+    For a build too large for an isolate (EmDash's bundle needs far more than 128 MB), run the
+    Node runner next to the platform; it claims queued builds:
+  </p>
+  <CodeBlock
+    lang="sh"
+    code={`npx tsx packages/bundler/bin/webrun-build.ts --runner http://localhost:8787     # claims and builds queued builds
+npx tsx packages/bundler/bin/webrun-build.ts ./my-worker --out ./build          # or a local build, same code`}
+  />
+
+  <h2>Results</h2>
+  <RecordedNote recorded={rec} />
+  <h3>The build</h3>
+  <p>
+    The build took {f.buildMs} ms in its object, the download of hono from npm included. The
+    output's <code>worker.js</code> is {(Number(f.workerBytes) / 1024).toFixed(1)} KiB: the
+    guestbook and the parts of hono it uses.
+  </p>
+  <Transcript steps={buildSteps} />
+  <h3>The output, running</h3>
+  <p>
+    The recorder unpacked <code>project.zip</code> and started it on CellB in Node. Each room is
+    a Durable Object with its own database:
+  </p>
+  <Transcript steps={runSteps} start={buildSteps.length + 1} />
+
+  <h2>Limits</h2>
+  <ul>
+    <li>
+      In an isolate with 128 MB (Cloudflare's), large builds must go to the Node runner. On celld,
+      raise the isolate heap with <code>CELLD_V8_HEAP_LIMIT_MB</code> or use the runner.
+    </li>
+    <li>
+      Without <code>PLATFORM_TOKEN</code> anyone who reaches the platform can run builds. Set it
+      before deploying it anywhere reachable.
+    </li>
+  </ul>
+  <p>
+    API reference: <a href={docHref("packages/bundler/README.md")}>Bundler</a>. To bundle in a
+    page instead, without the platform, see <a href="/docs/from-sources">Running from sources</a>,
+    which builds and runs a Hono project in your tab.
+  </p>
+  <Pager slug="bundler" />
+</Docs>

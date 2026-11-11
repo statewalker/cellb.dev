@@ -7,7 +7,16 @@ packages:
   - "*"
 
 catalog:
-  "@types/node": ^26.6.4
+  "@types/node": ^26.6.6
   typescript: ^7.0.2
-  vite: ^8.3.2
-  vitest: ^5.0.3
+  vite: ^8.3.8
+  vitest: ^5.1.0
+
+# Flue 2.3 (@flue/runtime, the latest) imports `Type` from @earendil-works/pi-ai, which pi-ai 1.5
+# no longer exports, and its ranges (^1.1.0) would take 1.5. Flue's pi-ai and pi-agent-core (which
+# pins pi-ai exactly) stay on 1.4.0 until Flue follows; examples/flue asks for the same pi-ai, so
+# the app and Flue share one copy. examples/agents uses pi 1.5.
+# The examples workflow adds cellb's tarball under `overrides:` (`cellb: packed`).
+overrides:
+  "@flue/runtime>@earendil-works/pi-ai": "1.4.0"
+  "@flue/runtime>@earendil-works/pi-agent-core": "1.4.0"

@@ -80,7 +80,13 @@ jobs:
           pnpm --dir .. install --frozen-lockfile
           pnpm --dir ../packages/cellb pack --pack-destination "$RUNNER_TEMP"
           tarball=$(ls "$RUNNER_TEMP"/statewalker-cellb-*.tgz)
-          printf '\noverrides:\n  "@statewalker/cellb": "file:%s"\n' "$tarball" >> pnpm-workspace.yaml
+          # Right under the file's own `overrides:` when it has one, wherever that block is: a
+          # second `overrides:` key would make the YAML invalid.
+          if grep -q '^overrides:' pnpm-workspace.yaml; then
+            sed -i "/^overrides:/a\\  \"@statewalker/cellb\": \"file:$tarball\"" pnpm-workspace.yaml
+          else
+            printf '\noverrides:\n  "@statewalker/cellb": "file:%s"\n' "$tarball" >> pnpm-workspace.yaml
+          fi
           pnpm install --no-frozen-lockfile
           echo "cellb: $(node -p 'require("./emdash/node_modules/@statewalker/cellb/package.json").version') from $tarball"
 

@@ -12,26 +12,26 @@
     "test:browser": "vite build && playwright test"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^1.4.0",
+    "@earendil-works/pi-ai": "1.4.0",
     "@flue/runtime": "2.3.0",
-    "hono": "^4.13.14"
+    "hono": "^4.13.18"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.65.0",
+    "@cloudflare/vite-plugin": "^1.68.0",
     "@flue/sdk": "2.3.0",
     "@flue/vite": "2.3.0",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.65.0",
     "@sparticuz/chromium": "^153.0.0",
-    "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
+    "@sqlite.org/sqlite-wasm": "^3.54.1-build1",
     "@statewalker/cellb": "~0.8.1",
     "@statewalker/fake-openai": "workspace:*",
-    "@statewalker/webrun-files-mem": "^0.10.0",
+    "@statewalker/webrun-files-mem": "^0.10.3",
     "@types/node": "catalog:",
-    "agents": "0.20.1",
+    "agents": "0.33.0",
     "esbuild": "0.28.2",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "^4.152.0"
+    "wrangler": "^4.160.0"
   }
 }

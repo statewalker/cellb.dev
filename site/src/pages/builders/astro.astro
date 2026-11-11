@@ -1,0 +1,170 @@
+---
+import Files from "@/components/builders/Files.astro";
+import Flow from "@/components/builders/Flow.astro";
+import Pager from "@/components/builders/Pager.astro";
+import RecordedNote from "@/components/builders/RecordedNote.astro";
+import Shots from "@/components/builders/Shots.astro";
+import Transcript from "@/components/builders/Transcript.astro";
+import CodeBlock from "@/components/CodeBlock.astro";
+import Docs from "@/layouts/Docs.astro";
+import { recordedOf } from "@/lib/builders";
+import { docHref } from "@/lib/docs";
+import { LIVE_DEMOS, repoFile } from "@/lib/site";
+
+const rec = recordedOf("astro");
+const f = rec.facts;
+const raw = import.meta.glob<string>(
+  [
+    "../../../../examples/platform-astro/src/**/*.{astro,tsx,ts}",
+    "../../../../examples/platform-astro/{astro.config.mjs,wrangler.jsonc,package.json}",
+  ],
+  { query: "?raw", import: "default", eager: true },
+);
+const order = [
+  "src/pages/index.astro",
+  "src/components/Counter.tsx",
+  "src/worker.ts",
+  "src/pages/posts/[slug].astro",
+  "src/pages/api/time.ts",
+  "astro.config.mjs",
+  "wrangler.jsonc",
+  "package.json",
+];
+const files = Object.fromEntries(
+  order.map((p) => [p, raw[`../../../../examples/platform-astro/${p}`] ?? ""]),
+);
+const buildSteps = rec.steps.filter((s) => s.request.url.includes(":8787"));
+const runSteps = rec.steps.filter((s) => !s.request.url.includes(":8787"));
+---
+
+<Docs
+  title="Astro builder"
+  description="The platform's Astro builder: an Astro project built from its sources without Node or Vite, in a Durable Object, then bundled into one Worker that runs on Wrangler, celld and CellB. A working example with recorded results."
+>
+  <p class="font-mono text-xs uppercase tracking-wider text-primary">Builders · 4 of 5</p>
+  <h1>Astro builder: Astro sites built from their sources</h1>
+  <p>
+    Astro builds with Vite on Node. The platform's Astro builder does what Astro's build does for
+    an on-demand (<code>output: "server"</code>) site without either: it runs the project's{" "}
+    <code>astro.config.mjs</code> and its integrations, compiles the <code>.astro</code> files
+    with Astro's compiler as WebAssembly, and bundles the server and the islands with esbuild. The
+    bundler then turns the result into one Worker. It runs wherever esbuild runs: in a Durable
+    Object, in a Worker Loader isolate, in a browser tab, or on Node.
+  </p>
+
+  <h2>What it is for</h2>
+  <ul>
+    <li>
+      <strong>Sites built by a service.</strong> A CMS, a site builder or an agent sends sources
+      and gets a deployable Worker back, with no build machine.
+    </li>
+    <li>
+      <strong>Astro in a browser tab.</strong> The same builder runs in the visitor's tab: try{" "}
+      <a href={LIVE_DEMOS.astro.href}>{LIVE_DEMOS.astro.title}</a>, which builds an Astro app, or
+      EmDash, in your browser and runs it there on CellB.
+    </li>
+    <li>
+      <strong>Real apps.</strong> EmDash, an Astro CMS with 225 routes, D1, KV, R2 and cron,
+      builds from its sources in about 35 seconds on the Node runner, or 90 to 145 seconds inside
+      the object on hosts without the 128 MB limit.
+    </li>
+  </ul>
+
+  <h2>How it works</h2>
+  <Flow
+    steps={[
+      { label: "POST /builds", detail: "sources with an astro.config.*; no node_modules, no dist/", kind: "client" },
+      { label: "astro.config + integrations", detail: "bundled and evaluated; hooks register routes, renderers, Vite plugins" },
+      { label: "compiler-rs (WASM) + esbuild", detail: ".astro compiled; server and client bundles, as Astro's Vite build makes them" },
+      { label: "bundler", detail: "server/entry.mjs into one worker.js, client/ into assets/" },
+    ]}
+    caption="The Astro builder writes what Astro's Cloudflare build writes (wrangler.json, server/entry.mjs, client/); the bundler takes it from there, so an Astro build gets the same host fixes as any Worker."
+  />
+  <ol>
+    <li>
+      <strong>The config runs first.</strong> <code>astro.config.mjs</code> is bundled, with Vite
+      and Cloudflare tooling stubbed and Node modules over a virtual file system of the packages
+      build-time code reads. Its integrations' <code>astro:config:setup</code> and{" "}
+      <code>astro:config:done</code> hooks then run: here <code>@astrojs/react</code> registers
+      its renderer.
+    </li>
+    <li>
+      <strong>Where that code runs depends on the host.</strong> The config is the project's code.
+      workerd and celld refuse to evaluate code at run time, so there the whole build runs in a{" "}
+      <a href={docHref("packages/cellb/docs/services/dynamic-workers.md")}>Worker Loader</a>{" "}
+      isolate of its own. CellB and browsers evaluate the config directly.
+    </li>
+    <li>
+      <strong>Routes and pages.</strong> Routes come from <code>src/pages</code> and the
+      integrations, ranked as Astro ranks them. Each <code>.astro</code> file is compiled by
+      compiler-rs (its wasm32-wasi build; a browser tab must be cross-origin isolated for its
+      shared memory).
+    </li>
+    <li>
+      <strong>Bundles as Astro makes them.</strong> The server bundle is one module with Astro's{" "}
+      <code>App</code>, the routes and every page. The client bundles hold the islands and the
+      renderer's client entry, with production React and one React for the server and the islands.
+      The scripts of the built-in client directives (<code>client:load</code>, <code>idle</code>,
+      …) come from the project's Astro: in <code>astro</code> itself up to 7.4.4, in its
+      <code>@astrojs/runtime</code> from 7.4.9.
+    </li>
+  </ol>
+
+  <h2>Usage</h2>
+  <p>
+    The example is <a href={docHref("examples/platform-astro/README.md")}>a small Astro app</a>{" "}
+    from the repository's examples: a home page that counts visits in a Durable Object, a React
+    island, a dynamic route and an API route. Only its sources are sent: no{" "}
+    <code>node_modules</code>, no <code>dist/</code>.
+  </p>
+  <Files
+    files={files}
+    source={{ label: "examples/platform-astro/", href: repoFile("examples/platform-astro/src/pages/index.astro") }}
+  />
+  <p>From a shell, in the app's folder:</p>
+  <CodeBlock
+    lang="sh"
+    code={`zip -r - . -x 'node_modules/*' 'dist/*' \\
+  | curl -X POST --data-binary @- 'http://localhost:8787/builds?sourcemap=0'   # → { id, status, log, stats }
+curl -o build.zip http://localhost:8787/b/<id>/project.zip && unzip build.zip -d build
+npx wrangler dev -c build/wrangler.json`}
+  />
+  <p>
+    The request is the bundler's: a project with an <code>astro.config.*</code> is built by the
+    Astro builder first (<code>?kind=astro</code> forces it). Packages that integrations read from
+    disk at build time go in <code>spec.astro.preload</code>; EmDash's are{" "}
+    <code>{`[["emdash"], ["@emdash-cms/admin", "emdash"]]`}</code>.
+  </p>
+
+  <h2>Results</h2>
+  <RecordedNote recorded={rec} />
+  <h3>The build</h3>
+  <p>
+    {(Number(f.buildMs) / 1000).toFixed(1)} s from the request to the answer, in the
+    <code>BuildJob</code> object, with Astro and React downloaded from npm on the way. The log
+    shows each phase.
+  </p>
+  <Transcript steps={buildSteps} />
+  <h3>The output, running</h3>
+  <p>The recorder unpacked <code>project.zip</code> and started it on CellB in Node:</p>
+  <Shots shots={rec.shots} />
+  <Transcript steps={runSteps} start={buildSteps.length + 1} />
+
+  <h2 id="limits">Limits</h2>
+  <ul>
+    <li>
+      On-demand rendering only: pages are not prerendered. Integrations' <code>injectScript</code>{" "}
+      and client directives are ignored, and image services are replaced by the no-op one.
+    </li>
+    <li>
+      The project's config runs with the build. On CellB and in browsers it runs in the bundler's
+      object, with that object's bindings in reach: build only projects you trust there.
+    </li>
+  </ul>
+  <p>
+    API reference: <a href={docHref("packages/astro-builder/README.md")}>Astro builder</a>. The
+    builder started as the one in <a href={docHref("examples/astro-in-browser/README.md")}>Astro
+    built in a tab</a>.
+  </p>
+  <Pager slug="astro" />
+</Docs>

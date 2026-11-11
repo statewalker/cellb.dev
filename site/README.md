@@ -21,7 +21,9 @@ pages' data; `pnpm --filter @statewalker/cellb-site examples` runs it alone.
 | `src/components/ui/` | shadcn-style primitives as Astro components: Button, Badge, Card |
 | `src/components/` | Header, Footer, Logo, ThemeToggle, CodeBlock (Shiki + copy), HeroVisual, LiveDemo, Showcase, Stats |
 | `src/layouts/` | `Base` (theme bootstrap, header/footer) and `Docs` (sidebar) |
-| `src/pages/` | Home, `/docs` (getting started), `/docs/how-it-works`, `/docs/from-sources`, `/docs/tools` (the tools built on cellb), `/docs/[...slug]` (the repository's Markdown), `/examples` and `/examples/<name>` |
+| `src/pages/` | Home, `/docs` (getting started), `/docs/how-it-works`, `/docs/from-sources`, `/docs/tools` (the tools built on cellb), `/docs/[...slug]` (the repository's Markdown), `/builders` and `/builders/<kind>`, `/examples` and `/examples/<name>` |
+| `src/builders/` | The /builders pages' examples (`examples/<kind>/`), their recorded results (`recorded/<kind>.json`, committed) and the type of those (`types.ts`); `src/lib/builders.ts` lists the pages |
+| `scripts/record-builders.ts` | Runs each /builders example against the platform (packages/platform on CellB in Node, port 8787) and writes `src/builders/recorded/` and the screenshots in `public/builders/` (`pnpm record:builders [kind…]`, by hand: it needs the npm registry and Chromium) |
 | `scripts/build-examples.ts` | Generates the example pages' data from `packages/cellb/conformance`: `src/generated/examples.json` (sources, requests, recorded answers) and `public/built/<project>/` (each project as `cellb build` writes it). Both are generated, not committed |
 | `src/examples/` | The example pages' runner: `run-worker.ts` runs a project in a Dedicated Worker, `reference-server.ts` stands in for the reference server two examples call, `page.ts` compares the answers |
 | `src/from-sources/` | The live demo of `/docs/from-sources`: a Hono project bundled in the browser by webrun-bundler and run on CellB |
@@ -75,6 +77,30 @@ instance) goes to GitHub. Link to docs from `.astro` pages with
 add it to `src/lib/docs.ts`, and add its path to the `paths` filters of
 `.github/workflows/site.yml` if it is outside the ones listed there, or an edit to it will not
 republish the site.
+
+## Builders
+
+`/builders` is a section with a page per builder of the platform (`packages/platform`): the
+ESM CDN, user code as ESM, the bundler, the Astro builder and notebooks. Each page says what the
+builder is for and how it works, shows an example's files and the code that uses it, and shows
+the results: the platform's answers, request by request, and screenshots of what the example
+produced.
+
+The results are recorded, not written by hand. `scripts/record-builders.ts` starts the platform
+on CellB in Node from empty storage, sends each page's requests, opens the pages the examples
+produced in Chromium and checks them (the chart is drawn, the island hydrates, the input re-runs
+the cells), then saves the answers to `src/builders/recorded/<kind>.json` and the screenshots to
+`public/builders/`. Both are committed; the site's build reads them and needs no platform. Record
+again after changing an example, the platform or its packages:
+
+```sh
+pnpm --filter @statewalker/cellb-platform build                 # if packages/platform/dist is stale
+PW_CHROMIUM=/path/to/chrome pnpm --filter @statewalker/cellb-site record:builders [esm-cdn|user-code|bundler|astro|notebooks]
+```
+
+The ESM CDN, user code and bundler examples are in `src/builders/examples/`. The Astro page uses
+`examples/platform-astro` and the notebooks page `examples/platform-demos/notebooks`, which is why
+`site.yml` watches those folders.
 
 ## Style
 
