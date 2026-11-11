@@ -234,6 +234,41 @@ try {
       return `build ${s.id}: ${s.stats?.astro?.routes} routes in ${s.stats?.astro?.ms} ms in the tab; ran on cellb, island hydrated`;
     },
   );
+
+  await check(
+    "notebooks: the Astro theme built in the tab renders the page models, cells run",
+    async () => {
+      const theme = join(root, "../notebooks/theme");
+      const z = zip([...readTree(theme, theme, ["node_modules", "dist"])]);
+      const r = await call("/builds?tier=object&sourcemap=0", { method: "POST", body: [...z] });
+      const s = JSON.parse(r.text) as {
+        status: string;
+        id: string;
+        error?: string;
+        log?: string[];
+      };
+      assert(
+        s.status === "done",
+        `${s.status}: ${s.error ?? ""}\n${(s.log ?? []).slice(-8).join("\n")}`,
+      );
+      const put = await call("/nb/demo/theme", {
+        method: "PUT",
+        body: JSON.stringify({ build: s.id }),
+        json: true,
+      });
+      assert(put.status === 204, `PUT theme ${put.status} ${put.text}`);
+      const p = await context.newPage();
+      await p.goto(`${origin}/nb/demo/t/plots`);
+      await p.waitForSelector(".site-nav", { timeout: 60_000 });
+      await p.waitForSelector("#summary", { timeout: 90_000 });
+      const summary = await p.textContent("#summary");
+      assert(summary?.includes("60 points"), summary);
+      await p.close();
+      const exp = await call("/nb/demo/export", { method: "POST" });
+      assert(exp.status === 200, `export ${exp.status}: ${exp.text.slice(0, 300)}`);
+      return `theme build ${s.id} in the tab; /nb/demo/t/plots: ${summary}; exported in the tab`;
+    },
+  );
 } finally {
   await browser.close();
   server.kill();

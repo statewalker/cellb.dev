@@ -22,7 +22,7 @@ import { npmRegistrySource } from "@statewalker/webrun-modules";
 import { COMPAT_ENTRY, compatEntrySource, overlay } from "./compat.js";
 
 /** Part of every build id: a change to the build changes the ids, so no stale build is served. */
-export const BUILDER_VERSION = "webrun-platform-builder/3";
+export const BUILDER_VERSION = "webrun-platform-builder/4";
 
 export interface BuildSpec {
   /** The entry module (default: wrangler config's `main`). */

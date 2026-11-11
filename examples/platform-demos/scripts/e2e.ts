@@ -319,7 +319,13 @@ for (const host of hosts) {
     if (apps.includes("emdash")) await emdashDemo(host, platform.url);
     if (apps.includes("emdash-src")) await emdashDemo(host, platform.url, "sources");
     if (apps.includes("notebooks"))
-      await notebooksDemo(host, platform.url, { check, assert, browserOn, playwright });
+      await notebooksDemo(host, platform.url, {
+        check,
+        assert,
+        browserOn,
+        playwright,
+        bundle: (files, query) => bundleOnPlatform(platform.url, files, query),
+      });
   } finally {
     await platform.stop();
   }

@@ -502,16 +502,25 @@ importers:
       '@statewalker/webrun-files':
         specifier: 'catalog:'
         version: 0.10.3
+      '@statewalker/webrun-files-mem':
+        specifier: 'catalog:'
+        version: 0.10.3
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
         version: 0.3.6
       linkedom:
         specifier: 'catalog:'
         version: 0.18.15
+      markdown-it:
+        specifier: ^15.0.2
+        version: 15.0.3
       urlpattern-polyfill:
         specifier: 'catalog:'
         version: 10.1.0
     devDependencies:
+      '@types/markdown-it':
+        specifier: ^14.1.2
+        version: 14.2.0
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
