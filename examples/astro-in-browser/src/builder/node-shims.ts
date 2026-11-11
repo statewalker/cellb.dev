@@ -128,6 +128,17 @@ const bytesOf = (data, enc) => {
   if (data instanceof ArrayBuffer) return new Uint8Array(data);
   throw new TypeError("node:crypto Hash.update at build time takes a string or bytes");
 };
+const b64 = (b) => btoa(String.fromCharCode(...b));
+const b64url = (b) => b64(b).replace(/[+]/g, "-").replace(/[/]/g, "_").replace(/=+$/, "");
+// A raw digest whose toString(encoding) answers as Node's Buffer does (digest().toString("hex")).
+class Digest extends Uint8Array {
+  toString(enc) {
+    if (enc === "hex") return hex(this);
+    if (enc === "base64") return b64(this);
+    if (enc === "base64url") return b64url(this);
+    return new TextDecoder().decode(this);
+  }
+}
 class Hash {
   constructor(algorithm) {
     if (String(algorithm).toLowerCase().replace("-", "") !== "sha256")
@@ -141,9 +152,9 @@ class Hash {
     for (const c of this.chunks) { all.set(c, o); o += c.length; }
     const d = sha256(all);
     if (enc === "hex") return hex(d);
-    if (enc === "base64") return btoa(String.fromCharCode(...d));
-    if (enc === "base64url") return btoa(String.fromCharCode(...d)).replace(/[+]/g, "-").replace(/[/]/g, "_").replace(/=+$/, "");
-    return d;
+    if (enc === "base64") return b64(d);
+    if (enc === "base64url") return b64url(d);
+    return new Digest(d);
   }
 }
 export const createHash = (algorithm) => new Hash(algorithm);

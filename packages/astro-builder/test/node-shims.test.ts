@@ -38,6 +38,10 @@ describe("build-time node:crypto createHash", () => {
   it("returns the raw digest without an encoding, and base64url", () => {
     const d = shim.createHash("sha256").update("x").digest() as Uint8Array;
     expect(Buffer.from(d).equals(nodeHash("sha256").update("x").digest())).toBe(true);
+    // Like a Buffer: build-time code may write digest().toString("hex").
+    expect(String((d as Uint8Array & { toString(e?: string): string }).toString("hex"))).toBe(
+      nodeHash("sha256").update("x").digest("hex"),
+    );
     expect(shim.createHash("sha256").update("x").digest("base64url")).toBe(
       nodeHash("sha256").update("x").digest("base64url"),
     );
