@@ -170,17 +170,36 @@ export async function runAgentLoop(
   const emit = opts.onEvent ?? (() => {});
 
   const sandbox = await flueBash(
-    () => new Bash({ fs: new CapFs(cap) as never, cwd: req.cwd ?? "/", customCommands: [rgForFlue] }) as never,
+    () =>
+      new Bash({
+        fs: new CapFs(cap) as never,
+        cwd: req.cwd ?? "/",
+        customCommands: [rgForFlue],
+      }) as never,
   ).createSandbox({ id: opts.sandboxId });
   const tools = [
-    ...[createReadTool, createWriteTool, createEditTool, createGrepTool, createGlobTool, createBashTool].map(
-      (make) => make(sandbox) as unknown as { name: string; execute: (...a: unknown[]) => Promise<unknown> },
+    ...[
+      createReadTool,
+      createWriteTool,
+      createEditTool,
+      createGrepTool,
+      createGlobTool,
+      createBashTool,
+    ].map(
+      (make) =>
+        make(sandbox) as unknown as {
+          name: string;
+          execute: (...a: unknown[]) => Promise<unknown>;
+        },
     ),
     ...(opts.host ? hostTools(opts.host) : []),
   ];
 
   const model = modelOf(config, credentials.headers);
-  const contextBytes = Math.max((model.contextWindow - model.maxTokens) * CHARS_PER_TOKEN, 16 * 1024);
+  const contextBytes = Math.max(
+    (model.contextWindow - model.maxTokens) * CHARS_PER_TOKEN,
+    16 * 1024,
+  );
   const sessionKey = req.session ? `agent-session:${opts.scope}:${String(req.session)}` : undefined;
   const stored = (sessionKey ? await storage.get<Message[]>(sessionKey) : undefined) ?? [];
   const history = trimHistory(stored, SESSION_MESSAGES, Math.min(SESSION_BYTES, contextBytes));
@@ -194,7 +213,9 @@ export async function runAgentLoop(
       return credentials.apiKey;
     },
     initialState: {
-      systemPrompt: req.instructions ? `${STUDIO_INSTRUCTIONS}\n\n${req.instructions}` : STUDIO_INSTRUCTIONS,
+      systemPrompt: req.instructions
+        ? `${STUDIO_INSTRUCTIONS}\n\n${req.instructions}`
+        : STUDIO_INSTRUCTIONS,
       model: model as never,
       tools: tools as never,
       messages: history as never,
@@ -204,39 +225,49 @@ export async function runAgentLoop(
   const maxTurns = Math.min(Math.max(Number(req.maxTurns) || 24, 1), 60);
   const timeoutMs = Math.min(Math.max(Number(req.timeoutMs) || 300_000, 1000), 900_000);
   let turns = 0;
-  agent.subscribe((e: {
-    type: string;
-    message?: Message;
-    toolResults?: unknown[];
-    toolCallId?: string;
-    toolName?: string;
-    args?: unknown;
-    result?: { content?: Content[] };
-    isError?: boolean;
-  }) => {
-    if (e.type === "tool_execution_start")
-      emit({ type: "tool_call", id: String(e.toolCallId), name: String(e.toolName), input: e.args });
-    else if (e.type === "tool_execution_end")
-      emit({
-        type: "tool_result",
-        id: String(e.toolCallId),
-        name: String(e.toolName),
-        ok: !e.isError,
-        output: clip((e.result?.content ?? []).map((c) => c.text ?? "").join("")),
-      });
-    else if (e.type === "message_end" && e.message?.role === "assistant") {
-      const text = textOf(e.message).trim();
-      if (text) emit({ type: "text", text });
-    } else if (e.type === "turn_end") {
-      if (e.message?.usage) void cap.model("charge", metered, e.message.usage).catch(() => {});
-      if (stopped) return;
-      turns += 1;
-      if (turns >= maxTurns && (e.message?.stopReason === "toolUse" || (e.toolResults?.length ?? 0) > 0)) {
-        stopped = `stopped after ${maxTurns} turns`;
-        agent.abort();
+  agent.subscribe(
+    (e: {
+      type: string;
+      message?: Message;
+      toolResults?: unknown[];
+      toolCallId?: string;
+      toolName?: string;
+      args?: unknown;
+      result?: { content?: Content[] };
+      isError?: boolean;
+    }) => {
+      if (e.type === "tool_execution_start")
+        emit({
+          type: "tool_call",
+          id: String(e.toolCallId),
+          name: String(e.toolName),
+          input: e.args,
+        });
+      else if (e.type === "tool_execution_end")
+        emit({
+          type: "tool_result",
+          id: String(e.toolCallId),
+          name: String(e.toolName),
+          ok: !e.isError,
+          output: clip((e.result?.content ?? []).map((c) => c.text ?? "").join("")),
+        });
+      else if (e.type === "message_end" && e.message?.role === "assistant") {
+        const text = textOf(e.message).trim();
+        if (text) emit({ type: "text", text });
+      } else if (e.type === "turn_end") {
+        if (e.message?.usage) void cap.model("charge", metered, e.message.usage).catch(() => {});
+        if (stopped) return;
+        turns += 1;
+        if (
+          turns >= maxTurns &&
+          (e.message?.stopReason === "toolUse" || (e.toolResults?.length ?? 0) > 0)
+        ) {
+          stopped = `stopped after ${maxTurns} turns`;
+          agent.abort();
+        }
       }
-    }
-  });
+    },
+  );
   const onAbort = () => {
     stopped ??= "stopped";
     agent.abort();
@@ -256,16 +287,21 @@ export async function runAgentLoop(
     opts.signal?.removeEventListener("abort", onAbort);
   }
 
-  const messages = (agent.state.messages as unknown as Message[]).filter((m) => m.role !== "system");
+  const messages = (agent.state.messages as unknown as Message[]).filter(
+    (m) => m.role !== "system",
+  );
   const fresh = messages.slice(history.length);
   const assistants = fresh.filter((m) => m.role === "assistant");
   const last = assistants.at(-1);
-  const answer = [...assistants].reverse().find((m) => m.stopReason !== "aborted" && m.stopReason !== "error");
+  const answer = [...assistants]
+    .reverse()
+    .find((m) => m.stopReason !== "aborted" && m.stopReason !== "error");
   const providerError =
     last?.stopReason === "error"
       ? clip(redact(String(last.errorMessage ?? "error")).replace(/\b\w+:\/\/\S+/g, "<url>"), 500)
       : undefined;
-  if (sessionKey) await storage.put(sessionKey, trimHistory(messages, SESSION_MESSAGES, SESSION_BYTES));
+  if (sessionKey)
+    await storage.put(sessionKey, trimHistory(messages, SESSION_MESSAGES, SESSION_BYTES));
   return {
     reply: clip(textOf(answer)),
     stopReason: stopped ? "limit" : (last?.stopReason ?? "unknown"),

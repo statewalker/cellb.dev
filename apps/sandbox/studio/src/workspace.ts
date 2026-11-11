@@ -108,7 +108,8 @@ export class Workspace extends DurableObject {
     const started = this.#auth.startSession(user, rights, mode, model);
     for (const r of rights) {
       const p = normalise(r);
-      if (p !== "/" && !(await this.#store.exists(p))) await this.#store.mkdir(p, { recursive: true });
+      if (p !== "/" && !(await this.#store.exists(p)))
+        await this.#store.mkdir(p, { recursive: true });
     }
     return started;
   }

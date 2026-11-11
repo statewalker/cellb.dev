@@ -13,6 +13,8 @@
 //     POST /api/agents/:name/runs/:id/stop
 //   GET /api/runtime                     what this deployment offers
 
+// biome-ignore-all assist/source/organizeImports: node-probe-guard must be the first import (it hides
+// process.versions.node from pi-ai's probes while the modules load)
 import { restoreNodeVersions } from "./capfs/node-probe-guard.ts";
 import type { Agent } from "./agent.ts";
 import type { AgentRunRequest } from "./agent-loop.ts";
@@ -65,7 +67,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-    const body = async <T>() => (request.method === "POST" ? ((await request.json()) as T) : ({} as T));
+    const body = async <T>() =>
+      request.method === "POST" ? ((await request.json()) as T) : ({} as T);
     try {
       if (parts[0] !== "api") return json("not found", 404);
       if (parts[1] === "runtime")
@@ -84,9 +87,15 @@ export default {
           const b = await body<{ files: Record<string, SyncValue>; prune?: boolean }>();
           return json(await ws.sync(b.files, !!b.prune));
         }
-        if (what === "changes") return json(await ws.changes(Number(url.searchParams.get("since") ?? 0)));
+        if (what === "changes")
+          return json(await ws.changes(Number(url.searchParams.get("since") ?? 0)));
         if (what === "sessions" && !sid && request.method === "POST") {
-          const b = await body<{ user: string; rights: string[]; mode?: string; model?: boolean }>();
+          const b = await body<{
+            user: string;
+            rights: string[];
+            mode?: string;
+            model?: boolean;
+          }>();
           return json(await ws.startSession(b.user, b.rights, b.mode, b.model));
         }
         if (what === "sessions" && sid && !action) return json(await ws.sessionInfo(sid));
@@ -111,7 +120,8 @@ export default {
           const llmToken = request.headers.get("x-llm-token") ?? undefined;
           return json(await agent.run(files, b.task, llmToken));
         }
-        if (parts[3] === "runs" && parts[4] && parts[5] === "stop") return json(await agent.stop(parts[4]));
+        if (parts[3] === "runs" && parts[4] && parts[5] === "stop")
+          return json(await agent.stop(parts[4]));
         if (parts[3] === "runs" && parts[4])
           return json(await agent.progress(parts[4], Number(url.searchParams.get("since") ?? 0)));
       }

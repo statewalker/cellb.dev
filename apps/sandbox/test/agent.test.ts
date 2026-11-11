@@ -255,7 +255,10 @@ describe("Flue agent client (the page as the Workspace's admin)", () => {
       if (path.endsWith("/sync"))
         return { status: 200, value: { written: 2, deleted: 0, cursor: 7 } };
       if (path.endsWith("/sessions"))
-        return { status: 200, value: { session: "s", token: `tok-${(init.body as any).mode}` } };
+        return {
+          status: 200,
+          value: { session: "s", token: `tok-${(init.body as { mode: string }).mode}` },
+        };
       if (path.includes("/changes?since=7"))
         return {
           status: 200,

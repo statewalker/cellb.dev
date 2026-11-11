@@ -42,6 +42,7 @@ const call = async (path: string, body?: unknown, headers: Record<string, string
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
   );
+  // biome-ignore lint/suspicious/noExplicitAny: the API's values, checked by the asserts
   const data = (await res.json()) as { value?: any; error?: string };
   return { status: res.status, ...data };
 };
@@ -75,24 +76,26 @@ try {
   const edited = await run(yolo.token, "EDIT the greeting");
   assert.equal(edited.status, 200, JSON.stringify(edited));
   const changes = await call("/api/w/demo/changes?since=0");
-  const change = changes.value.changes.find((c: any) => c.path === "/server/index.ts");
+  const change = changes.value.changes.find((c: { path: string }) => c.path === "/server/index.ts");
   assert.ok(change?.text?.includes("hello from flue"), JSON.stringify(changes));
   console.log("• a Flue agent edits a file; the journal reports it with its content");
 
   const ro = await session("readonly");
-  const refused = await run(ro.token, "WRITE something");
-  const lastWrite = toolResults(fake.requests.at(-1)!).at(-1) ?? "";
+  await run(ro.token, "WRITE something");
+  const lastWrite =
+    toolResults(fake.requests.at(-1) as (typeof fake.requests)[number]).at(-1) ?? "";
   assert.match(lastWrite, /EACCES|denied/i, lastWrite);
   const after = await call(`/api/w/demo/changes?since=${changes.value.cursor}`);
   assert.equal(after.value.changes.length, 0, JSON.stringify(after.value));
-  console.log("• a read-only capability: the write is refused, nothing changes", refused.status);
+  console.log("• a read-only capability: the write is refused, nothing changes");
 
-  const scoped = await run(yolo.token, "READ /secret.txt", { scope: "/server" });
-  const readResult = toolResults(fake.requests.at(-1)!).at(-1) ?? "";
+  await run(yolo.token, "READ /secret.txt", { scope: "/server" });
+  const readResult =
+    toolResults(fake.requests.at(-1) as (typeof fake.requests)[number]).at(-1) ?? "";
   assert.doesNotMatch(readResult, /s3cret/);
   assert.match(readResult, /EACCES|denied|not/i, readResult);
   const ls = await run(yolo.token, "BASH ls", { scope: "/server" });
-  const lsOut = toolResults(fake.requests.at(-1)!).at(-1) ?? "";
+  const lsOut = toolResults(fake.requests.at(-1) as (typeof fake.requests)[number]).at(-1) ?? "";
   assert.match(lsOut, /server/);
   assert.doesNotMatch(lsOut, /secret|client/);
   console.log(

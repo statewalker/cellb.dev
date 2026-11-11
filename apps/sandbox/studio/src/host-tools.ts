@@ -39,7 +39,9 @@ function tool(
       if (!out.ok) throw new Error(out.error);
       const text = JSON.stringify(out.result, null, 2);
       return {
-        content: [{ type: "text", text: text.length > MAX ? `${text.slice(0, MAX)}… [cut]` : text }],
+        content: [
+          { type: "text", text: text.length > MAX ? `${text.slice(0, MAX)}… [cut]` : text },
+        ],
         details: undefined,
       };
     },
