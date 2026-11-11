@@ -1,0 +1,22 @@
+---
+// Every notebook: prose blocks rendered when the page model was made, an empty root per code
+// cell, and one inline module script that imports notebook-kit's runtime and defines the cells.
+import { getLiveEntry } from "astro:content";
+import Notebook from "../layouts/Notebook.astro";
+
+const id = Astro.params.id || "index";
+const { entry } = await getLiveEntry("notebooks", id);
+if (!entry) return new Response("Not found", { status: 404 });
+const { entry: siteEntry } = await getLiveEntry("site", "site");
+const page = entry.data;
+---
+<Notebook page={page} site={siteEntry.data}>
+  {page.blocks.map((b) =>
+    b.kind === "prose" ? (
+      <div class="prose" set:html={b.html} />
+    ) : (
+      <div id={`cell-${b.id}`} class="cell">{b.error && <pre class="cell-error">{b.error}</pre>}</div>
+    ),
+  )}
+  <script type="module" is:inline set:html={page.script}></script>
+</Notebook>

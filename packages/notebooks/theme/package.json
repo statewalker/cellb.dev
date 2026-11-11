@@ -1,0 +1,9 @@
+{
+  "name": "notebook-site-theme",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@astrojs/cloudflare": "^14.3.1",
+    "astro": "7.4.4"
+  }
+}

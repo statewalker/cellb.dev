@@ -95,9 +95,10 @@ npx tsx ../bundler/bin/webrun-build.ts --runner http://localhost:8787   # the No
   same host;
 - the same project built by the Node runner.
 
-`scripts/e2e-browser.ts` checks the platform in a Chromium tab on cellb: CDN, project page,
-bundler (esbuild-wasm in the tab), notebooks, and the Astro demo built from its sources in the
-tab, then run on CellB in Node with its island hydrated.
+`scripts/e2e-browser.ts` checks the platform in a Chromium tab on CellB: CDN, project page,
+bundler (esbuild-wasm in the tab), notebooks, the Astro demo built from its sources in the
+tab, then run on CellB in Node with its island hydrated, and the notebooks' Astro theme built in
+the tab and rendering the notebooks there.
 
 `examples/platform-demos` (in the examples' workspace) has whole apps; see
 [its README](../../examples/platform-demos/README.md):
@@ -121,6 +122,9 @@ Each demo is built and run on every host.
 | EmDash: bundled (runner), setup seeds D1, pages | yes | yes | yes | n/a |
 | EmDash bundled inside the object (38.5 MB input) | 29 s | 10 s with `CELLD_V8_HEAP_LIMIT_MB=2048` | 16 s | n/a |
 | Notebooks compiled in the object, cells run | yes | yes | yes | yes |
+| Notebooks rendered by an Astro theme built in the object (page models, Worker Loader), cells run | yes | yes | yes | yes (theme built in the tab) |
+| Themed notebook site exported as static files, its cells run from a file server | yes | yes | yes | exported in the tab |
+| Notebook pages, hosted or exported, load notebook-kit's built-ins (`Inputs`…) from the site, not esm.sh | yes | yes | yes | yes |
 | Astro demo built from its sources in the object, then run and hydrated | yes (Worker Loader) | yes (Worker Loader) | yes | yes (built in the tab, run on CellB) |
 | EmDash built from its sources on the Node runner (225 routes), setup seeds D1 | yes | yes | yes | n/a |
 | EmDash built from its sources in the object | 146 s (Worker Loader) | 102 s (Worker Loader, `CELLD_V8_HEAP_LIMIT_MB=4096`) | 87 s | not tried |

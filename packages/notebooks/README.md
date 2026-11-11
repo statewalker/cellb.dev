@@ -19,9 +19,13 @@ The demo notebooks are in
 |---|---|
 | `PUT /nb/<site>/files/<path>` | writes a notebook (`.md`, Notebook Kit `.html`) or a data file |
 | `POST /nb/<site>/import` | replaces the sources: a ZIP, or JSON `{ files: { path: text } }` |
-| `POST /nb/<site>/build` | builds the pages (incrementally) → `{ changed, failures, pages, ms }` |
+| `POST /nb/<site>/build` | builds the pages (incrementally) and the page models → `{ changed, failures, pages, ms, models, modelFailures }` |
 | `GET /nb/<site>/<page>.html` | a built page; its cells run in the browser |
 | `GET /nb/<site>/_m/…` | the npm modules the pages import |
+| `GET /nb/<site>/models.json` | the page models of the last build: `{ version, site, pages }` |
+| `PUT /nb/<site>/theme` | `{ "build": "<id>" }`: a bundler build of an Astro theme (`POST /builds`) |
+| `GET /nb/<site>/t/<page>` | a page rendered by the theme from the page models (`t/` is the home page) |
+| `POST /nb/<site>/export` | the themed site as static files, a ZIP (`x-export-pages`, `x-export-modules`) |
 
 ## How it works
 
@@ -32,3 +36,89 @@ The demo notebooks are in
   from the package store), at `/nb/<site>/_m/`.
 - `@statewalker/notebook-site` serves the pages. `urlpattern-polyfill` covers Node 22, which has
   no `URLPattern`.
+
+## Themed pages
+
+The plain pages have no site around them. A theme adds one: navigation between the notebooks, a
+table of contents, the site's styles. A theme is an ordinary Astro project, and
+[`theme/`](theme) is the default one.
+
+```
+POST /nb/<site>/build ─► pages (as above)
+                     └─► page models (src/page-models.ts) ─► nbmeta /models.json
+POST /builds  (theme/, built from its sources by the bundler's Astro builder) ─► build <id>
+PUT  /nb/<site>/theme { build: <id> }
+GET  /nb/<site>/t/<page> ─► the theme's build in a Worker Loader isolate,
+                            env.NOTEBOOK_MODELS = { site, pages }  ─► HTML
+```
+
+- **A page model** is what a theme needs and nothing more: the notebook's title, its prose as
+  HTML (headings with ids), its outline, one entry per code cell, and the module script that
+  imports notebook-kit's runtime and calls `define()` for each cell. The theme never parses
+  Markdown or transpiles code. The stages are notebook-build's (`parseMarkdown`,
+  `parseNotebookHtml`, `resolveNotebook`, `transpileNotebook`), so a themed page runs the same
+  cells as the plain page.
+- **Content is data.** The models reach the theme in the isolate's `env`, as plain JSON, which
+  every host's Worker Loader passes. The isolate is named after the theme's build and the models'
+  hash: a notebook edit and a rebuild load the same theme build with new data. The theme is built
+  once.
+- **The theme reads the models from live collections** (`theme/src/live.config.ts`):
+  `getLiveEntry("notebooks", id)` and `getLiveEntry("site", "site")`. One route,
+  `src/pages/[...id].astro`, renders every notebook; it emits the module script with
+  `<script type="module" is:inline>`, so Astro passes it through unchanged.
+- **Paths.** Page paths in the models carry the `/nb/<site>/t` base; the object strips it before
+  the theme sees the request. The theme's own files (`/_astro/…`) come from the build's `assets/`.
+- **The theme pins `astro` 7.4.4**, so its build does not change under it with each Astro
+  release. The platform's Astro demo takes the latest 7.x; between them both places Astro has
+  kept its client directives in are checked.
+
+### Static export
+
+`POST /nb/<site>/export` returns the themed site as a ZIP that any static file server serves:
+
+- **pages**, crawled from `/nb/<site>/t/` through their links, each saved as `<path>/index.html`;
+- **modules**, which a crawler cannot find because the pages import them from JavaScript: the
+  closure of the page models' pins (notebook-kit's runtime and the notebooks' `npm:` imports),
+  materialized with notebook-build's `materializeDeps`, with the `.css`, `.wasm` and font files
+  their packages ship;
+- a root `index.html` that redirects to `/nb/<site>/t/`.
+
+Paths stay as served (`/nb/<site>/t/…`, `/nb/<site>/_m/…`), so no page is rewritten. One kind of
+module is: an `import "./x.css?module"` (notebook-kit's `stdlib/inputs.js` has one) asks the
+module server for a JS module, but a static server ignores the query and sends CSS. The export
+writes the module server's answer to `x.css.module.js` and points the import there.
+
+The export also carries the notebook-kit built-ins the site's cells use (next section), found
+from the cells' free variables (`Inputs`, `Plot`, `d3`…, listed in `x-export-builtins`): their
+modules, following static imports, and the assets their packages ship. Their `~esm/` URLs are
+replaced by the pinned ones, since a static server cannot redirect. A built-in no cell names
+(reached through a computed name, say) is not in the export.
+
+### Built-ins without a CDN
+
+notebook-kit's stdlib loads its libraries from esm.sh: `Inputs`, `htl`, and the recommended
+libraries such as `d3`, `Plot`, `tex` or `duckdb`. The site's module server serves them instead
+(`src/builtins.ts`):
+
+- in the JS and CSS it serves, `https://esm.sh/<pkg>[@v][/path]` becomes
+  `/nb/<site>/_m/~esm/<pkg>[@v][/path]`, a string replacement that downloads nothing;
+- a request for a `~esm/` URL resolves the package like any `npm:` import (an unversioned URL
+  takes the latest version, as on esm.sh) and redirects to its pinned URL. A package the registry
+  does not have redirects to esm.sh.
+
+The rewrite is lazy on purpose: `recommendedLibraries.js` names fifteen libraries, and resolving
+them all whenever a page loads it downloads `duckdb-wasm`, `echarts` and the rest for nothing,
+which ran celld out of memory.
+
+```sh
+curl -X POST -o site.zip localhost:8787/nb/demo/export && unzip site.zip -d site && python3 -m http.server -d site
+```
+
+```sh
+(cd theme && zip -r - . -x 'node_modules/*') | curl -X POST --data-binary @- 'localhost:8787/builds?tier=object&sourcemap=0'
+curl -X PUT -d '{"build":"<id>"}' localhost:8787/nb/demo/theme
+open http://localhost:8787/nb/demo/t/
+```
+
+Checked by `examples/platform-demos/scripts/e2e.ts … notebooks` on Wrangler, celld and CellB, and
+by `packages/platform/scripts/e2e-browser.ts` in a tab.
