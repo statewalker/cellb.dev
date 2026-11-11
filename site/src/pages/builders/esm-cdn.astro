@@ -1,0 +1,167 @@
+---
+import Files from "@/components/builders/Files.astro";
+import Flow from "@/components/builders/Flow.astro";
+import Pager from "@/components/builders/Pager.astro";
+import RecordedNote from "@/components/builders/RecordedNote.astro";
+import Shots from "@/components/builders/Shots.astro";
+import Transcript from "@/components/builders/Transcript.astro";
+import CodeBlock from "@/components/CodeBlock.astro";
+import Docs from "@/layouts/Docs.astro";
+import { recordedOf } from "@/lib/builders";
+import { docHref } from "@/lib/docs";
+import { repoFile } from "@/lib/site";
+import page from "../../builders/examples/esm-cdn/index.html?raw";
+
+const rec = recordedOf("esm-cdn");
+const f = rec.facts;
+
+const preload = `// ?graph lists the modules of an entry; preload them, then import the entry.
+const CDN = "http://localhost:8787";
+const graph = await (await fetch(\`\${CDN}/npm/browser/@observablehq/plot@0.6?graph\`)).json();
+for (const url of graph) {
+  const link = Object.assign(document.createElement("link"), { rel: "modulepreload", href: CDN + url });
+  document.head.append(link);
+}
+const Plot = await import(\`\${CDN}/npm/browser/@observablehq/plot@0.6\`);`;
+---
+
+<Docs
+  title="ESM modules (CDN)"
+  description="The platform's ESM CDN: npm packages served as ES modules from your own origin, with pinned immutable URLs, a preload graph and CSS as modules. A working example with recorded results."
+>
+  <p class="font-mono text-xs uppercase tracking-wider text-primary">Builders · 1 of 5</p>
+  <h1>ESM modules: npm packages from your own origin</h1>
+  <p>
+    The ESM CDN answers <code>/npm/browser/&lt;package&gt;@&lt;range&gt;</code> with the package
+    as ES modules a browser imports directly, much as esm.sh or jsDelivr do. The difference is
+    where it runs: it is a Durable Object in your own deployment, so it can run on Cloudflare,
+    on celld, on a Node server, or in the visitor's tab.
+  </p>
+
+  <h2>What it is for</h2>
+  <ul>
+    <li>
+      <strong>Pages and Workers that import npm packages with no install step.</strong> The import
+      is a URL; there is no <code>node_modules</code>, no bundler and no build.
+    </li>
+    <li>
+      <strong>No third-party CDN at run time.</strong> After the first request everything comes
+      from the deployment's own storage, so it keeps working offline and nobody else sees your
+      traffic.
+    </li>
+    <li>
+      <strong>Stable URLs.</strong> A range redirects to a pinned version, and a pinned URL never
+      changes meaning, so browsers and proxies cache it forever.
+    </li>
+    <li>
+      <strong>Fast first loads.</strong> <code>?graph</code> lists every module an entry needs,
+      for <code>&lt;link rel="modulepreload"&gt;</code>.
+    </li>
+    <li>
+      <strong>The base of the other builders.</strong> User code as ESM binds a project's npm
+      imports to these URLs, so all projects share one cache.
+    </li>
+  </ul>
+
+  <h2>How it works</h2>
+  <Flow
+    steps={[
+      { label: "import \"…/npm/browser/x@1\"", detail: "a page, a worker or another module asks for a package and a range", kind: "client" },
+      { label: "ModuleHost (browser)", detail: "resolves the range against the packument, answers 302 to the pinned URL" },
+      { label: "PackageRegistry (x)", detail: "the packument and tarball, from npm the first time, then from SQLite" },
+      { label: "webrun-modules", detail: "turns the requested file into ESM, rewrites its imports, caches the result" },
+    ]}
+    caption="One ModuleHost object per profile (browser, node); one PackageRegistry object per npm package."
+  />
+  <ol>
+    <li>
+      <strong>Resolve.</strong> <code>/npm/browser/@observablehq/plot@0.6</code> names a package
+      and a range. The CDN reads the packument from the package store, picks the highest matching
+      version, finds the entry through the package's <code>exports</code> with the browser
+      conditions, and redirects to it: <code>{f.plotPinned}</code>.
+    </li>
+    <li>
+      <strong>Transform one file.</strong> The pinned URL is answered by{" "}
+      <code>@statewalker/webrun-modules</code>. It takes the file from the tarball and:
+      <ul>
+        <li>wraps CommonJS so <code>require</code> works inside the module graph;</li>
+        <li>strips TypeScript and compiles JSX;</li>
+        <li>
+          rewrites every bare import (<code>"d3"</code>) to a same-origin URL in the package's{" "}
+          <code>~deps/</code> folder: a one-line module that re-exports the version the package's
+          own <code>package.json</code> allows, pinned
+          (<code>export * from "../../../../d3@7.9.2/dist/d3.mjs"</code>);
+        </li>
+        <li>runs CSS through Lightning CSS and, with <code>?module</code>, wraps it in a module that adds it to the page.</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Cache.</strong> The result is kept in the object's SQLite and served with{" "}
+      <code>Cache-Control: immutable</code>. In the recording below the first request for Plot's
+      entry took {f.coldMs} ms (download and transform), the second {f.warmMs} ms.
+    </li>
+  </ol>
+  <p>Two profiles share the code and differ in how they resolve packages:</p>
+  <table>
+    <thead><tr><th>Path</th><th>Resolves</th><th><code>node:*</code> imports</th><th>For</th></tr></thead>
+    <tbody>
+      <tr><td><code>/npm/browser/…</code></td><td>a package's browser build</td><td>replaced by <code>@jspm/core</code> polyfills</td><td>pages, browser workers</td></tr>
+      <tr><td><code>/npm/node/…</code></td><td>a package's Node build</td><td>left to the runtime</td><td>Workers with <code>nodejs_compat</code>, Deno, Node</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th>Request</th><th>Answer</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET /npm/&lt;profile&gt;/&lt;name&gt;[@range][/sub]</code></td><td>302 to the pinned URL</td></tr>
+      <tr><td><code>GET /npm/&lt;profile&gt;/&lt;name&gt;@&lt;version&gt;/&lt;file&gt;</code></td><td>the file as ESM, immutable</td></tr>
+      <tr><td><code>…?graph</code></td><td>every module URL the entry needs</td></tr>
+      <tr><td><code>…?meta</code></td><td>the package's file list</td></tr>
+      <tr><td><code>…/&lt;file&gt;?raw</code></td><td>the original bytes</td></tr>
+      <tr><td><code>…/&lt;file&gt;.css?module</code></td><td>the stylesheet as a module that adds it to the page</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Usage</h2>
+  <p>
+    The example is one HTML file. It imports Observable Plot, d3-dsv and the Pico CSS stylesheet
+    by URL and draws a chart. Nothing is installed and nothing is built: open it in a browser
+    while the platform runs.
+  </p>
+  <Files
+    files={{ "index.html": page }}
+    source={{ label: "site/src/builders/examples/esm-cdn/", href: repoFile("site/src/builders/examples/esm-cdn/index.html") }}
+  />
+  <p>
+    From code, <code>?graph</code> gives the list to preload; with it the browser fetches the
+    whole graph at once instead of discovering it import by import:
+  </p>
+  <CodeBlock lang="js" code={preload} />
+
+  <h2>Results</h2>
+  <RecordedNote recorded={rec} />
+  <h3>The page</h3>
+  <Shots shots={rec.shots} />
+  <h3>The requests</h3>
+  <p>
+    What the CDN answered, request by request. The page itself made {f.pageModules} module
+    requests; these are the ones that show how it works.
+  </p>
+  <Transcript steps={rec.steps} />
+
+  <h2>Limits</h2>
+  <ul>
+    <li>
+      A package that needs a native addon or a build step at install (<code>postinstall</code>)
+      does not work: the CDN only reads the files in the tarball.
+    </li>
+    <li>
+      Without <code>PLATFORM_TOKEN</code> the platform is open. The CDN only reads, but it does
+      fill storage with whatever packages are asked for. See{" "}
+      <a href={docHref("packages/platform/README.md")}>the platform's README</a>.
+    </li>
+  </ul>
+  <p>
+    API reference: <a href={docHref("packages/esm-cdn/README.md")}>ESM CDN &amp; user code</a>.
+  </p>
+  <Pager slug="esm-cdn" />
+</Docs>

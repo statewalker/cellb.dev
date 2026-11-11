@@ -1,0 +1,35 @@
+.tasks {
+  font-family: system-ui, sans-serif;
+  max-width: 28rem;
+  margin: 2rem auto;
+  & h1 {
+    color: #7c3aed;
+    margin-bottom: 0;
+  }
+  & .summary {
+    color: #6b7280;
+  }
+  & ul {
+    list-style: none;
+    padding: 0;
+  }
+  & li {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  & li.done label {
+    text-decoration: line-through;
+    color: #9ca3af;
+  }
+  & code {
+    color: #9ca3af;
+    font-size: 0.8em;
+  }
+  & form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+}

@@ -1,0 +1,26 @@
+---
+import { neighbours } from "@/lib/builders";
+
+interface Props {
+  slug: string;
+}
+
+const { prev, next } = neighbours(Astro.props.slug);
+---
+
+<nav class="not-prose mt-12 grid gap-3 border-t pt-6 sm:grid-cols-2">
+  {prev ? (
+    <a href={prev.href} class="rounded-lg border p-3 text-foreground no-underline text-sm hover:bg-accent">
+      <span class="block text-xs text-muted-foreground">← Previous</span>{prev.label}
+    </a>
+  ) : (
+    <a href="/builders" class="rounded-lg border p-3 text-foreground no-underline text-sm hover:bg-accent">
+      <span class="block text-xs text-muted-foreground">← Overview</span>Builders
+    </a>
+  )}
+  {next && (
+    <a href={next.href} class="rounded-lg border p-3 text-foreground no-underline text-right text-sm hover:bg-accent sm:col-start-2">
+      <span class="block text-xs text-muted-foreground">Next →</span>{next.label}
+    </a>
+  )}
+</nav>

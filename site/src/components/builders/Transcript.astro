@@ -1,0 +1,63 @@
+---
+import type { RecordedStep } from "@/builders/types";
+import CodeBlock from "@/components/CodeBlock.astro";
+
+// The requests an example made to the platform and what it answered, as recorded by
+// scripts/record-builders.ts.
+interface Props {
+  steps: RecordedStep[];
+  /** Number the steps from here (a page may split one recording in parts). */
+  start?: number;
+}
+
+const { steps, start = 1 } = Astro.props;
+const size = (n: number) =>
+  n < 1024
+    ? `${n} B`
+    : n < 1024 * 1024
+      ? `${(n / 1024).toFixed(1)} KiB`
+      : `${(n / 1024 / 1024).toFixed(2)} MiB`;
+const tone = (status: number) =>
+  status < 300
+    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+    : status < 400
+      ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+      : "border-destructive/30 bg-destructive/10 text-destructive";
+---
+
+<ol class="not-prose my-6 list-none space-y-6 pl-0">
+  {steps.map((s, i) => (
+    <li class="rounded-xl border bg-card p-4 shadow-xs">
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span class="font-mono text-xs text-muted-foreground">{String(start + i).padStart(2, "0")}</span>
+        <h4 class="m-0 text-[15px] font-medium text-foreground">{s.title}</h4>
+        <span class="ml-auto flex items-center gap-2 font-mono text-xs text-muted-foreground">
+          <span class:list={["rounded-md border px-1.5 py-0.5 font-medium", tone(s.response.status)]}>{s.response.status}</span>
+          <span>{s.response.ms} ms</span>
+          <span>{size(s.response.bytes)}</span>
+        </span>
+      </div>
+      {s.note && <p class="mt-2 mb-0 text-sm leading-6 text-muted-foreground">{s.note}</p>}
+      <p class="mt-3 mb-0 break-all font-mono text-xs">
+        <span class="font-semibold text-primary">{s.request.method}</span> {s.request.url}
+      </p>
+      {s.request.body && (
+        <p class="mt-1 mb-0 break-all font-mono text-xs text-muted-foreground">body: {s.request.body}</p>
+      )}
+      <details class="mt-2 text-xs">
+        <summary class="cursor-pointer select-none text-muted-foreground hover:text-foreground">as a shell command</summary>
+        <CodeBlock lang="sh" code={s.curl} class="mt-2 !my-0" />
+      </details>
+      {Object.keys(s.response.headers).length > 0 && (
+        <ul class="mt-3 mb-0 list-none pl-0 space-y-0.5 break-all font-mono text-xs text-muted-foreground">
+          {Object.entries(s.response.headers).map(([k, v]) => (
+            <li><span class="text-foreground/80">{k}:</span> {v}</li>
+          ))}
+        </ul>
+      )}
+      {s.response.body && (
+        <CodeBlock lang={s.response.bodyLang} code={s.response.body} class="mt-3 !mb-0 max-h-[28rem]" />
+      )}
+    </li>
+  ))}
+</ol>

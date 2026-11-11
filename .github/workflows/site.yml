@@ -30,6 +30,9 @@ on:
       # The tools' pages (/docs/tools/…): the platform packages' READMEs.
       - "packages/*/README.md"
       - "examples/*/README.md"
+      # The /builders pages show these examples' files (their results are recorded in site/).
+      - "examples/platform-astro/**"
+      - "examples/platform-demos/notebooks/**"
       # CellB sandbox, built into the site at /sandbox/app/ (site/scripts/build-sandbox.mjs).
       - "apps/sandbox/**"
       - "package.json"
@@ -48,6 +51,8 @@ on:
       - "packages/cellb/bench/README.md"
       - "packages/*/README.md"
       - "examples/*/README.md"
+      - "examples/platform-astro/**"
+      - "examples/platform-demos/notebooks/**"
       - "apps/sandbox/**"
       - "package.json"
       - ".nvmrc"

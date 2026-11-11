@@ -1,0 +1,10 @@
+{
+  "name": "tasks",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "nanoid": "^5.1.0"
+  }
+}

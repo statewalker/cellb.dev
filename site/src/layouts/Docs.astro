@@ -1,4 +1,5 @@
 ---
+import { builderPages } from "@/lib/builders";
 import {
   examplePages,
   pageHref,
@@ -27,6 +28,13 @@ const sections = [
       { href: "/docs/how-it-works", label: "How it works" },
       { href: "/docs/from-sources", label: "Running from sources" },
       { href: "/sandbox", label: "CellB sandbox" },
+    ],
+  },
+  {
+    heading: "Builders",
+    items: [
+      { href: "/builders", label: "Overview" },
+      ...builderPages.map((p) => ({ href: p.href, label: p.label })),
     ],
   },
   { heading: "Services", items: servicePages.map(navItem) },
