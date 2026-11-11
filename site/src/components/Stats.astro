@@ -13,8 +13,9 @@ const ms = (x: number) =>
 const k = (x: number) => `~${Math.round(x / 1000)}k`;
 const thousands = (x: number) => `~${(Math.round(x / 1000) * 1000).toLocaleString("en-US")}`;
 const rtt90 = node.durable.bucketRtt90ms;
-// celld.dev prices a whole 8 GB node at $48 a month (DigitalOcean us-east list); celld caps one
-// at 2,500 resident cells, about $0.02 per resident cell-month.
+// celld.dev prices a whole 8 GB node at $48 a month (DigitalOcean us-east list). The cost row
+// divides it by CellB's own measured cells per 8 GB; celld, capped at 2,500 resident cells per
+// node, reports about $0.02 per resident cell-month for itself.
 const nodeMonth = 48;
 
 type Row = { label: string; node: string; browser: string; unit: string; ref?: number };
@@ -187,7 +188,7 @@ const groups: { title: string; rows: Row[] }[] = [
   <li>A second node may take a cell only after the first node's lease expires. The lease lasts 10 s and is renewed every ~3.3 s, so it expires 6.7–10 s after a crash; the failover is that wait plus the restore.</li>
   <li>A Dedicated Worker's clock has about 0.1 ms resolution, so sub-millisecond browser rows show an upper bound.</li>
   <li>Node: process RSS growth per cell, after GC. Chromium: SQLite WASM heap growth per cell only; the browser's processes grow by more, as <a href={docHref("packages/cellb/docs/browser-capacity.md")} class="text-primary hover:underline">Cells per browser</a> measures.</li>
-  <li>At $48 a month for an 8 GB node, as celld.dev prices one (DigitalOcean us-east list; celld itself fits 2,500 resident cells on it). In a browser, the cell runs on the user's own device.</li>
+  <li>$48 a month for an 8 GB node (celld.dev's price, DigitalOcean us-east list), divided by the cells CellB fits on it. celld, at 2,500 resident cells per node, gives about $0.02. In a browser, the cell runs on the user's own device.</li>
 </ol>
 <a
   href={docHref("packages/cellb/bench/README.md")}
