@@ -146,7 +146,7 @@ describe("loadProject on a bucket: commits are logged from the WAL, not from dat
     const { celldBucket, memoryObjectStore } = await import("@statewalker/cellb");
     const bucket = celldBucket(memoryObjectStore(), { node: "cellb-test" });
     const seen: boolean[] = [];
-    const durability = bucket.durability as {
+    const durability = bucket.durability as unknown as {
       committed: (k: string, i: { pages?: unknown }) => Promise<void>;
     };
     const committed = durability.committed.bind(durability);
