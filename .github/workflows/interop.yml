@@ -36,7 +36,7 @@ jobs:
       - run: pnpm run typecheck
       - name: Node — celld conformance and interop
         run: pnpm run interop
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: bash ${{ github.workspace }}/.github/scripts/install-chromium.sh pnpm exec playwright
       - name: Chromium — browser hosts on the shared bucket
         run: pnpm run interop:browser
       - if: failure()

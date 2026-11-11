@@ -48,7 +48,7 @@ jobs:
         run: pnpm run test:unit
       - name: Build
         run: pnpm run build
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: bash ${{ github.workspace }}/.github/scripts/install-chromium.sh pnpm exec playwright
       - name: The published package (pack, install, Node, types, Vite + Chromium)
         run: node scripts/pack-check.mjs
 
