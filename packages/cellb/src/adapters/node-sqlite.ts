@@ -1,10 +1,12 @@
 import {
   closeSync,
+  existsSync,
   fstatSync,
   mkdtempSync,
   openSync,
   readFileSync,
   readSync,
+  rmdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -30,8 +32,14 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   #path: string;
   readonly #exclusive: boolean;
   readonly #pageCapture: boolean;
-  constructor(path = ":memory:", opts: { exclusive?: boolean; pageCapture?: boolean } = {}) {
+  /** A file of its own that close() removes (a cell "in memory" that needs a WAL). */
+  readonly #temporary: boolean;
+  constructor(
+    path = ":memory:",
+    opts: { exclusive?: boolean; pageCapture?: boolean; temporary?: boolean } = {},
+  ) {
     this.#path = path;
+    this.#temporary = !!opts.temporary && path !== ":memory:";
     this.#exclusive = !!opts.exclusive;
     this.#pageCapture = !!opts.pageCapture && path !== ":memory:";
     // As celld and workerd: a double-quoted name that is no column is a string literal.
@@ -150,6 +158,12 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   }
   close(): void {
     this.#db.close();
+    if (!this.#temporary) return;
+    for (const suffix of ["", "-wal", "-shm", "-journal"])
+      rmSync(this.#path + suffix, { force: true });
+    try {
+      rmdirSync(dirname(this.#path)); // the opener's directory, once its last cell is closed
+    } catch {}
   }
 
   // ---- change capture (session extension) for transaction logs -------------------------
@@ -250,18 +264,32 @@ function fromSqlite(v: unknown): unknown {
   return v;
 }
 
-/** One file per cell in `dir`, or in-memory when `dir` is omitted. */
 /**
- * `pageCapture` (file-backed only): WAL mode, and each commit's changed pages read from the WAL
- * (takeDirtyPages) — LTX logs then cost O(changed pages) on Node as with SQLite WASM.
+ * One file per cell in `dir`; without `dir`, each cell in memory.
+ *
+ * `pageCapture`: WAL mode, and each commit's changed pages read from the WAL (takeDirtyPages),
+ * so LTX logs (a celld bucket) cost O(changed pages) on Node as with SQLite WASM, instead of an
+ * image of the whole database (VACUUM INTO) and a page-by-page diff per commit. A WAL needs a
+ * file: without `dir`, each cell opened gets a temporary file (in a `cellb-cells-…` directory
+ * under the OS temp directory), removed when the cell closes, so it still starts empty each
+ * time as in memory (a bucket restores it).
  */
 export function nodeSqliteOpener(
   dir?: string,
   opts: { exclusive?: boolean; pageCapture?: boolean } = {},
 ): OpenCellSql {
-  return (cellKey) =>
-    new NodeSqliteDriver(
-      dir ? `${dir}/${cellKey.replace(/[^\w.-]/g, "_")}.sqlite` : ":memory:",
-      opts,
-    );
+  let temp: string | undefined;
+  let opened = 0;
+  return (cellKey) => {
+    const name = cellKey.replace(/[^\w.-]/g, "_");
+    if (dir) return new NodeSqliteDriver(`${dir}/${name}.sqlite`, opts);
+    if (!opts.pageCapture) return new NodeSqliteDriver(":memory:", opts);
+    if (!temp || !existsSync(temp)) temp = mkdtempSync(join(tmpdir(), "cellb-cells-"));
+    // A file per opening: a cell reopened while its previous database is still closing gets
+    // a fresh one, as in memory.
+    return new NodeSqliteDriver(join(temp, `${name}-${++opened}.sqlite`), {
+      ...opts,
+      temporary: true,
+    });
+  };
 }

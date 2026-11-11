@@ -60,3 +60,39 @@ describe("P11d SQLite WASM page hook", () => {
     expect(d.takeDirtyPages()!.pages.size).toBeGreaterThan(0);
   });
 });
+
+describe("P11d node:sqlite page capture without a data directory", () => {
+  it("nodeSqliteOpener(undefined, { pageCapture: true }): temporary files, removed on close", async () => {
+    const { nodeSqliteOpener } = await import("../src/node.js");
+    const { existsSync, readdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const before = new Set(readdirSync(tmpdir()));
+    const open = nodeSqliteOpener(undefined, { pageCapture: true });
+    const d = open("Counter:abc");
+    d.exec("CREATE TABLE t (v TEXT)", []);
+    d.takeDirtyPages();
+    d.exec("INSERT INTO t VALUES ('x')", []);
+    expect(d.takeDirtyPages()?.pages.size).toBeGreaterThan(0);
+    const made = readdirSync(tmpdir()).filter(
+      (f) => !before.has(f) && f.startsWith("cellb-cells-"),
+    );
+    expect(made.length).toBe(1);
+    // Two cells share the opener's directory; it goes with the last one.
+    const e = open("Counter:def");
+    e.exec("CREATE TABLE u (v TEXT)", []);
+    d.close();
+    expect(readdirSync(`${tmpdir()}/${made[0]}`).every((f) => f.startsWith("Counter_def"))).toBe(
+      true,
+    );
+    e.close();
+    expect(existsSync(`${tmpdir()}/${made[0]}`)).toBe(false);
+    // Opened again later: a new directory, an empty database (as in memory).
+    const again = open("Counter:abc");
+    expect(again.exec("SELECT count(*) FROM sqlite_master", []).rows[0][0]).toBe(0);
+    again.close();
+    // Without pageCapture and without a directory: in memory, as before.
+    const m = nodeSqliteOpener()("Counter:ghi");
+    expect(m.takeDirtyPages()).toBeUndefined();
+    m.close();
+  });
+});

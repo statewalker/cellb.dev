@@ -113,7 +113,11 @@ function nodeHost(options: NodeLoadProjectOptions): Omit<ProjectHost, "loadModul
     files = new NodeFilesApi({ rootDir: join(data, "files") });
   } else files = new MemFilesApi();
   return {
-    openSql: nodeSqliteOpener(options.data ? resolve(options.data) : undefined),
+    // On a bucket every commit is logged as LTX: page capture reads its pages from the WAL
+    // (O(changed pages)) instead of imaging and diffing the whole database per commit.
+    openSql: nodeSqliteOpener(options.data ? resolve(options.data) : undefined, {
+      pageCapture: !!options.bucket,
+    }),
     files,
     storage: options.bucket,
     ai: options.ai,
