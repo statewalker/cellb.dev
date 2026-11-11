@@ -203,8 +203,10 @@ or a report an agent writes as a file.
   whose cache lives as long as the runner.
 - A project may be notebooks and a server only (no client): the preview opens on `notebooks/`.
   `templates/notebook-dashboard` is one (an event log in a Durable Object, its dashboard).
-- Not in the deployable build yet (the pages import their modules from the hosted module server;
-  notebook-build's static mode would export them).
+- In the deployable build (Ship → Build), notebook-build's static mode writes the pages under
+  `assets/notebooks/` and every module they reach (with the CSS, wasm and fonts their packages
+  ship) under `assets/notebooks/_m/`: a static host serves them, the Worker answers their
+  `fetch("../api/…")`. Built for a deployment at the origin's root.
 
 ## History
 

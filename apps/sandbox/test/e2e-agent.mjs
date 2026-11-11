@@ -360,7 +360,7 @@ try {
   await opfsPage.close();
 
   step(
-    "notebooks: a dashboard over the Durable Object; a report written through the tools is a page",
+    "notebooks: a dashboard over the Durable Object, a report written through the tools, both in the deployable build run by cellb on Node",
   );
   const nbPage = await context.newPage();
   await nbPage.goto(APP);
@@ -396,6 +396,47 @@ try {
   await nbPage.getByRole("button", { name: "Reload the preview" }).click();
   await nb.getByRole("heading", { name: "Weekly report" }).waitFor({ timeout: 90_000 });
   await nb.getByText(/max value \d+/).waitFor({ timeout: 60_000 });
+
+  // The deployable build carries the notebooks as static pages and their modules.
+  await nbPage.getByRole("tab", { name: "Ship" }).click();
+  await nbPage.getByRole("button", { name: "Build", exact: true }).click();
+  await nbPage.getByTestId("build-files").waitFor({ timeout: 180_000 });
+  const nbFiles = await nbPage.getByTestId("build-files").locator("li").allTextContents();
+  for (const f of ["worker.js", "assets/notebooks/index.html", "assets/notebooks/report.html"])
+    if (!nbFiles.includes(f)) throw new Error(`the build has no ${f}`);
+  const runtime = nbFiles.find((f) =>
+    /notebooks\/_m\/@observablehq\/notebook-kit@[^/]+\/dist\/src\/runtime\/index\.js$/.test(f),
+  );
+  if (!runtime) throw new Error("the build has no notebook-kit runtime");
+  const [nbZip] = await Promise.all([
+    nbPage.waitForEvent("download"),
+    nbPage.getByRole("button", { name: "Download build .zip" }).click(),
+  ]);
+  const nbDir = await mkdtemp(join(tmpdir(), "sandbox-nb-build-"));
+  await nbZip.saveAs(join(nbDir, "build.zip"));
+  execFileSync("unzip", ["-q", join(nbDir, "build.zip"), "-d", nbDir]);
+  const nbOut = execFileSync(
+    join(root, "node_modules/.bin/tsx"),
+    [
+      join(root, "test/run-build.ts"),
+      join(nbDir, "notebook-dashboard-deploy"),
+      "/notebooks/", // static hosts serve index.html at the folder's URL
+      `/${runtime.slice("assets/".length)}`,
+      "/api/events",
+    ],
+    { cwd: root, encoding: "utf8", timeout: 120_000 },
+  );
+  const [nbHome, nbRuntime, nbApi] = nbOut
+    .trim()
+    .split("\n")
+    .filter((l) => l.startsWith("{"))
+    .map((l) => JSON.parse(l));
+  if (nbHome?.status !== 200 || !nbHome.body.includes("Events dashboard"))
+    throw new Error(`node: notebook page → ${JSON.stringify(nbHome).slice(0, 300)}`);
+  if (nbRuntime?.status !== 200 || !/javascript/.test(nbRuntime.type ?? ""))
+    throw new Error(`node: notebook runtime → ${JSON.stringify(nbRuntime).slice(0, 300)}`);
+  if (nbApi?.status !== 200 || !nbApi.body.includes('"kind"'))
+    throw new Error(`node: api → ${JSON.stringify(nbApi).slice(0, 300)}`);
   await nbPage.close();
 
   // S3 in the browser (any S3-compatible store whose bucket allows CORS from this origin):

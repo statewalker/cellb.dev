@@ -21,7 +21,7 @@ import { TokenCap } from "../../studio/src/capfs/token-cap";
 import { createAppSite } from "./app-site";
 import { assembleDeploy } from "./deploy";
 import { exportClient } from "./export";
-import { createNotebookSite, notebookFilesOf } from "./notebooks";
+import { createNotebookSite, exportNotebooks, notebookFilesOf } from "./notebooks";
 import { clientFilesOf, describeProject, SKIPPED_DIRS } from "./project";
 import type { FromRunner, ToRunner } from "./protocol";
 
@@ -188,7 +188,8 @@ async function build(id: number, entries: [string, Uint8Array][], folderName: st
   const t0 = performance.now();
   const all = new Map(entries);
   const layout = describeProject(all, folderName);
-  if (!layout.wranglerPath && !layout.clientRoot) throw new Error(layout.problems.join("; "));
+  if (!layout.wranglerPath && !layout.clientRoot && !layout.notebooks)
+    throw new Error(layout.problems.join("; "));
   esbuildReady ??= esbuild.initialize({ wasmURL, worker: false });
   await esbuildReady;
   let server: { config: Record<string, unknown>; files: Map<string, Uint8Array> } | undefined;
@@ -209,6 +210,12 @@ async function build(id: number, entries: [string, Uint8Array][], folderName: st
     const clientFiles = clientFilesOf(all, layout.clientRoot);
     const site = await createAppSite({ client: clientFiles, log, moduleCache });
     client = await exportClient(site, clientFiles, (m) => log(`build: ${m}`));
+  }
+  // The notebooks, with their modules materialized: the deployment serves them as assets.
+  const notebookFiles = notebookFilesOf(all);
+  if (notebookFiles) {
+    const nb = await exportNotebooks(notebookFiles, notebookCache, log);
+    client = new Map([...(client ?? []), ...nb]);
   }
   const out = assembleDeploy({ name: layout.name, server, client });
   const summary = `deployable build of ${layout.name}: ${out.size} files (${since(t0)})`;
