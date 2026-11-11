@@ -74,7 +74,15 @@ export async function notebooksDemo(host: string, base: string, t: Tools) {
     assert(res.modelFailures.length === 0, `model failures ${JSON.stringify(res.modelFailures)}`);
     const page = await (await fetch(`${site}/plots.html`)).text();
     assert(page.includes("/nb/demo/_m/"), "the page does not import from the module server");
-    return `${res.pages.length} pages in ${res.ms} ms`;
+    const css = /<link rel="stylesheet" href="([^"]+)"/.exec(page)?.[1];
+    assert(css, "the page links no stylesheet");
+    const sheet = await fetch(new URL(css, site));
+    assert(sheet.ok, `stylesheet ${css}: ${sheet.status}`);
+    assert(
+      /text\/css/.test(sheet.headers.get("content-type") ?? ""),
+      `stylesheet ${css} is not CSS`,
+    );
+    return `${res.pages.length} pages in ${res.ms} ms; stylesheet ${css.replace(/^.*\/_m\//, "")}`;
   });
   if (!built) return;
   if (browserOn) await plainPagesInBrowser(host, site, t);
