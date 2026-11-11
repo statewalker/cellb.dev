@@ -20,7 +20,7 @@ interface Job {
     await projectFiles.write(p, [Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))]);
   const nodeCompat = (
     (job.config as { compatibility_flags?: string[] }).compatibility_flags ?? []
-  ).some((f) => f.startsWith("nodejs_compat"));
+  ).some((f) => f === "nodejs_compat" || f === "nodejs_compat_v2");
   // The served proxies take their export names from the registry entries (the worker binds them
   // to the same objects); the npm `util` polyfill reads `process` when it is imported.
   if (nodeCompat) (await import("../../../src/node-compat/install.js")).installNodeGlobals();

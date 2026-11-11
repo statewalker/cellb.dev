@@ -49,8 +49,8 @@ export async function startHost(
         .filter(([p]) => p.startsWith(`${assetsDir}/`))
         .map(([p, b]) => [p.slice(assetsDir.length), b64(b)])
     : [];
-  const nodeCompat = (config.compatibility_flags ?? []).some((f: string) =>
-    f.startsWith("nodejs_compat"),
+  const nodeCompat = (config.compatibility_flags ?? []).some(
+    (f: string) => f === "nodejs_compat" || f === "nodejs_compat_v2",
   );
   const modules = await new HostedSiteBuilder()
     .setSiteKey(`host-modules-${Math.random().toString(36).slice(2, 8)}`)
