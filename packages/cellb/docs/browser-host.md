@@ -14,10 +14,11 @@ fails, and what differs in Firefox and WebKit.
   `NoModificationAllowedError`, so each worker gets its own pool.
 - **An opfs-sahpool pool has a fixed number of files until it grows**, and growing is asynchronous
   while opening a database is not. `sahpoolOpener` gives the runtime `room(cellKey)`, and a cell's
-  first event waits until the pool has room for it. It counts three files per cell, the database,
-  its journal and a spare, for open cells too until they hold them (a journal is made at the cell's
-  first write). A waiting cell waits for growth in steps of 8 files, and after each open the pool
-  grows in the background until half of it is free. Each new file is an OPFS sync access handle,
+  first event waits until the pool has room for it. It reserves three files per cell, the
+  database, its journal and a spare, and an open cell keeps counting its journal until it has one
+  (SQLite makes it at the cell's first write). At each open the pool grows in the background
+  until two thirds of it are free, in steps of 16 files asked for in parallel, and a waiting cell
+  waits for what was needed when it asked. Each new file is an OPFS sync access handle,
   made one at a time, and in a busy worker each one takes seconds (about 5 s with 32 Flue
   conversations in one worker), so the pool has to grow before it is needed.
 - **One worker's cells share one SQLite heap of at most 2 GiB, which never shrinks.** Each open
