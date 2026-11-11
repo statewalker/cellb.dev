@@ -60,11 +60,12 @@ For each host, the platform is started on it, then for each demo:
     theme build;
   - in Chromium, the themed page's cells run (Plot draws 60 dots) and its navigation lists both
     notebooks;
-  - the themed site is exported (`POST /nb/demo/export`) with both pages and every module the
-    pins name, served by a plain Node file server, and opened in Chromium: the root redirects to
-    the home page, its navigation leads to the plots, and Plot draws 60 dots. Every file of the
-    site loads from the file server; the only other requests are notebook-kit's built-ins from
-    esm.sh, which the check lists.
+  - the themed page makes no request off the platform: notebook-kit's built-ins (`Inputs`, `htl`)
+    come from the site's module server, not esm.sh;
+  - the themed site is exported (`POST /nb/demo/export`) with both pages, every module the pins
+    name and the built-ins the cells use (`Inputs`, `Plot`, `d3`, `html`), served by a plain Node
+    file server, and opened in Chromium: the root redirects to the home page, its navigation leads
+    to the plots, Plot draws 60 dots, and no request leaves the file server.
 
 ## Internals
 

@@ -31,14 +31,16 @@ import { SqlFilesApi } from "@statewalker/cellb-platform-core/sql-files";
 import { json, readUpload, text, zip } from "@statewalker/cellb-platform-core/util";
 import { ensureLightningCss, hasLightningCss } from "@statewalker/cellb-platform-core/wasm";
 import {
+  ASSET_EXTENSIONS,
   materializeDeps,
   type NotebookFailure,
   newNotebookBuild,
 } from "@statewalker/notebook-build";
 import { newNotebookSite } from "@statewalker/notebook-site";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
-import { type ModuleServer, newModuleServer, npmRegistrySource } from "@statewalker/webrun-modules";
+import { newModuleServer, npmRegistrySource } from "@statewalker/webrun-modules";
 import { DOMParser, parseHTML } from "linkedom";
+import { builtinClosure, type LocalBuiltinsServer, withLocalBuiltins } from "./builtins.js";
 import { buildPageModels, type PageModels } from "./page-models.js";
 
 export type { OutlineEntry, PageBlock, PageModel, PageModels, SiteModel } from "./page-models.js";
@@ -55,9 +57,12 @@ interface WorkerLoaderLike {
 interface StoredModels {
   version: string;
   pins: PageModels["pins"];
+  inputs: PageModels["inputs"];
   site: PageModels["site"];
   pages: Record<string, PageModels["pages"][number]>;
 }
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function stubOf(ns: DurableObjectNamespace, name: string) {
   return ns.getByName ? ns.getByName(name) : ns.get(ns.idFromName(name));
@@ -76,7 +81,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
   modules: SqlFilesApi;
   /** `/models.json` (the page models) and `/theme.json` (the theme's build id). */
   meta: SqlFilesApi;
-  #server?: ModuleServer;
+  #server?: LocalBuiltinsServer;
   #building?: Promise<unknown>;
 
   constructor(ctx: DurableObjectState, env: PlatformEnv) {
@@ -119,6 +124,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     const stored: StoredModels = {
       version,
       pins: models.pins,
+      inputs: models.inputs,
       site: models.site,
       pages: Object.fromEntries(models.pages.map((p) => [p.id, p])),
     };
@@ -145,7 +151,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       const res = await builds.fetch(`${origin}/b/${theme.build}/loader.json`);
       if (!res.ok) throw new Error(`theme build ${theme.build}: loader.json ${res.status}`);
       const payload = (await res.json()) as Record<string, unknown>;
-      const { version: _v, pins: _p, ...data } = models;
+      const { version: _v, pins: _p, inputs: _i, ...data } = models;
       return { ...payload, env: { NOTEBOOK_MODELS: data }, globalOutbound: null };
     });
     const inner = new URL(request.url);
@@ -153,14 +159,18 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     return worker.getEntrypoint().fetch(new Request(inner, request));
   }
 
-  moduleServer(site: string): ModuleServer {
-    this.#server ??= newModuleServer({
-      cache: this.modules,
-      sources: [npmRegistrySource({ fetch: registryFetch(this.env) })],
-      basePath: `/nb/${site}/_m/`,
-      target: "browser",
-      ...(hasLightningCss() ? {} : { css: passthroughCss }),
-    });
+  /** The site's module server. notebook-kit's esm.sh imports come out as its own URLs (builtins.ts). */
+  moduleServer(site: string): LocalBuiltinsServer {
+    this.#server ??= withLocalBuiltins(
+      newModuleServer({
+        cache: this.modules,
+        sources: [npmRegistrySource({ fetch: registryFetch(this.env) })],
+        basePath: `/nb/${site}/_m/`,
+        target: "browser",
+        ...(hasLightningCss() ? {} : { css: passthroughCss }),
+      }),
+      `/nb/${site}/_m/`,
+    );
     return this.#server;
   }
 
@@ -237,7 +247,24 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       `${prefix}/_m/`,
     );
     await addFiles(modules, written);
+    const builtins = await this.#builtinFiles(out, site, models);
     const asModules = await this.#staticModuleImports(out, site);
+    // A static server cannot redirect: the `~esm/` URLs of the built-ins the export holds become
+    // the pinned URLs they redirect to (`builtins.ts`). Others stay, for libraries no cell uses.
+    if (builtins.aliases.size) {
+      const dec = new TextDecoder();
+      const enc = new TextEncoder();
+      for (const [path, bytes] of out) {
+        if (!/\.(m?js|css)$/.test(path)) continue;
+        const text = dec.decode(bytes);
+        if (!text.includes("/~esm/")) continue;
+        let next = text;
+        // a URL ends at a quote, or an escaped one (`\"`: CSS inside a JS string)
+        for (const [from, to] of builtins.aliases)
+          next = next.replace(new RegExp(`${escapeRegExp(from)}(?=\\\\?["'])`, "g"), to);
+        if (next !== text) out.set(path, enc.encode(next));
+      }
+    }
 
     // The pages, and any other same-site file they link (a theme asset, a stylesheet).
     const queue = [`${prefix}/t/`];
@@ -280,9 +307,57 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
         "content-type": "application/zip",
         "content-disposition": `attachment; filename="${site}-site.zip"`,
         "x-export-pages": String(pages.length),
-        "x-export-modules": String(written.length + asModules),
+        "x-export-modules": String(written.length + builtins.files + asModules),
+        "x-export-builtins": builtins.names.join(","),
       },
     });
+  }
+
+  /**
+   * The files of the notebook-kit built-ins the site's cells use (`Inputs`, `Plot`, `tex`…): the
+   * pins' closure does not hold them, since notebook-kit loads them on first use. Each library's
+   * modules (static imports followed), and the assets its package ships, which CSS reaches
+   * through `url()` (KaTeX's fonts).
+   */
+  async #builtinFiles(out: Map<string, Uint8Array>, site: string, models: StoredModels) {
+    const server = this.moduleServer(site);
+    const get = (url: string) => server.fetch(new Request(`http://local${url}`));
+    const runtimeUrl = models.pins["npm:@observablehq/notebook-kit/runtime"];
+    if (!runtimeUrl) return { files: 0, names: [] as string[], aliases: new Map<string, string>() };
+    const { urls, names, aliases } = await builtinClosure({
+      runtimeUrl,
+      used: models.inputs,
+      fetchText: async (url) => {
+        const res = await get(url);
+        return res.ok ? res.text() : undefined;
+      },
+      resolve: (url) => server.resolveEsm(url),
+      have: (url) => out.has(url.split("?")[0]?.slice(1) ?? ""),
+    });
+    let files = 0;
+    // `x.worker.js?raw` (a classic worker script, untransformed) is saved at its plain path.
+    const add = async (url: string) => {
+      const path = (url.split("?")[0] ?? url).slice(1);
+      if (out.has(path)) return;
+      const res = await get(url);
+      if (!res.ok) throw new Error(`export: ${url} ${res.status}`);
+      out.set(path, new Uint8Array(await res.arrayBuffer()));
+      files++;
+    };
+    for (const url of urls) await add(url);
+    const base = `/nb/${site}/_m/`;
+    const packages = new Set<string>();
+    for (const url of urls) {
+      const m = /^((?:@[^/]+\/)?[^/@]+)@([^/]+)\//.exec(url.slice(base.length));
+      if (url.startsWith(base) && m) packages.add(`${m[1]}\0${m[2]}`);
+    }
+    for (const key of packages) {
+      const [pkg, version] = key.split("\0") as [string, string];
+      for (const file of await server.listPackageFiles({ pkg, version }))
+        if (ASSET_EXTENSIONS.some((ext) => file.endsWith(ext)))
+          await add(`${base}${pkg}@${version}/${file.replace(/^\//, "")}`);
+    }
+    return { files, names, aliases };
   }
 
   /**

@@ -58,6 +58,8 @@ export interface PageModels {
   pages: PageModel[];
   /** Every module the pages import, `npm:` specifier → URL (the runtime included): an export's closure. */
   pins: Record<string, string>;
+  /** Every free variable of every cell: which built-ins (`Inputs`, `Plot`, `d3`…) the site uses. */
+  inputs: string[];
 }
 
 const RUNTIME_SPECIFIER = "npm:@observablehq/notebook-kit/runtime";
@@ -141,6 +143,7 @@ export async function buildPageModels(opts: {
   base?: string;
 }): Promise<PageModels & { failures: { notebook: string; error: string }[] }> {
   const allPins: Record<string, string> = {};
+  const allInputs = new Set<string>();
   const base = (opts.base ?? "").replace(/\/$/, "");
   const md = new MarkdownIt({ html: true });
   const runtimeUrl = (await opts.moduleServer.resolve(toModuleRef(RUNTIME_SPECIFIER))).url;
@@ -169,6 +172,7 @@ export async function buildPageModels(opts: {
       const pins = await resolveNotebook(nb, { moduleServer: opts.moduleServer }, file);
       for (const [k, v] of pins) allPins[k] = v;
       const cells = transpileNotebook(nb, pins);
+      for (const cell of cells) for (const name of cell.inputs) allInputs.add(name);
       const source = new Map(nb.cells.map((c) => [c.id, c.value]));
 
       const outline: OutlineEntry[] = [];
@@ -213,5 +217,5 @@ export async function buildPageModels(opts: {
     home: `${base}/`,
     pages: pages.map(({ id, path, title }) => ({ id, path, title })),
   };
-  return { site, pages, pins: allPins, failures };
+  return { site, pages, pins: allPins, inputs: [...allInputs].sort(), failures };
 }

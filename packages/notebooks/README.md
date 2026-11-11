@@ -88,9 +88,27 @@ module is: an `import "./x.css?module"` (notebook-kit's `stdlib/inputs.js` has o
 module server for a JS module, but a static server ignores the query and sends CSS. The export
 writes the module server's answer to `x.css.module.js` and points the import there.
 
-notebook-kit's stdlib imports its built-ins from esm.sh (`Inputs`, `htl`, the recommended
-libraries such as `d3` or `duckdb`), on hosted pages and exported ones alike. A notebook that
-uses one needs that CDN at run time. The export check lists the ones the demo uses.
+The export also carries the notebook-kit built-ins the site's cells use (next section), found
+from the cells' free variables (`Inputs`, `Plot`, `d3`…, listed in `x-export-builtins`): their
+modules, following static imports, and the assets their packages ship. Their `~esm/` URLs are
+replaced by the pinned ones, since a static server cannot redirect. A built-in no cell names
+(reached through a computed name, say) is not in the export.
+
+### Built-ins without a CDN
+
+notebook-kit's stdlib loads its libraries from esm.sh: `Inputs`, `htl`, and the recommended
+libraries such as `d3`, `Plot`, `tex` or `duckdb`. The site's module server serves them instead
+(`src/builtins.ts`):
+
+- in the JS and CSS it serves, `https://esm.sh/<pkg>[@v][/path]` becomes
+  `/nb/<site>/_m/~esm/<pkg>[@v][/path]`, a string replacement that downloads nothing;
+- a request for a `~esm/` URL resolves the package like any `npm:` import (an unversioned URL
+  takes the latest version, as on esm.sh) and redirects to its pinned URL. A package the registry
+  does not have redirects to esm.sh.
+
+The rewrite is lazy on purpose: `recommendedLibraries.js` names fifteen libraries, and resolving
+them all whenever a page loads it downloads `duckdb-wasm`, `echarts` and the rest for nothing,
+which ran celld out of memory.
 
 ```sh
 curl -X POST -o site.zip localhost:8787/nb/demo/export && unzip site.zip -d site && python3 -m http.server -d site

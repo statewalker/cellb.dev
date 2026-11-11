@@ -188,7 +188,11 @@ async function themedDemo(host: string, site: string, t: Tools) {
     try {
       const page = await b.newPage();
       const errors: string[] = [];
+      const offOrigin: string[] = [];
       page.on("pageerror", (e: Error) => errors.push(e.message));
+      page.on("request", (r: { url(): string }) => {
+        if (new URL(r.url()).origin !== new URL(site).origin) offOrigin.push(r.url());
+      });
       await page.goto(`${site}/t/plots`);
       await page.waitForSelector("#summary", { timeout: 60000 });
       const summary = await page.textContent("#summary");
@@ -199,7 +203,9 @@ async function themedDemo(host: string, site: string, t: Tools) {
       const nav = await page.$$eval(".site-nav a", (a: Element[]) => a.map((x) => x.textContent));
       assert(nav.length === 2, `navigation: ${nav}`);
       assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
-      return `Plot drew 60 dots in the themed page; navigation: ${nav.join(", ")}`;
+      // notebook-kit's built-ins (Inputs, htl) come from the site's module server, not esm.sh
+      assert(offOrigin.length === 0, `off-origin requests: ${offOrigin.join("; ")}`);
+      return `Plot drew 60 dots in the themed page, no request off the platform; navigation: ${nav.join(", ")}`;
     } finally {
       await b.close();
     }
@@ -260,7 +266,9 @@ async function exportDemo(host: string, site: string, t: Tools) {
         mkdirSync(dirname(join(out, p)), { recursive: true });
         writeFileSync(join(out, p), b);
       }
-      return `${res.headers.get("x-export-pages")} pages, ${res.headers.get("x-export-modules")} module files, ${(bytes.length / 1e6).toFixed(1)} MB`;
+      const builtins = res.headers.get("x-export-builtins") ?? "";
+      assert(builtins.split(",").includes("Inputs"), `built-ins in the export: ${builtins}`);
+      return `${res.headers.get("x-export-pages")} pages, ${res.headers.get("x-export-modules")} module files (built-ins: ${builtins}), ${(bytes.length / 1e6).toFixed(1)} MB`;
     },
   );
   if (!exported || !browserOn) return;
@@ -295,18 +303,10 @@ async function exportDemo(host: string, site: string, t: Tools) {
         assert(dots === 60, `Plot drew ${dots} dots`);
         assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
         assert(missing.length === 0, `failed loads: ${missing.join("; ")}`);
-        // Every file of the site came from the file server. The only requests that leave it are
-        // notebook-kit's own: its stdlib imports its built-ins (Inputs, htl, …) from esm.sh,
-        // hosted pages included. Serving those from the site is milestone 2 of the notebook
-        // runtime design.
-        const other = offOrigin.filter((u) => !u.startsWith("https://esm.sh/"));
-        assert(other.length === 0, `off-origin requests: ${other.join("; ")}`);
-        const pkg = (u: string) => {
-          const [a = "", b = ""] = new URL(u).pathname.split("/").slice(1);
-          return (a.startsWith("@") ? `${a}/${b}` : a).replace(/(.)@[^/]*$/, "$1");
-        };
-        const builtins = [...new Set(offOrigin.map(pkg))];
-        return `root redirected home, navigation led to plots, Plot drew 60 dots; every site file from the file server; notebook-kit built-ins from esm.sh: ${builtins.join(", ") || "none"}`;
+        // Nothing leaves the file server, notebook-kit's built-ins (Inputs, htl) included: the
+        // site serves them, and the export carries the ones its cells use.
+        assert(offOrigin.length === 0, `off-origin requests: ${offOrigin.join("; ")}`);
+        return "root redirected home, navigation led to plots, Plot drew 60 dots; no request left the file server";
       } finally {
         await b.close();
         files.close();
