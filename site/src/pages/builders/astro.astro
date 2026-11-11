@@ -104,6 +104,9 @@ const runSteps = rec.steps.filter((s) => !s.request.url.includes(":8787"));
       <strong>Bundles as Astro makes them.</strong> The server bundle is one module with Astro's{" "}
       <code>App</code>, the routes and every page. The client bundles hold the islands and the
       renderer's client entry, with production React and one React for the server and the islands.
+      The scripts of the built-in client directives (<code>client:load</code>, <code>idle</code>,
+      …) come from the project's Astro: in <code>astro</code> itself up to 7.4.4, in its
+      <code>@astrojs/runtime</code> from 7.4.9.
     </li>
   </ol>
 
@@ -135,11 +138,6 @@ npx wrangler dev -c build/wrangler.json`}
 
   <h2>Results</h2>
   <RecordedNote recorded={rec} />
-  <p>
-    One change to the example for this recording: <code>package.json</code> asks for{" "}
-    <code>astro@{f.astroPin}</code> instead of <code>^7.3.2</code>, as explained under{" "}
-    <a href="#limits">Limits</a>.
-  </p>
   <h3>The build</h3>
   <p>
     {(Number(f.buildMs) / 1000).toFixed(1)} s from the request to the answer, in the
@@ -154,15 +152,6 @@ npx wrangler dev -c build/wrangler.json`}
 
   <h2 id="limits">Limits</h2>
   <ul>
-    <li>
-      <strong>Astro 7.4.10 (published 2026-11-10) breaks the build.</strong> That release no longer
-      ships the prebuilt client directives (<code>astro/runtime/client/*.prebuilt.js</code>) that
-      the builder imports, so a project whose range resolves to it fails with{" "}
-      <code>Could not resolve "astro/runtime/client/load.prebuilt.js"</code>. Pin{" "}
-      <code>astro</code> to {f.astroPin} until the builder follows. Even with the pin, the log
-      names <code>astro@7.4.10</code> for one component script it skips (Astro's{" "}
-      <code>ClientRouter</code>), which this app does not use.
-    </li>
     <li>
       On-demand rendering only: pages are not prerendered. Integrations' <code>injectScript</code>{" "}
       and client directives are ignored, and image services are replaced by the no-op one.
