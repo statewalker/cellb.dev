@@ -60,3 +60,87 @@ describe("P11d SQLite WASM page hook", () => {
     expect(d.takeDirtyPages()!.pages.size).toBeGreaterThan(0);
   });
 });
+
+describe("P11d node:sqlite page capture without a data directory", () => {
+  it("nodeSqliteOpener(undefined, { pageCapture: true }): temporary files, removed on close", async () => {
+    const { nodeSqliteOpener } = await import("../src/node.js");
+    const { existsSync, readdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const before = new Set(readdirSync(tmpdir()));
+    const open = nodeSqliteOpener(undefined, { pageCapture: true });
+    const d = open("Counter:abc");
+    d.exec("CREATE TABLE t (v TEXT)", []);
+    d.takeDirtyPages();
+    d.exec("INSERT INTO t VALUES ('x')", []);
+    expect(d.takeDirtyPages()?.pages.size).toBeGreaterThan(0);
+    // This opener's directory: the one holding these cells' files (other tests may make their own
+    // alongside, in parallel).
+    const made = readdirSync(tmpdir()).filter(
+      (f) =>
+        !before.has(f) &&
+        f.startsWith("cellb-cells-") &&
+        readdirSync(`${tmpdir()}/${f}`).some((n) => n.startsWith("Counter_abc-")),
+    );
+    expect(made.length).toBe(1);
+    // Two cells share the opener's directory; it goes with the last one.
+    const e = open("Counter:def");
+    e.exec("CREATE TABLE u (v TEXT)", []);
+    d.close();
+    expect(readdirSync(`${tmpdir()}/${made[0]}`).every((f) => f.startsWith("Counter_def"))).toBe(
+      true,
+    );
+    e.close();
+    expect(existsSync(`${tmpdir()}/${made[0]}`)).toBe(false);
+    // Opened again later: a new directory, an empty database (as in memory).
+    const again = open("Counter:abc");
+    expect(again.exec("SELECT count(*) FROM sqlite_master", []).rows[0][0]).toBe(0);
+    again.close();
+    // Without pageCapture and without a directory: in memory, as before.
+    const m = nodeSqliteOpener()("Counter:ghi");
+    expect(m.takeDirtyPages()).toBeUndefined();
+    m.close();
+  });
+});
+
+describe("P11d node:sqlite page capture: databases nobody logs, and temporary files", () => {
+  it("the WAL stays bounded when takeDirtyPages is never called (alarms index, cron, no log)", async () => {
+    const { nodeSqliteOpener } = await import("../src/node.js");
+    const { mkdtempSync, statSync, existsSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "walcap-bound-"));
+    const d = nodeSqliteOpener(dir, { pageCapture: true })("Counter:abc");
+    d.exec("CREATE TABLE a (k TEXT PRIMARY KEY, v BLOB)", []);
+    const blob = new Uint8Array(2048);
+    for (let i = 0; i < 6000; i++)
+      d.exec("INSERT OR REPLACE INTO a VALUES (?, ?)", [`k${i % 50}`, blob]);
+    const wal = join(dir, "Counter_abc.sqlite-wal");
+    const size = existsSync(wal) ? statSync(wal).size : 0;
+    expect(size).toBeLessThan(8 * 1024 * 1024);
+    d.close();
+  });
+
+  it("the runtime's own databases are not page-captured", async () => {
+    const { nodeSqliteOpener } = await import("../src/node.js");
+    const open = nodeSqliteOpener(undefined, { pageCapture: true });
+    const alarms = open("__cellb/alarms");
+    alarms.exec("CREATE TABLE t (v)", []);
+    expect(alarms.takeDirtyPages()).toBeUndefined(); // in memory, as before
+    alarms.close();
+  });
+
+  it("a temporary cell does not sync its file (the bucket is what keeps it)", async () => {
+    const { nodeSqliteOpener } = await import("../src/node.js");
+    const d = nodeSqliteOpener(undefined, { pageCapture: true })("Counter:sync");
+    expect(d.exec("PRAGMA synchronous", []).rows[0][0]).toBe(0);
+    d.close();
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const kept = nodeSqliteOpener(mkdtempSync(join(tmpdir(), "walcap-sync-")), {
+      pageCapture: true,
+    })("Counter:sync");
+    expect(kept.exec("PRAGMA synchronous", []).rows[0][0]).not.toBe(0);
+    kept.close();
+  });
+});
