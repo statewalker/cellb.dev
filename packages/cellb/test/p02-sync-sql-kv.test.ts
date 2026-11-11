@@ -211,30 +211,33 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
       expect(r).toEqual(["a"]);
     });
 
-    it("async transaction(): one in flight rolling back keeps what another wrote", async () => {
+    it("async transactions that overlap run one after another: a rollback undoes only its own writes", async () => {
+      // Miniflare's D1 object awaits each request's body, then runs it in transaction(): two
+      // requests in flight overlapped their transactions, and the one that failed rolled back
+      // the other's CREATE TABLE (EmDash 1.5's migration lock table).
       const { inObject } = probeRuntime();
-      const r = await inObject("tx2", async (ctx) => {
-        let releaseA!: () => void;
-        let releaseB!: () => void;
-        const a = ctx.storage.transaction(async () => {
-          ctx.storage.sql.exec("CREATE TABLE t (x)");
-          await new Promise<void>((res) => (releaseA = res));
-        });
-        const b = ctx.storage
+      const r = await inObject("tx-overlap", async (ctx) => {
+        const order: string[] = [];
+        const failing = ctx.storage
           .transaction(async () => {
-            await new Promise<void>((res) => (releaseB = res));
-            throw new Error("b");
+            order.push("a:start");
+            await new Promise((res) => setTimeout(res, 5));
+            ctx.storage.sql.exec("SELECT * FROM missing");
           })
-          .catch(() => {});
-        await new Promise((res) => setTimeout(res, 5));
-        releaseA();
-        await a;
-        await new Promise((res) => setTimeout(res, 5));
-        releaseB();
-        await b;
-        return ctx.storage.sql.exec("SELECT name FROM sqlite_master WHERE name = 't'").toArray();
+          .catch(() => order.push("a:rolled back"));
+        const creating = ctx.storage.transaction(async () => {
+          order.push("b:start");
+          ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS kept (id TEXT)");
+          await Promise.resolve();
+        });
+        await Promise.all([failing, creating]);
+        const tables = ctx.storage.sql
+          .exec("SELECT name FROM sqlite_master WHERE name = 'kept'")
+          .toArray();
+        return { order, kept: tables.length };
       });
-      expect(r).toEqual([{ name: "t" }]);
+      expect(r.kept).toBe(1);
+      expect(r.order).toEqual(["a:start", "a:rolled back", "b:start"]);
     });
 
     it("async transaction(): nests, as in workerd (inner rollback, outer rollback)", async () => {

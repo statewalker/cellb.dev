@@ -234,27 +234,30 @@ export class DurableObjectStorage extends AsyncKvApi {
   transactionSync<T>(fn: () => T): T {
     return this.sql.transactionSync(fn);
   }
-  /** Settles when the last async transaction() started so far has. */
-  #txnTail: Promise<void> = Promise.resolve();
-  /** Set inside a running transaction's callback, where the platform tracks async context. */
+  /** The last async transaction() queued: each one starts once the one before has settled. */
+  #transactions: Promise<unknown> = Promise.resolve();
+  /**
+   * Async transaction spanning awaits: the input gate stays closed (no other
+   * event can interleave writes into the savepoint) and auto-commit is held.
+   *
+   * Transactions of one object run one after another, as on workerd. The gate alone does not
+   * order them: events already past it (Miniflare's D1 object awaits each request's body
+   * first) opened their savepoints into each other, and one's rollback undid the other's
+   * writes.
+   *
+   * A transaction() awaited inside another's closure nests, as on workerd, and runs at once on
+   * a savepoint of its own. Telling it apart from another event's call needs async context
+   * (AsyncLocalStorage on Node, or the engine's AsyncContext); without it, such a call waits
+   * for its parent forever: use the `txn` argument there.
+   */
   #txnScope = txnScope();
   #txnDepth = 0;
-  /**
-   * Async transaction spanning awaits: the input gate stays closed (no new event is delivered)
-   * and auto-commit is held. Transactions from different events run one at a time, as workerd's
-   * critical sections keep them: events already in flight could otherwise open theirs on the same
-   * savepoint stack, and one's rollback would undo what another, already released, wrote.
-   *
-   * A transaction awaited inside another's callback nests, as in workerd, and runs at once on its
-   * own savepoint. Telling it apart needs async context (AsyncLocalStorage on Node, or the
-   * engine's AsyncContext); without it, such a nested call waits for its parent and never runs.
-   */
   transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
     if (this.#txnScope?.get() === this) return this.#transaction(closure);
-    const previous = this.#txnTail;
-    let done!: () => void;
-    this.#txnTail = new Promise<void>((resolve) => (done = resolve));
-    return previous.then(() => this.#transaction(closure)).finally(done);
+    const run = () => this.#transaction(closure);
+    const result = this.#transactions.then(run, run);
+    this.#transactions = result.catch(() => {});
+    return result;
   }
   #transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
     return this.gate.runClosed(async () => {
