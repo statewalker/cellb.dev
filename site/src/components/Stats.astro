@@ -183,9 +183,9 @@ const groups: { title: string; rows: Row[] }[] = [
     which come from other hardware.
   </li>
   <li>The bucket is simulated: every store operation waits a fixed 0 or 90 ms. A real S3 bucket adds its own tail latency.</li>
-  <li>A second node may take a cell only after the first node's lease expires (10 s by default). The failover is that wait plus the restore.</li>
+  <li>A second node may take a cell only after the first node's lease expires. The lease lasts 10 s and is renewed every ~3.3 s, so it expires 6.7–10 s after a crash; the failover is that wait plus the restore.</li>
   <li>A Dedicated Worker's clock has about 0.1 ms resolution, so sub-millisecond browser rows show an upper bound.</li>
-  <li>Node: process RSS growth per cell, after GC. Chromium: SQLite WASM heap growth per cell (the JS heap is not counted).</li>
+  <li>Node: process RSS growth per cell, after GC. Chromium: SQLite WASM heap growth per cell only; the browser's processes grow by more, as <a href={docHref("packages/cellb/docs/browser-capacity.md")} class="text-primary hover:underline">Cells per browser</a> measures.</li>
   <li>At about $50 a month for an 8 GB node, as celld's docs price one. In a browser, the cell runs on the user's own device.</li>
 </ol>
 <a

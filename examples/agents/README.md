@@ -1,6 +1,6 @@
-# @statewalker/agent-examples
+# Coding agents on CellB
 
-Coding-agent frameworks running in Durable Objects on CellB. Each one talks to a fake
+`@statewalker/agent-examples`: coding-agent frameworks running in Durable Objects on CellB. Each one talks to a fake
 OpenAI-compatible model (`@statewalker/fake-openai`), so everything runs offline once the packages
 are installed.
 
@@ -22,16 +22,19 @@ vars, which the tests point at the fake model, and they run on CellB the way cel
 ## How to use it
 
 ```
-pnpm install            # in examples/ (their own workspace; cellb from npm)
-pnpm test               # in this directory: each example on cellb (Node), against the fake model
+pnpm install            # in examples/ (their own workspace; CellB from npm)
+pnpm test               # in this directory: each example on CellB (Node), against the fake model
 ```
 
 To run an example against a real endpoint, set its vars (`PI_BASE_URL`, `PI_MODEL`, `PI_API_KEY`;
 `OPENCODE_BASE_URL`, `OPENCODE_MODEL`, `OPENCODE_API_KEY`) in `wrangler.jsonc` or `.dev.vars`, and
-start it with `celld dev pi` or load it with `loadNodeProject`. Against the fake model:
+start it with `celld dev pi` or load it with `loadNodeProject`. Against the fake model, which the
+default vars expect on port 8787, start celld on another port, since `celld dev` also defaults to
+8787:
 
 ```sh
 node ../fake-openai/src/cli.ts 8787     # the default vars point here
+celld dev pi --port 8788                # then: curl 'localhost:8788/?q=hello'
 ```
 
 ## Examples
@@ -51,9 +54,8 @@ What the tests prove:
 
 ### Differences from celld's examples
 
-- **pi** uses pi's published packages instead of the `PiHarness` of `agents` pull request 2197
-  (published only on pkg.pr.new, where it may expire, and unreachable from some networks). The
-  object holds a pi `Agent` with one tool, and the transcript is stored under the `messages` key.
+- **pi** uses pi's published packages instead of the `PiHarness` of an unreleased preview build of
+  the `agents` package. The object holds a pi `Agent` with one tool, and the transcript is stored under the `messages` key.
 - **opencode** adds a `config` to `OpenCodeWorkerd.create()` with a provider `endpoint`
   (`@ai-sdk/openai-compatible` with `baseURL` from `OPENCODE_BASE_URL`) and `model:
   "endpoint/<OPENCODE_MODEL>"`. Everything else is celld's code.

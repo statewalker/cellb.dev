@@ -64,9 +64,9 @@ SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox build
 SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox e2e
 ```
 
-Folder access with rerun on save, and saving edits back to the folder, needs the File System
-Access API (Chrome, Edge); other browsers read the folder once (`webkitdirectory`) and keep edits
-in the tab.
+Rerun on save works in every browser. Writing edits back to the folder, and rerunning when a
+file changes on disk, need the File System Access API (Chrome, Edge); other browsers read the
+folder once (`webkitdirectory`) and keep edits in the tab.
 
 ## Editing
 

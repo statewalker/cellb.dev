@@ -121,10 +121,12 @@ Four workers, grown together by 1,000 cells each per step:
   shared by the four workers and is not one worker's heap. It is not open files either: at 3,000
   cells the page's renderer had 34 file descriptors open. The likely limit is the origin's storage
   quota in the probe's browser context (see the next section), which is 3,072 MB there against
-  10,240 MB in a profile on disk on the same machine. A run in a profile on disk has not confirmed
-  this yet.
-- Up to 32,000 cells, each cell cost about 208 KB of Chromium's memory, starting from 359 MB with
-  no cells. The failed step itself took Chromium to 9.3 GB.
+  10,240 MB in a profile on disk on the same machine. Runs in a profile on disk are not measured
+  yet.
+- Up to 32,000 cells, each cell cost about 208 KB of Chromium's memory: from 359 MB with no cells
+  to 6,867 MB at the last step that succeeded, divided by 32,000. The failed step itself took
+  Chromium to 9.3 GB; counted up to it, as the result file's `perCellChromiumKB` (285) is, a cell
+  costs about 285 KB.
 
 ## The probes run in an off-the-record context
 
@@ -160,5 +162,5 @@ where OPFS keeps its files.
   OPFS pools, while LTX cells read pages through a page cache.
 - Cells with more data. Every number here is for a table with one row.
 - Where the memory outside SQLite's heap goes, per process.
-- A profile on disk. It is open whether the 32,000-cell limit of four workers moves with the
-  quota, and how much memory a cell then costs outside the renderer.
+- A profile on disk: whether the 32,000-cell limit of four workers moves with the quota there,
+  and how much memory a cell then costs outside the renderer.

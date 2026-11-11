@@ -120,5 +120,5 @@ curl -X PUT -d '{"build":"<id>"}' localhost:8787/nb/demo/theme
 open http://localhost:8787/nb/demo/t/
 ```
 
-Checked by `examples/platform-demos/scripts/e2e.ts … notebooks` on Wrangler, celld and cellb, and
+Checked by `examples/platform-demos/scripts/e2e.ts … notebooks` on Wrangler, celld and CellB, and
 by `packages/platform/scripts/e2e-browser.ts` in a tab.

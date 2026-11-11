@@ -61,8 +61,7 @@ celld's `hello`, `webapi`, `router` and `body` examples, and CellB's `worker-det
 ## What breaks
 
 - **Configuration CellB does not support is reported in `createProjectRuntime(...).unsupported`**
-  instead of being silently ignored. This covers service bindings to other scripts,
-  `durable_objects.bindings[].script_name`, `migrations.renamed_classes`, `containers` and
-  compatibility flags CellB does not know. Browser tabs log it as
+  instead of being silently ignored. [Gaps](../gaps.md#other-gaps) has the full list, from
+  service bindings to other scripts to compatibility flags CellB does not know. Browser tabs log it as
   `cellb: project … shard …: unsupported: …`.
 - **Python Workers do not run**, because CellB does not include Pyodide.

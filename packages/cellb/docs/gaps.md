@@ -1,7 +1,7 @@
 # Gaps
 
-This is the list of what CellB does not do yet, or does differently from celld, as of the current
-code. Each entry says what you see. When a gap closes, its entry is removed in the same commit.
+This is the list of what CellB does not do yet, or does differently from celld. Each entry says
+what you see.
 
 ## Recorded celld behaviours CellB does not reproduce
 
@@ -12,9 +12,9 @@ from the celld golden, and turns red when it stops differing ([Conformance](conf
 |---|---|
 | `wd-sql-default` | CellB and celld stop at the same assertion, `sql.ingest()`'s syntax error, which CellB words as celld does (`sql-ingest` agrees), but celld's report of it carries celld's own stack frames. |
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
-| `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); CellB passes it, as workerd does. |
+| `wd-websocket-hibernation` | The other way round: celld fails this workerd test with an error that reads "got" followed by an empty value; CellB passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
-| `wd-worker-loader-gaps` | `WorkerCode.compatibilityFlags`; `abortIsolateDynamic*` do not build; `getDurableObjectClass(name, { props })` ignores its props; `facetUafRegression` needs `gc()`. celld refuses `allowExperimental`, so most of these exports fail on celld as well. |
+| `wd-worker-loader-gaps` | Exports of workerd's Worker Loader test that CellB or celld does not pass. CellB: `WorkerCode.compatibilityFlags`; `abortIsolateDynamic*` do not build; `getDurableObjectClass(name, { props })` ignores its props; `facetUafRegression` needs `gc()`. celld: it refuses `allowExperimental` and stubs in `env`, so most of these exports fail on celld as well; `facets` fails there (`FacetStartupOptions.class must be a DurableObjectClass`); and in `nullGlobalOutbound` celld blocks the fetch, but its own `assert` rethrows the rejection as `rejected: … [at …]`. CellB's `globalOutbound: null` itself works (see `inheritGlobalOutbound` below). |
 | `miniflare2-details-relative-url` | A stub's `fetch()` of a relative URL: celld passes it to the object, which fails on `new URL()`; CellB rejects at the stub, as workerd does. |
 
 ## Stubs pass by reference, as on workerd, except between nodes
@@ -57,8 +57,8 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   `ReadableStream` given as a request body as the text `[object ReadableStream]`, so Worker code
   that forwards one (`new Request(url, { body: request.body })`, `fetch(url, { body: … })`) sends
   that text. Use `await request.arrayBuffer()`, or the request itself, as the body.
-- **WebKit is not run, and is not a target for now.** Playwright's WebKit needs the system
-  `libavif16` (`libavif.so.16`), which this host lacks.
+- **WebKit is not tested, and is not a target for now.** Playwright's WebKit needs the system
+  library `libavif16` (`libavif.so.16`), which the test machines do not have.
 
 ## Other gaps
 
@@ -69,9 +69,10 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   consumers without a `queue()` handler, cron triggers without a `scheduled()` handler, and
   compatibility flags it does not know. Renaming a Flue agent renames its class, so it needs
   `renamed_classes`. Browser tabs log it (`cellb: project … shard …: unsupported: …`).
-- **`process.env` holds the project's text `vars` in a browser only.** workerd fills it under
-  nodejs_compat from compatibility date 2025-04-01; a browser host does, but a Node host shares
-  its real `process` with the Worker, so there the embedder sets what the code reads.
+- **On Node, the project's text `vars` do not overwrite `process.env`.** Under nodejs_compat from
+  compatibility date 2025-04-01, both hosts fill `process.env` with them, as workerd does. A Node
+  host shares its real `process` with the Worker, so a variable the host process already set keeps
+  its value there.
 - **`waitUntil` of `cloudflare:workers` runs in the runtime's background** until `drain()`. It is
   not tied to the event that called it, since nothing in CellB cancels an event's work after its
   response.
@@ -123,9 +124,8 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   in a browser it goes through CellB's `node:async_hooks` polyfill.
 - **A browser runtime is one thread, and OPFS writes take most of its time.** Its cells
   interleave, and each commit's SQLite I/O is synchronous on that thread. A Flue conversation turn (a prompt, a tool
-  call, two model turns) makes 21 commits (155 when commits ended with each microtask); in this
-  repository's CI-like container an OPFS write costs about 0.75 ms whatever its size, and those
-  writes are about 80% of the worker's time. To use more threads, spread the project over
+  call, two model turns) makes 21 commits. In a CI-like container an OPFS write costs about
+  0.75 ms whatever its size, and those writes are about 80% of the worker's time. To use more threads, spread the project over
   several workers (`startProjectShards`). There, 32 Flue conversations take 16 s on one worker and
   11 s on four, because four workers writing OPFS at once slow each other down. With
   `joinProjectShards`, the tabs of an origin share the shards, split evenly and moved as tabs come
@@ -139,11 +139,11 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   own client socket, so a class that extends the global gets a host socket, not an instance of
   itself. Its `Request` global carries `Upgrade` and `Sec-WebSocket-*` into copies of a request,
   which a browser's `new Request()` drops; the host's own requests count as instances of it.
-- **The upstream Worker Loader export `inheritGlobalOutbound` is left out** of the vendored run.
+- **workerd's Worker Loader test `inheritGlobalOutbound` is not run.**
   `WorkerCode.globalOutbound` itself is implemented: `null` blocks `fetch`, and a Fetcher
   redirects it, both in the host's realm and in an isolate, where the request crosses back to the
   host. It matches celld in the `runtime-api` project and passes `overrideGlobalOutbound` in
-  `wd-worker-loader`. `inheritGlobalOutbound` stays out for good. It needs the test Worker's own
+  `wd-worker-loader`. `inheritGlobalOutbound` cannot be run here: it needs the test Worker's own
   `globalOutbound`, a `.wd-test` setting with no wrangler equivalent, so on celld and CellB it
   would fetch `https://example.com` for real.
 - **An OPFS fleet bucket has one writer at a time.** Its conditional writes are checked first and
@@ -151,8 +151,8 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **`Set-Cookie` cannot reach a page** through a ServiceWorker, and a browser `Response` drops it.
 - **The input gate does not hold timers, as on celld.** A timer set before
   `blockConcurrencyWhile()` fires while its callback runs; workerd holds it until the callback
-  ends. `wd-actor-block-concurrency-timer` records celld doing the same as CellB, and celld is the
-  judge, so this stays (following workerd would need a `judge: "workerd"` reason of the stub kind).
+  ends. `wd-actor-block-concurrency-timer` records celld doing the same as CellB, and that
+  scenario is judged against celld.
   workerd's input gate also defers outbound `fetch` completions while storage is in flight; CellB
   does not, and what celld does there is not recorded.
 - **Some celld examples are not run.** These are `python` (Pyodide Python Workers, and CellB runs

@@ -21,20 +21,21 @@ const project = await loadProject(files, {
 });
 const res = await project.fetch(new Request("http://localhost/hello/ada"));`;
 
-const modulesCode = `// In a Dedicated Worker: the browser imports the Worker from the page's site, module by module
+const modulesWorkerCode = `// In a Dedicated Worker: the browser imports the Worker from the page's site, module by module
 import { loadProject } from "@statewalker/cellb/browser";
 import { siteCompiler, siteHostOverPort } from "@statewalker/cellb/site";
 
 const project = await loadProject(files, {
   data: "my-app",
   compile: siteCompiler({ host: siteHostOverPort(self) }), // the page hosts the site
-});
+});`;
 
-// On the page: mounts in the ServiceWorker (/sw-worker.js) the sites the worker asks for
+const modulesPageCode = `// On the page: mounts in the page's ServiceWorker the sites the worker asks for
 import { hostSitesForWorker } from "@statewalker/cellb/site";
 
 const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
-hostSitesForWorker(worker);`;
+hostSitesForWorker(worker); // the ServiceWorker script is /sw-worker.js by default
+// or: hostSitesForWorker(worker, { serviceWorkerUrl: "/assets/sw-worker.js" });`;
 ---
 
 <Docs title="Running from sources" description="How CellB runs a Workers project from its TypeScript sources and npm imports, in the browser, without building it first.">
@@ -68,8 +69,9 @@ hostSitesForWorker(worker);`;
     folder, at the version range the importing <code>package.json</code> declares.
   </p>
   <p>
-    TypeScript, JSX and CommonJS are converted in that one esbuild pass, and the source maps of
-    published packages are kept, so a stack trace points into the package's own sources.
+    TypeScript, JSX and CommonJS are converted in that one esbuild pass. webrun-bundler can keep
+    the source maps of published packages, so a stack trace points into the package's own sources;
+    CellB's <code>bundleCompiler</code> turns source maps off.
   </p>
   <p>
     To run the bundle on CellB, the bundler needs to know which modules CellB provides itself.
@@ -87,7 +89,8 @@ hostSitesForWorker(worker);`;
     The <a href={docHref("examples/astro-in-browser/README.md")}>Astro built in a tab</a> example
     uses this to build EmDash, a whole Astro CMS, in a browser tab, and then serves it on CellB.
     Try it: <a href={LIVE_DEMOS.astro.href}>the live demo</a> builds a small Astro app, or EmDash,
-    in your tab.
+    in your tab. In Chrome on a 4-CPU machine, EmDash's build takes about 115 s the first time and
+    65 to 78 s after that.
   </p>
 
   <h2>webrun-modules: no bundle, a module server</h2>
@@ -109,12 +112,22 @@ hostSitesForWorker(worker);`;
   <p>
     The module server needs to answer requests the browser makes, so it runs behind a ServiceWorker:
     webrun-site-builder turns it into a site (<code>createProjectSite</code> adds the routes CellB
-    needs, Worker Loader code included), and webrun-site-host mounts that site under a path of the
-    page's origin. <code>loadProject</code> with <code>siteCompiler</code>
+    needs, Worker Loader code included), and webrun-site-host's <code>HostedSiteBuilder</code>
+    mounts that site under a path of the page's origin, through CellB's own
+    <code>SwHttpAdapter</code> (from <code>@statewalker/webrun-http-browser</code>).
+    <code>loadProject</code> with <code>siteCompiler</code>
     (<code>@statewalker/cellb/site</code>) does the same from a Dedicated Worker, which cannot
     register a ServiceWorker itself: the page hosts the site for it.
   </p>
-  <CodeBlock lang="ts" title="page.ts, worker.ts" code={modulesCode} />
+  <p>
+    The app must serve that ServiceWorker script: copy
+    <code>@statewalker/webrun-http-browser/sw-worker</code> (the package's
+    <code>dist/sw-worker.js</code>) to <code>/sw-worker.js</code>, or pass its URL as
+    <code>serviceWorkerUrl</code> to <code>hostSitesForWorker</code> (or to
+    <code>siteCompiler</code>, when it hosts the site itself).
+  </p>
+  <CodeBlock lang="ts" title="worker.ts" code={modulesWorkerCode} />
+  <CodeBlock lang="ts" title="page.ts" code={modulesPageCode} />
   <p>
     <a href="/sandbox">CellB sandbox</a> uses both: webrun-bundler for a folder's server part, and
     webrun-modules for its HTML client, served together by the page's ServiceWorker.
@@ -133,7 +146,7 @@ hostSitesForWorker(worker);`;
       <tr><td>First start</td><td>All the work at once: a full build</td><td>Spread out: modules compile as they are imported</td></tr>
       <tr><td>After an edit</td><td>Rebuild the bundle</td><td>Only the changed file is compiled again</td></tr>
       <tr><td>The result</td><td>A file you can store, ship and load elsewhere, in Node too</td><td>Lives in the page's module server</td></tr>
-      <tr><td>Used by</td><td>Astro built in a tab, the example below</td><td><code>createProjectSite</code>, CellB's site-projects tests</td></tr>
+      <tr><td>Used by</td><td>Astro built in a tab, the example below, CellB sandbox's server part</td><td><code>createProjectSite</code>, CellB's site-projects tests, CellB sandbox's client part</td></tr>
     </tbody>
   </table>
 

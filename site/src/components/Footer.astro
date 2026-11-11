@@ -18,8 +18,11 @@ import Logo from "./Logo.astro";
       <ul class="space-y-1.5 text-muted-foreground">
         <li><a href="/docs" class="hover:text-foreground">Getting started</a></li>
         <li><a href="/docs/how-it-works" class="hover:text-foreground">How it works</a></li>
+        <li><a href="/docs/tools" class="hover:text-foreground">Tools</a></li>
+        <li><a href="/examples" class="hover:text-foreground">Examples</a></li>
+        <li><a href="/sandbox" class="hover:text-foreground">Sandbox</a></li>
+        <li><a href="/#compare" class="hover:text-foreground">Supported services</a></li>
         <li><a href="/#use-cases" class="hover:text-foreground">Use cases</a></li>
-        <li><a href="/#compare" class="hover:text-foreground">Comparison with celld</a></li>
       </ul>
     </div>
     <div class="space-y-2 text-sm">
@@ -27,6 +30,7 @@ import Logo from "./Logo.astro";
       <ul class="space-y-1.5 text-muted-foreground">
         <li><a href={REPO} class="hover:text-foreground">GitHub</a></li>
         <li><a href={docHref("packages/cellb/docs/gaps.md")} class="hover:text-foreground">Known gaps</a></li>
+        <li><a href={docHref("packages/cellb/CONTEXT.md")} class="hover:text-foreground">Glossary</a></li>
         <li><a href={CELLD} class="hover:text-foreground">celld.dev</a></li>
       </ul>
     </div>

@@ -2,7 +2,8 @@
 
 A `worker_loaders` binding runs code that is handed over at run time.
 `env.LOADER.get(id, () => ({ compatibilityDate, mainModule, modules, env, … }))` returns a Worker
-whose entrypoints the caller uses as stubs. CellB runs each loaded Worker in a realm of its own.
+whose entrypoints the caller uses as stubs. CellB runs each loaded Worker in a realm of its own
+on Node, and in a browser when the runtime has an `isolateScript` (see the table below).
 
 ```jsonc
 {
@@ -65,9 +66,20 @@ copied unchanged and run by the conformance suite on Node and in Chromium. The l
 
 | Host | Realm |
 |---|---|
-| Node | a worker thread per loaded Worker, always |
+| Node (`loadProject`, `loadNodeProject`) | a worker thread per loaded Worker, always |
 | Browser, with `isolateScript` | a Dedicated Worker per loaded Worker (`@statewalker/cellb/isolate-worker`) |
 | Browser, without `isolateScript` | the realm of the project's worker, not isolated |
+
+Whether a loader sets `isolateScript` for you depends on the entry point:
+
+| Entry point | Loaded Workers isolated by default? |
+|---|---|
+| `loadProject` from `@statewalker/cellb/node` | yes, a worker thread each |
+| `loadNodeProject` | yes, a worker thread each |
+| `loadProject` from `@statewalker/cellb/browser` | yes, a Dedicated Worker each (the package's isolate worker); `isolateScript: false` turns it off |
+| `browserProjectRuntime` (also with `site`) | no: only with `isolateScript` |
+| `startProjectShards`, `joinProjectShards` | no: only when the shard worker calls `serveProjectShard({ isolateScript })` |
+| `createProjectRuntime` | no: only when the host passes `isolatedModules` (the loaders above do) |
 
 In its own realm, a loaded Worker does not see the project's globals, and its `env` holds only what
 its `WorkerCode` declares. Plain values are copied, and bindings become stubs whose calls go back to

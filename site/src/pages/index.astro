@@ -12,7 +12,7 @@ import Tabs from "@/components/ui/Tabs.astro";
 import Base from "@/layouts/Base.astro";
 import { docHref } from "@/lib/docs";
 import { exampleByName, exampleHref } from "@/lib/examples";
-import { LIVE_DEMOS, REPO, repoFile } from "@/lib/site";
+import { CELLD, LIVE_DEMOS, REPO, repoFile } from "@/lib/site";
 import counterCode from "../demo/counter/project/src/index.ts?raw";
 import counterWrangler from "../demo/counter/project/wrangler.jsonc?raw";
 import counterNode from "../demo/counter/serve-node.ts?raw";
@@ -60,7 +60,7 @@ const pillars = [
   {
     icon: "database",
     title: "Durable",
-    body: "Each cell owns a synchronous SQLite database, with input and output gates and an implicit transaction per turn. With an LTX log, every acknowledged write survives a crash.",
+    body: "Each cell owns a synchronous SQLite database. Every commit is logged in celld's format before the reply leaves, so every acknowledged write survives a crash.",
   },
   {
     icon: "refresh",
@@ -77,8 +77,8 @@ const hosts = [
     points: [
       "SQLite WASM in Dedicated Workers: on OPFS pools, on LTX files in OPFS read page by page, or in memory with an IndexedDB log",
       "Requests through a ServiceWorker, even at the origin's root; WebSockets over MessagePorts",
-      "Shards spread across the open tabs of an origin; another tab takes over when one closes",
-      "A whole app served from static files keeps running when the file server stops",
+      "A site's cells split into a fixed number of shards that the open tabs share; another tab takes over when one closes",
+      "loadProject loads the folder that cellb build writes, from any static host",
     ],
   },
   {
@@ -87,8 +87,8 @@ const hosts = [
     tag: "@statewalker/cellb/node",
     points: [
       "node:sqlite, one file per cell",
-      "loadNodeProject runs a wrangler project as celld deploys it",
-      "Loaded Workers in worker threads of their own; bundles from other bundlers through host-modules",
+      "loadProject runs a wrangler project as celld deploys it",
+      "Loaded Workers in worker threads of their own",
       "Speaks celld's peer protocol to reach owners on other nodes",
     ],
   },
@@ -97,10 +97,9 @@ const hosts = [
     title: "In the cloud, with celld",
     tag: "celldBucket(…)",
     points: [
-      "One S3, GCS or Azure bucket shared by celld nodes, CellB nodes and browsers",
-      "celld's ownership records, node leases, epochs and wake index",
-      "Exactly one owner per cell, with self-fencing on a lapsed lease",
-      "A cell that CellB wrote, celld continues, and back",
+      "One S3-compatible bucket (S3, R2, MinIO, Tigris) shared by celld nodes, CellB nodes and browsers",
+      "Exactly one owner per cell, through celld's ownership records and node leases",
+      "A node whose lease lapses stops serving its cells before another node may take them",
     ],
   },
 ] as const;
@@ -136,7 +135,10 @@ const rows: Row[] = [
       "alarm",
       "async",
       { label: "workerd's tests", href: "/examples#workerd" },
-      { label: "cells moved between celld and CellB", href: repoFile("packages/cellb/e2e") },
+      {
+        label: "cells moved between celld and CellB",
+        href: `${REPO}/tree/HEAD/packages/cellb/e2e`,
+      },
     ],
   },
   {
@@ -197,7 +199,7 @@ const rows: Row[] = [
     feature: "Dynamic Workers (Worker Loader)",
     celld: "supported",
     node: "yes, a worker thread each",
-    browser: "yes, a Dedicated Worker each",
+    browser: "yes, a Dedicated Worker each with isolateScript (the browser loadProject sets it)",
     checks: ["dynamic-worker-tails", "wd-worker-loader", "isolation-api"],
   },
   {
@@ -223,8 +225,8 @@ const rows: Row[] = [
   {
     feature: "Workers AI (ai binding)",
     celld: "no binding",
-    node: "yes, on any OpenAI-compatible endpoint",
-    browser: "yes",
+    node: "partial: text generation and embeddings, on an OpenAI-compatible endpoint",
+    browser: "partial: text generation and embeddings",
     checks: [
       { label: "p14-workers-ai", href: repoFile("packages/cellb/test/p14-workers-ai.test.ts") },
       { label: "Flue's cloud agent", href: docHref("examples/flue/README.md") },
@@ -311,22 +313,23 @@ const useCases = [
   {
     icon: "layers",
     title: "IDE-class applications",
-    body: "Editors like VS Code and Theia split into a UI, workspace services and extension hosts that run locally or remotely behind one API. With CellB each of those parts is a cell: documents, workspaces, language services. Plugins run as loaded Workers in a realm of their own. The same plugin runs beside the UI in a tab or on a server, and the code stays the same.",
+    body: "Editors like VS Code and Theia split into a UI, workspace services and extension hosts that run locally or remotely behind one API. With CellB each of those parts is a cell: documents, workspaces, language services. Plugins run as loaded Workers, each in a realm of its own: a worker thread on Node, a Dedicated Worker in a browser with isolateScript. The same plugin runs beside the UI in a tab or on a server, and the code stays the same.",
   },
   {
     icon: "cpu",
     title: "AI agents as Durable Objects",
-    body: "An agent or conversation is a cell whose transcript lives in its own SQLite. Alarms drive long runs, SSE and WebSockets stream replies, and env.AI reaches any OpenAI-compatible model: llama.cpp, Ollama or a hosted API. Flue, pi and opencode already run on CellB. If a node stops during a model call, another node on the same bucket takes the cell and finishes the submission.",
+    body: "An agent or conversation is a cell whose transcript lives in its own SQLite. Alarms drive long runs, SSE and WebSockets stream replies, and env.AI serves text generation and embeddings from any OpenAI-compatible model: llama.cpp, Ollama or a hosted API. Flue, pi and opencode already run on CellB. If a node stops during a model call, another node on the same bucket takes the cell and finishes the submission.",
   },
   {
     icon: "lock",
     title: "Isolated code that agents write",
-    body: "Worker Loader bindings run code handed over at run time, each in its own worker thread, or in a browser its own Dedicated Worker. The loaded code gets its own globals and only the env you give it. Set globalOutbound: null to block its fetch(), or route its fetches through a Fetcher you control. It is not a sandbox for hostile code: see Security & isolation.",
+    body: "Worker Loader bindings run code handed over at run time. On Node each loaded Worker gets a worker thread of its own. In a browser it gets a Dedicated Worker of its own only with isolateScript, which the browser loadProject sets by default; browserProjectRuntime and the shard functions do not. The loaded code gets its own globals and only the env you give it. Set globalOutbound: null to block its fetch(), or route its fetches through a Fetcher you control. It is not a sandbox for hostile code.",
+    link: { href: docHref("packages/cellb/docs/security.md"), label: "Security & isolation" },
   },
   {
     icon: "wifiOff",
     title: "Local-first apps",
-    body: "Cells answer from OPFS inside the tab, with no network and no server: EmDash keeps publishing posts after its file server is stopped. Configure a fleet bucket and the same cells are logged in celld's format, so a server node can serve them when the tab is closed.",
+    body: "Cells answer from OPFS inside the tab, with no network and no server. Configure a fleet bucket and the same cells are logged in celld's format, so a server node can serve them when the tab is closed.",
     link: { href: LIVE_DEMOS.emdash.href, label: "Try EmDash in your tab" },
   },
   {
@@ -344,19 +347,19 @@ const useCases = [
 const lifecycle = [
   {
     step: "Take",
-    body: "The first activation creates own.json with a conditional write. Later activations raise the epoch with compare-and-swap.",
+    body: "The first owner writes the cell's ownership record (own.json in the bucket) only if none exists. Each later owner raises the record's epoch, a counter that shuts out the previous owner, with a conditional write.",
   },
   {
     step: "Run",
-    body: "Input and output gates serialize events. The first SQL statement opens a transaction that commits at the end of the turn.",
+    body: "One event runs at a time, as Cloudflare's input and output gates order them. The first SQL statement opens a transaction that commits at the end of the event.",
   },
   {
     step: "Log",
-    body: "Each commit is written as LTX, celld's format. The first commit of a generation is a snapshot. A reply leaves only once its write is durable.",
+    body: "Each commit is written to the bucket as an LTX file. A new owner's first commit is a full snapshot. A reply leaves only once its write is durable.",
   },
   {
     step: "Move",
-    body: "Closing releases the record. The next owner, whether celld, Node or a tab, restores the newest generation and continues.",
+    body: "Closing releases the record. The next owner, whether celld, Node or a tab, restores the latest snapshot and the commits after it, and continues.",
   },
 ];
 ---
@@ -383,6 +386,13 @@ const lifecycle = [
           alongside celld on one shared bucket. It is an architecture for rich, isomorphic
           applications built for people and for AI agents.
         </p>
+        <p class="max-w-xl text-sm text-muted-foreground text-pretty">
+          <a href={CELLD} class="text-foreground underline-offset-4 hover:underline">celld</a> is
+          Deno's server that runs Workers projects on a fleet of machines sharing one bucket. A{" "}
+          <a href={docHref("packages/cellb/CONTEXT.md")} class="text-foreground underline-offset-4 hover:underline">cell</a>{" "}
+          is one Durable Object instance: its name, its SQLite database, and exactly one owner at a
+          time.
+        </p>
         <div class="flex flex-wrap gap-3">
           <Button href="/docs" size="lg">Get started <Icon name="arrowRight" /></Button>
           <Button href="#compare" size="lg" variant="outline">Supported services</Button>
@@ -401,9 +411,8 @@ const lifecycle = [
         Cells are the unit of the application, and placement is a deployment choice
       </h2>
       <p class="text-muted-foreground">
-        A cell is a named object with its own code, its own SQLite database and exactly one owner
-        at a time. Build an application from cells, such as users, documents, rooms, workspaces and
-        agents, and the same program can run entirely in a tab, entirely on servers, or across
+        Build an application from cells, one for each user, document, room, workspace or agent,
+        and the same program can run entirely in a tab, entirely on servers, or across
         both, with each cell running where it is needed.
       </p>
     </div>
@@ -430,12 +439,13 @@ const lifecycle = [
         celld's examples, CellB's own probe projects and workerd's Durable Object tests run on the
         real celld, and their answers are recorded. CellB must give the same answers: in Node on
         every pull request, and in Chromium in the browser test suite. That is 70 scenarios. For 5
-        of them workerd's answers are the expected ones, and 6 are known differences.
+        of them workerd's answers are the expected ones, and 6 are{" "}
+        <a href={docHref("packages/cellb/docs/gaps.md")} class="text-primary hover:underline">known differences</a>.
       </p>
       <p class="text-muted-foreground">
-        Every name in the last column opens an <a href="/examples" class="text-primary hover:underline">example page</a>:
-        the project's code, and a button that runs it on CellB in this tab and shows its answers
-        next to celld's.
+        Every name in the last column opens an <a href="/examples" class="text-primary hover:underline">example page</a>{" "}
+        or the test that checks it. An example page shows the project's code, and a button that
+        runs it on CellB in this tab and shows its answers next to celld's.
       </p>
     </div>
 
@@ -460,7 +470,7 @@ const lifecycle = [
             <th class="px-4 py-3 font-medium">Feature</th>
             <th class="px-4 py-3 font-mono font-medium">celld 0.6.3</th>
             <th class="px-4 py-3 font-mono font-medium text-primary">CellB · Node</th>
-            <th class="px-4 py-3 font-mono font-medium text-primary">CellB · browsers</th>
+            <th class="px-4 py-3 font-mono font-medium text-primary">CellB · Chromium</th>
             <th class="px-4 py-3 font-medium text-muted-foreground">How CellB is checked</th>
           </tr>
         </thead>
@@ -490,6 +500,11 @@ const lifecycle = [
       </table>
     </Card>
     <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+      <span class="w-full">
+        The browser column is Chromium. <code class="font-mono">pnpm e2e:firefox</code> runs the
+        browser suite in Firefox, where it passes too, with{" "}
+        <a href={docHref("packages/cellb/docs/gaps.md")} class="text-primary hover:underline">known differences</a>; WebKit is not run.
+      </span>
       <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-primary"></span>supported</span>
       <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-amber-500"></span>partial, example or different</span>
       <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-muted-foreground/40"></span>not supported</span>
@@ -608,7 +623,7 @@ const lifecycle = [
           Large Cloudflare apps that CellB did not write, running in a tab
         </h2>
         <p class="text-muted-foreground">
-          The examples use CellB as its users do, from npm. A CI job, started by hand, also runs
+          The examples install CellB from npm as its users do (they pin 0.5.x today). A CI job, started by hand, also runs
           them on CellB as the next release would publish it. Running them found gaps in CellB,
           which are now closed. The first two are published as{" "}
           <a href="/examples#live-demos" class="text-primary hover:underline">live demos</a>: open
@@ -629,9 +644,10 @@ const lifecycle = [
           <p class="font-mono text-sm text-primary">// the code</p>
           <h2 class="text-3xl font-semibold tracking-tight">Workers code you already have</h2>
           <p class="text-muted-foreground">
-            A runtime is a plain <code class="font-mono text-sm">(Request) ⇒ Response</code>{" "}
-            handler. Mount it on <code class="font-mono text-sm">node:http</code>, a ServiceWorker
-            or a test. Wrangler projects load from the configuration celld deploys, and anything
+            <code class="font-mono text-sm">loadProject</code> returns a project whose{" "}
+            <code class="font-mono text-sm">fetch(Request)</code> returns a Response. Hand it
+            requests from <code class="font-mono text-sm">node:http</code>, a ServiceWorker or a
+            test. Wrangler projects load from the configuration celld deploys, and anything
             CellB does not support is listed in <code class="font-mono text-sm">unsupported</code>{" "}
             instead of being silently ignored.
           </p>
@@ -710,7 +726,7 @@ const lifecycle = [
       <p class="text-muted-foreground">
         The <code class="font-mono text-sm">Counter</code> below is Workers code as it is written
         for Cloudflare: a class that extends <code class="font-mono text-sm">DurableObject</code>,
-        its count in the object's own SQLite, called over RPC. cellb runs it in the browser, shared
+        its count in the object's own SQLite, called over RPC. CellB runs it in the browser, shared
         by every tab of this site that has the page open: its shards run in Dedicated Workers of
         those tabs, each object in SQLite WASM on OPFS. No server answers these requests.
       </p>

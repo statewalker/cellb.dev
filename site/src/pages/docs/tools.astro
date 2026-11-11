@@ -5,14 +5,15 @@ import { docHref } from "@/lib/docs";
 ---
 
 <Docs
-  title="Tools: ESM CDN, bundler, builders"
+  title="Tools"
   description="Developer tools as Durable Object apps: an ESM CDN, user code as ESM, a bundler, an Astro builder and a notebook compiler, on Wrangler, celld and CellB."
 >
-  <h1>Tools: ESM CDN, bundler, builders</h1>
+  <h1>Tools</h1>
   <p>
     The tools that turn sources into running apps are Durable Object apps themselves:
   </p>
   <ul>
+    <li>a package store that caches the npm registry for the other tools;</li>
     <li>a CDN that serves npm packages as ES modules;</li>
     <li>a server that serves a project's own files as ES modules;</li>
     <li>a bundler that turns a project into one Worker;</li>
@@ -60,7 +61,7 @@ import { docHref } from "@/lib/docs";
       <tr><td><code>GET /npm/&lt;browser|node&gt;/&lt;name&gt;[@range][/sub]</code></td><td>ESM CDN (<code>ModuleHost</code>, one per profile)</td><td>302 to the pinned URL; the pinned URL is the module as ESM; <code>?graph</code>, <code>?meta</code>, <code>?raw</code></td></tr>
       <tr><td><code>PUT /p/&lt;id&gt;/files/&lt;path&gt;</code>, <code>POST /p/&lt;id&gt;/import</code></td><td>user code (<code>Project</code>, one per project)</td><td>writes the working tree (a file, a ZIP or JSON)</td></tr>
       <tr><td><code>POST /p/&lt;id&gt;/snapshots</code>, <code>GET /p/&lt;id&gt;/s/&lt;snap&gt;/~/&lt;path&gt;</code></td><td>user code</td><td>freezes the tree under its hash; serves a source as ESM (TS, TSX, JSX, CommonJS, CSS as <code>?module</code>)</td></tr>
-      <tr><td><code>POST /builds</code> (ZIP or JSON, <code>?project=…&amp;snapshot=…</code>)</td><td>bundler (<code>BuildJob</code>, one per build)</td><td>builds in the object or queues for the Node runner; the build id is the hash of the inputs</td></tr>
+      <tr><td><code>POST /builds</code> (ZIP or JSON, <code>?project=…&amp;snapshot=…</code>)</td><td>bundler (<code>BuildJob</code>, one per build)</td><td>builds in the object or queues for the Node runner; the build id is the hash of the builder version, the inputs and the spec</td></tr>
       <tr><td><code>GET /b/&lt;id&gt;/project.zip</code>, <code>/b/&lt;id&gt;/loader.json</code>, <code>/b/&lt;id&gt;/&lt;file&gt;</code></td><td>bundler</td><td>the output: a wrangler project, a Worker Loader payload, any file</td></tr>
       <tr><td><code>POST /nb/&lt;site&gt;/import</code>, <code>/build</code>; <code>GET /nb/&lt;site&gt;/…</code></td><td>notebooks (<code>NotebookSite</code>, one per site)</td><td>compiles notebooks to pages; serves the pages and their modules</td></tr>
     </tbody>
@@ -140,7 +141,8 @@ curl -o build.zip localhost:8787/b/<id>/project.zip           # wrangler dev, ce
     </li>
     <li>
       Cloudflare's isolates have 128 MB, and EmDash's build needs far more. On hosts without that
-      limit, EmDash builds inside the object too.
+      limit, EmDash builds inside the object too: about 35 s on the Node runner, against 87 to
+      146 s inside the object (87 s on CellB in Node, 102 s on celld, 146 s on Wrangler).
     </li>
   </ul>
 

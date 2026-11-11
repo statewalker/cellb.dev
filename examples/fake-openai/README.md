@@ -1,6 +1,6 @@
-# @statewalker/fake-openai
+# Fake OpenAI-compatible model
 
-A scripted OpenAI-compatible model endpoint for running agents offline: `POST /v1/chat/completions`
+`@statewalker/fake-openai`: a scripted OpenAI-compatible model endpoint for running agents offline: `POST /v1/chat/completions`
 (streamed or not, text or tool calls), `POST /v1/embeddings` and `GET /v1/models`. The package is
 private: the agent examples and the Flue example test against it, so it lives with them in
 `examples/`.

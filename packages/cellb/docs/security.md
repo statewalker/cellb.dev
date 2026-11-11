@@ -22,7 +22,7 @@ runs in a realm of its own:
 
 | Host | Realm of a loaded Worker |
 |---|---|
-| Node | a worker thread, always |
+| Node (`loadProject`, `loadNodeProject`) | a worker thread, always |
 | Browser, with `isolateScript` | a Dedicated Worker of its own |
 | Browser, without `isolateScript` | **none: the project's realm** |
 
@@ -44,6 +44,20 @@ What that realm does **not** take away:
 Running untrusted code needs more than CellB gives: an opaque-origin iframe or a separate origin in
 a browser (out of CellB's scope, [Gaps](gaps.md#out-of-scope-on-purpose)), a separate process
 or container on a server.
+
+### Which entry points isolate loaded Workers
+
+In a browser, a loaded Worker gets a realm of its own only when the runtime has an `isolateScript`.
+Some loaders set one for you:
+
+| Entry point | Loaded Workers isolated by default? |
+|---|---|
+| `loadProject` from `@statewalker/cellb/node` | yes, a worker thread each |
+| `loadNodeProject` | yes, a worker thread each |
+| `loadProject` from `@statewalker/cellb/browser` | yes, a Dedicated Worker each (the package's isolate worker); `isolateScript: false` turns it off |
+| `browserProjectRuntime` (also with `site`) | no: only with `isolateScript` |
+| `startProjectShards`, `joinProjectShards` | no: only when the shard worker calls `serveProjectShard({ isolateScript })` |
+| `createProjectRuntime` | no: only when the host passes `isolatedModules` (the loaders above do) |
 
 ## What an origin's pages share
 

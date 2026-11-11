@@ -3,7 +3,7 @@ import Icon from "@/components/Icon.astro";
 import Badge from "@/components/ui/Badge.astro";
 import Card from "@/components/ui/Card.astro";
 import Base from "@/layouts/Base.astro";
-import { docHref } from "@/lib/docs";
+import { docHref, examplePages, pageHref } from "@/lib/docs";
 import { type Example, exampleHref, examples } from "@/lib/examples";
 import { LIVE_DEMOS, SANDBOX } from "@/lib/site";
 
@@ -21,20 +21,32 @@ const groups: { origin: Example["origin"]; title: string; body: string }[] = [
   {
     origin: "workerd",
     title: "workerd's tests",
-    body: "Durable Object tests from Cloudflare's workerd repository, run inside a Worker on celld and on CellB.",
+    body: "workerd's tests of Durable Objects, WebSockets and Worker Loader, from Cloudflare's workerd repository, run inside a Worker on celld and on CellB.",
   },
 ];
+
+// Whole apps with a docs page of their own and no scenario: reachable from here too.
+const APPS_ABOUT: Record<string, string> = {
+  "examples/flue":
+    "A Flue agent app, built with Flue's own Cloudflare build and run on CellB, against a fake model.",
+  "examples/agents":
+    "The pi and opencode coding-agent frameworks in Durable Objects on CellB, against a fake OpenAI-compatible model.",
+  "examples/platform-demos":
+    "Whole apps built with their own toolchains, then bundled or compiled by the platform, and run on Wrangler, celld and CellB.",
+};
+const apps = examplePages.filter((p) => p.slug in APPS_ABOUT);
 ---
 
-<Base title="Examples · CellB" description="Every project CellB is checked against, runnable in your browser next to the answers celld recorded.">
+<Base title="Examples · CellB" description="Every scenario CellB is checked against, runnable in your browser next to the answers recorded on celld (or workerd, where marked).">
   <section class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
     <div class="max-w-3xl space-y-3">
       <p class="font-mono text-sm text-primary">// examples</p>
       <h1 class="text-4xl font-semibold tracking-tight">Run every example in your browser</h1>
       <p class="text-muted-foreground">
-        These are the {examples.length} request scripts CellB is tested with. Each one ran on celld,
-        and its answers were recorded. On each page you can run the same project on CellB in this
-        tab and compare the answers line by line. The projects are bundled when the site is built,
+        These are the {examples.length} scenarios CellB is tested with: a project and the requests
+        sent to it. Each one ran on celld and its answers were recorded; where a page is marked
+        "judged by workerd", the answers are compared with workerd's instead. On each page you can
+        run the same project on CellB in this tab and compare the answers line by line. The projects are bundled when the site is built,
         so a run starts in a second or two.
       </p>
     </div>
@@ -88,5 +100,22 @@ const groups: { origin: Example["origin"]; title: string; body: string }[] = [
         </div>
       );
     })}
+    <div id="apps" class="mt-12 scroll-mt-20">
+      <h2 class="text-2xl font-semibold tracking-tight">Apps tested on CellB</h2>
+      <p class="mt-2 max-w-3xl text-sm text-muted-foreground">
+        Whole applications CellB did not write, checked by their own end-to-end tests rather than
+        by recorded scenarios. Each page says how to run it.
+      </p>
+      <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {apps.map((p) => (
+          <a href={pageHref(p)} class="group">
+            <Card class="h-full p-4 transition-colors group-hover:border-primary/40">
+              <span class="font-medium">{p.label}</span>
+              <p class="mt-2 line-clamp-3 text-sm text-muted-foreground">{APPS_ABOUT[p.slug]}</p>
+            </Card>
+          </a>
+        ))}
+      </div>
+    </div>
   </section>
 </Base>

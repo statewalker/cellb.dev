@@ -58,7 +58,8 @@ Request ─► runtime.fetch ─► Worker's fetch(req, env, ctx)
 - `createCellRuntime(...).fetch(req)` is a plain `(Request) ⇒ Response` handler. A ServiceWorker, a
   `node:http` server or a test calls it the same way.
 - A stub is a Proxy: `fetch` goes to the object's `fetch` handler, any other property is an RPC
-  call. Arguments and results are structured-cloned, as between isolates.
+  call. Plain values in arguments and results are cloned; functions, `RpcTarget`s and stubs pass by
+  reference within one runtime, as on workerd (see [What breaks](#what-breaks) for other nodes).
 - Every event for a cell goes through its object host's `deliver()`: the input gate, the implicit
   transaction, and the output gate wrap it (see [Ownership & durability](ownership-and-durability.md)).
 - Everything a remote caller can do with a runtime is HTTP, served by one handler,
@@ -68,11 +69,39 @@ Request ─► runtime.fetch ─► Worker's fetch(req, env, ctx)
   MessagePort with `@statewalker/webrun-rpc` and `@statewalker/webrun-http-streams`, so bodies
   stream.
 
+## Loading a project
+
+Most embedders start a project with `loadProject(source, options)`, which has the same name and
+options in `@statewalker/cellb/node` and `@statewalker/cellb/browser`, and returns
+`{ config, runtime, unsupported, fetch, close }`:
+
+- **On Node**, `source` is a project folder (`wrangler.json(c)` and its `main`, bundled with
+  esbuild), a folder written by `cellb build`, the URL of a built folder, or a FilesApi holding
+  either. `data` is a directory for the cells (memory without it), `bucket` a fleet bucket.
+- **In a browser**, in a Dedicated Worker, `source` is the URL of a folder written by `cellb build`
+  or a FilesApi holding one. `data` names the OPFS pool. Loaded Workers get the package's own
+  isolate worker unless `isolateScript: false` is passed.
+- **`cellb build <project-dir> --out <dir>`** (or `buildProject` from `/node`) writes that folder
+  on Node: `wrangler.json`, `worker.js` (`main` bundled for browsers), `assets/` and the
+  `cellb.json` manifest, so that any static host can serve it.
+- **`compile`: a `"bundle"` or a `"site"` compiler.** A browser can also load a project's sources
+  from a FilesApi when `loadProject` is given one: `bundleCompiler({ esbuild })` from
+  `@statewalker/cellb/bundle` (one ES module, built by webrun-bundler on esbuild-wasm), or
+  `siteCompiler({ host })` from `@statewalker/cellb/site` (modules compiled one by one and served
+  from a ServiceWorker). Without `compile`, a browser loads only `cellb build` folders.
+
+Under `loadProject` are the lower-level calls of the next section: `loadNodeProject`,
+`browserProjectRuntime` and, beneath both, `createProjectRuntime`. The shard functions of
+`/browser` and `/tabs` (`startProjectShards`, `joinProjectShards`, `serveProjectShard`) run one
+`browserProjectRuntime` per shard ([Running in a browser](browser-host.md)). The package
+[README](../README.md) has the full list of options.
+
 ## Projects: a wrangler configuration becomes a runtime
 
 `createProjectRuntime(config, module, host)` reads the subset of `wrangler.jsonc` that celld
 deploys and builds the bindings: Durable Objects, KV, D1, R2, Queues, Workflows, assets, cron
-triggers, Worker Loaders and service bindings to the script's own entrypoints. It reports what it
+triggers, Worker Loaders, Workers AI (on an OpenAI-compatible endpoint the host names) and service
+bindings to the script's own entrypoints. It reports what it
 does not support in `unsupported` instead of ignoring it. The hosts differ only in how they load
 `main` and what they pass as `host`:
 
@@ -85,16 +114,21 @@ does not support in `unsupported` instead of ignoring it. The hosts differ only 
   `cloudflare:email` loads but cannot send. Under `nodejs_compat`, bare built-in names such as
   `path` resolve to Node's modules.
 - `browserProjectRuntime(opts)` imports a browser bundle or modules served by the in-browser HTTP
-  server; loaded Workers run in Dedicated Workers. See [Running in a browser](browser-host.md).
+  server. Loaded Workers run in Dedicated Workers when `opts.isolateScript` is set, and in the
+  project's realm otherwise. See [Running in a browser](browser-host.md).
 
-KV, Queues and Workflows run celld's own JavaScript, vendored unchanged in `vendor/celld/`. D1 runs
+KV, Queues and Workflows run celld's own JavaScript, vendored in `vendor/celld/` unchanged apart
+from an added export (KV) and a wrapping function (Queues, Workflows). D1 runs
 Miniflare's D1 simulator with workerd's D1 client, vendored in `vendor/miniflare/`. See
 [celld compatibility](celld-compatibility.md).
 
 ## Loaded Workers run in a realm of their own
 
-A Worker Loader binding (`env.LOADER.get(id, () => code)`) runs each loaded Worker in its own isolate:
-a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort (`src/isolate/`).
+A Worker Loader binding (`env.LOADER.get(id, () => code)`) runs each loaded Worker in its own isolate,
+behind one MessagePort (`src/isolate/`): a worker thread in Node, always, and in a browser a
+Dedicated Worker when the runtime has an `isolateScript`. The browser `loadProject` sets one by
+default; `browserProjectRuntime` and the shard functions do not, and without it loaded Workers run
+in the project's realm ([Security & isolation](security.md#which-entry-points-isolate-loaded-workers)).
 
 - Plain values in its `env` are copied; anything that cannot be cloned (a stub, a binding) becomes a
   stub whose calls go back to the parent runtime.
@@ -126,20 +160,31 @@ a worker thread in Node, a Dedicated Worker in a browser, behind one MessagePort
 | `src/adapters` | platform | SQL drivers (node:sqlite, SQLite WASM, the WASM page hook, the LTX VFS), FilesApi logs and backups |
 | `src/bucket` | storage | object stores (S3, SQLite, memory, FilesApi, IndexedDB), the LTX writer, `celldBucket` |
 | `src/ltx` | storage | the LTX v3 codec (LZ4, CRC-64, xxHash32); page reads over a FilesApi, the streaming writer and compaction (`ltx-pages`); the store a VFS talks to (`ltx-page-server`, `ltx-store-worker`) and its OPFS files (`opfs-sync-files`) |
-| `src/v8` | storage | V8 serialization in TypeScript, for platforms without `v8.serialize` |
+| `src/v8` | storage | V8 serialization in TypeScript, used on every platform (nothing imports `node:v8`) |
 | `src/transport` | links | the HTTP surface (`cellsHttpHandler`, `remoteRuntime`) and links over ports |
 | `src/router` | browser placement | `CellRouter` and the shard worker |
 | `src/ws` | WebSockets | the WHATWG client, `WebSocketPair` (its ends are webrun-http-browser's `ServerWebSocket` with workerd's semantics) and the 101 `Response` over MessagePorts, the control channel |
 | `src/project` | projects | wrangler loading for Node and browsers, the in-browser site, Workers globals (on Node also a workerd-like `MessageChannel`, whose idle ports do not keep the process alive), host modules for bundles made by other bundlers |
-| `src/bindings` | projects | assets, cache, cron, D1 migrations, HTMLRewriter, KV, Queues, R2, Workflows, Worker Loader |
+| `src/bindings` | projects | assets, cache, cron, D1 migrations, HTMLRewriter, KV, Queues, R2, Workflows, Worker Loader, Workers AI |
 | `src/isolate` | projects | loaded Workers in their own realm (Node and browser) |
 | `src/peer` | fleet | celld's peer protocol: a server for celld's requests and a client to reach celld owners (Node only) |
 | `src/node-compat` | projects | `node:*` modules for `nodejs_compat` in browsers |
 | `src/miniflare-compat` | projects | the shims that run Miniflare's vendored D1 simulator |
 
-There are three entry points, one per platform: `src/index.ts` (isomorphic), `src/node.ts` and
-`src/browser.ts`. Importing the isomorphic entry point loads no `node:` module, and a test checks
-that.
+The package's exports (`package.json`) are three entry points, one per platform, and five more:
+
+| Export | Source |
+|---|---|
+| `@statewalker/cellb` (isomorphic) | `src/index.ts` |
+| `@statewalker/cellb/node` | `src/node.ts` |
+| `@statewalker/cellb/browser` | `src/browser.ts` |
+| `@statewalker/cellb/tabs` | `src/tabs.ts` |
+| `@statewalker/cellb/site` | `src/site.ts` |
+| `@statewalker/cellb/bundle` | `src/bundle.ts` |
+| `@statewalker/cellb/host-modules` | `src/project/host-modules.ts` |
+| `@statewalker/cellb/isolate-worker` | `src/isolate/isolate-worker.ts` |
+
+Importing the isomorphic entry point loads no `node:` module, and a test checks that.
 
 ## What breaks
 

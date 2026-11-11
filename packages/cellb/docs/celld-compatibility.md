@@ -19,7 +19,7 @@ identical, how it is checked, and where the two still differ. The pinned celld v
 | Workflows | supported | yes (celld's engine) | yes | `workflow`, `workflow-api` |
 | Cron triggers | supported | yes | yes | `cron` |
 | Static assets | supported | yes (with Cloudflare's behaviour where celld has bugs) | yes | `static-assets`, `assets-api` |
-| Dynamic Workers (Worker Loader) | supported | yes, a worker thread each | yes, a Dedicated Worker each | `dynamic-worker-tails`, the Worker Loader scenarios |
+| Dynamic Workers (Worker Loader) | supported | yes, a worker thread each | yes, a Dedicated Worker each with `isolateScript` (the browser `loadProject` sets it; otherwise the project's realm, [Security](security.md#which-entry-points-isolate-loaded-workers)) | `dynamic-worker-tails`, the Worker Loader scenarios |
 | WebSockets, hibernation | supported | yes | yes, over MessagePorts | `wsecho`, `wsclient`, `wd-websocket-*` (celld fails `wd-websocket-hibernation`, CellB passes it) |
 | Vectorize-style search | example | yes | yes | `vectordb` |
 | Module rules (`.wasm`, `rules`: `CompiledWasm`, `Data`, `Text`) | wrangler bundles them | yes, inlined in the bundle | yes, from `cellb build` (not with `compile`, the site path or `cellbHostModule`) | `p42-module-rules`, `load-project.spec` |
@@ -92,10 +92,10 @@ bugs would hide in the converter.
 | Binding | Where its data lives | Implementation |
 |---|---|---|
 | D1 | a cell `__D1Database:<id>` with the application's tables directly in its SQLite | Miniflare's D1 simulator and workerd's D1 client, vendored |
-| KV | a cell `__KvNamespace:<id>`; values above 1 MiB in a FilesApi through celld's blob protocol | celld's `services/kv.js`, vendored unchanged |
+| KV | a cell `__KvNamespace:<id>`; values above 1 MiB in a FilesApi through celld's blob protocol | celld's `services/kv.js`, vendored unchanged apart from an added export |
 | Queues | a cell `__Queue:<id>` with celld's schema (`__queue_messages`, `__queue_stats`, `__queue_meta`, `__queue_transfer_receipts`) | celld's queue code from `harness.js`, vendored unchanged, with the seven policy operations of `celld_logic::queue` ported to TypeScript |
 | Workflows | a cell `__Workflow.<script>:<id>`, KV records under `__wf.` plus the instance's alarm | celld's workflow engine from `harness.js`, vendored unchanged |
-| R2 | directly in the fleet bucket at `r2/<bucket>/<key>`, metadata in the user-metadata entry `celld-r2`, with an MD5 for a single-request write and none for a multipart object; an open multipart upload in the memory of the node that opened it | CellB's R2 binding on celld's layout; an open upload's parts under `r2-uploads/<bucket>/<uploadId>/` |
+| R2 | directly in the fleet bucket at `r2/<bucket>/<key>`, metadata in the user-metadata entry `celld-r2`, with an MD5 for a single-request write and none for a multipart object. An open multipart upload: celld keeps it in the memory of the node that opened it; CellB keeps its parts in the bucket under `r2-uploads/<bucket>/<uploadId>/` | CellB's R2 binding on celld's layout |
 
 `e2e/p11f-celld-one-bucket.test.ts` moves each binding's data celld → CellB → celld through one
 bucket. A single Workflow instance takes the whole trip: its first step runs on celld, the step after

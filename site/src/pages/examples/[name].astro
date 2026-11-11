@@ -38,7 +38,7 @@ const sameProject = examples.filter((x) => x.project === e.project && x.name !==
 const sourceLabel =
   e.origin === "celld"
     ? `denoland/celld · examples/${e.project}`
-    : `statewalker/cellb.dev · conformance/${e.origin === "cellb" ? "projects" : "workerd-tests"}/${e.project}`;
+    : `statewalker/cellb.dev · packages/cellb/conformance/${e.origin === "cellb" ? "projects" : "workerd-tests"}/${e.project}`;
 ---
 
 <Base title={`${e.name} · CellB examples`} description={e.about}>
@@ -71,8 +71,9 @@ const sourceLabel =
       )}
       {e.judge === "workerd" && (
         <p class="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          CellB passes Durable Object stubs by reference, as workerd does, where celld copies them.
-          The answers below are compared with workerd's run of the same project. {e.workerdDiffers}
+          CellB follows workerd here on purpose, so the answers below are compared with workerd's
+          run of the same project, not celld's.
+          {e.workerdDiffers && <> The difference: {e.workerdDiffers}.</>}
         </p>
       )}
       {sameProject.length > 0 && (

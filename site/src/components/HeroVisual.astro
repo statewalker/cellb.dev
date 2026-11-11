@@ -1,6 +1,7 @@
 ---
 // One fleet, three kinds of node, one bucket. The highlighted cell is the
 // same Durable Object as it moves: celld → CellB in Node → CellB in a tab.
+// Its bucket keys follow celld's layout, cells/<Class>:<object id in hex>/ (src/bucket/celld-cells.ts).
 const hosts = [
   {
     name: "browser tab",
@@ -48,7 +49,7 @@ const hosts = [
       </div>
 
       <div class="rounded-lg border bg-background/80 p-3 font-mono text-[11px] leading-5">
-        <p class="text-muted-foreground">cells/Agent:review/</p>
+        <p class="truncate text-muted-foreground">cells/Agent:7c1e…a94f/ <span class="text-foreground/70">(agent:review)</span></p>
         <p><span class="text-muted-foreground">own.json</span> <span class="text-primary">{"{ node: \"tab-7f\", epoch: 3 }"}</span></p>
         <p class="truncate text-muted-foreground">ltx/e1/… <span class="text-foreground/70">celld</span> · ltx/e2/… <span class="text-foreground/70">node-a</span> · ltx/e3/… <span class="text-primary">browser</span></p>
       </div>

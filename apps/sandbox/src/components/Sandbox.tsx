@@ -794,8 +794,9 @@ function Welcome(props: {
         </div>
         {!props.picker && (
           <p className="text-muted-foreground mt-4 text-xs">
-            This browser has no folder access API, so the folder is read once. Use Chrome or Edge to
-            rerun the app when you save a file.
+            This browser has no folder access API, so the folder is read once and edits stay in this
+            tab. Use Chrome or Edge to write edits back to the folder and rerun on changes made on
+            disk.
           </p>
         )}
       </div>

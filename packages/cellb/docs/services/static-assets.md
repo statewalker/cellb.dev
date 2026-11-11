@@ -40,3 +40,9 @@ copied unchanged and run by the conformance suite on Node and in Chromium.
 
 celld's `static-assets` example and CellB's `assets-api`, `assets-drop` and `assets-force`
 projects, on Node and in Chromium.
+
+## What breaks
+
+- **An `.assetsignore` file stops the project from loading.** celld does not support it, so CellB
+  throws `<directory>/.assetsignore is not supported by celld; remove it` when the assets directory
+  holds one, instead of serving or ignoring the file.

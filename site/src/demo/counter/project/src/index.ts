@@ -1,6 +1,6 @@
 // A Durable Object as Workers code is written today: a class that extends DurableObject, its
 // state in the object's own SQLite (ctx.storage.sql), and methods the Worker calls over RPC
-// through a stub (env.COUNTER.getByName). cellb runs it unchanged, as Cloudflare, workerd and
+// through a stub (env.COUNTER.getByName). CellB runs it unchanged, as Cloudflare, workerd and
 // celld do: in this page's tabs, in Node, or on a celld fleet.
 import { DurableObject } from "cloudflare:workers";
 

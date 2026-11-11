@@ -18,7 +18,8 @@ fails, and what differs in Firefox and WebKit.
   its journal and a spare. The pool also grows in the background whenever less than half of it is
   free.
 - **One worker's cells share one SQLite heap of at most 2 GiB, which never shrinks.** Each open
-  cell takes about 120 KiB of it, with lookaside turned off and 4 KiB pages for a new database.
+  cell takes about 101 KB of it in Chromium, with lookaside turned off and 4 KiB pages for a new
+  database (about 120 KB in Node with the same build).
   That allows about 20,000 small cells open in one worker, as measured in Chromium (see
   [Cells per browser](browser-capacity.md)). The memory of a closed database is reused by the
   next one opened, and `closeDatabaseAfterMs` closes idle cells' databases, so the heap does not
@@ -481,26 +482,27 @@ Firefox 157 runs module ServiceWorkers, module Dedicated Workers, OPFS synchrono
   `Request.body` and does not take a `ReadableStream` as a request body; it stores the stream's
   string form instead. `createCellRuntime` gives Firefox a `request.body`, a stream read from
   `arrayBuffer()` on its first read, so the whole body is in memory first. Worker code that reads
-  it works (specs: `celld-projects` and `site-projects` `kv` and `r2`, `miniflare`). Code that
+  it works (browser tests: `celld-projects` and `site-projects` `kv` and `r2`, `miniflare`). Code that
   passes it on, as in `new Request(url, { body: request.body })`, sends that text. Pass
   `await request.arrayBuffer()` or the request itself instead. The getter sits on a prototype
   below `Request.prototype` rather than on it, because `@statewalker/webrun-http-streams` checks
   whether `Request.prototype` owns `body` to decide whether it may build requests with stream
   bodies, and that check must keep returning false. Where CellB rebuilds a request itself (a
   scheme restored on a node's link, a URL given back on an isolate's port), it reads the whole
-  body there (spec: `peer-routing`).
+  body there (browser test: `e2e-browser/peer-routing.spec.ts`).
 - **Storage errors use V8's wording.** When `storage.put` gets a value that structured clone
   refuses, it throws CellB's own `TypeError` with the message from CellB's V8 serializer
   (`() => 1 could not be cloned.`) instead of SpiderMonkey's (`Function object could not be
-  cloned.`). The error then reads as it does on workerd and celld (spec: `storage-details`).
+  cloned.`). The error then reads as it does on workerd and celld (conformance project:
+  `storage-details`).
 - **Under Playwright's Firefox, a navigation the ServiceWorker lets through to the network leaves
   the page uncontrolled** (`navigator.serviceWorker.controller === null`, after a reload or in a
   new tab). Its requests then reach the dev server instead of the router, and fail with
   `JSON.parse: unexpected character`. Playwright's Firefox takes back every request the
   ServiceWorker does not answer. A ServiceWorker with no fetch handler, or one that answers the
   navigation, keeps control (`e2e-browser/probes/sw-minimal.probe.spec.ts`), so the sharded demo's
-  ServiceWorker answers navigations with `fetch(request)`. We have not checked whether Firefox
-  outside Playwright behaves the same way.
+  ServiceWorker answers navigations with `fetch(request)`. Firefox outside Playwright has not been
+  tested for this.
 - The two `sharded` specs that stop the ServiceWorker use the Chrome DevTools Protocol and are
   skipped outside Chromium.
 
