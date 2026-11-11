@@ -160,10 +160,17 @@ works on **any FilesApi** the host provides, so capabilities filter the real fil
   `test/e2e.mjs` (Chromium: every edit of the IDE, on a template and on a picked folder, through
   the owner capability); `test/e2e-agent.mjs` (the Flue agent edits, runs and calls the app; a
   read-only run's write is refused; other agents' tools in read-only mode are refused; an OPFS
-  project is opened, run and written through a capability). S3 is wired but not tested here
-  (no bucket in CI).
+  project is opened, run and written through a capability). S3 is checked against a local
+  RustFS when `S3_ENDPOINT` is set: in Node through the whole scenario, and in Chromium (a
+  project opened from a bucket, run, written through a capability; the AWS SDK's XML parsing
+  needs `DOMParser` and `Node` in the worker, which linkedom provides).
 
-**[next]**: sub-agents with attenuated capabilities (flue-capfs-do's `chain`), untrusted tools in Worker
+**Delegation [built]**: the agent's `delegate` tool runs a sub-agent on the agent's capability
+narrowed by one Biscuit block (a scope, read-only), one level deep; `test/studio-node.ts`
+checks that a sub-agent scoped to `/client` is refused a write in `/server` and may write in
+`/client`.
+
+**[next]**: untrusted tools in Worker
 Loader isolates, Python (Pyodide) and Wasmer sandboxes on the same capability, model budgets per
 session, and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
 

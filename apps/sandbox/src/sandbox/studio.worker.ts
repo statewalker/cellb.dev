@@ -37,19 +37,34 @@ const hostCalls = new Map<number, (out: HostOut) => void>();
   },
 };
 
+const POOL_PREFIX = "cellb-sandbox-studio-t";
+
+async function sweepPools() {
+  try {
+    const root = (await navigator.storage.getDirectory()) as FileSystemDirectoryHandle & {
+      keys(): AsyncIterable<string>;
+    };
+    const names: string[] = [];
+    for await (const name of root.keys()) if (name.includes(POOL_PREFIX)) names.push(name);
+    for (const name of names) await root.removeEntry(name, { recursive: true }).catch(() => {});
+  } catch {
+    // No OPFS here, or nothing to sweep.
+  }
+}
+
 let studioUrl: string | undefined;
 let studio: Promise<LoadedProject> | undefined;
 function openStudio(): Promise<LoadedProject> {
   if (!studioUrl) return Promise.reject(new Error("the studio worker was not initialized"));
   const url = studioUrl;
-  // Its cells keep their state (sessions, conversations) in OPFS; a pool another tab holds
-  // cannot be opened, so that tab's studio gets one of its own.
-  const open = (data: string) => loadProject(new URL(url), { data });
-  studio ??= open("cellb-sandbox-studio")
-    .catch((err) => {
-      if (!/lock|busy|access handle|NoModificationAllowed/i.test(String(err))) throw err;
-      return open(`cellb-sandbox-studio-${Date.now().toString(36)}`);
-    })
+  // Its cells keep their state (sessions, conversations) in OPFS. That state belongs to this
+  // tab's openings (a workspace is made per opening), and a pool another tab holds cannot be
+  // opened: so each tab has a pool of its own, and pools of tabs gone are swept first (a pool a
+  // live tab holds cannot be removed, and is left alone).
+  studio ??= sweepPools()
+    .then(() =>
+      loadProject(new URL(url), { data: `${POOL_PREFIX}${crypto.randomUUID().slice(0, 8)}` }),
+    )
     .catch((err) => {
       studio = undefined;
       throw err;

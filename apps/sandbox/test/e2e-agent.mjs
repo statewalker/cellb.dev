@@ -398,6 +398,85 @@ try {
   await nb.getByText(/max value \d+/).waitFor({ timeout: 60_000 });
   await nbPage.close();
 
+  // S3 in the browser (any S3-compatible store whose bucket allows CORS from this origin):
+  // S3_ENDPOINT=http://127.0.0.1:9200 S3_BUCKET=projects S3_KEY=… S3_SECRET=…
+  if (process.env.S3_ENDPOINT) {
+    step("a project in an S3 bucket: opened, run, and written through a capability");
+    const { S3Client, PutObjectCommand, GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const cfg = {
+      endpoint: process.env.S3_ENDPOINT,
+      region: process.env.S3_REGION ?? "us-east-1",
+      bucket: process.env.S3_BUCKET ?? "projects",
+      key: process.env.S3_KEY ?? "rustfsadmin",
+      secret: process.env.S3_SECRET ?? "rustfssecret",
+    };
+    const prefix = `e2e-${Date.now().toString(36)}`;
+    const s3 = new S3Client({
+      region: cfg.region,
+      endpoint: cfg.endpoint,
+      forcePathStyle: true,
+      credentials: { accessKeyId: cfg.key, secretAccessKey: cfg.secret },
+    });
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: cfg.bucket,
+        Key: `${prefix}/index.html`,
+        Body: "<!doctype html><title>S3</title><h1>Kept in a bucket</h1>",
+        ContentType: "text/html",
+      }),
+    );
+    const s3Page = await context.newPage();
+    s3Page.on(
+      "console",
+      (m) => m.type() === "error" && console.log("s3 page:", m.text().slice(0, 500)),
+    );
+    s3Page.on(
+      "response",
+      (r) => r.status() >= 400 && console.log("s3 page http", r.status(), r.url()),
+    );
+    s3Page.on("requestfailed", (r) =>
+      console.log("s3 page failed", r.url(), r.failure()?.errorText),
+    );
+    await s3Page.goto(APP);
+    await s3Page.getByText("An S3 bucket").click();
+    await s3Page.getByLabel("Endpoint (empty: AWS)", { exact: true }).fill(cfg.endpoint);
+    await s3Page.getByLabel("Region", { exact: true }).fill(cfg.region);
+    await s3Page.getByLabel("Bucket", { exact: true }).fill(cfg.bucket);
+    await s3Page.getByLabel("Prefix (a folder in the bucket)", { exact: true }).fill(prefix);
+    await s3Page.getByLabel("Access key id", { exact: true }).fill(cfg.key);
+    await s3Page.getByLabel("Secret access key", { exact: true }).fill(cfg.secret);
+    await s3Page.getByRole("button", { name: "Open the bucket" }).click();
+    try {
+      await s3Page
+        .frameLocator('iframe[title="The running app"]')
+        .getByRole("heading", { name: "Kept in a bucket" })
+        .waitFor({ timeout: 60_000 });
+    } catch (err) {
+      await s3Page.screenshot({ path: process.env.FAIL_SHOT ?? "s3-failure.png" });
+      await s3Page
+        .getByRole("tab", { name: "Log" })
+        .click()
+        .catch(() => {});
+      console.log(
+        await s3Page.evaluate(() => document.querySelector('[data-testid="log"]')?.textContent),
+      );
+      throw err;
+    }
+    const put = await s3Page.evaluate(() =>
+      window.cellbSandbox.call("write_file", {
+        path: "notes.md",
+        content: "# via a capability, in S3",
+      }),
+    );
+    if (!put.ok) throw new Error(`S3 write: ${JSON.stringify(put)}`);
+    const got = await s3.send(
+      new GetObjectCommand({ Bucket: cfg.bucket, Key: `${prefix}/notes.md` }),
+    );
+    const body = await got.Body.transformToString();
+    if (body !== "# via a capability, in S3") throw new Error(`S3 object: ${body}`);
+    await s3Page.close();
+  }
+
   if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
   console.log("e2e-agent: all good");
 } finally {

@@ -65,6 +65,8 @@ pnpm --filter @statewalker/cellb-sandbox dev      # http://localhost:4321
 pnpm --filter @statewalker/cellb-sandbox build
 pnpm --filter @statewalker/cellb-sandbox test     # unit tests (Vitest), then the studio on
                                                   # cellb in Node (test/studio-node.ts)
+S3_ENDPOINT=http://127.0.0.1:9200 pnpm --filter @statewalker/cellb-sandbox test   # + an S3 store
+S3_ENDPOINT=http://127.0.0.1:9200 pnpm --filter @statewalker/cellb-sandbox e2e    # + S3 in the browser
 pnpm --filter @statewalker/cellb-sandbox e2e      # after build: Chrome, via Playwright
                                                   # (test/e2e.mjs, then test/e2e-agent.mjs)
 ```
@@ -121,7 +123,7 @@ The project's files are a `@statewalker/webrun-files` **FilesApi** owned by one 
 | a folder on disk | `BrowserFilesApi` over the picked handle | Open folder (File System Access API) |
 | memory | `MemFilesApi` | a template, the sample, a `webkitdirectory` folder, a GitHub branch |
 | browser storage | `BrowserFilesApi` over an OPFS directory | "Open from browser storage" |
-| S3 (AWS, R2, MinIO, RustFS…) | `S3FilesApi` | "An S3 bucket" (the bucket must allow CORS) |
+| S3 (AWS, R2, MinIO, RustFS…) | `S3FilesApi` | "An S3 bucket" (the bucket must allow CORS from the sandbox's origin; checked against RustFS in Node and in Chromium) |
 | composite | `CompositeFilesApi`: a root and sources mounted at paths | `{ kind: "composite", root, mounts }` |
 
 Nobody else holds the files. Everyone reaches them through a **capability**, a Biscuit token
@@ -163,6 +165,11 @@ it expects over any FilesApi, `token-cap.ts` is the token transport. A run, from
 Beyond files, the agent has `run_app`, `read_logs` and `http_request`: host tools that go from
 the studio worker to the page, which reads the latest files and runs its own tools. A denied
 operation comes back to the model as `EACCES`.
+
+**Delegation**: the agent's `delegate` tool hands a self-contained task to a sub-agent whose
+capability is the agent's own narrowed by one more Biscuit block (`scope`: one folder,
+`read_only`): a sub-agent can only ever have fewer rights. It runs the same loop and model,
+reports its tool calls as `sub:<tool>`, and cannot delegate again.
 
 ### Other agents: the IDE's tools
 

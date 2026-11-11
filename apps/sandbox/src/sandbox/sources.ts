@@ -45,6 +45,26 @@ export function describeSource(spec: SourceSpec): string {
   }
 }
 
+/**
+ * The AWS SDK parses S3's XML answers with `DOMParser`, which a Web Worker (where the studio
+ * opens sources) does not have: linkedom's stands in, with XML MIME types it knows.
+ */
+async function ensureDomParser() {
+  const g = globalThis as { DOMParser?: unknown; Node?: unknown };
+  if (typeof g.DOMParser === "function") return;
+  const { DOMParser: Base, parseHTML } = await import("linkedom");
+  // Its XML walk reads node types from the `Node` global too.
+  g.Node ??= (parseHTML("<!doctype html><html></html>") as unknown as { Node: unknown }).Node;
+  class XmlDomParser extends (Base as unknown as new () => {
+    parseFromString(text: string, type: string): unknown;
+  }) {
+    override parseFromString(text: string, type: string) {
+      return super.parseFromString(text, type === "application/xml" ? "text/xml" : type);
+    }
+  }
+  g.DOMParser = XmlDomParser;
+}
+
 async function opfsDir(path: string): Promise<FileSystemDirectoryHandle> {
   let dir = await navigator.storage.getDirectory();
   for (const name of path.split("/").filter(Boolean))
@@ -69,6 +89,7 @@ export async function openSource(spec: SourceSpec): Promise<FilesApi> {
       return new BrowserFilesApi({ rootHandle: await opfsDir(spec.path) });
     }
     case "s3": {
+      await ensureDomParser();
       const [{ S3Client }, { S3FilesApi }] = await Promise.all([
         import("@aws-sdk/client-s3"),
         import("@statewalker/webrun-files-s3"),

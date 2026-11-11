@@ -27,11 +27,13 @@ import {
   bash as flueBash,
 } from "@flue/runtime";
 import { Bash } from "just-bash/browser";
+import { Type } from "typebox";
 import { trimHistory } from "./capfs/agent-history.ts";
 import { CapFs } from "./capfs/capfs.ts";
 import type { Cap } from "./capfs/caps.ts";
 import { rgForFlue } from "./capfs/flue-compat.ts";
 import { type LlmConfig, llmConfig, llmCredentials, redactor } from "./capfs/llm-config.ts";
+import { attenuationBlock } from "./capfs/policy.ts";
 import { hostTools, type StudioHost } from "./host-tools.ts";
 
 export interface AgentRunRequest {
@@ -63,6 +65,8 @@ interface Storage {
 }
 
 const SESSION_MESSAGES = 200;
+/** Agents may delegate once: a sub-agent has no delegate tool. */
+const MAX_DEPTH = 1;
 const SESSION_BYTES = 1024 * 1024;
 const TEXT_LIMIT = 4000;
 const INPUT_LIMIT = 100_000;
@@ -150,6 +154,8 @@ export async function runAgentLoop(
     host?: StudioHost;
     onEvent?: (e: AgentEvent) => void;
     signal?: AbortSignal;
+    /** How deep this agent is (0: the person's agent; a sub-agent cannot delegate again). */
+    depth?: number;
   },
 ) {
   if (typeof req.prompt !== "string" || !req.prompt) throw new Error("EINVAL: prompt is required");
@@ -193,7 +199,68 @@ export async function runAgentLoop(
         },
     ),
     ...(opts.host ? hostTools(opts.host) : []),
+    ...((opts.depth ?? 0) < MAX_DEPTH ? [delegateTool()] : []),
   ];
+
+  // Delegation: a sub-agent gets this agent's capability narrowed by one more Biscuit block (a
+  // scope, read-only): it can only ever have fewer rights. It runs the same loop with the same
+  // model, without a stored conversation, and its tool calls are reported as `sub:<tool>`.
+  function delegateTool() {
+    return {
+      name: "delegate",
+      label: "Delegate to a sub-agent",
+      description:
+        "Hands a self-contained task to a sub-agent whose file rights are narrower than yours: `scope` limits it to one folder (e.g. /client), `read_only` forbids writes. Use it to keep a step within bounds (a refactor that must not leave /client, a review that must not write). Returns the sub-agent's final answer.",
+      parameters: Type.Object({
+        task: Type.String({ description: "what the sub-agent must do, with all it needs to know" }),
+        scope: Type.Optional(Type.String({ description: "a folder, e.g. /client" })),
+        read_only: Type.Optional(Type.Boolean()),
+      }),
+      async execute(
+        _id: string,
+        params: { task: string; scope?: string; read_only?: boolean },
+        signal?: AbortSignal,
+      ) {
+        const scope = params.scope ? `/${params.scope.replace(/^\/+|\/+$/g, "")}` : undefined;
+        if (!scope && !params.read_only)
+          throw new Error(
+            "EINVAL: give a scope or read_only: a sub-agent's rights must be narrower",
+          );
+        const narrower = await cap.attenuate(
+          attenuationBlock({ scope, readOnly: params.read_only }),
+        );
+        const out = await runAgentLoop(
+          narrower,
+          {
+            prompt: params.task,
+            llm: req.llm,
+            instructions: `You are a sub-agent. Your rights: ${[scope ? `only ${scope}` : "", params.read_only ? "read-only" : ""].filter(Boolean).join(", ")}. Do the task, then answer with what you did or found.`,
+            maxTurns: 12,
+          },
+          env,
+          storage,
+          {
+            ...opts,
+            sandboxId: `${opts.sandboxId}-sub-${crypto.randomUUID().slice(0, 8)}`,
+            depth: (opts.depth ?? 0) + 1,
+            signal: signal ?? opts.signal,
+            onEvent: (e) =>
+              emit(
+                e.type === "text"
+                  ? { type: "text", text: `↳ sub-agent: ${e.text}` }
+                  : { ...e, name: `sub:${e.name}` },
+              ),
+          },
+        );
+        return {
+          content: [
+            { type: "text", text: out.error ? `${out.reply}\n(error: ${out.error})` : out.reply },
+          ],
+          details: undefined,
+        };
+      },
+    };
+  }
 
   const model = modelOf(config, credentials.headers);
   const contextBytes = Math.max(

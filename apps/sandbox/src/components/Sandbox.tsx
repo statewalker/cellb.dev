@@ -139,6 +139,8 @@ export default function Sandbox() {
   const builds = useRef(new Map<number, { resolve(b: Build): void; reject(e: Error): void }>());
   const buildId = useRef(0);
   const [published, setPublished] = useState<PublishedTools>();
+  // Why the last project did not open (shown on the welcome page, where there is no log yet).
+  const [openError, setOpenError] = useState<string>();
   // The studio worker (the project's files, the capabilities, the Flue agents).
   const studioRef = useRef<StudioConnection | null>(null);
   const toolsRef = useRef<ReturnType<typeof createTools> | null>(null);
@@ -337,6 +339,7 @@ export default function Sandbox() {
     const studio = studioRef.current;
     if (!studio) throw new Error("the studio is not ready");
     const before = loadedRef.current?.session;
+    setOpenError(undefined);
     const s = await openProjectSession(studio, name, source);
     const { files, dirs, signature } = await readProject(s);
     if (before) studio.unmount(before.ws);
@@ -372,7 +375,9 @@ export default function Sandbox() {
     try {
       await openProject(name, source);
     } catch (err) {
-      addLog(`opening ${describeSource(source)}: ${(err as Error).message}`, "error");
+      const message = `opening ${describeSource(source)}: ${(err as Error).message}`;
+      addLog(message, "error");
+      setOpenError(message);
       setTab("log");
     }
   }
@@ -703,10 +708,22 @@ export default function Sandbox() {
     },
     state: () => statusRef.current,
     logs: () => logRef.current,
-    fetchApp: (path, init) => {
-      const s = statusRef.current;
-      if (s.kind !== "running") throw new Error("the app is not running");
-      return fetch(`${s.baseUrl.replace(/\/$/, "")}/${path}`, init);
+    // A rerun (a change seen by the watcher) can replace the app while a request is on its way:
+    // then the request waits for the new run and goes again.
+    fetchApp: async (path, init) => {
+      for (let attempt = 0; ; attempt++) {
+        const s = statusRef.current;
+        if (s.kind === "running") {
+          try {
+            return await fetch(`${s.baseUrl.replace(/\/$/, "")}/${path}`, init);
+          } catch (err) {
+            if (attempt >= 4) throw err;
+          }
+        } else if (s.kind !== "building" || attempt >= 4) {
+          throw new Error(`the app is not running (${s.kind})`);
+        }
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      }
     },
     reveal: (path) => {
       reveal(path);
@@ -906,6 +923,7 @@ export default function Sandbox() {
             if (t && mayDiscard()) void openMemory(t.id, t.files());
           }}
           onSource={(name, source) => void openSourceSpec(name, source)}
+          error={openError}
           onSample={() => mayDiscard() && void openMemory(SAMPLE_NAME, sampleFiles())}
           onDownloadSample={() => download(sampleFiles(), SAMPLE_NAME)}
           picker={picker}
@@ -1140,6 +1158,7 @@ function Welcome(props: {
   onOpen(): void;
   onTemplate(id: string): void;
   onSource(name: string, source: SourceSpec): void;
+  error?: string;
   onSample(): void;
   onDownloadSample(): void;
   picker: boolean;
@@ -1203,6 +1222,11 @@ function Welcome(props: {
             ))}
           </ul>
           <OtherSources onSource={props.onSource} />
+          {props.error && (
+            <p role="alert" className="text-destructive mt-3 text-sm">
+              {props.error}
+            </p>
+          )}
           <p className="text-muted-foreground mt-3 text-xs">
             Every template has an AGENTS.md. The Agent tab works on the open project with your own
             model key; outside agents get the same tools through{" "}

@@ -21,6 +21,7 @@ import {
   startFakeOpenAi,
   toolResults,
 } from "../../../examples/fake-openai/src/index.ts";
+import { openSource } from "../src/sandbox/sources.ts";
 import { attenuationBlock, NO_GIT } from "../studio/src/capfs/policy.ts";
 import { files, TokenCap } from "../studio/src/capfs/token-cap.ts";
 
@@ -47,6 +48,12 @@ const fake = await startFakeOpenAi({
     const results = toolResults(req);
     const prompt = lastUserText(req);
     if (results.length) return { text: `done: ${results.join(" | ").slice(0, 300)}` };
+    if (prompt === "DELEGATE-OUTSIDE")
+      return { tool: "delegate", args: { task: "WRITE something", scope: "/client" } };
+    if (prompt === "DELEGATE-INSIDE")
+      return { tool: "delegate", args: { task: "WRITE-CLIENT", scope: "/client" } };
+    if (prompt === "WRITE-CLIENT")
+      return { tool: "write", args: { path: "/client/by-sub.txt", content: "sub\n" } };
     if (prompt.startsWith("EDIT"))
       return {
         tool: "edit",
@@ -134,6 +141,13 @@ async function scenario(label: string, ws: string, backing: FilesApi, onDisk?: s
     ["/client/index.html"],
   );
   assert.equal(new TextDecoder().decode(tree[0]?.data), "<h1>x</h1>");
+  // Delegation: a sub-agent holds the agent's capability narrowed to /client.
+  await run(owner.token, "DELEGATE-OUTSIDE");
+  assert.match(lastResult(), /EACCES|denied/i, lastResult());
+  assert.equal(await backing.exists("/server/new.ts"), false);
+  await run(owner.token, "DELEGATE-INSIDE");
+  assert.equal(await readText(backing, "/client/by-sub.txt"), "sub\n");
+
   // The history is the owner's: a token narrowed with NO_GIT neither reads nor lists .git.
   await backing.write("/.git/HEAD", [text("ref: refs/heads/main\n")]);
   const noGit = files(await new TokenCap(send, ws, owner.token).attenuate(NO_GIT));
@@ -143,7 +157,9 @@ async function scenario(label: string, ws: string, backing: FilesApi, onDisk?: s
   ).readTree("/", {});
   assert.ok(!visible.some((e) => e.path.startsWith("/.git")));
   assert.ok(visible.some((e) => e.path === "/server/index.ts"));
-  console.log(`• ${label}: token FilesApi, Flue edit, read-only refusal, scope, readTree, no .git`);
+  console.log(
+    `• ${label}: token FilesApi, Flue edit, read-only refusal, scope, readTree, no .git, delegation`,
+  );
 }
 
 try {
@@ -160,6 +176,20 @@ try {
   composite.mount("/server", new NodeFilesApi({ rootDir: disk2 }));
   await scenario("composite (memory root, /server on disk)", "comp", composite);
   assert.match(await readFile(join(disk2, "index.ts"), "utf8"), /hello from flue/);
+  // S3 (any S3-compatible store: RustFS, MinIO, R2…), through the same openSource the studio
+  // worker uses. S3_ENDPOINT=http://127.0.0.1:9200 S3_BUCKET=projects S3_KEY=… S3_SECRET=…
+  if (process.env.S3_ENDPOINT) {
+    const s3 = await openSource({
+      kind: "s3",
+      endpoint: process.env.S3_ENDPOINT,
+      region: process.env.S3_REGION ?? "us-east-1",
+      bucket: process.env.S3_BUCKET ?? "projects",
+      prefix: `studio-node-${Date.now().toString(36)}`,
+      accessKeyId: process.env.S3_KEY ?? "rustfsadmin",
+      secretAccessKey: process.env.S3_SECRET ?? "rustfssecret",
+    });
+    await scenario(`S3 (${process.env.S3_ENDPOINT})`, "s3", s3);
+  } else console.log("• S3: skipped (set S3_ENDPOINT to run it against an S3-compatible store)");
   assert.ok(fake.authorizations.every((a) => a === "Bearer fake-key-123"));
   console.log("studio-node: all good");
 } finally {
