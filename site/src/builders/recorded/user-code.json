@@ -21,7 +21,7 @@
         "body": "{\n  \"files\": 6\n}",
         "bodyLang": "json",
         "bytes": 16,
-        "ms": 32
+        "ms": 41
       }
     },
     {
@@ -41,7 +41,7 @@
         "body": "{\n  \"snapshot\": \"02915a7ffc23f663\",\n  \"base\": \"http://localhost:8787/p/tasks/s/02915a7ffc23f663/\"\n}",
         "bodyLang": "json",
         "bytes": 99,
-        "ms": 13
+        "ms": 20
       }
     },
     {
@@ -104,7 +104,7 @@
         "body": "{\n  \"urls\": {\n    \"src/main.tsx\": \"/p/tasks/s/02915a7ffc23f663/~/src/main.tsx\"\n  },\n  \"preload\": [\n    \"/p/tasks/s/02915a7ffc23f663/~/src/App.tsx\",\n    \"/p/tasks/s/02915a7ffc23f663/~/src/main.tsx\",\n    \"/p/tasks/s/02915a7ffc23f663/~/src/styles.css\",\n    \"/p/tasks/s/02915a7ffc23f663/~/src/tasks.ts\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/nanoid/index.js\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/react-dom/client.js\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/react/index.js\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/react/jsx-runtime.js\"\n  ]\n}",
         "bodyLang": "json",
         "bytes": 548,
-        "ms": 686
+        "ms": 709
       }
     },
     {

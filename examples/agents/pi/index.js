@@ -4,8 +4,12 @@
 // own published packages.
 import { DurableObject } from "cloudflare:workers";
 import { Agent } from "@earendil-works/pi-agent-core";
-import { createModels, createProvider, Type } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+// From pi-ai's `./models`, not its index: pi-ai 1.5 loads some modules with import() and marks
+// most files side-effect free, so esbuild (wrangler's bundler, and cellb's) wraps models.js in a
+// lazy initializer that an import through the index never runs: `createModels()` then throws
+// "ModelsImpl is not a constructor". Imported directly, the initializer runs.
+import { createModels, createProvider } from "@earendil-works/pi-ai/models";
 
 function modelsFor(env) {
   const models = createModels();
@@ -39,12 +43,14 @@ function modelsFor(env) {
   return models;
 }
 
-// A tool the model can call: what the object knows about where it runs.
+// A tool the model can call: what the object knows about where it runs. Its parameters are JSON
+// Schema (pi-ai 1.5 no longer re-exports TypeBox's `Type`; plain schemas, TypeBox's and
+// @earendil-works/pi-schema's all work).
 const whereAmI = {
   name: "where_am_i",
   label: "Where am I",
   description: "Tells where this agent runs",
-  parameters: Type.Object({}),
+  parameters: { type: "object", properties: {} },
   execute: async () => ({
     content: [{ type: "text", text: "a Durable Object on cellb" }],
     details: {},

@@ -12,8 +12,8 @@
     "@statewalker/emdash-example": "workspace:*",
     "@statewalker/platform-astro-example": "workspace:*",
     "@types/node": "catalog:",
-    "playwright": "^1.64.1",
-    "tsx": "^4.21.0",
+    "playwright": "^1.65.0",
+    "tsx": "^4.23.15",
     "typescript": "catalog:"
   }
 }
