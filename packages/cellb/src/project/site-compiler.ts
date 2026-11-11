@@ -7,11 +7,25 @@
  * hosted by a page. `siteHostOverPort` (worker) and `hostSitesForWorker` (page) do that over a
  * MessagePort: the worker serves the site's handler, the page mounts it in its ServiceWorker.
  */
+
+import { SwHttpAdapter } from "@statewalker/webrun-http-browser";
 import type { SiteHandler } from "@statewalker/webrun-site-builder";
 import { HostedSiteBuilder } from "@statewalker/webrun-site-host";
 import { linkOverPort, serveHandlerOverPort } from "../transport/port.js";
 import { createProjectSite } from "./site.js";
 import type { ProjectCompiler } from "./source-project.js";
+
+/**
+ * A `HostedSiteBuilder` whose page side is this package's webrun-http-browser (`SwHttpAdapter`),
+ * not the older one webrun-site-host depends on (^0.7). From 0.12.5 it rebuilds a request's url at
+ * the page's scheme, so a site hosted on an https page answers; and its version is the one whose
+ * ServiceWorker (`sw-worker.js`) hosts serve.
+ */
+function newHostedSiteBuilder(): HostedSiteBuilder {
+  return new HostedSiteBuilder({
+    adapterFactory: ({ key, serviceWorkerUrl }) => new SwHttpAdapter({ key, serviceWorkerUrl }),
+  });
+}
 
 /** A site, hosted: its base URL (ending in "/") and how to take it down. */
 export interface HostedProjectSite {
@@ -43,7 +57,7 @@ function serviceWorkerHost(serviceWorkerUrl?: string): SiteHost {
         "siteCompiler: this realm cannot register a ServiceWorker (a Dedicated Worker cannot): " +
           "pass `host: siteHostOverPort(port)` and call `hostSitesForWorker(port)` in the page",
       );
-    const builder = new HostedSiteBuilder().setHandler(handler);
+    const builder = newHostedSiteBuilder().setHandler(handler);
     if (serviceWorkerUrl) builder.setServiceWorkerUrl(serviceWorkerUrl);
     const site = await builder.build();
     return { baseUrl: site.baseUrl, stop: () => site.stop() };
@@ -179,7 +193,7 @@ export function hostSitesForWorker(
       // The worker may give up waiting (`timeoutMs`) and ask to stop before the site is up: the
       // stop then waits on `reply` until the handler below reads it.
       const link = await linkOverPort(req.link);
-      const builder = new HostedSiteBuilder().setHandler(link.send);
+      const builder = newHostedSiteBuilder().setHandler(link.send);
       if (options.serviceWorkerUrl) builder.setServiceWorkerUrl(options.serviceWorkerUrl);
       const site = await builder.build();
       req.reply.onmessage = async (m) => {
