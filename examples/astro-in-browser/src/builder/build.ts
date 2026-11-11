@@ -25,6 +25,7 @@ import {
   clientPartsOf,
   compileAstro,
 } from "./astro-plugin.js";
+import { clientDirectiveModules, DIRECTIVE_MODULE, DIRECTIVES } from "./directives.js";
 import type { IntegrationResult } from "./integrations.js";
 import { type ClientAssets, pathsPlugin } from "./paths-plugin.js";
 import { projectRoutes, type RouteData, routeFromPattern, sortRoutes } from "./routes.js";
@@ -129,6 +130,8 @@ export async function buildAstroApp(opts: AstroBuildOptions): Promise<AstroBuild
       : undefined;
 
   const mounts = new Map<string, Mount>([["~", { prefix: "~", files: opts.files, root }]]);
+  // The client directives' scripts, from wherever this Astro version keeps them (directives.ts).
+  const directives = await clientDirectiveModules(opts.packages, mounts.get("~") as Mount);
   const hasLiveConfig = await exists(opts.files, `${root}/src/live.config.ts`);
   const clientAssets: ClientAssets = new Map();
   const components = new Map<string, CompiledComponent>();
@@ -157,11 +160,7 @@ import { App } from "astro/app";
 import { deserializeManifest } from "astro/app/manifest";
 import { DefaultFetchHandler } from "astro/app/fetch/default-handler";
 import { routeStyles, entryModules, inlinedScripts } from "virtual:astro-in-browser/styles";
-import loadDirective from "astro/runtime/client/load.prebuilt.js";
-import idleDirective from "astro/runtime/client/idle.prebuilt.js";
-import visibleDirective from "astro/runtime/client/visible.prebuilt.js";
-import mediaDirective from "astro/runtime/client/media.prebuilt.js";
-import onlyDirective from "astro/runtime/client/only.prebuilt.js";
+${DIRECTIVES.map((n) => `import ${n}Directive from "${DIRECTIVE_MODULE}${n}";`).join("\n")}
 import { renderers } from "virtual:astro-in-browser/renderers";
 
 const routes = ${JSON.stringify(routes)};
@@ -182,7 +181,7 @@ ${pages.join("\n")}
 const manifest = Object.assign(deserializeManifest(serialized), {
   entryModules,
   inlinedScripts: new Map(inlinedScripts),
-  clientDirectives: new Map([["load", loadDirective], ["idle", idleDirective], ["visible", visibleDirective], ["media", mediaDirective], ["only", onlyDirective]]),
+  clientDirectives: new Map([${DIRECTIVES.map((n) => `["${n}", ${n}Directive]`).join(", ")}]),
   renderers,
   pageMap,
   ${opts.session ? `sessionDriver: () => import(${JSON.stringify(opts.session.driver)}),` : ""}
@@ -237,6 +236,8 @@ export const inlinedScripts = g.inlinedScripts;`;
       conditions: ["workerd", "worker", "browser", "module"],
       external: ["cloudflare:*", "node:*"],
       modules: (spec) => {
+        if (spec.startsWith(DIRECTIVE_MODULE))
+          return directives.get(spec.slice(DIRECTIVE_MODULE.length));
         switch (spec) {
           case "virtual:astro-in-browser/entry":
             return entry;

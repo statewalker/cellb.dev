@@ -100,9 +100,7 @@ PW_CHROMIUM=/path/to/chrome pnpm --filter @statewalker/cellb-site record:builder
 
 The ESM CDN, user code and bundler examples are in `src/builders/examples/`. The Astro page uses
 `examples/platform-astro` and the notebooks page `examples/platform-demos/notebooks`, which is why
-`site.yml` watches those folders. The Astro recording pins `astro` to 7.4.4: astro 7.4.10 no longer
-ships the `astro/runtime/client/*.prebuilt.js` files the Astro builder imports (`ASTRO_PIN` in the
-script; drop it when the builder follows).
+`site.yml` watches those folders.
 
 ## Style
 

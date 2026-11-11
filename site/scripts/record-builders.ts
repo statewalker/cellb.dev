@@ -40,7 +40,6 @@ const APP_PORT = 8788;
 const APP = `http://localhost:${APP_PORT}`;
 const PAGE_PORT = 8790;
 
-const ASTRO_PIN = "7.4.4";
 const KINDS = ["esm-cdn", "user-code", "bundler", "astro", "notebooks"] as const;
 type Kind = (typeof KINDS)[number];
 const wanted = process.argv.slice(2) as Kind[];
@@ -548,13 +547,6 @@ async function bundler(r: Recorder) {
 async function astro(r: Recorder) {
   const dir = join(repo, "examples/platform-astro");
   const tree = readTree(dir, dir, ["dist", "scripts"]);
-  // astro 7.4.10 (2026-11-10) no longer ships the prebuilt client directives the Astro builder
-  // imports (astro/runtime/client/*.prebuilt.js), so the build pins the version of the examples'
-  // lockfile until the builder follows.
-  const pkg = JSON.parse(new TextDecoder().decode(tree.get("/package.json")));
-  pkg.dependencies.astro = ASTRO_PIN;
-  tree.set("/package.json", new TextEncoder().encode(`${JSON.stringify(pkg, null, 2)}\n`));
-  r.facts.astroPin = ASTRO_PIN;
   const body = zip([...tree]);
   const build = await r.call(`${BASE}/builds?sourcemap=0`, {
     method: "POST",
