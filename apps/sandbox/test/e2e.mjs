@@ -11,8 +11,8 @@
 // SANDBOX_BASE=/sandbox/app/ for a build made with that base (as cellb.dev serves it): the site is
 // then served under that path only, as on cellb.dev.
 // HTTPS=1 serves it over https (a self-signed certificate made with openssl), as cellb.dev does:
-// requests reach the page's handlers through webrun-http-browser, which rebuilt them as http://
-// (cellb's newHostedSiteBuilder gives them the page's scheme back).
+// requests reach the page's handlers through webrun-http-browser, which before 0.12.5 rebuilt
+// them as http://, so on https no request reached its handler.
 
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readdir, readFile } from "node:fs/promises";
