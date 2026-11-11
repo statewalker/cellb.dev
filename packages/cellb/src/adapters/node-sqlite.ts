@@ -8,6 +8,7 @@ import {
   readSync,
   rmdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -62,9 +63,14 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   // instead of reading the whole file. Automatic checkpoints are off; take() checkpoints
   // (TRUNCATE) itself once the WAL grows, and restarts from its start.
   #walOffset = 0;
+  /** Whether anyone reads the captured pages; until then exec() keeps the WAL bounded itself. */
+  #taken = false;
+  #writes = 0;
   #walSetup(): void {
     if (!this.#pageCapture) return;
     this.#db.exec("PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0;");
+    // A temporary file is only the WAL's carrier (the bucket keeps the cell): no fsync per commit.
+    if (this.#temporary) this.#db.exec("PRAGMA synchronous = OFF");
     this.#db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     this.#walOffset = 0;
   }
@@ -73,6 +79,7 @@ export class NodeSqliteDriver implements SyncSqlDriver {
     | { pageSize: number; pageCount: number; pages: Map<number, Uint8Array> }
     | undefined {
     if (!this.#pageCapture) return undefined;
+    this.#taken = true;
     const walPath = `${this.#path}-wal`;
     let fd: number;
     try {
@@ -134,6 +141,7 @@ export class NodeSqliteDriver implements SyncSqlDriver {
       last = this.#one(text, params);
       written += last.rowsWritten;
     }
+    if (this.#pageCapture && !this.#taken && ++this.#writes % 64 === 0) this.#boundWal();
     return { ...last, rowsWritten: written };
   }
   #one(sql: string, params: unknown[]): SqlResult {
@@ -147,6 +155,20 @@ export class NodeSqliteDriver implements SyncSqlDriver {
     stmt.setReturnArrays(true);
     const rows = (stmt.all(...args) as unknown as unknown[][]).map((row) => row.map(fromSqlite));
     return { columnNames, rows, rowsWritten: 0 };
+  }
+  /**
+   * A database whose pages nobody takes (the runtime's own tables, a storage that logs no pages)
+   * has no one to checkpoint its WAL (automatic checkpoints are off): past 4 MiB, fold it in.
+   */
+  #boundWal(): void {
+    if (this.inTransaction()) return;
+    try {
+      if (statSync(`${this.#path}-wal`).size <= 4 * 1024 * 1024) return;
+    } catch {
+      return;
+    }
+    this.#db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    this.#walOffset = 0;
   }
   inTransaction(): boolean {
     return (this.#db as unknown as { isTransaction: boolean }).isTransaction;
@@ -163,6 +185,7 @@ export class NodeSqliteDriver implements SyncSqlDriver {
       rmSync(this.#path + suffix, { force: true });
     try {
       rmdirSync(dirname(this.#path)); // the opener's directory, once its last cell is closed
+      temporaryDirs.delete(dirname(this.#path));
     } catch {}
   }
 
@@ -264,6 +287,18 @@ function fromSqlite(v: unknown): unknown {
   return v;
 }
 
+/** Temporary cell directories still present: removed if the process exits without closing them. */
+const temporaryDirs = new Set<string>();
+let exitHook = false;
+function removeAtExit(dir: string): void {
+  temporaryDirs.add(dir);
+  if (exitHook) return;
+  exitHook = true;
+  process.once("exit", () => {
+    for (const d of temporaryDirs) rmSync(d, { recursive: true, force: true });
+  });
+}
+
 /**
  * One file per cell in `dir`; without `dir`, each cell in memory.
  *
@@ -282,13 +317,19 @@ export function nodeSqliteOpener(
   let opened = 0;
   return (cellKey) => {
     const name = cellKey.replace(/[^\w.-]/g, "_");
-    if (dir) return new NodeSqliteDriver(`${dir}/${name}.sqlite`, opts);
-    if (!opts.pageCapture) return new NodeSqliteDriver(":memory:", opts);
-    if (!temp || !existsSync(temp)) temp = mkdtempSync(join(tmpdir(), "cellb-cells-"));
+    // The runtime's own databases (alarms index, cron state) log no pages: never captured.
+    const capture = !!opts.pageCapture && !cellKey.startsWith("__cellb/");
+    const o = { ...opts, pageCapture: capture };
+    if (dir) return new NodeSqliteDriver(`${dir}/${name}.sqlite`, o);
+    if (!capture) return new NodeSqliteDriver(":memory:", o);
+    if (!temp || !existsSync(temp)) {
+      temp = mkdtempSync(join(tmpdir(), "cellb-cells-"));
+      removeAtExit(temp);
+    }
     // A file per opening: a cell reopened while its previous database is still closing gets
     // a fresh one, as in memory.
     return new NodeSqliteDriver(join(temp, `${name}-${++opened}.sqlite`), {
-      ...opts,
+      ...o,
       temporary: true,
     });
   };

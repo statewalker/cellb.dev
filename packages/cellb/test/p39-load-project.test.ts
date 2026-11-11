@@ -159,8 +159,13 @@ describe("loadProject on a bucket: commits are logged from the WAL, not from dat
     expect(await counterRun(project)).toEqual([1, 2, 1]);
     expect(seen.length).toBeGreaterThanOrEqual(3);
     expect(seen.every(Boolean)).toBe(true);
+    // This opener's directory: the one holding these cells' files (other tests may make their own
+    // alongside, in parallel).
     const made = readdirSync(tmpdir()).filter(
-      (f) => !before.has(f) && f.startsWith("cellb-cells-"),
+      (f) =>
+        !before.has(f) &&
+        f.startsWith("cellb-cells-") &&
+        readdirSync(`${tmpdir()}/${f}`).some((n) => n.startsWith("Counter_")),
     );
     expect(made.length).toBe(1);
     await project.close();

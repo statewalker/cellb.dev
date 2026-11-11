@@ -73,8 +73,13 @@ describe("P11d node:sqlite page capture without a data directory", () => {
     d.takeDirtyPages();
     d.exec("INSERT INTO t VALUES ('x')", []);
     expect(d.takeDirtyPages()?.pages.size).toBeGreaterThan(0);
+    // This opener's directory: the one holding these cells' files (other tests may make their own
+    // alongside, in parallel).
     const made = readdirSync(tmpdir()).filter(
-      (f) => !before.has(f) && f.startsWith("cellb-cells-"),
+      (f) =>
+        !before.has(f) &&
+        f.startsWith("cellb-cells-") &&
+        readdirSync(`${tmpdir()}/${f}`).some((n) => n.startsWith("Counter_abc-")),
     );
     expect(made.length).toBe(1);
     // Two cells share the opener's directory; it goes with the last one.
@@ -94,5 +99,48 @@ describe("P11d node:sqlite page capture without a data directory", () => {
     const m = nodeSqliteOpener()("Counter:ghi");
     expect(m.takeDirtyPages()).toBeUndefined();
     m.close();
+  });
+});
+
+describe("P11d node:sqlite page capture: databases nobody logs, and temporary files", () => {
+  it("the WAL stays bounded when takeDirtyPages is never called (alarms index, cron, no log)", async () => {
+    const { nodeSqliteOpener } = await import("../src/node.js");
+    const { mkdtempSync, statSync, existsSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "walcap-bound-"));
+    const d = nodeSqliteOpener(dir, { pageCapture: true })("Counter:abc");
+    d.exec("CREATE TABLE a (k TEXT PRIMARY KEY, v BLOB)", []);
+    const blob = new Uint8Array(2048);
+    for (let i = 0; i < 6000; i++)
+      d.exec("INSERT OR REPLACE INTO a VALUES (?, ?)", [`k${i % 50}`, blob]);
+    const wal = join(dir, "Counter_abc.sqlite-wal");
+    const size = existsSync(wal) ? statSync(wal).size : 0;
+    expect(size).toBeLessThan(8 * 1024 * 1024);
+    d.close();
+  });
+
+  it("the runtime's own databases are not page-captured", async () => {
+    const { nodeSqliteOpener } = await import("../src/node.js");
+    const open = nodeSqliteOpener(undefined, { pageCapture: true });
+    const alarms = open("__cellb/alarms");
+    alarms.exec("CREATE TABLE t (v)", []);
+    expect(alarms.takeDirtyPages()).toBeUndefined(); // in memory, as before
+    alarms.close();
+  });
+
+  it("a temporary cell does not sync its file (the bucket is what keeps it)", async () => {
+    const { nodeSqliteOpener } = await import("../src/node.js");
+    const d = nodeSqliteOpener(undefined, { pageCapture: true })("Counter:sync");
+    expect(d.exec("PRAGMA synchronous", []).rows[0][0]).toBe(0);
+    d.close();
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const kept = nodeSqliteOpener(mkdtempSync(join(tmpdir(), "walcap-sync-")), {
+      pageCapture: true,
+    })("Counter:sync");
+    expect(kept.exec("PRAGMA synchronous", []).rows[0][0]).not.toBe(0);
+    kept.close();
   });
 });

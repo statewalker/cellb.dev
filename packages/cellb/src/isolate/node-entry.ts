@@ -31,6 +31,7 @@ serveIsolate(
   async ({ source }) =>
     import(`data:text/javascript;base64,${Buffer.from(source ?? "").toString("base64")}`),
   // Facets of the loaded code keep their SQLite here: files under `dataDir` when the host
-  // gives one, else in memory (lost with the isolate).
-  { openSql: (load) => nodeSqliteOpener(load?.dataDir) },
+  // gives one, else temporary files (lost with the isolate, as in memory). The isolate logs
+  // every commit's pages to its host, so they are read from the WAL, not from an image.
+  { openSql: (load) => nodeSqliteOpener(load?.dataDir, { pageCapture: true }) },
 );
