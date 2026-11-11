@@ -5,7 +5,7 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { createProjectRuntime } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
-import { populatesProcessEnv } from "../src/project/wrangler.js";
+import { hasNodeCompat, populatesProcessEnv } from "../src/project/wrangler.js";
 
 // The two process.env flags are honoured by every host (populatesProcessEnv), so they are not
 // reported as unsupported.
@@ -16,6 +16,17 @@ const FLAGS = [
 ] as const;
 
 describe("P45 process.env compatibility flags", () => {
+  it("turns nodejs_compat on only for nodejs_compat and nodejs_compat_v2, as workerd does", () => {
+    expect(hasNodeCompat({ compatibility_flags: ["nodejs_compat"] })).toBe(true);
+    expect(hasNodeCompat({ compatibility_flags: ["nodejs_compat_v2"] })).toBe(true);
+    // The process.env flags tune nodejs_compat; alone they enable nothing.
+    for (const [flag] of FLAGS) {
+      const config = { compatibility_date: "2026-01-01", compatibility_flags: [flag] };
+      expect(hasNodeCompat(config)).toBe(false);
+      expect(populatesProcessEnv(config)).toBe(false);
+    }
+  });
+
   it.each(FLAGS)("does not report %s as unsupported", async (flag) => {
     const p = createProjectRuntime(
       { compatibility_flags: ["nodejs_compat", flag] },

@@ -531,9 +531,15 @@ export function withResourceIds(config: WranglerConfig): WranglerConfig {
   };
 }
 
-/** Whether `config` asks for nodejs_compat (the flag, or a `nodejs_compat_*` one). */
+/**
+ * Whether `config` asks for nodejs_compat: the `nodejs_compat` or `nodejs_compat_v2` flag, as in
+ * workerd and Wrangler. Other `nodejs_compat_*` flags (the process.env ones) tune nodejs_compat
+ * and do nothing without it.
+ */
 export function hasNodeCompat(config: WranglerConfig): boolean {
-  return (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
+  return (config.compatibility_flags ?? []).some(
+    (f) => f === "nodejs_compat" || f === "nodejs_compat_v2",
+  );
 }
 
 /** The configuration files of a project folder, in the order celld reads them. */
