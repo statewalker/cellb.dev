@@ -1,6 +1,7 @@
 import { hostSitesForWorker } from "@statewalker/cellb/site";
 import { zip } from "@statewalker/cellb-platform-core/util";
 import {
+  Bot,
   Download,
   ExternalLink,
   Eye,
@@ -8,18 +9,23 @@ import {
   FolderOpen,
   Play,
   RefreshCw,
+  Rocket,
   Save,
   ScrollText,
   Sparkles,
   Square,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AgentPanel } from "@/components/AgentPanel";
 import { CodeEditor } from "@/components/CodeEditor";
 import { FileTree } from "@/components/FileTree";
+import { type Build, ShipPanel } from "@/components/ShipPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { type PublishedTools, publishTools } from "@/sandbox/agent/bridge";
+import { createTools, type RunState, type StudioHost } from "@/sandbox/agent/tools";
 import {
   assertAbsentInFolder,
   canPickFolder,
@@ -43,6 +49,7 @@ import {
 } from "@/sandbox/project";
 import type { FromRunner, ToRunner } from "@/sandbox/protocol";
 import { SAMPLE_NAME, sampleFiles } from "@/sandbox/sample";
+import { TEMPLATES } from "@/sandbox/templates";
 import {
   addDir,
   addFile,
@@ -109,9 +116,20 @@ export default function Sandbox() {
   const editQueue = useRef<Promise<unknown>>(Promise.resolve());
   const editsInFlight = useRef(0);
   const editCount = useRef(0);
+  // For the agent tools: the latest status and log, and who waits for a run or a build to end.
+  const statusRef = useRef<Status>(status);
+  statusRef.current = status;
+  const logRef = useRef<LogLine[]>(log);
+  logRef.current = log;
+  const runWaiters = useRef<((s: RunState) => void)[]>([]);
+  const builds = useRef(new Map<number, { resolve(b: Build): void; reject(e: Error): void }>());
+  const buildId = useRef(0);
+  const [published, setPublished] = useState<PublishedTools>();
 
   const addLog = useCallback((text: string, level: LogLine["level"] = "info") => {
-    setLog((l) => [...l.slice(-400), { id: ++logId, at: Date.now(), text, level }]);
+    const line = { id: ++logId, at: Date.now(), text, level };
+    logRef.current = [...logRef.current.slice(-400), line];
+    setLog((l) => [...l.slice(-400), line]);
   }, []);
 
   useEffect(() => {
@@ -134,11 +152,28 @@ export default function Sandbox() {
         if (m.phase === "building") setStatus({ kind: "building" });
         if (m.phase === "stopped") setStatus({ kind: "stopped" });
       } else if (m.type === "running") {
-        setStatus({ kind: "running", baseUrl: m.baseUrl, server: m.server, client: m.client });
+        const next: Status = {
+          kind: "running",
+          baseUrl: m.baseUrl,
+          server: m.server,
+          client: m.client,
+        };
+        statusRef.current = next;
+        setStatus(next);
         setFrameKey((k) => k + 1);
+        for (const w of runWaiters.current.splice(0)) w(next);
       } else if (m.type === "failed") {
-        setStatus({ kind: "failed", error: m.error });
-        setTab("log");
+        const next: Status = { kind: "failed", error: m.error };
+        statusRef.current = next;
+        setStatus(next);
+        setTab((t) => (t === "agent" ? t : "log"));
+        for (const w of runWaiters.current.splice(0)) w(next);
+      } else if (m.type === "built") {
+        builds.current.get(m.id)?.resolve({ files: new Map(m.files), summary: m.summary });
+        builds.current.delete(m.id);
+      } else if (m.type === "build-failed") {
+        builds.current.get(m.id)?.reject(new Error(m.error));
+        builds.current.delete(m.id);
       }
     });
     w.addEventListener("error", (e) => addLog(`runner: ${e.message}`, "error"));
@@ -151,6 +186,7 @@ export default function Sandbox() {
   const run = useCallback(
     (l: Loaded) => {
       const msg: ToRunner = { type: "run", files: [...l.files], folderName: l.name };
+      statusRef.current = { kind: "building" };
       setStatus({ kind: "building" });
       addLog(`running ${l.name}: ${l.files.size} files`);
       worker.current?.postMessage(msg);
@@ -462,6 +498,134 @@ export default function Sandbox() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
+  // The agent tools' view of this page (agent/tools.ts): the same edits as the buttons, on disk
+  // for a folder opened with the File System Access API. Agent edits do not rerun the app on
+  // their own: the agent runs it (run_app) when its change is complete.
+  const hostImpl = useRef<StudioHost>(null as unknown as StudioHost);
+  hostImpl.current = {
+    project: () => {
+      const l = loadedRef.current;
+      return (
+        l && { name: l.name, files: l.files, dirs: l.dirs ?? new Set(), onDisk: !!l.folder?.handle }
+      );
+    },
+    writeFile: (path, bytes) =>
+      edit(
+        async (current, handle) => {
+          const ws = workspaceOf(current);
+          const next = current.files.has(path)
+            ? writeFile(ws, path, bytes)
+            : addFile(ws, path, bytes);
+          if (handle) await writeToFolder(handle, path, bytes);
+          return next;
+        },
+        { rerun: false, after: () => reveal(path) },
+      ),
+    mkdir: (path) =>
+      edit(
+        async (current, handle) => {
+          const ws = addDir(workspaceOf(current), path);
+          if (handle) await mkdirInFolder(handle, path);
+          return ws;
+        },
+        { rerun: false },
+      ),
+    remove: (path) =>
+      edit(
+        async (current, handle) => {
+          const { ws } = remove(workspaceOf(current), path);
+          if (handle)
+            await removeFromFolder(handle, path).catch((err: Error) => {
+              if (err.name !== "NotFoundError") throw err;
+            });
+          return ws;
+        },
+        { rerun: false },
+      ),
+    move: (from, to) =>
+      edit(
+        async (current, handle) => {
+          const { ws } = move(workspaceOf(current), from, to);
+          if (handle) await moveInFolder(handle, from, to);
+          return ws;
+        },
+        { rerun: false },
+      ),
+    run: async () => {
+      await editQueue.current;
+      const l = loadedRef.current;
+      if (!l) throw new Error("no project is open");
+      const done = new Promise<RunState>((resolve) => {
+        runWaiters.current.push(resolve);
+        setTimeout(() => resolve(statusRef.current), 180_000);
+      });
+      run(l);
+      return done;
+    },
+    stop: async () => {
+      worker.current?.postMessage({ type: "stop" } satisfies ToRunner);
+    },
+    state: () => statusRef.current,
+    logs: () => logRef.current,
+    fetchApp: (path, init) => {
+      const s = statusRef.current;
+      if (s.kind !== "running") throw new Error("the app is not running");
+      return fetch(`${s.baseUrl.replace(/\/$/, "")}/${path}`, init);
+    },
+    reveal: (path) => {
+      reveal(path);
+      setSelected(path);
+      setOpenFile(path);
+    },
+  };
+  const tools = useMemo(() => {
+    const host: StudioHost = new Proxy({} as StudioHost, {
+      get: (_t, key) => hostImpl.current[key as keyof StudioHost],
+    });
+    return createTools(host);
+  }, []);
+  const getTools = useCallback(() => tools, [tools]);
+
+  useEffect(() => {
+    let alive = true;
+    let pub: PublishedTools | undefined;
+    publishTools(getTools, {
+      serviceWorkerUrl: new URL(
+        `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}sw-worker.js`,
+        location.href,
+      ).href,
+    }).then((p) => {
+      pub = p;
+      if (alive) setPublished(p);
+      else void p.dispose();
+    });
+    return () => {
+      alive = false;
+      void pub?.dispose();
+    };
+  }, [getTools]);
+
+  /** A deployable folder of the project (runner: buildProject + the exported client). */
+  const buildDeploy = (): Promise<Build> => {
+    const l = loadedRef.current;
+    if (!l) return Promise.reject(new Error("no project is open"));
+    const id = ++buildId.current;
+    return new Promise<Build>((resolve, reject) => {
+      builds.current.set(id, { resolve, reject });
+      worker.current?.postMessage({
+        type: "build",
+        id,
+        files: [...l.files],
+        folderName: l.name,
+      } satisfies ToRunner);
+    });
+  };
+
+  const agentInstructions = useCallback(() => {
+    const bytes = loadedRef.current?.files.get("/AGENTS.md");
+    return bytes ? decode(bytes) : undefined;
+  }, []);
+
   const layout = useMemo(
     () => (loaded ? describeProject(loaded.files, loaded.name) : undefined),
     [loaded],
@@ -556,6 +720,10 @@ export default function Sandbox() {
       {!loaded ? (
         <Welcome
           onOpen={openFolder}
+          onTemplate={(id) => {
+            const t = TEMPLATES.find((x) => x.id === id);
+            if (t && mayDiscard()) load({ name: t.id, files: t.files() });
+          }}
           onSample={() => mayDiscard() && load({ name: SAMPLE_NAME, files: sampleFiles() })}
           onDownloadSample={() => download(sampleFiles(), SAMPLE_NAME)}
           picker={picker}
@@ -601,7 +769,7 @@ export default function Sandbox() {
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
             <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
-                <TabsList>
+                <TabsList className="max-w-full justify-start overflow-x-auto">
                   <TabsTrigger value="preview">
                     <Eye /> Preview
                   </TabsTrigger>
@@ -612,6 +780,12 @@ export default function Sandbox() {
                         <span className="sr-only">unsaved changes</span>
                       </span>
                     )}
+                  </TabsTrigger>
+                  <TabsTrigger value="agent">
+                    <Bot /> Agent
+                  </TabsTrigger>
+                  <TabsTrigger value="ship">
+                    <Rocket /> Ship
                   </TabsTrigger>
                   <TabsTrigger value="log">
                     <ScrollText /> Log
@@ -705,6 +879,30 @@ export default function Sandbox() {
                   </p>
                 )}
               </TabsContent>
+              <TabsContent value="agent" className="min-h-0" forceMount hidden={tab !== "agent"}>
+                <AgentPanel
+                  tools={getTools}
+                  instructions={agentInstructions}
+                  hasProject={!!loaded}
+                  mcpUrl={published?.mcpUrl}
+                  webmcp={!!published?.webmcp}
+                  prepare={async () => {
+                    const h = loadedRef.current?.folder?.handle;
+                    if (h && !(await ensureWritable(h)))
+                      throw new Error("write access to the folder was refused");
+                  }}
+                />
+              </TabsContent>
+              <TabsContent value="ship" className="min-h-0 overflow-auto">
+                <ShipPanel
+                  name={layout?.name ?? loaded.name}
+                  files={() => loadedRef.current?.files ?? new Map()}
+                  build={buildDeploy}
+                  download={download}
+                  onPulled={(name, files) => mayDiscard() && load({ name, files })}
+                  log={addLog}
+                />
+              </TabsContent>
               <TabsContent value="log" className="min-h-0 overflow-auto">
                 <LogView lines={log} onClear={() => setLog([])} />
               </TabsContent>
@@ -747,6 +945,7 @@ function StatusBadge({ status }: { status: Status }) {
 
 function Welcome(props: {
   onOpen(): void;
+  onTemplate(id: string): void;
   onSample(): void;
   onDownloadSample(): void;
   picker: boolean;
@@ -791,6 +990,29 @@ function Welcome(props: {
           <Button variant="ghost" onClick={props.onDownloadSample}>
             <Download /> Download the sample
           </Button>
+        </div>
+        <div className="mt-6 border-t pt-4">
+          <h2 className="text-sm font-medium">Start from a template</h2>
+          <ul className="mt-2 grid gap-2">
+            {TEMPLATES.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  className="hover:bg-muted w-full rounded-md border px-3 py-2 text-left"
+                  onClick={() => props.onTemplate(t.id)}
+                  aria-label={`Template: ${t.title}`}
+                >
+                  <span className="block text-sm font-medium">{t.title}</span>
+                  <span className="text-muted-foreground block text-xs">{t.description}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground mt-3 text-xs">
+            Every template has an AGENTS.md. The Agent tab works on the open project with your own
+            model key; outside agents get the same tools through{" "}
+            <code className="font-mono">window.cellbSandbox</code>, WebMCP or MCP.
+          </p>
         </div>
         {!props.picker && (
           <p className="text-muted-foreground mt-4 text-xs">

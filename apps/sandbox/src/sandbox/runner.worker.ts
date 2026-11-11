@@ -11,11 +11,14 @@
 import { type LoadedProject, loadProject } from "@statewalker/cellb/browser";
 import { bundleCompiler } from "@statewalker/cellb/bundle";
 import { type HostedProjectSite, siteHostOverPort } from "@statewalker/cellb/site";
+import { buildProject } from "@statewalker/cellb-bundler";
 import { npmPackages } from "@statewalker/webrun-bundler";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import * as esbuild from "esbuild-wasm";
 import wasmURL from "esbuild-wasm/esbuild.wasm?url";
 import { createAppSite } from "./app-site";
+import { assembleDeploy } from "./deploy";
+import { exportClient } from "./export";
 import { clientFilesOf, describeProject } from "./project";
 import type { FromRunner, ToRunner } from "./protocol";
 
@@ -23,6 +26,35 @@ const scope = self as unknown as DedicatedWorkerGlobalScope;
 const post = (m: FromRunner) => scope.postMessage(m);
 const log = (text: string, level: "info" | "error" = "info") => post({ type: "log", text, level });
 const since = (t0: number) => `${Math.round(performance.now() - t0)} ms`;
+
+// The app's server code runs in this worker: its console goes to the log too (people and agents
+// read it there), and still to the worker's own console.
+for (const level of ["log", "info", "warn", "error", "debug"] as const) {
+  const original = console[level].bind(console);
+  console[level] = (...args: unknown[]) => {
+    original(...args);
+    const text = args
+      .map((a) =>
+        typeof a === "string"
+          ? a
+          : a instanceof Error
+            ? (a.stack ?? a.message)
+            : (() => {
+                try {
+                  return JSON.stringify(a);
+                } catch {
+                  return String(a);
+                }
+              })(),
+      )
+      .join(" ");
+    post({
+      type: "log",
+      text: `console.${level}: ${text}`,
+      level: level === "error" || level === "warn" ? "error" : "info",
+    });
+  };
+}
 
 // OPFS pools of this sandbox are named after the project, so its Durable Objects keep their data
 // from one run to the next. A pool another tab holds cannot be opened: then this run gets its own.
@@ -35,7 +67,11 @@ const moduleCache = new MemFilesApi();
 const compile = bundleCompiler({ esbuild, packages });
 const hostSite = siteHostOverPort(scope);
 
-let current: { project?: LoadedProject; site?: HostedProjectSite } = {};
+let current: {
+  project?: LoadedProject;
+  site?: HostedProjectSite;
+  handler?: (request: Request) => Promise<Response>;
+} = {};
 let queue = Promise.resolve();
 
 async function stop() {
@@ -98,6 +134,7 @@ async function run(entries: [string, Uint8Array][], folderName: string) {
   });
   const hosted = await hostSite(site);
   current.site = hosted;
+  current.handler = site;
   if (layout.clientRoot)
     log(
       `client: ${layout.clientRoot === "/" ? "the folder's root" : `${layout.clientRoot.slice(1)}/`} served, its modules compiled on request`,
@@ -112,6 +149,42 @@ async function run(entries: [string, Uint8Array][], folderName: string) {
   });
 }
 
+/**
+ * The deployable folder: the server bundled by buildProject (a no_bundle Worker), the client
+ * exported from a site made of the same sources (so no running app is needed).
+ */
+async function build(id: number, entries: [string, Uint8Array][], folderName: string) {
+  const t0 = performance.now();
+  const all = new Map(entries);
+  const layout = describeProject(all, folderName);
+  if (!layout.wranglerPath && !layout.clientRoot) throw new Error(layout.problems.join("; "));
+  esbuildReady ??= esbuild.initialize({ wasmURL, worker: false });
+  await esbuildReady;
+  let server: { config: Record<string, unknown>; files: Map<string, Uint8Array> } | undefined;
+  if (layout.wranglerPath && layout.config?.main) {
+    const files = new MemFilesApi();
+    for (const [path, bytes] of entries)
+      if (
+        !layout.clientRoot ||
+        layout.clientRoot === "/" ||
+        !path.startsWith(`${layout.clientRoot}/`)
+      )
+        await files.write(path, [bytes]);
+    const out = await buildProject({ files, esbuild, packages, log: (m) => log(`build: ${m}`) });
+    server = { config: out.config as Record<string, unknown>, files: out.files };
+  }
+  let client: Map<string, Uint8Array> | undefined;
+  if (layout.clientRoot) {
+    const clientFiles = clientFilesOf(all, layout.clientRoot);
+    const site = await createAppSite({ client: clientFiles, log, moduleCache });
+    client = await exportClient(site, clientFiles, (m) => log(`build: ${m}`));
+  }
+  const out = assembleDeploy({ name: layout.name, server, client });
+  const summary = `deployable build of ${layout.name}: ${out.size} files (${since(t0)})`;
+  log(summary);
+  post({ type: "built", id, files: [...out], summary });
+}
+
 scope.addEventListener("message", (e: MessageEvent<ToRunner>) => {
   const msg = e.data as ToRunner | undefined;
   if (!msg || typeof msg !== "object" || !("type" in msg)) return; // site-host traffic
@@ -123,6 +196,14 @@ scope.addEventListener("message", (e: MessageEvent<ToRunner>) => {
         const text = String((err as Error)?.message ?? err);
         log(text, "error");
         post({ type: "failed", error: text });
+      });
+  } else if (msg.type === "build") {
+    queue = queue
+      .then(() => build(msg.id, msg.files, msg.folderName))
+      .catch((err) => {
+        const text = String((err as Error)?.message ?? err);
+        log(`build: ${text}`, "error");
+        post({ type: "build-failed", id: msg.id, error: text });
       });
   } else if (msg.type === "stop") {
     queue = queue.then(stop).then(() => post({ type: "phase", phase: "stopped" }));

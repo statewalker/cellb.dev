@@ -67,7 +67,11 @@ function keepParent(dirs: Set<string>, files: ProjectFiles, path: string): Set<s
   return new Set(dirs).add(parent);
 }
 
-export function addFile(ws: Workspace, path: string, bytes = new Uint8Array()): Workspace {
+export function addFile(
+  ws: Workspace,
+  path: string,
+  bytes: Uint8Array = new Uint8Array(),
+): Workspace {
   assertFree(ws, path);
   const files = new Map(ws.files).set(path, bytes);
   return { files, dirs: prune(ws.dirs, files) };

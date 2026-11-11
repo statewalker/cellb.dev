@@ -1,0 +1,86 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color-scheme: light dark;
+}
+body {
+  margin: 0;
+  padding: 24px;
+  background: Canvas;
+  color: CanvasText;
+}
+#root {
+  max-width: 640px;
+  margin: 0 auto;
+}
+.stack {
+  display: flex;
+}
+.stack.column {
+  flex-direction: column;
+}
+.stack.row {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.heading {
+  font-size: 1.6rem;
+  margin: 0;
+}
+.text {
+  margin: 0;
+  line-height: 1.5;
+}
+.card {
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.card-title {
+  font-size: 1rem;
+  margin: 0;
+}
+.button {
+  font: inherit;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #6d4aff;
+  background: #6d4aff;
+  color: white;
+  cursor: pointer;
+}
+.field {
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+  flex: 1;
+  min-width: 8rem;
+  background: Canvas;
+  color: CanvasText;
+}
+.list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.badge {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, CanvasText 10%, transparent);
+}
+.badge.good {
+  background: #c8f2d4;
+  color: #0b5a23;
+}
+.badge.bad {
+  background: #ffd6d6;
+  color: #8a1111;
+}
+.error {
+  color: #c0262d;
+  font-family: monospace;
+}
