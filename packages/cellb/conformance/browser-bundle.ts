@@ -9,6 +9,7 @@ import { resolve } from "node:path";
 import type { WranglerConfig } from "../src/index.ts";
 import { bundleWorkerForBrowser } from "../src/project/browser-bundle.ts";
 import { readAssetDirectory, readWranglerConfig } from "../src/project/node-project.ts";
+import { hasNodeCompat } from "../src/project/wrangler.ts";
 import { projectDir } from "./projects.ts";
 
 export interface BrowserProject {
@@ -22,7 +23,7 @@ export async function bundleProjectForBrowser(name: string): Promise<BrowserProj
   const dir = projectDir(name);
   const config = readWranglerConfig(dir);
   let code: string | null = null;
-  const nodeCompat = (config.compatibility_flags ?? []).some((f) => f.startsWith("nodejs_compat"));
+  const nodeCompat = hasNodeCompat(config);
   if (config.main) code = await bundleWorkerForBrowser(resolve(dir, config.main), { nodeCompat });
   const assets: [string, string][] = [];
   if (config.assets?.directory)

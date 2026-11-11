@@ -48,7 +48,8 @@ answers with celld's recording ([Conformance](../conformance.md)).
 - **In a browser, `process.env` holds the project's text `vars`** under `nodejs_compat` (from
   compatibility date 2025-04-01, as on workerd; `nodejs_compat_populate_process_env` and
   `nodejs_compat_do_not_populate_process_env` override the date, on both hosts, and do nothing
-  without `nodejs_compat`). `node:fs` and `node:os` load with no host behind them (`existsSync` is false, `os.cpus()` is empty). Other Node.js modules without a browser
+  without `nodejs_compat` or `nodejs_compat_v2`). `node:fs` and `node:os` load with no host
+  behind them (`existsSync` is false, `os.cpus()` is empty). Other Node.js modules without a browser
   polyfill load as stubs that throw when called.
 - **Firefox has no streaming request body.** CellB gives Worker code a `request.body` that reads the
   whole body first. If the Worker forwards it as the body of another request, Firefox sends the text
