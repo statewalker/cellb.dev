@@ -113,7 +113,7 @@ export default {
           const b = await body<{
             workspace: string;
             token: string;
-            narrow?: { scope?: string | string[]; readOnly?: boolean };
+            narrow?: { scope?: string | string[]; readOnly?: boolean; datalog?: string };
             task: AgentRunRequest & { runId?: string };
           }>();
           const ws = env.WORKSPACE.get(env.WORKSPACE.idFromName(b.workspace));

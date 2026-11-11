@@ -35,7 +35,7 @@ export function describeSource(spec: SourceSpec): string {
     case "folder":
       return `folder ${spec.handle.name}`;
     case "memory":
-      return "in this tab";
+      return "memory (this tab)";
     case "opfs":
       return `browser storage /${spec.path.replace(/^\/+/, "")}`;
     case "s3":

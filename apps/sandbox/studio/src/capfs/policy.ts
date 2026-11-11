@@ -127,3 +127,9 @@ export function attenuationBlock(spec: {
   if (lines.length === 0) throw new Error("EINVAL: empty attenuation");
   return lines.join("\n");
 }
+
+/**
+ * studio: the project's history stays the owner's: agents and tools never see the sandbox's
+ * history (`.cellb/`) or the project's own repository (`.git/`).
+ */
+export const NO_GIT = `check if resource($p), !$p.starts_with("/.git/"), !$p.starts_with("/.cellb/");`;

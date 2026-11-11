@@ -208,6 +208,18 @@ importers:
       '@statewalker/cellb-platform-core':
         specifier: workspace:*
         version: link:../../packages/platform-core
+      '@statewalker/vcs-commands':
+        specifier: ^0.3.2
+        version: 0.3.2
+      '@statewalker/vcs-core':
+        specifier: ^0.3.4
+        version: 0.3.4
+      '@statewalker/vcs-store-files':
+        specifier: ^0.3.2
+        version: 0.3.2
+      '@statewalker/vcs-working-tree':
+        specifier: ^0.3.2
+        version: 0.3.2
       '@statewalker/webrun-biscuit':
         specifier: ^0.2.3
         version: 0.2.3
@@ -2416,6 +2428,27 @@ packages:
       '@statewalker/webrun-files': ^0.10.0
       '@statewalker/webrun-site-builder': ^0.2.0
 
+  '@statewalker/vcs-commands@0.3.2':
+    resolution: {integrity: sha512-OhZbuNy4SXLuRREX3Qta/jdzE4U4oiwwLXu4htca62snmOO9IabwmCi7po/aSGieHl0gR5Oj+ETY7hv0wgr8Dw==}
+
+  '@statewalker/vcs-core@0.3.4':
+    resolution: {integrity: sha512-sZrPrhJ5UcuS7qcToHXaHuRPRKedaYonAgvhAMzAsiT76RD1zFN8m4q6ZKu6FppkZCGcGyrGA9Id7xZKTgJF9Q==}
+
+  '@statewalker/vcs-store-files@0.3.2':
+    resolution: {integrity: sha512-2dorNiqy8Xjr5qRJZlPsd9PFcFX3w/GjF1bTVpv/eT3QRD0TjruN9TCH3k19Rqq9Q9Z0sYIXTgtfc7CQ8jHkhQ==}
+
+  '@statewalker/vcs-store-mem@0.3.2':
+    resolution: {integrity: sha512-Zr3Wn0Mims/7nU6tqUrLRBlPmjfKBhP2DijQs/KAz25zPI33+fSiHJQy3pK4jg8SbbxH33v69D7mK2SAIpZ2yg==}
+
+  '@statewalker/vcs-transport@0.3.3':
+    resolution: {integrity: sha512-5DtDmvv78PtrQfLgW018ejX+tVowAeAtHuEeGrGBdcz3WD25/4VrFigshybLlyqi6RBmGOhDfvhwP/D+ElxOYA==}
+
+  '@statewalker/vcs-utils@0.3.3':
+    resolution: {integrity: sha512-PkqUMeWc0hxQnwq3hKvQETpaPDOXw/N3bIzQUIJifUflGWwru8mCa9hJqVAa+LHpf6NwWgOVw4rR71S26qty/Q==}
+
+  '@statewalker/vcs-working-tree@0.3.2':
+    resolution: {integrity: sha512-GlalgmUPX1q9nA+gA/scpxkI09EKcMonQmgUxiBE75T9zbQnSa7D57IGPd2rXheB/411iaX89//NajAhkA0Apg==}
+
   '@statewalker/webrun-biscuit@0.2.3':
     resolution: {integrity: sha512-OgdQqAzzmDI2OQd8Mt1pWlEkAbshIbql0lbRitBqCVAZG0zuGtAS+K2qSoTEczdDGWUrAH+hm/cD9UdoDOXfJA==}
 
@@ -2459,6 +2492,9 @@ packages:
   '@statewalker/webrun-http-events@0.1.1':
     resolution: {integrity: sha512-yBSM3z4PEhxC2Zf3tXI/FcpvYVovgy6uR9oqwC6Ni2byW2WGSNqexPQ3bJ/TuidaERcl/J/gPpA9Snfu47lcRw==}
 
+  '@statewalker/webrun-http-streams@0.2.5':
+    resolution: {integrity: sha512-1O9pDWRQA9JOK1yhsXPnXtlhQKKV/DtVsHD1iuy4AjKBk6+pdglHeXCkLxyhAEQdlk9HZNF29V28ZVDbblROaA==}
+
   '@statewalker/webrun-http-streams@0.3.1':
     resolution: {integrity: sha512-BTnLyuLwmkJxmZGAVVpDtsCVzWhnXAQQL42GFU3uFw/bu/cSHgciqkTCX782N5Wrb5nssTCaUrW9aoOobNRUcA==}
 
@@ -2489,6 +2525,9 @@ packages:
     resolution: {integrity: sha512-8FmuWAC76Xqx9FKAZsU7KcJoUX9scpGxg/TppSD39XITj33TCB6jC7hbYZh6NENVvyy9PVXvPNABeMX3pBHCbg==}
     peerDependencies:
       '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
+
+  '@statewalker/webrun-storage@0.2.2':
+    resolution: {integrity: sha512-O14peslfjR0XV09jAdKkHNp9p5mnslkLVL3oLqqKHe9J0x9FLntQgZn9FZht/bguDqJzPGj7udOhf4qfjhGAXQ==}
 
   '@statewalker/webrun-streams@0.2.3':
     resolution: {integrity: sha512-v4+32VDLjt8HzAhjgd7K3bgiasQosU7FooXhLaTU2dQzYyNZ6NbNMOI/24SL0bdmTHkSU3bxktASn0hO3sCwng==}
@@ -4319,6 +4358,9 @@ packages:
 
   package-manager-detector@1.9.0:
     resolution: {integrity: sha512-zAMfbta9nPA8AKkA4WdmNAT8R8s6Dk0/xwPsqNnRidMFcLo1YkLuPDTgs2f64XdzS8vbLNnoJ+uUIkgbz7oRHA==}
+
+  pako@3.0.3:
+    resolution: {integrity: sha512-tmrebBBYI5FOw8QICGwJNqE8fotC8R+gwcxOvoFNv+GKehOI6Lc6YBolNcQNnC4v96l1wt7rh102ifD4kVeZAQ==}
 
   papaparse@5.7.0:
     resolution: {integrity: sha512-qBGxg/7Q3Kl9Wfhrz2Z74UnvnHTXLNG6jmKJFeBvP2+y4lV7So+7SR62+Zd47JvdrCkX+nDcnr0ObPzek/+6RA==}
@@ -7121,6 +7163,50 @@ snapshots:
       '@statewalker/webrun-http-events': 0.1.1
       '@statewalker/webrun-site-builder': 0.2.2(@statewalker/webrun-files@0.10.3)
 
+  '@statewalker/vcs-commands@0.3.2':
+    dependencies:
+      '@statewalker/vcs-core': 0.3.4
+      '@statewalker/vcs-store-files': 0.3.2
+      '@statewalker/vcs-store-mem': 0.3.2
+      '@statewalker/vcs-transport': 0.3.3
+      '@statewalker/vcs-utils': 0.3.3
+      '@statewalker/vcs-working-tree': 0.3.2
+
+  '@statewalker/vcs-core@0.3.4':
+    dependencies:
+      '@statewalker/vcs-utils': 0.3.3
+      '@statewalker/webrun-storage': 0.2.2
+
+  '@statewalker/vcs-store-files@0.3.2':
+    dependencies:
+      '@statewalker/vcs-core': 0.3.4
+      '@statewalker/vcs-utils': 0.3.3
+      '@statewalker/vcs-working-tree': 0.3.2
+
+  '@statewalker/vcs-store-mem@0.3.2':
+    dependencies:
+      '@statewalker/vcs-core': 0.3.4
+      '@statewalker/vcs-utils': 0.3.3
+      '@statewalker/vcs-working-tree': 0.3.2
+
+  '@statewalker/vcs-transport@0.3.3':
+    dependencies:
+      '@statewalker/vcs-core': 0.3.4
+      '@statewalker/vcs-utils': 0.3.3
+      '@statewalker/webrun-http-streams': 0.2.5
+      '@statewalker/webrun-streams': 0.2.3
+
+  '@statewalker/vcs-utils@0.3.3':
+    dependencies:
+      '@statewalker/webrun-files': 0.10.3
+      '@statewalker/webrun-files-mem': 0.10.3
+      pako: 3.0.3
+
+  '@statewalker/vcs-working-tree@0.3.2':
+    dependencies:
+      '@statewalker/vcs-core': 0.3.4
+      '@statewalker/vcs-utils': 0.3.3
+
   '@statewalker/webrun-biscuit@0.2.3':
     dependencies:
       '@noble/curves': 2.4.0
@@ -7179,6 +7265,10 @@ snapshots:
 
   '@statewalker/webrun-http-events@0.1.1': {}
 
+  '@statewalker/webrun-http-streams@0.2.5':
+    dependencies:
+      '@statewalker/webrun-streams': 0.2.3
+
   '@statewalker/webrun-http-streams@0.3.1':
     dependencies:
       '@statewalker/webrun-streams': 0.2.3
@@ -7228,6 +7318,10 @@ snapshots:
       '@statewalker/webrun-files-mem': 0.10.3
       '@statewalker/webrun-http-browser': 0.7.1
       '@statewalker/webrun-site-builder': 0.2.2(@statewalker/webrun-files@0.10.3)
+
+  '@statewalker/webrun-storage@0.2.2':
+    dependencies:
+      '@statewalker/webrun-files': 0.10.3
 
   '@statewalker/webrun-streams@0.2.3': {}
 
@@ -9384,6 +9478,8 @@ snapshots:
   p-timeout@7.0.2: {}
 
   package-manager-detector@1.9.0: {}
+
+  pako@3.0.3: {}
 
   papaparse@5.7.0: {}
 

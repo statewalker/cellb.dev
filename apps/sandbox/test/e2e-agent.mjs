@@ -301,6 +301,31 @@ try {
     throw new Error(`node: api → ${JSON.stringify(apiRes)}`);
   await writeFile(join(dir, "ok"), "");
 
+  step("history: the checkpoint before the agent run restores the project");
+  await page.getByRole("tab", { name: "Ship" }).click();
+  const historyPanel = page.getByTestId("history-panel");
+  await historyPanel
+    .getByText(/^Before the agent: Rename/)
+    .first()
+    .waitFor({ timeout: 60_000 });
+  page.once("dialog", (d) => d.accept());
+  await historyPanel
+    .getByRole("button", { name: /^Restore Before the agent: Rename/ })
+    .first()
+    .click();
+  for (let i = 0; ; i++) {
+    const now = await page.evaluate(() =>
+      window.cellbSandbox.call("read_file", { path: "server/index.ts" }),
+    );
+    if (now.ok && !now.result.content.includes(NEW_TITLE)) break;
+    if (i > 100) throw new Error("the restore did not bring the file back");
+    await page.waitForTimeout(200);
+  }
+  const hidden = await page.evaluate(() =>
+    window.cellbSandbox.call("read_file", { path: ".git/HEAD" }),
+  );
+  if (hidden.ok) throw new Error("an outside tool read .git");
+
   step(
     "a project in the browser's own storage (OPFS): opened, run, and written through a capability",
   );

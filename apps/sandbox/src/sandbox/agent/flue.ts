@@ -9,6 +9,7 @@
 // Nothing is copied or mirrored: the agent's writes are the files' writes, and the page sees them
 // as it sees any change (the studio's change notices, its watcher).
 
+import { NO_GIT } from "../../../studio/src/capfs/policy";
 import type { AgentMode, StudioConnection } from "../session";
 import type { AgentEvent } from "./events";
 
@@ -105,7 +106,8 @@ export function createFlueAgent(opts: FlueAgentOptions) {
         body: {
           workspace: project.ws,
           token,
-          narrow: scope ? { scope: `/${scope}` } : undefined,
+          // The history (.git) is the owner's: no agent token reaches it.
+          narrow: { ...(scope ? { scope: `/${scope}` } : {}), datalog: NO_GIT },
           task: {
             prompt,
             runId,

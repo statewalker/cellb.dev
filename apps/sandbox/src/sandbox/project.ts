@@ -156,6 +156,7 @@ export const mimeOf = (path: string) =>
 export const SKIPPED_DIRS = new Set([
   "node_modules",
   ".git",
+  ".cellb",
   ".wrangler",
   ".astro",
   "dist",

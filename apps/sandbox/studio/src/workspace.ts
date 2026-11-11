@@ -130,11 +130,11 @@ export class Workspace extends DurableObject {
   async open(
     ws: string,
     token: string,
-    narrow?: { scope?: string | string[]; readOnly?: boolean },
+    narrow?: { scope?: string | string[]; readOnly?: boolean; datalog?: string },
   ): Promise<FilteredFiles> {
     await this.#auth.sessionOf(token); // reject forged tokens before handing anything out
     const files = new FilteredFiles(this.#store(ws), this.#auth, token, this.#notify(ws));
-    return narrow && (narrow.scope || narrow.readOnly)
+    return narrow && (narrow.scope || narrow.readOnly || narrow.datalog)
       ? files.attenuate(attenuationBlock(narrow))
       : files;
   }

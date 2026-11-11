@@ -21,7 +21,7 @@ import {
   startFakeOpenAi,
   toolResults,
 } from "../../../examples/fake-openai/src/index.ts";
-import { attenuationBlock } from "../studio/src/capfs/policy.ts";
+import { attenuationBlock, NO_GIT } from "../studio/src/capfs/policy.ts";
 import { files, TokenCap } from "../studio/src/capfs/token-cap.ts";
 
 const dir = fileURLToPath(new URL("../studio/", import.meta.url));
@@ -134,7 +134,16 @@ async function scenario(label: string, ws: string, backing: FilesApi, onDisk?: s
     ["/client/index.html"],
   );
   assert.equal(new TextDecoder().decode(tree[0]?.data), "<h1>x</h1>");
-  console.log(`• ${label}: token FilesApi, Flue edit, read-only refusal, scope, readTree`);
+  // The history is the owner's: a token narrowed with NO_GIT neither reads nor lists .git.
+  await backing.write("/.git/HEAD", [text("ref: refs/heads/main\n")]);
+  const noGit = files(await new TokenCap(send, ws, owner.token).attenuate(NO_GIT));
+  await assert.rejects(readText(noGit, "/.git/HEAD"), /EACCES/);
+  const visible = await (
+    (await new TokenCap(send, ws, owner.token).attenuate(NO_GIT)) as TokenCap
+  ).readTree("/", {});
+  assert.ok(!visible.some((e) => e.path.startsWith("/.git")));
+  assert.ok(visible.some((e) => e.path === "/server/index.ts"));
+  console.log(`• ${label}: token FilesApi, Flue edit, read-only refusal, scope, readTree, no .git`);
 }
 
 try {

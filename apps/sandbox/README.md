@@ -181,6 +181,22 @@ complete. The Worker's `console.*` output is in the log (`read_logs`).
 Keys stay in the tab and are stored only with "Remember…". A folder opened read-only asks for
 write access when you press Send (the browser asks only during a click).
 
+## History
+
+The Ship tab's **History** is a real git repository the sandbox keeps in the project's own files,
+under `.cellb/history` (`src/sandbox/history.ts`, webrun-vcs: loose objects, refs, an index), so
+it lives where the project lives: on disk for a folder, in OPFS or S3 for those. It never
+touches a project's own `.git` (its branches stay yours) and writes no `.gitignore`: its ignores
+are in `.cellb/history/info/exclude` (`.git`, `.cellb`, `node_modules`, build output), and the
+project's `.gitignore` files are honored too.
+
+- **Commit** everything, with a message; the list shows commits with **Restore** (a hard reset:
+  files written back, files the commit lacks removed; ignored files untouched).
+- **Checkpoints**: with the box ticked, every agent run starts with a commit ("Before the agent:
+  …"), so undoing an agent is a Restore.
+- The page works on it through its owner capability; agents' and other tools' tokens carry one
+  more Biscuit block (`NO_GIT`) that keeps `.cellb/` and `.git/` out of their reach.
+
 ## Ship
 
 - **Build** (runner `build` message): `buildProject` (`@statewalker/cellb-bundler`) bundles the

@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentPanel } from "@/components/AgentPanel";
 import { CodeEditor } from "@/components/CodeEditor";
 import { FileTree } from "@/components/FileTree";
+import { HistoryPanel } from "@/components/HistoryPanel";
 import { type Build, ShipPanel } from "@/components/ShipPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import {
   type TreeItem,
 } from "@/sandbox/agent/tools";
 import { canPickFolder, ensureWritable, filesFromInput, pickFolder } from "@/sandbox/folder";
+import { openHistory, type ProjectHistory } from "@/sandbox/history";
 import {
   decode,
   describeProject,
@@ -65,6 +67,7 @@ import {
   type Workspace,
   writeFile,
 } from "@/sandbox/workspace";
+import { NO_GIT } from "../../studio/src/capfs/policy";
 import { files as capFiles, TokenCap } from "../../studio/src/capfs/token-cap";
 
 type Status =
@@ -143,6 +146,11 @@ export default function Sandbox() {
   const [outsideMode, setOutsideMode] = useState<AgentMode>("yolo");
   const outsideModeRef = useRef(outsideMode);
   outsideModeRef.current = outsideMode;
+  // The project's git history (.git in its own files), opened once per session.
+  const histories = useRef(new WeakMap<ProjectSession, Promise<ProjectHistory>>());
+  const [checkpoints, setCheckpoints] = useState(true);
+  const checkpointsRef = useRef(checkpoints);
+  checkpointsRef.current = checkpoints;
   // Asks the watcher to look now (a change notice from the studio, a write by a tool).
   const checkSoon = useRef<() => void>(() => {});
 
@@ -609,7 +617,10 @@ export default function Sandbox() {
     const l = loadedRef.current;
     if (!l) throw new Error("no project is open");
     const token = await l.session.tokenFor(outsideModeRef.current);
-    const cap = new TokenCap(studioRef.current?.send as never, l.session.ws, token);
+    // Narrowed offline (one more Biscuit block): the history (.git) is not theirs.
+    const cap = await new TokenCap(studioRef.current?.send as never, l.session.ws, token).attenuate(
+      NO_GIT,
+    );
     return { cap, fs: capFiles(cap) };
   };
   const after = async <T,>(p: Promise<T>) => {
@@ -746,9 +757,21 @@ export default function Sandbox() {
     });
   };
 
+  const history = useCallback(async (): Promise<ProjectHistory> => {
+    const s = loadedRef.current?.session;
+    if (!s) throw new Error("no project is open");
+    let h = histories.current.get(s);
+    if (!h) {
+      h = openHistory(s.fs);
+      h.catch(() => histories.current.delete(s));
+      histories.current.set(s, h);
+    }
+    return h;
+  }, []);
+
   // The Flue agent's client: the studio worker runs it on CellB (studio/ is built into
   // <base>studio/), on a token of the session with the rights chosen in the Agent tab.
-  const flue = useMemo(
+  const flueAgent = useMemo(
     () =>
       createFlueAgent({
         studio: {
@@ -763,6 +786,25 @@ export default function Sandbox() {
         },
       }),
     [],
+  );
+  // Before each run, a checkpoint commit (when on): undoing the agent is restoring it.
+  const flue = useMemo(
+    () => ({
+      send: async (...args: Parameters<typeof flueAgent.send>) => {
+        if (checkpointsRef.current) {
+          try {
+            const c = await (await history()).commitAll(
+              `Before the agent: ${args[0].slice(0, 72)}`,
+            );
+            if (c) addLog(`history: checkpoint ${c.id.slice(0, 7)} before the agent`);
+          } catch (err) {
+            addLog(`history: no checkpoint: ${(err as Error).message}`, "error");
+          }
+        }
+        return flueAgent.send(...args);
+      },
+    }),
+    [flueAgent, history, addLog],
   );
 
   const layout = useMemo(
@@ -1033,6 +1075,16 @@ export default function Sandbox() {
                 />
               </TabsContent>
               <TabsContent value="ship" className="min-h-0 overflow-auto">
+                <div className="mx-auto max-w-3xl px-4 pt-4 text-sm">
+                  <HistoryPanel
+                    history={history}
+                    version={loaded.signature}
+                    checkpoints={checkpoints}
+                    onCheckpoints={setCheckpoints}
+                    onRestored={() => void reread()}
+                    log={addLog}
+                  />
+                </div>
                 <ShipPanel
                   name={layout?.name ?? loaded.name}
                   files={() => loadedRef.current?.files ?? new Map()}
