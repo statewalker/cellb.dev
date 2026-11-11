@@ -78,7 +78,7 @@ Two pnpm workspaces. The root one (`pnpm-workspace.yaml`) holds cellb, the platf
 website. The
 examples are private apps in a workspace of their own (`examples/pnpm-workspace.yaml`, its own
 lockfile) and use cellb as its users do: `@statewalker/cellb` from npm, at a released range
-(`~0.8.1`); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
+(a `~` range on the current release); `@statewalker/fake-openai`, which only they use, is a member of theirs. A change to
 cellb reaches the examples through a release: Dependabot raises the range, and its pull request
 runs them. Cellb's own storage labs (`ltx-lab`, `sqlite-lab`) are in
 `packages/cellb/e2e-browser`. The one exception is `examples/platform-demos`: it checks the platform as it is in this
@@ -116,9 +116,9 @@ The examples, in `examples/` (`pnpm install` there: they have their own lockfile
    `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab.
 
 To try the examples on cellb as it is in this checkout, before a release: pack it
-(`pnpm --dir packages/cellb pack`) and add `"@statewalker/cellb": "file:<the .tgz>"` to the
-`overrides:` of `examples/pnpm-workspace.yaml`, then `pnpm install --no-frozen-lockfile` in
-`examples/` (what the examples workflow does with `cellb: packed`; do not commit it).
+(`pnpm --dir packages/cellb pack`) and add to `examples/pnpm-workspace.yaml`
+`overrides: { "@statewalker/cellb": "file:<the .tgz>" }`, then `pnpm install --no-frozen-lockfile`
+in `examples/` (what the examples workflow does with `cellb: packed`; do not commit it).
 
 ## Why it is the way it is
 

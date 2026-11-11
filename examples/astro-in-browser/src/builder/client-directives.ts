@@ -11,6 +11,9 @@
  * the build's entry would take whatever version the registry calls latest. Instead the package is
  * taken as `astro` sees it (the version astro's own package.json pins), and each script's source
  * is read here and served to the bundle as a virtual module.
+ *
+ * The same module as packages/astro-builder/src/client-directives.ts (the builder there was
+ * ported from this one).
  */
 import type { Mount, PackageStore } from "@statewalker/webrun-bundler";
 

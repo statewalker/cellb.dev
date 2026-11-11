@@ -223,7 +223,8 @@ export const inlinedScripts = g.inlinedScripts;`;
   let pageStyles: Record<string, string[]> = {};
   let client: ClientBuild = { entryModules: {}, inlinedScripts: [] };
 
-  // The client directives' scripts, from wherever this project's astro ships them.
+  // The client directives' scripts, from wherever this project's astro ships them (astro 7.4.9
+  // moved them to @astrojs/runtime).
   const directives = await clientDirectiveSources(opts.packages, mounts.get("~") as Mount, root);
 
   const run = () =>

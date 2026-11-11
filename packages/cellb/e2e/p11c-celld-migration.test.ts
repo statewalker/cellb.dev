@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { cpSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -6,31 +6,16 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import { celldBucket } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener, sqliteObjectStore } from "../src/node.js";
-import { freePort } from "../test/free-port.js";
+import { startCelldDev } from "../test/celld-dev.js";
 
 // Moves a Durable Object between the real celld and cellb through ONE bucket (celld
 // dev's local objects.sqlite3): celld → cellb → celld, each side restoring the
 // other's LTX files under celld's keys, ownership passed with epochs.
 const CELLD = process.env.CELLD_BIN;
-const ESBUILD_DIR = process.env.ESBUILD_DIR ?? "";
 
 async function celldDev(dir: string): Promise<ChildProcess & { base: string }> {
-  const port = await freePort();
-  const p = spawn(CELLD!, ["dev", ".", "--port", String(port), "--logs"], {
-    cwd: dir,
-    env: { ...process.env, PATH: `${ESBUILD_DIR}:${process.env.PATH}` },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let log = "";
-  p.stdout!.on("data", (d) => (log += d));
-  p.stderr!.on("data", (d) => (log += d));
-  for (let i = 0; i < 150 && !log.includes("ready"); i++)
-    await new Promise((r) => setTimeout(r, 200));
-  if (!log.includes("ready")) {
-    p.kill("SIGKILL");
-    throw new Error(`celld dev did not start:\n${log.slice(-2500)}`);
-  }
-  return Object.assign(p, { base: `http://127.0.0.1:${port}` });
+  const { p, base } = await startCelldDev(dir);
+  return Object.assign(p, { base });
 }
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => {

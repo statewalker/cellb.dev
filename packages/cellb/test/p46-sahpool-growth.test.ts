@@ -52,7 +52,7 @@ async function fakePool(initialCapacity: number) {
   return { openSql, openCell, write, settle, growths, files, capacity: () => capacity };
 }
 
-describe("P45 the cells' OPFS pool grows ahead of need", () => {
+describe("P46 the cells' OPFS pool grows ahead of need", () => {
   it("counts the journals open cells will make, before they make them", async () => {
     const p = await fakePool(16);
     for (let i = 0; i < 6; i++) await p.openCell(`c${i}`);
