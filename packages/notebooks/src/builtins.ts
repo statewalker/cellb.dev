@@ -167,10 +167,16 @@ export async function builtinClosure(opts: {
     }
     if (seen.has(url)) continue;
     seen.add(url);
-    if (!opts.have(url)) urls.push(url);
-    if (url.endsWith("?raw")) continue; // a classic worker script: no imports to follow
+    // A classic worker script (`?raw`) comes from an explicit line and has no imports to follow.
+    if (url.endsWith("?raw")) {
+      if (!opts.have(url)) urls.push(url);
+      continue;
+    }
+    // Listed only once it loads: `staticImports` reads source text, and a match inside a comment
+    // or a string must not make the export fail on a file that does not exist.
     const text = await opts.fetchText(url);
     if (text === undefined) continue;
+    if (!opts.have(url)) urls.push(url);
     for (const s of staticImports(text)) queue.push([s, `http://local${url}`]);
   }
   return { urls, names, aliases };

@@ -121,6 +121,7 @@ describe("builtinClosure", () => {
     ].join("\n"),
     "/m/kit/dist/src/runtime/stdlib/inputs.js":
       'export * from "/m/inputs@1/index.js";\nimport "./inputs.css?module";',
+    "/m/kit/dist/src/runtime/stdlib/inputs.css": ".inputs {}",
     "/m/inputs@1/index.js": 'import { html } from "/m/htl@0/index.js";',
     "/m/htl@0/index.js": "export const html = 1;",
     "/m/d3@7/index.js": "export {};",
@@ -159,6 +160,22 @@ describe("builtinClosure", () => {
     });
     expect(urls).toEqual(["/m/htl@0/index.js"]);
     expect([...aliases]).toEqual([["/m/~esm/htl", "/m/htl@0/index.js"]]);
+  });
+
+  it("leaves out an import that does not load (a match in a comment or string)", async () => {
+    const withGhost = {
+      ...files,
+      "/m/kit/dist/src/runtime/stdlib/recommendedLibraries.js":
+        'export const d3 = () => import("/m/d3@7/index.js");',
+      "/m/d3@7/index.js": '// usage: import { x } from "./not-a-file.js";\nexport {};',
+    };
+    const { urls } = await builtinClosure({
+      runtimeUrl: "/m/kit/dist/src/runtime/index.js",
+      used: ["d3"],
+      fetchText: async (url) => withGhost[url as keyof typeof withGhost],
+      have: () => false,
+    });
+    expect(urls).toEqual(["/m/d3@7/index.js"]);
   });
 
   it("skips what the export already holds", async () => {
