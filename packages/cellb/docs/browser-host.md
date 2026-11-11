@@ -14,9 +14,12 @@ fails, and what differs in Firefox and WebKit.
   `NoModificationAllowedError`, so each worker gets its own pool.
 - **An opfs-sahpool pool has a fixed number of files until it grows**, and growing is asynchronous
   while opening a database is not. `sahpoolOpener` gives the runtime `room(cellKey)`, and a cell's
-  first event waits until the pool has room for it. It reserves three files per cell: the database,
-  its journal and a spare. The pool also grows in the background whenever less than half of it is
-  free.
+  first event waits until the pool has room for it. It counts three files per cell, the database,
+  its journal and a spare, for open cells too until they hold them (a journal is made at the cell's
+  first write). A waiting cell waits for growth in steps of 8 files, and after each open the pool
+  grows in the background until half of it is free. Each new file is an OPFS sync access handle,
+  made one at a time, and in a busy worker each one takes seconds (about 5 s with 32 Flue
+  conversations in one worker), so the pool has to grow before it is needed.
 - **One worker's cells share one SQLite heap of at most 2 GiB, which never shrinks.** Each open
   cell takes about 101 KB of it in Chromium, with lookaside turned off and 4 KiB pages for a new
   database (about 120 KB in Node with the same build).
@@ -420,8 +423,9 @@ within one writer.
 
 - **`NoModificationAllowedError` when a worker opens SQLite.** Another worker holds the same pool
   name. Give each worker its own `pool`, or let only the shard-lock holder open a shard's pool.
-- **`SAH pool is full` when many cells start at once.** A burst of new databases or journals
-  outran the pool's growth. `browserProjectRuntime` starts the pool with 64 files, and
+- **`SAH pool is full` when many cells start at once, or a cell that waits a long time before its
+  first event.** A burst of new databases or journals outran the pool's growth, which is slow in a
+  busy worker. `browserProjectRuntime` starts the pool with 64 files, and
   `sahpoolOpener` on its own with 16. With `sahpoolOpener`, pass a larger `initialCapacity` for workloads that open many cells together.
 - **`AsyncLocalStorage.getStore()` returns another cell's store, or `undefined` after an
   `await`**, in a browser. The code's `await` was not lowered. Either the bundle was not made by
