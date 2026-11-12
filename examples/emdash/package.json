@@ -20,9 +20,9 @@
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.7",
     "@astrojs/react": "^7.1.7",
-    "@emdash-cms/cloudflare": "^1.4.0",
+    "@emdash-cms/cloudflare": "^1.5.0",
     "astro": "^7.4.10",
-    "emdash": "^1.4.0",
+    "emdash": "^1.5.0",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
@@ -30,7 +30,7 @@
     "@playwright/test": "^1.65.0",
     "@sparticuz/chromium": "^153.0.0",
     "@sqlite.org/sqlite-wasm": "^3.54.1-build1",
-    "@statewalker/cellb": "~0.8.3",
+    "@statewalker/cellb": "~0.8.5",
     "@statewalker/webrun-files-mem": "^0.10.3",
     "@types/node": "catalog:",
     "esbuild": "0.28.2",
