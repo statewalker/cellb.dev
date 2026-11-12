@@ -118,7 +118,7 @@ describe("P11d node:sqlite page capture: databases nobody logs, and temporary fi
     const size = existsSync(wal) ? statSync(wal).size : 0;
     expect(size).toBeLessThan(8 * 1024 * 1024);
     d.close();
-  });
+  }, 30_000); // 6,000 synced writes to a file on disk: past 5 s on a busy CI runner (it took 2-3 s here)
 
   it("the runtime's own databases are not page-captured", async () => {
     const { nodeSqliteOpener } = await import("../src/node.js");

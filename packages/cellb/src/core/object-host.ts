@@ -335,7 +335,9 @@ export class ObjectHost {
         let started: Promise<T>;
         this.#active++;
         try {
-          started = Promise.resolve(this.#root(() => fn(this.#instance, this.state)));
+          started = Promise.resolve(
+            this.#root(() => this.state.storage.runEvent(() => fn(this.#instance, this.state))),
+          );
         } catch (e) {
           started = Promise.reject(e);
         }
