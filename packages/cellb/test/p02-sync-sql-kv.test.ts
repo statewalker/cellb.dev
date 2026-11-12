@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NodeSqliteDriver } from "../src/adapters/node-sqlite.js";
 import type { OpenCellSql } from "../src/index.js";
 import { wasmMemoryOpener } from "../src/index.js";
@@ -264,6 +264,127 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
         return [...(await ctx.storage.list()).keys()];
       });
       expect(r).toEqual(["a", "c"]);
+    });
+
+    it("async transaction(): one a finished closure starts later does not nest into another's", async () => {
+      const { inObject } = probeRuntime();
+      let late!: Promise<unknown>;
+      await inObject("tx7", (ctx) =>
+        ctx.storage.transaction(async () => {
+          late = new Promise((res) => setTimeout(res, 10)).then(() =>
+            ctx.storage.transaction(async (txn) => {
+              await txn.put("late", 1);
+            }),
+          );
+        }),
+      );
+      await inObject("tx7", (ctx) =>
+        ctx.storage
+          .transaction(async (txn) => {
+            await txn.put("b", 1);
+            await new Promise((res) => setTimeout(res, 20)); // the late one comes due meanwhile
+            throw new Error("b");
+          })
+          .catch(() => {}),
+      );
+      await late;
+      const keys = await inObject("tx7", async (ctx) => [...(await ctx.storage.list()).keys()]);
+      expect(keys).toEqual(["late"]);
+    });
+
+    it("async transaction(): another event's async writes wait for it, and survive its rollback", async () => {
+      const { inObject } = probeRuntime();
+      const order: string[] = [];
+      let wakeB!: () => void;
+      const woken = new Promise<void>((res) => (wakeB = res));
+      // Event B, delivered first, wakes while event A's transaction is open.
+      const b = inObject("tx4", async (ctx) => {
+        await woken;
+        await ctx.storage.put("b", 1);
+        order.push("b written");
+      });
+      await new Promise((res) => setTimeout(res, 5));
+      await inObject("tx4", async (ctx) => {
+        await ctx.storage
+          .transaction(async (txn) => {
+            await txn.put("a", 1);
+            wakeB();
+            await new Promise((res) => setTimeout(res, 5));
+            order.push("a rolls back");
+            throw new Error("a");
+          })
+          .catch(() => {});
+      });
+      await b;
+      const keys = await inObject("tx4", async (ctx) => [...(await ctx.storage.list()).keys()]);
+      expect({ order, keys }).toEqual({ order: ["a rolls back", "b written"], keys: ["b"] });
+    });
+
+    it("async transaction(): awaits, inside, an op begun outside it (same event, or another event's read)", async () => {
+      const { inObject } = probeRuntime();
+      await inObject("tx6", (ctx) => ctx.storage.put("x", 1));
+      // The same event: a helper that awaits before its write and read.
+      const same = await inObject("tx6", async (ctx) => {
+        const p = (async () => {
+          await null;
+          await null;
+          await ctx.storage.put("y", 2);
+          return ctx.storage.get("x");
+        })();
+        return ctx.storage.transaction(async () => await p);
+      });
+      expect(same).toBe(1);
+      // Another event's read (a memoized load), awaited inside the transaction.
+      let load!: Promise<unknown>;
+      let wakeB!: () => void;
+      const woken = new Promise<void>((res) => (wakeB = res));
+      const b = inObject("tx6", async (ctx) => {
+        await woken;
+        load = ctx.storage.get("y");
+        await load;
+      });
+      await new Promise((res) => setTimeout(res, 5));
+      const other = await inObject("tx6", (ctx) =>
+        ctx.storage.transaction(async () => {
+          wakeB();
+          while (!load) await new Promise((res) => setTimeout(res, 1));
+          return load;
+        }),
+      );
+      await b;
+      expect(other).toBe(2);
+    });
+
+    it("async transaction(): another event's synchronous write warns, once", async () => {
+      const { inObject } = probeRuntime();
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        await inObject("tx5", (ctx) => ctx.storage.sql.exec("CREATE TABLE t (x)"));
+        let wakeB!: () => void;
+        const woken = new Promise<void>((res) => (wakeB = res));
+        let bDone!: () => void;
+        const bWrote = new Promise<void>((res) => (bDone = res));
+        const b = inObject("tx5", async (ctx) => {
+          await woken;
+          ctx.storage.sql.exec("SELECT * FROM t"); // a read: no warning
+          ctx.storage.sql.exec("INSERT INTO t VALUES (1)");
+          ctx.storage.kv.put("k", 1);
+          bDone();
+        });
+        await new Promise((res) => setTimeout(res, 5));
+        await inObject("tx5", (ctx) =>
+          ctx.storage.transaction(async () => {
+            ctx.storage.sql.exec("INSERT INTO t VALUES (0)"); // its own write: no warning
+            wakeB();
+            await bWrote;
+          }),
+        );
+        await b;
+        const ours = warn.mock.calls.filter((c) => String(c[0]).includes("storage.transaction()"));
+        expect(ours).toHaveLength(1);
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it("deleteAll wipes KV and user tables", async () => {

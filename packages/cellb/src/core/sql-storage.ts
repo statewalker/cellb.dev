@@ -106,6 +106,8 @@ const ROLLS_BACK =
   /SQLITE_(IOERR|FULL|NOMEM|BUSY|INTERRUPT|CORRUPT)|disk I\/O error|database or disk is full|out of memory|interrupted/i;
 /** Statements that may write (a conservative test: WITH … and PRAGMAs count as writes). */
 const WRITES = /^\s*(INSERT|REPLACE|UPDATE|DELETE|CREATE|ALTER|DROP|WITH|PRAGMA)\b/i;
+/** Statements that surely write, for the warning of `checkWrite()`. */
+const SURE_WRITES = /^\s*(INSERT|REPLACE|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i;
 const WRITE_TARGET =
   /^\s*(?:INSERT|REPLACE)(?:\s+OR\s+\w+)?\s+INTO\s+["`[]?([\w$]+)|^\s*UPDATE(?:\s+OR\s+\w+)?\s+["`[]?([\w$]+)|^\s*DELETE\s+FROM\s+["`[]?([\w$]+)/i;
 
@@ -119,6 +121,12 @@ export class SqlStorage {
   #lost: unknown;
   #holds = 0;
   #depth = 0;
+  /**
+   * Set by `ctx.storage`: true when called from another event while an async `transaction()` is
+   * open, where async context tells them apart.
+   */
+  outsideTransaction?: () => boolean;
+  #warnedOutside = false;
   // Transaction-log capture (only when the durability port asks for it).
   readonly #capture: boolean;
   #ddl: string[] = [];
@@ -180,6 +188,7 @@ export class SqlStorage {
     // Statement after statement, as workerd and celld prepare them: none at all, or a last one
     // of comments alone, is refused.
     if (lacksStatement(query)) throw new Error("SQL code did not contain a statement.");
+    if (SURE_WRITES.test(query)) this.checkWrite();
     return new SqlStorageCursor<T>(this.internalExec(query, bindings));
   }
 
@@ -222,6 +231,20 @@ export class SqlStorage {
       statementCount: statements.length,
       rowsWritten: this.#totalChanges() - before,
     };
+  }
+
+  /**
+   * A synchronous write made from another event while an async `transaction()` is open lands in
+   * that transaction's savepoint, and is undone if it rolls back. On workerd that event would not
+   * run until the transaction ends; a synchronous call cannot wait, so this warns, once per
+   * object. (Async storage calls wait for the transaction instead.)
+   */
+  checkWrite(): void {
+    if (this.#warnedOutside || !this.outsideTransaction?.()) return;
+    this.#warnedOutside = true;
+    console.warn(
+      "cellb: a synchronous storage write from another event while storage.transaction() is open; it is undone if that transaction rolls back (on workerd the event would wait for it)",
+    );
   }
 
   get databaseSize(): number {
