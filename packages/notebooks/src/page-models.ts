@@ -4,17 +4,17 @@
  * (docs/notebook-runtime/options.md in statewalker-sandbox, Section 3): the theme never parses
  * Markdown or transpiles cells, it lays out prose blocks, cell roots and one module script.
  *
- * A notebook goes through Portable Text first (`portable-text.ts`): Markdown with
- * `@portabletext/markdown`, a Notebook Kit document cell by cell. The document's `cell`s and
- * `expr`s (`${…}` in prose) are numbered and compiled with notebook-build's stages:
- * `resolveNotebook` (`npm:` imports → URLs under the module server's base path) and
- * `transpileNotebook` (cells → `define()` definitions). Prose is rendered from the document, with
- * heading ids and an outline for a table of contents, and the document itself is kept in the
- * model (`content`).
+ * A notebook becomes a document first (`portable-text.ts`): code cells and prose, the prose's
+ * `${…}` expressions taken out before any Markdown parsing. Cells and expressions are numbered and
+ * compiled with notebook-build's stages: `resolveNotebook` (`npm:` imports → URLs under the
+ * module server's base path) and `transpileNotebook` (cells → `define()` definitions). Prose is
+ * rendered from its Markdown with markdown-it (heading ids, an outline for a table of contents),
+ * and the document as Portable Text is kept in the model (`content`).
  *
  * What a fence's info string says (` ```js echo `, ` ```js run=false `,
  * ` ```sql database=warehouse output=rows `) reaches the page: `echo` shows the source next to the
- * output, `run=false` shows the source and does not run it, `database`/`output` go to the SQL cell.
+ * output, `run=false` shows the source and does not run it, `hidden` runs it with its output hidden,
+ * `database`/`output` go to the SQL cell.
  */
 import { toNotebook } from "@observablehq/notebook-kit";
 import {
@@ -29,14 +29,15 @@ import {
 import type { FilesApi } from "@statewalker/webrun-files";
 import {
   CODE_MODES,
+  type CodeCell,
   markdownToDocument,
   type NotebookDocument,
   notebookToDocument,
   numberCells,
   type OutlineEntry,
   type PtBlock,
-  type PtCell,
-  proseToHtml,
+  renderProse,
+  toPortableText,
 } from "./portable-text.js";
 
 export type { OutlineEntry } from "./portable-text.js";
@@ -51,6 +52,8 @@ export type PageBlock =
       source?: string;
       mode?: string;
       run?: boolean;
+      /** `hidden`: the cell runs, its output is not shown. */
+      hidden?: boolean;
     };
 
 export interface PageModel {
@@ -109,7 +112,7 @@ const escapeHtml = (s: string) =>
  * A cell that does not run in a page (`html`, `tex`, `dot`, `python`, …; see notebook-build's
  * `CODE_MODES`) stays inert as notebook-build leaves it: `html` as its markup, the others as code.
  */
-function inertCellHtml(cell: PtCell): string {
+function inertCellHtml(cell: CodeCell): string {
   if (cell.mode === "html") return cell.source;
   return `<pre><code class="language-${escapeHtml(cell.mode)}">${escapeHtml(cell.source)}</code></pre>`;
 }
@@ -181,13 +184,11 @@ export async function buildPageModels(opts: {
     seen.add(id);
     try {
       const doc = documentOf(file, await readText(opts.notebooks, file), opts.dom);
-      const { content, cells: specs } = numberCells(doc);
+      const { parts, cells: specs } = numberCells(doc);
       // `run=false`: shown, not run, so not compiled either.
-      const notRun = new Set(
-        content
-          .filter((b): b is PtCell => b._type === "cell" && (b as PtCell).attrs.run === false)
-          .map((c) => c.id as number),
-      );
+      const notRun = new Set<number>();
+      for (const p of parts)
+        if (p.kind === "cell" && p.cell.attrs.run === false) notRun.add(p.cell.id);
       const nb = toNotebook({
         cells: specs.filter((c) => !notRun.has(c.id)) as never,
         ...(doc.title ? { title: doc.title } : {}),
@@ -196,31 +197,39 @@ export async function buildPageModels(opts: {
       for (const [k, v] of pins) allPins[k] = v;
       const compiled = new Map(transpileNotebook(nb, pins).map((c) => [c.id, c]));
       for (const cell of compiled.values()) for (const name of cell.inputs) allInputs.add(name);
+      // An expression that does not compile shows its error in its span, as a cell does in place.
+      const exprErrors = new Map<number, string>();
+      for (const p of parts)
+        if (p.kind === "prose")
+          for (const e of p.exprs) {
+            const error = compiled.get(e.id)?.error;
+            if (error !== undefined) exprErrors.set(e.id, error);
+          }
 
       const outline: OutlineEntry[] = [];
       const used = new Set<string>();
       const blocks: PageBlock[] = [];
       const defines: string[] = [];
-      let prose: PtBlock[] = [];
-      const flushProse = () => {
-        if (prose.length) blocks.push({ kind: "prose", html: proseToHtml(prose, outline, used) });
-        prose = [];
-      };
-      for (const block of content) {
-        if (block._type !== "cell") {
-          prose.push(block);
+      for (const part of parts) {
+        if (part.kind === "prose") {
+          blocks.push({ kind: "prose", html: renderProse(part, outline, used, exprErrors) });
+          for (const e of part.exprs) {
+            const def = compiled.get(e.id);
+            if (def && !def.error) defines.push(defineCall(def));
+          }
           continue;
         }
-        const cell = block as PtCell;
+        const cell = part.cell;
         if (!CODE_MODES.has(cell.mode)) {
-          flushProse();
           blocks.push({ kind: "prose", html: inertCellHtml(cell) });
           continue;
         }
-        flushProse();
-        const id = cell.id as number;
+        const id = cell.id;
         const shown = cell.attrs.echo === true || notRun.has(id);
-        const view = shown ? { source: cell.source, mode: cell.mode } : {};
+        const view = {
+          ...(shown ? { source: cell.source, mode: cell.mode } : {}),
+          ...(cell.attrs.hidden === true ? { hidden: true } : {}),
+        };
         if (notRun.has(id)) {
           blocks.push({ kind: "cell", id, ...view, run: false });
           continue;
@@ -232,13 +241,7 @@ export async function buildPageModels(opts: {
           if (def) defines.push(defineCall(def));
         }
       }
-      flushProse();
-      // The expressions' cells: each displays into its `<span id="cell-<id>">` in the prose.
-      for (const spec of specs) {
-        const def = compiled.get(spec.id);
-        if (def && !content.some((b) => b._type === "cell" && (b as PtCell).id === spec.id))
-          if (!def.error) defines.push(defineCall(def));
-      }
+      const content = toPortableText(parts);
       // A literal `</script` would end the inline script early; `<\/script` is the same string.
       const script = [`import {define} from "${runtimeUrl}";`, ...defines]
         .join("\n")

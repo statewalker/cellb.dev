@@ -227,7 +227,7 @@ async function themedDemo(host: string, site: string, t: Tools) {
       const sentence = await page.textContent(".prose p");
       assert(sentence?.includes("The answer is 42"), `sentence: ${sentence}`);
       assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
-      return `"${sentence?.trim().slice(0, 60)}…"; the run=false cell did not run`;
+      return `"${sentence?.trim().slice(0, 60)}…", no page error`;
     } finally {
       await b.close();
     }

@@ -1,15 +1,18 @@
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: these tests feed `${…}` expressions to the notebook parser as plain strings
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { DOMParser, parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import { buildPageModels } from "../src/page-models.js";
 import {
+  extractExpressions,
   markdownToDocument,
+  type NumberedPart,
   numberCells,
   type OutlineEntry,
-  type PtCell,
-  type PtTextBlock,
   parseInfo,
-  proseToHtml,
+  placeholder,
+  renderProse,
+  toPortableText,
 } from "../src/portable-text.js";
 
 const NOTEBOOK = `---
@@ -38,11 +41,14 @@ print("inert")
 \`\`\`
 
 \`\`\`text
-a plain code listing
+a plain code listing with \${not} an expression
 \`\`\`
 
 \`code \${not} an expression\`
 `;
+
+const prose = (parts: NumberedPart[]) =>
+  parts.filter((p): p is Extract<NumberedPart, { kind: "prose" }> => p.kind === "prose");
 
 describe("parseInfo", () => {
   it("reads a fence's language and attributes", () => {
@@ -57,33 +63,47 @@ describe("parseInfo", () => {
   });
 });
 
+describe("extractExpressions", () => {
+  const exprs = (md: string) => extractExpressions(md).exprs;
+
+  it("takes expressions out before Markdown can read them", () => {
+    expect(exprs("${x*2} b ${a*b*c}")).toEqual(["x*2", "a*b*c"]);
+    expect(exprs("${html`<b>${x}</b>`}")).toEqual(["html`<b>${x}</b>`"]);
+    expect(exprs("${'http://example.com'}")).toEqual(["'http://example.com'"]);
+    expect(exprs('${"<b>hi</b>"}')).toEqual(['"<b>hi</b>"']);
+    expect(exprs('${"}"} after')).toEqual(['"}"']);
+    expect(exprs("${ {a: 1}.a /* } */ }")).toEqual(["{a: 1}.a /* } */"]);
+  });
+
+  it("leaves code spans, \\${ and unterminated ${ alone", () => {
+    expect(exprs("`code ${x}` and ``a ` ${y} b``")).toEqual([]);
+    const escaped = extractExpressions("text \\${x}");
+    expect(escaped.exprs).toEqual([]);
+    expect(escaped.markdown).toBe("text \\${x}");
+    expect(exprs("open ${ never closes")).toEqual([]);
+  });
+
+  it("replaces each by a placeholder", () => {
+    expect(extractExpressions("a ${b} c ${d}").markdown).toBe(
+      `a ${placeholder(0)} c ${placeholder(1)}`,
+    );
+  });
+});
+
 describe("markdownToDocument", () => {
   const doc = markdownToDocument(NOTEBOOK);
 
-  it("makes cells of runnable fences, keeps other fences as code", () => {
+  it("makes cells of top-level cell-mode fences, keeps other fences in the prose", () => {
     expect(doc.title).toBe("Features");
-    const cells = doc.content.filter((b) => b._type === "cell") as PtCell[];
+    const cells = doc.parts.flatMap((p) => (p.kind === "cell" ? [p.cell] : []));
     expect(cells.map((c) => [c.mode, c.attrs])).toEqual([
       ["js", { echo: true }],
       ["js", { run: false }],
       ["sql", { database: "warehouse", output: "rows" }],
       ["python", {}],
     ]);
-    expect(doc.content.some((b) => b._type === "code" && b.language === "text")).toBe(true);
-  });
-
-  it("splits ${…} out of prose, not out of inline code", () => {
-    const para = doc.content.find(
-      (b) => b._type === "block" && (b as PtTextBlock).children.some((c) => c._type === "expr"),
-    ) as PtTextBlock;
-    expect(para.children.map((c) => c._type)).toEqual(["span", "span", "span", "expr", "span"]);
-    const code = doc.content.at(-1) as PtTextBlock;
-    expect(code.children.every((c) => c._type === "span")).toBe(true);
-  });
-
-  it("gives the same keys for the same notebook", () => {
-    expect(markdownToDocument(NOTEBOOK)).toEqual(doc);
-    expect(doc.content.map((b) => b._key).slice(0, 3)).toEqual(["b0", "b1", "b2"]);
+    const text = doc.parts.flatMap((p) => (p.kind === "prose" ? [p.markdown] : [])).join("\n");
+    expect(text).toContain("```text\na plain code listing with ${not} an expression\n```");
   });
 
   it("numbers cells and expressions in document order", () => {
@@ -99,17 +119,63 @@ describe("markdownToDocument", () => {
   });
 
   it("renders prose with heading ids, an outline and expression spans", () => {
-    const { content } = numberCells(doc);
     const outline: OutlineEntry[] = [];
-    const html = proseToHtml(
-      content.filter((b) => b._type === "block"),
-      outline,
-      new Set(),
-    );
+    const used = new Set<string>();
+    const html = prose(numberCells(doc).parts)
+      .map((p) => renderProse(p, outline, used))
+      .join("");
     expect(html).toContain('<h1 id="features">Features</h1>');
     expect(html).toContain('<h2 id="data">Data</h2>');
     expect(html).toContain('the answer is <span id="cell-1" class="expr"></span>.');
+    expect(html).toContain("<code>code ${not} an expression</code>");
     expect(outline.map((o) => o.slug)).toEqual(["features", "data"]);
+  });
+});
+
+describe("renderProse", () => {
+  const render = (md: string, errors?: Map<number, string>) =>
+    prose(numberCells(markdownToDocument(md)).parts)
+      .map((p) => renderProse(p, [], new Set(), errors))
+      .join("");
+
+  it("keeps what markdown-it renders: images, tables, rules, inline HTML", () => {
+    const html = render(
+      "![alt](a.png)\n\n| a | b |\n|---|---|\n| 1 | ${x} |\n\n---\n\nhi <b>bold</b> <kbd>K</kbd>",
+    );
+    expect(html).toContain('<img src="a.png" alt="alt">');
+    expect(html).toContain("<table>");
+    expect(html).toContain('<td><span id="cell-1" class="expr"></span></td>');
+    expect(html).toContain("<hr>");
+    expect(html).toContain("hi <b>bold</b> <kbd>K</kbd>");
+    expect(html).not.toContain("Unknown block type");
+  });
+
+  it("puts an expression in a link's text inside the link, and shows one in an attribute as text", () => {
+    expect(render("[link ${x}](url)")).toContain(
+      '<a href="url">link <span id="cell-1" class="expr"></span></a>',
+    );
+    expect(render("<a title='${x}'>t</a>")).toContain("<a title='${x}'>t</a>");
+  });
+
+  it("shows the error of an expression that does not compile", () => {
+    const html = render("a ${x} b", new Map([[1, "SyntaxError: nope <here>"]]));
+    expect(html).toContain(
+      '<span id="cell-1" class="expr cell-error">SyntaxError: nope &lt;here&gt;</span>',
+    );
+  });
+});
+
+describe("toPortableText", () => {
+  it("gives code-cell objects and expr objects, at every depth, with the same keys each time", () => {
+    const md = "# T\n\nA ${x}.\n\n| a |\n|---|\n| ${y} |\n\n```js\n1\n```\n";
+    const content = () => toPortableText(numberCells(markdownToDocument(md)).parts);
+    const json = JSON.stringify(content());
+    expect(JSON.stringify(content())).toBe(json);
+    expect(json).toContain('"_type":"code-cell"');
+    expect(json).toContain('"_type":"expr","_key"');
+    expect(json).toContain('"id":1,"source":"x"');
+    expect(json).toContain('"id":2,"source":"y"'); // inside the table
+    expect(json).not.toContain("");
   });
 });
 
@@ -134,9 +200,9 @@ describe("buildPageModels", () => {
     });
     expect(models.failures).toEqual([]);
     const page = models.pages[0];
+    if (!page) throw new Error("no page");
     expect(page).toMatchObject({ id: "features", path: "/t/features", title: "Features" });
-    const cells = page?.blocks.filter((b) => b.kind === "cell");
-    expect(cells).toEqual([
+    expect(page.blocks.filter((b) => b.kind === "cell")).toEqual([
       { kind: "cell", id: 2, source: "const answer = 6 * 7;", mode: "js" },
       {
         kind: "cell",
@@ -147,30 +213,34 @@ describe("buildPageModels", () => {
       },
       { kind: "cell", id: 4 },
     ]);
-    // the inert python cell and the text listing are prose; the expression has a span
-    const prose = page?.blocks
-      .filter((b) => b.kind === "prose")
-      .map((b) => (b as { html: string }).html)
-      .join("");
-    expect(prose).toContain('<code class="language-python">print(&quot;inert&quot;)</code>');
-    expect(prose).toContain('<span id="cell-1" class="expr"></span>');
+    const html = page.blocks.map((b) => (b.kind === "prose" ? b.html : "")).join("");
+    expect(html).toContain('<code class="language-python">print(&quot;inert&quot;)</code>');
+    expect(html).toContain('<span id="cell-1" class="expr"></span>');
     // defines: cells 2 and 4, and the expression 1; not the run=false cell 3
-    const ids = [...(page?.script ?? "").matchAll(/getElementById\("cell-(\d+)"\)/g)].map(
-      (m) => m[1],
-    );
+    const ids = [...page.script.matchAll(/getElementById\("cell-(\d+)"\)/g)].map((m) => m[1]);
     expect(ids.sort()).toEqual(["1", "2", "4"]);
-    expect(page?.script).toContain('"output":"rows"');
-    expect(page?.script).toContain("warehouse");
+    expect(page.script).toContain('"output":"rows"');
+    expect(page.script).toContain("warehouse");
     expect(
-      page?.script.startsWith(
+      page.script.startsWith(
         'import {define} from "/m/@observablehq/notebook-kit@1.0.0/runtime.js";',
       ),
     ).toBe(true);
-    expect(page?.content.some((b) => b._type === "cell")).toBe(true);
+    expect(page.content.some((b) => b._type === "code-cell")).toBe(true);
     expect(models.inputs).toContain("answer");
   });
 
-  it("builds a page from a Notebook Kit document, its indented Markdown cells as prose", async () => {
+  it("shows a broken expression's error in place and does not define it", async () => {
+    const notebooks = new MemFilesApi({ initialFiles: { "/b.md": "# B\n\nBroken: ${)}.\n" } });
+    const models = await buildPageModels({ notebooks, moduleServer, dom, siteTitle: "S" });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    const html = (page.blocks[0] as { html: string }).html;
+    expect(html).toMatch(/<span id="cell-1" class="expr cell-error">[^<]+<\/span>/);
+    expect(page.script).not.toContain('getElementById("cell-1")');
+  });
+
+  it("builds a page from a Notebook Kit document: indented prose, pinned, hidden", async () => {
     const html = `<!doctype html>
 <notebook>
   <title>Kit</title>
@@ -178,9 +248,14 @@ describe("buildPageModels", () => {
     # Kit notebook
 
     A paragraph with \${n} in it.
+
+        an indented code block
   </script>
-  <script id="2" type="module">
+  <script id="2" type="module" pinned>
     const n = 3;
+  </script>
+  <script id="3" type="module" hidden>
+    const m = n + 1;
   </script>
 </notebook>`;
     const notebooks = new MemFilesApi({ initialFiles: { "/kit.html": html } });
@@ -189,9 +264,11 @@ describe("buildPageModels", () => {
     const page = models.pages[0];
     if (!page) throw new Error("no page");
     expect(page.title).toBe("Kit");
-    const prose = (page.blocks[0] as { html: string }).html;
-    expect(prose).toContain('<h1 id="kit-notebook">Kit notebook</h1>');
-    expect(prose).toContain('A paragraph with <span id="cell-1" class="expr"></span> in it.');
-    expect(page.blocks[1]).toEqual({ kind: "cell", id: 2 });
+    const prose0 = (page.blocks[0] as { html: string }).html;
+    expect(prose0).toContain('<h1 id="kit-notebook">Kit notebook</h1>');
+    expect(prose0).toContain('A paragraph with <span id="cell-1" class="expr"></span> in it.');
+    expect(prose0).toContain("<pre><code>an indented code block\n</code></pre>");
+    expect(page.blocks[1]).toEqual({ kind: "cell", id: 2, source: "const n = 3;", mode: "js" });
+    expect(page.blocks[2]).toEqual({ kind: "cell", id: 3, hidden: true });
   });
 });

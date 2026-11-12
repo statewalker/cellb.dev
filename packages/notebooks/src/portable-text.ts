@@ -1,75 +1,76 @@
 /**
- * Notebooks as Portable Text: the document form of a notebook, from which the page models are
- * derived (docs/notebook-runtime/options.md in statewalker-sandbox, Section 2: Portable Text as the
- * document IR, notebook-kit's `Notebook` derived from it as the executable IR).
+ * Notebooks as documents: the form a page model is made from (docs/notebook-runtime/options.md in
+ * statewalker-sandbox, Section 2: Portable Text as the document IR, notebook-kit's `Notebook`
+ * derived from it as the executable IR).
  *
- * The schema is Portable Text's own (as `@portabletext/markdown` writes it: `block`s with styles,
- * marks and lists; `code` objects for fences that do not run) plus two types:
+ * A notebook is a sequence of parts:
  *
- * - `cell`, a block object: a code cell. `mode` (`js`, `ts`, `ojs`, `sql`, and the modes
- *   notebook-kit has that do not run in a page: `html`, `tex`, `dot`, …), `source`, and `attrs`
- *   from the fence's info string (` ```js echo `, ` ```sql database=warehouse output=rows `);
- *   `id` once numbered.
- * - `expr`, an inline object: a `${…}` in prose, `source` its expression; `id` once numbered. It
- *   runs as a cell of its own and displays in place.
+ * - a **code cell**: a top-level fence whose language is a notebook-kit cell mode (` ```js `,
+ *   ` ```sql `, and the modes that do not run in a page: `html`, `tex`, `dot`, …), with the
+ *   attributes of its info string (` ```js echo `, ` ```js run=false `,
+ *   ` ```sql database=warehouse output=rows `);
+ * - **prose**: the Markdown between them, its `${…}` expressions taken out first.
  *
- * Keys are deterministic (`b<n>`, `b<n>s<m>`): the same notebook gives the same document, so the
- * page models' hash changes only when the notebook does.
+ * Expressions are found in the raw Markdown, before any Markdown parsing, by a scanner that knows
+ * JavaScript strings, template literals and comments, skips code spans and honours `\${`. Each is
+ * replaced by a placeholder, so Markdown never sees (or mangles) its source: `${x*2}` stays an
+ * expression, not emphasis. Prose is rendered from its Markdown with markdown-it, as before (images,
+ * tables, inline HTML), the placeholders becoming the `<span>`s the expressions display into.
+ *
+ * The Portable Text form (`toPortableText`) is the document as data, for the page model's
+ * `content`: prose as `@portabletext/markdown` blocks with `expr` inline objects where the
+ * placeholders were, and `code-cell` block objects. Keys are deterministic at every depth, so the
+ * same notebook gives the same document.
  */
 import type { Notebook } from "@observablehq/notebook-kit";
 import { markdownToPortableText } from "@portabletext/markdown";
-import { toHTML } from "@portabletext/to-html";
+import MarkdownIt from "markdown-it";
 
 export interface CellAttrs {
   echo?: boolean;
   run?: boolean;
+  hidden?: boolean;
   database?: string;
   output?: string;
   [name: string]: string | boolean | undefined;
 }
 
-export interface PtSpan {
-  _type: "span";
-  _key: string;
-  text: string;
-  marks?: string[];
-}
-export interface PtExpr {
-  _type: "expr";
-  _key: string;
-  source: string;
-  id?: number;
-}
-export interface PtTextBlock {
-  _type: "block";
-  _key: string;
-  style?: string;
-  listItem?: string;
-  level?: number;
-  markDefs?: { _key: string; _type: string; [k: string]: unknown }[];
-  children: (PtSpan | PtExpr)[];
-}
-export interface PtCell {
-  _type: "cell";
+/** A code cell, as a part and as a Portable Text block object. */
+export interface CodeCell {
+  _type: "code-cell";
   _key: string;
   mode: string;
   source: string;
   attrs: CellAttrs;
   id?: number;
 }
-export interface PtObject {
-  _type: string;
-  _key: string;
-  [k: string]: unknown;
+
+export interface ProsePart {
+  kind: "prose";
+  /** The Markdown, each expression replaced by a placeholder (`placeholder(n)`). */
+  markdown: string;
+  /** The expressions' sources, in order: placeholder `n` is `exprs[n]`. */
+  exprs: string[];
 }
-export type PtBlock = PtTextBlock | PtCell | PtObject;
+export interface CellPart {
+  kind: "cell";
+  cell: CodeCell;
+}
+export type Part = ProsePart | CellPart;
 
 export interface NotebookDocument {
   title?: string;
   /** notebook-kit's theme name (front matter `theme:`, or a Notebook Kit document's). */
   theme?: unknown;
-  content: PtBlock[];
+  parts: Part[];
 }
+
+/** A part with its cells and expressions numbered. */
+export type NumberedPart =
+  | { kind: "prose"; markdown: string; exprs: { id: number; source: string }[] }
+  | { kind: "cell"; cell: CodeCell & { id: number } };
+
+export type PtBlock = { _type: string; _key: string; [k: string]: unknown };
 
 /** Fence languages that are notebook-kit cell modes (notebook-build's `md-parse` table). */
 export const FENCE_MODES: Record<string, string> = {
@@ -91,6 +92,12 @@ export const FENCE_MODES: Record<string, string> = {
 /** The modes whose cells run in the page; the same set as notebook-build's `CODE_MODES`. */
 export const CODE_MODES = new Set(["js", "ts", "ojs", "sql"]);
 
+/** Private-use characters: Markdown leaves them as text, HTML escaping leaves them alone. */
+const PH_OPEN = "";
+const PH_CLOSE = "";
+const PLACEHOLDER = /(\d+)/g;
+export const placeholder = (n: number) => `${PH_OPEN}${n}${PH_CLOSE}`;
+
 /** `js echo run=false database=x output="a b"` → `{ lang: "js", attrs }`. */
 export function parseInfo(info: string): { lang: string; attrs: CellAttrs } {
   const [lang = "", ...rest] = info.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
@@ -107,57 +114,111 @@ export function parseInfo(info: string): { lang: string; attrs: CellAttrs } {
   return { lang: lang.toLowerCase(), attrs };
 }
 
-/** Splits `${expr}` out of a span's text into `expr` inline objects (balanced braces). */
-function splitExpressions(span: PtSpan): (PtSpan | PtExpr)[] {
-  if (span.marks?.includes("code") || !span.text.includes("${")) return [span];
-  const out: (PtSpan | PtExpr)[] = [];
-  let text = span.text;
-  let at = text.indexOf("${");
-  while (at >= 0) {
-    let depth = 0;
-    let end = -1;
-    for (let i = at + 2; i < text.length; i++) {
-      if (text[i] === "{") depth++;
-      else if (text[i] === "}") {
-        if (depth === 0) {
-          end = i;
-          break;
-        }
-        depth--;
-      }
+/**
+ * The index just after the `}` closing a JavaScript expression that starts at `from` (just after
+ * a `${`), or -1 when it never closes. Knows strings, template literals (nested `${}` included),
+ * and comments; not regular-expression literals.
+ */
+export function scanExpression(src: string, from: number): number {
+  let depth = 0;
+  let i = from;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === "'" || c === '"') {
+      i = skipString(src, i, c);
+      if (i < 0) return -1;
+      continue;
     }
-    if (end < 0) break;
-    if (at > 0) out.push({ ...span, text: text.slice(0, at) });
-    out.push({ _type: "expr", _key: "", source: text.slice(at + 2, end).trim() });
-    text = text.slice(end + 1);
-    at = text.indexOf("${");
+    if (c === "`") {
+      i = skipTemplate(src, i);
+      if (i < 0) return -1;
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "/") {
+      const nl = src.indexOf("\n", i);
+      if (nl < 0) return -1;
+      i = nl + 1;
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "*") {
+      const end = src.indexOf("*/", i + 2);
+      if (end < 0) return -1;
+      i = end + 2;
+      continue;
+    }
+    if (c === "{") depth++;
+    else if (c === "}") {
+      if (depth === 0) return i + 1;
+      depth--;
+    }
+    i++;
   }
-  if (text) out.push({ ...span, text });
-  return out;
+  return -1;
 }
 
-/** Deterministic keys: `b<n>` for blocks, `b<n>s<m>` for children, `b<n>m<m>` for mark defs. */
-function rekey(content: PtBlock[]): PtBlock[] {
-  return content.map((block, n) => {
-    const key = `b${n}`;
-    if (block._type !== "block") return { ...block, _key: key };
-    const b = block as PtTextBlock;
-    const defs = new Map<string, string>();
-    const markDefs = (b.markDefs ?? []).map((d, m) => {
-      defs.set(d._key, `${key}m${m}`);
-      return { ...d, _key: `${key}m${m}` };
-    });
-    return {
-      ...b,
-      _key: key,
-      markDefs,
-      children: b.children.map((c, m) =>
-        c._type === "span"
-          ? { ...c, _key: `${key}s${m}`, marks: (c.marks ?? []).map((x) => defs.get(x) ?? x) }
-          : { ...c, _key: `${key}s${m}` },
-      ),
-    };
-  });
+function skipString(src: string, at: number, quote: string): number {
+  for (let i = at + 1; i < src.length; i++) {
+    if (src[i] === "\\") i++;
+    else if (src[i] === quote) return i + 1;
+    else if (src[i] === "\n") return -1;
+  }
+  return -1;
+}
+
+function skipTemplate(src: string, at: number): number {
+  for (let i = at + 1; i < src.length; i++) {
+    if (src[i] === "\\") i++;
+    else if (src[i] === "`") return i + 1;
+    else if (src[i] === "$" && src[i + 1] === "{") {
+      const end = scanExpression(src, i + 2);
+      if (end < 0) return -1;
+      i = end - 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Takes the `${…}` expressions out of Markdown prose: each becomes `placeholder(n)`. Code spans
+ * (`` `…${x}…` ``) are left alone, `\${` stays a literal (Markdown then shows `${`), and an
+ * unterminated `${` stays text.
+ */
+export function extractExpressions(markdown: string): { markdown: string; exprs: string[] } {
+  const exprs: string[] = [];
+  let out = "";
+  let i = 0;
+  while (i < markdown.length) {
+    const c = markdown[i];
+    if (c === "\\" && markdown[i + 1] === "$") {
+      out += "\\$";
+      i += 2;
+      continue;
+    }
+    if (c === "`") {
+      // A code span: from a run of N backticks to the next run of exactly N.
+      let n = 0;
+      while (markdown[i + n] === "`") n++;
+      const fence = "`".repeat(n);
+      let end = markdown.indexOf(fence, i + n);
+      while (end >= 0 && markdown[end + n] === "`") end = markdown.indexOf(fence, end + n + 1);
+      const stop = end < 0 ? i + n : end + n;
+      out += markdown.slice(i, stop);
+      i = stop;
+      continue;
+    }
+    if (c === "$" && markdown[i + 1] === "{") {
+      const end = scanExpression(markdown, i + 2);
+      if (end > 0) {
+        exprs.push(markdown.slice(i + 2, end - 1).trim());
+        out += placeholder(exprs.length - 1);
+        i = end;
+        continue;
+      }
+    }
+    out += c;
+    i++;
+  }
+  return { markdown: out, exprs };
 }
 
 /** `---\nkey: value\n---` front matter, as notebook-build's `md-parse` reads it. */
@@ -172,98 +233,101 @@ function splitFrontMatter(source: string): { meta: Record<string, string>; body:
   return { meta, body: source.slice(match[0].length) };
 }
 
-/** Markdown prose (no front matter) → Portable Text, fences that are cell modes → `cell`s, `${…}` → `expr`s. */
-function proseToPt(markdown: string): PtBlock[] {
-  const blocks = markdownToPortableText(markdown) as unknown as PtBlock[];
-  return blocks.map((block) => {
-    if (block._type === "code") {
-      const { lang, attrs } = parseInfo(String(block.language ?? ""));
-      const mode = FENCE_MODES[lang];
-      if (mode) {
-        const source = String(block.code ?? "");
-        return { _type: "cell", _key: block._key, mode, source, attrs } satisfies PtCell;
-      }
-      return block;
-    }
-    if (block._type !== "block") return block;
-    const b = block as PtTextBlock;
-    return {
-      ...b,
-      children: b.children.flatMap((c) => (c._type === "span" ? splitExpressions(c) : [c])),
-    };
-  });
+const md = new MarkdownIt({ html: true });
+
+function prosePart(markdown: string): ProsePart | undefined {
+  if (!markdown.trim()) return undefined;
+  return { kind: "prose", ...extractExpressions(markdown) };
 }
 
-/** The first h1's text, as notebook-build takes a Markdown notebook's title. */
-function firstHeading(content: PtBlock[]): string | undefined {
-  for (const block of content)
-    if (block._type === "block" && (block as PtTextBlock).style === "h1")
-      return blockText(block as PtTextBlock);
-  return undefined;
-}
+/** Text of a heading's source with the placeholders shown as their `${…}`. */
+const showExprs = (text: string, exprs: readonly string[]) =>
+  text.replace(PLACEHOLDER, (_, n) => `\${${exprs[Number(n)] ?? ""}}`);
 
-export function blockText(block: PtTextBlock): string {
-  return block.children
-    .map((c) => (c._type === "span" ? c.text : `\${${(c as PtExpr).source}}`))
-    .join("");
-}
-
-/** A Markdown notebook as a document. */
+/** A Markdown notebook as a document: top-level cell-mode fences are cells, the rest prose. */
 export function markdownToDocument(source: string): NotebookDocument {
   const { meta, body } = splitFrontMatter(source);
-  const content = rekey(proseToPt(body));
+  const lines = body.split("\n");
+  const parts: Part[] = [];
+  let from = 0;
+  let title: string | undefined = meta.title;
+  const tokens = md.parse(body, {});
+  for (const [i, token] of tokens.entries()) {
+    if (token.level !== 0 || !token.map) continue;
+    if (title === undefined && token.type === "heading_open" && token.tag === "h1")
+      title = tokens[i + 1]?.content.trim();
+    if (token.type !== "fence") continue;
+    const { lang, attrs } = parseInfo(token.info ?? "");
+    const mode = FENCE_MODES[lang];
+    if (!mode) continue;
+    const prose = prosePart(lines.slice(from, token.map[0]).join("\n"));
+    if (prose) parts.push(prose);
+    const cellSource = token.content.replace(/\n$/, "");
+    parts.push({
+      kind: "cell",
+      cell: { _type: "code-cell", _key: "", mode, source: cellSource, attrs },
+    });
+    from = token.map[1];
+  }
+  const rest = prosePart(lines.slice(from).join("\n"));
+  if (rest) parts.push(rest);
+  // The title is plain text: an expression in the h1 shows as its source.
   return {
-    content,
-    ...((meta.title ?? firstHeading(content))
-      ? { title: meta.title ?? firstHeading(content) }
-      : {}),
+    parts,
+    ...(title ? { title } : {}),
     ...(meta.theme ? { theme: meta.theme } : {}),
   };
 }
 
-/** Strips the indentation every non-blank line shares (a `<script type="text/markdown">` is indented). */
-function dedent(text: string): string {
-  const lines = text.replace(/^\s*\n/, "").split("\n");
-  const indents = lines.filter((l) => l.trim()).map((l) => /^[ \t]*/.exec(l)?.[0].length ?? 0);
-  const cut = indents.length ? Math.min(...indents) : 0;
-  return lines.map((l) => l.slice(cut)).join("\n");
+/**
+ * A notebook-kit `Notebook` (a Notebook Kit `.html` document) as a document: `md` cells are prose
+ * (their `${…}` expressions, as notebook-kit's md template literals have them), the others cells.
+ * `pinned` (notebook-kit's "show the source") is `echo`; `hidden` hides the cell's output.
+ */
+export function notebookToDocument(nb: Notebook): NotebookDocument {
+  const parts: Part[] = [];
+  for (const cell of nb.cells) {
+    if (cell.mode === "md") {
+      const prose = prosePart(cell.value);
+      if (prose) parts.push(prose);
+      continue;
+    }
+    const attrs: CellAttrs = {};
+    if (cell.output) attrs.output = cell.output;
+    if (cell.database) attrs.database = cell.database;
+    if (cell.pinned) attrs.echo = true;
+    if (cell.hidden) attrs.hidden = true;
+    parts.push({
+      kind: "cell",
+      cell: { _type: "code-cell", _key: "", mode: cell.mode, source: cell.value, attrs },
+    });
+  }
+  return { parts, title: nb.title, ...(nb.theme ? { theme: nb.theme } : {}) };
 }
 
-/** A notebook-kit `Notebook` (a Notebook Kit `.html` document) as a document: `md` cells as prose. */
-export function notebookToDocument(nb: Notebook): NotebookDocument {
-  const content: PtBlock[] = [];
-  for (const cell of nb.cells) {
-    if (cell.mode === "md") content.push(...proseToPt(dedent(cell.value)));
-    else
-      content.push({
-        _type: "cell",
-        _key: "",
-        mode: cell.mode,
-        source: cell.value,
-        attrs: {
-          ...(cell.output ? { output: cell.output } : {}),
-          ...(cell.database ? { database: cell.database } : {}),
-        },
-      } satisfies PtCell);
-  }
-  return { content: rekey(content), title: nb.title, ...(nb.theme ? { theme: nb.theme } : {}) };
+/** A cell spec as notebook-kit's `toNotebook` takes it. */
+export interface CellSpecLite {
+  id: number;
+  mode: string;
+  value: string;
+  output?: string;
+  database?: string;
 }
 
 /**
  * Numbers the document's cells and expressions in document order (1, 2, …: notebook-kit treats a
  * cell id that is not a positive integer as absent) and returns the cell specs notebook-kit's
- * transpiler takes: one per `cell`, one `js` cell per `expr`.
+ * transpiler takes: one per code cell, one `js` cell per expression.
  */
 export function numberCells(doc: NotebookDocument): {
-  content: PtBlock[];
-  cells: { id: number; mode: string; value: string; output?: string; database?: string }[];
+  parts: NumberedPart[];
+  cells: CellSpecLite[];
 } {
   let id = 1;
-  const cells: { id: number; mode: string; value: string; output?: string; database?: string }[] =
-    [];
-  const content = doc.content.map((block) => {
-    if (block._type === "cell") {
-      const c = block as PtCell;
+  const cells: CellSpecLite[] = [];
+  const parts = doc.parts.map((part): NumberedPart => {
+    if (part.kind === "cell") {
+      const c = part.cell;
       const numbered = { ...c, id: id++ };
       cells.push({
         id: numbered.id,
@@ -272,21 +336,16 @@ export function numberCells(doc: NotebookDocument): {
         ...(typeof c.attrs.output === "string" ? { output: c.attrs.output } : {}),
         ...(typeof c.attrs.database === "string" ? { database: c.attrs.database } : {}),
       });
-      return numbered;
+      return { kind: "cell", cell: numbered };
     }
-    if (block._type !== "block") return block;
-    const b = block as PtTextBlock;
-    return {
-      ...b,
-      children: b.children.map((c) => {
-        if (c._type !== "expr") return c;
-        const numbered = { ...(c as PtExpr), id: id++ };
-        cells.push({ id: numbered.id, mode: "js", value: numbered.source });
-        return numbered;
-      }),
-    };
+    const exprs = part.exprs.map((source) => {
+      const e = { id: id++, source };
+      cells.push({ id: e.id, mode: "js", value: source });
+      return e;
+    });
+    return { kind: "prose", markdown: part.markdown, exprs };
   });
-  return { content, cells };
+  return { parts, cells };
 }
 
 const escapeHtml = (s: string) =>
@@ -305,40 +364,116 @@ export interface OutlineEntry {
 }
 
 /**
- * Prose blocks → HTML: headings get ids (collected into `outline`), an `expr` becomes the
- * `<span id="cell-<id>">` its cell displays into, a non-cell `code` block a `<pre><code>`.
+ * Prose → HTML with markdown-it: headings get ids (collected into `outline`), each expression's
+ * placeholder becomes the `<span id="cell-<id>">` its cell displays into, or the error of an
+ * expression that does not compile. A placeholder inside a tag (an attribute value) shows its
+ * source as text: a span cannot go there.
  */
-export function proseToHtml(blocks: PtBlock[], outline: OutlineEntry[], used: Set<string>): string {
-  const heading =
-    (tag: string) =>
-    ({ value, children }: { value: unknown; children?: string }) => {
-      const text = blockText(value as PtTextBlock);
-      const base = slugify(text) || "section";
-      let slug = base;
-      for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`;
-      used.add(slug);
-      outline.push({ depth: Number(tag.slice(1)), text, slug });
-      return `<${tag} id="${slug}">${children ?? ""}</${tag}>`;
-    };
-  return toHTML(blocks as never, {
-    components: {
-      block: {
-        h1: heading("h1"),
-        h2: heading("h2"),
-        h3: heading("h3"),
-        h4: heading("h4"),
-        h5: heading("h5"),
-        h6: heading("h6"),
-      },
-      types: {
-        expr: ({ value }: { value: PtExpr }) => `<span id="cell-${value.id}" class="expr"></span>`,
-        code: ({ value }: { value: { code?: string; language?: string } }) => {
-          const lang = value.language ? ` class="language-${escapeHtml(value.language)}"` : "";
-          return `<pre><code${lang}>${escapeHtml(value.code ?? "")}</code></pre>`;
-        },
-        html: ({ value }: { value: { html?: string } }) => value.html ?? "",
-      },
-    },
-    onMissingComponent: false,
+export function renderProse(
+  part: Extract<NumberedPart, { kind: "prose" }>,
+  outline: OutlineEntry[],
+  used: Set<string>,
+  errors: ReadonlyMap<number, string> = new Map(),
+): string {
+  const sources = part.exprs.map((e) => e.source);
+  const tokens = md.parse(part.markdown, {});
+  for (const [i, t] of tokens.entries()) {
+    if (t.type !== "heading_open") continue;
+    const raw = tokens[i + 1]?.content ?? "";
+    const text = showExprs(raw, sources);
+    const base = slugify(raw.replace(PLACEHOLDER, "")) || "section";
+    let slug = base;
+    for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`;
+    used.add(slug);
+    t.attrSet("id", slug);
+    outline.push({ depth: Number(t.tag.slice(1)), text, slug });
+  }
+  const html = md.renderer.render(tokens, md.options, {});
+  return html.replace(/<[^>]*>|(\d+)/g, (match, n?: string) => {
+    if (n === undefined) {
+      // a tag: placeholders inside it (attribute values) become their source
+      return match.replace(PLACEHOLDER, (_, k) => escapeHtml(`\${${sources[Number(k)] ?? ""}}`));
+    }
+    const expr = part.exprs[Number(n)];
+    if (!expr) return "";
+    const error = errors.get(expr.id);
+    return error === undefined
+      ? `<span id="cell-${expr.id}" class="expr"></span>`
+      : `<span id="cell-${expr.id}" class="expr cell-error">${escapeHtml(error)}</span>`;
   });
+}
+
+/** Rewrites every `_key` by its path (`b0`, `b0.1`, …), and mark references with their defs. */
+function rekey<T>(node: T, key: string): T {
+  if (Array.isArray(node)) return node.map((n, i) => rekey(n, `${key}.${i}`)) as T;
+  if (!node || typeof node !== "object") return node;
+  const obj = node as Record<string, unknown>;
+  const defs = new Map<string, string>();
+  const out: Record<string, unknown> = {};
+  if (Array.isArray(obj.markDefs))
+    out.markDefs = (obj.markDefs as { _key: string }[]).map((d, m) => {
+      defs.set(d._key, `${key}m${m}`);
+      return { ...rekey(d, `${key}m${m}`), _key: `${key}m${m}` };
+    });
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "markDefs") continue;
+    if (k === "_key") out._key = key;
+    else if (k === "children" && Array.isArray(v))
+      out.children = v.map((c: Record<string, unknown>, i: number) => {
+        const child = rekey(c, `${key}s${i}`);
+        return Array.isArray(child.marks)
+          ? { ...child, marks: (child.marks as string[]).map((x) => defs.get(x) ?? x) }
+          : child;
+      });
+    else out[k] = rekey(v, k === "_key" ? key : `${key}.${k}`);
+  }
+  return out as T;
+}
+
+/** Splits placeholders out of every span, at any depth (table cells included), into `expr`s. */
+function splitPlaceholders<T>(node: T, exprs: readonly { id: number; source: string }[]): T {
+  if (Array.isArray(node)) return node.map((n) => splitPlaceholders(n, exprs)) as T;
+  if (!node || typeof node !== "object") return node;
+  const obj = node as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "children" && Array.isArray(v) && obj._type === "block") {
+      out.children = v.flatMap((c: Record<string, unknown>) => {
+        if (c._type !== "span" || typeof c.text !== "string" || !c.text.includes(PH_OPEN))
+          return [splitPlaceholders(c, exprs)];
+        const pieces: Record<string, unknown>[] = [];
+        let last = 0;
+        for (const m of c.text.matchAll(PLACEHOLDER)) {
+          const at = m.index ?? 0;
+          if (at > last) pieces.push({ ...c, text: c.text.slice(last, at) });
+          const e = exprs[Number(m[1])];
+          if (e) pieces.push({ _type: "expr", _key: "", id: e.id, source: e.source });
+          last = at + m[0].length;
+        }
+        if (last < c.text.length) pieces.push({ ...c, text: c.text.slice(last) });
+        return pieces;
+      });
+    } else out[k] = splitPlaceholders(v, exprs);
+  }
+  return out as T;
+}
+
+/**
+ * The document as Portable Text: prose as `@portabletext/markdown` blocks with `expr` inline
+ * objects (`id`, `source`) where the expressions were, code cells as `code-cell` block objects.
+ * Keys are deterministic at every depth.
+ */
+export function toPortableText(parts: readonly NumberedPart[]): PtBlock[] {
+  const blocks: PtBlock[] = [];
+  for (const part of parts) {
+    if (part.kind === "cell") blocks.push(part.cell as unknown as PtBlock);
+    else
+      blocks.push(
+        ...splitPlaceholders(
+          markdownToPortableText(part.markdown) as unknown as PtBlock[],
+          part.exprs,
+        ),
+      );
+  }
+  return blocks.map((b, i) => rekey(b, `b${i}`));
 }

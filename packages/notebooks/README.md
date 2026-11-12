@@ -57,17 +57,25 @@ GET  /nb/<site>/t/<page> ─► the theme's build in a Worker Loader isolate,
   imports notebook-kit's runtime and calls `define()` for each cell. The theme never parses
   Markdown or transpiles code. The cells are compiled with notebook-build's stages
   (`resolveNotebook`, `transpileNotebook`), the same as the plain pages'.
-- **A notebook is Portable Text first** (`src/portable-text.ts`): Markdown through
-  `@portabletext/markdown`, a Notebook Kit document cell by cell (its Markdown cells as prose).
-  Runnable fences become `cell` objects with their fence attributes, and `${…}` in prose becomes
-  an `expr` inline object. Keys are deterministic, so the same notebook gives the same document.
-  The model keeps the document as `content`, with cells and expressions numbered, and derives
-  the prose HTML and the cells from it.
+- **A notebook becomes a document first** (`src/portable-text.ts`): code cells (top-level fences
+  whose language is a notebook-kit cell mode, with their fence attributes) and prose between them.
+  A Notebook Kit document maps cell by cell, its Markdown cells as prose.
+- **`${…}` is taken out of the prose before any Markdown parsing**, by a scanner that knows
+  JavaScript strings, template literals and comments, skips code spans and honours `\${`. Markdown
+  never sees an expression's source, so `${x*2}` or `` ${html`<b>${x}</b>`} `` stay expressions.
+  Each becomes a placeholder that renders as the `<span>` its cell displays into; one that does
+  not compile shows its error there. Inside a tag attribute it stays text.
+- **Prose is rendered with markdown-it** (images, tables, inline HTML, as the plain pages have
+  them). The model also keeps the document as Portable Text (`content`): prose as
+  `@portabletext/markdown` blocks with `expr` inline objects, cells as `code-cell` objects, keys
+  deterministic at every depth, so the same notebook gives the same models and the same hash.
 - **Themed pages read the fence's info string**, which the plain pages ignore:
   - ` ```js echo `: the cell runs, and its source shows under its output;
   - ` ```js run=false `: the source shows, and the cell is not compiled or run;
   - ` ```sql database=warehouse output=rows `: the SQL cell queries `warehouse`, and its rows are
     the variable `rows`;
+  - ` ```js hidden `: the cell runs, its output is hidden (a Notebook Kit cell's `hidden`); a
+    Notebook Kit cell's `pinned` is `echo`;
   - `${expr}` in prose: a cell of its own, displayed in place in a `<span>`;
   - cells that do not run in a page (`html`, `tex`, `dot`, `python`…) stay inert, as on the
     plain pages: `html` as its markup, the others as code.
