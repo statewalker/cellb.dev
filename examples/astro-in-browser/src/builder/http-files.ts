@@ -91,7 +91,13 @@ export function httpFiles(base: string, budget = 16 * 1024 * 1024): FilesApi {
     },
     mkdir: async () => {},
     async *list() {},
-    remove: async () => false,
+    async remove(path) {
+      const r = await timed(url(path), { method: "DELETE" });
+      if (!r.ok && r.status !== 404) throw new Error(`package store: DELETE ${path} → ${r.status}`);
+      sizes.delete(path);
+      for (const k of [...blocks.keys()]) if (k.startsWith(`${path}#`)) blocks.delete(k);
+      return r.ok;
+    },
   };
   return api as FilesApi;
 }

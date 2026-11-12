@@ -109,8 +109,11 @@ async function start() {
   const src = await sources();
   log(`${Object.keys(src).length} source files: ${Object.keys(src).join(" ")}`);
   say("Starting the package store…");
-  if (USE_STORE) await startPackageStore(serviceWorker);
-  log("package store (a Durable Object on cellb) ready");
+  if (USE_STORE) {
+    await startPackageStore(serviceWorker);
+    log("package store (a Durable Object on cellb) ready");
+    await showPackageCache();
+  }
   say("Building the app in a worker…");
   const t0 = performance.now();
   // (A debugging cache of the build, written here as JSON with every asset byte as a number,
@@ -164,7 +167,70 @@ async function start() {
   }
   say(`Running: built in ${document.body.dataset.buildMs} ms, served from this tab.`);
   document.body.dataset.ready = "true";
+  if (USE_STORE) await showPackageCache(false);
 }
+
+// --- The package cache: statistics and clean-up (the package store's /admin/* routes) ---
+
+type CacheStats = { files: number; packages: number; locks: number; size: number; stored: number };
+type CacheOp = "stats" | "prune" | "locks" | "clear";
+const CACHE_ROUTES: Record<CacheOp, [string, string]> = {
+  stats: ["GET", "admin/stats"],
+  prune: ["POST", "admin/prune"], // the packs no build's lock names
+  locks: ["POST", "admin/clear?prefix=/locks/"], // the next build resolves its versions again
+  clear: ["POST", "admin/clear"], // every package, the version index and the locks
+};
+
+/** Runs one operation on the package store: its statistics afterwards (and `removed`). */
+async function packageCache(op: CacheOp): Promise<CacheStats & { removed?: number }> {
+  const [method, path] = CACHE_ROUTES[op];
+  const r = await fetch(`${STORE}/${path}`, { method });
+  if (!r.ok) throw new Error(`package store: ${method} ${path} → ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+const cacheEl = document.getElementById("cache");
+const cacheButtons = () => [...(cacheEl?.querySelectorAll("button") ?? [])];
+const mb = (n: number) => `${(n / 1e6).toFixed(1)} MB`;
+
+/** Shows the panel and the store's statistics; `busy`: its buttons wait (a build reads the store). */
+async function showPackageCache(busy = true) {
+  if (!cacheEl) return;
+  cacheEl.hidden = false;
+  for (const b of cacheButtons()) b.disabled = busy;
+  const out = document.getElementById("cache-stats");
+  if (!out) return;
+  try {
+    const s = await packageCache("stats");
+    out.textContent = `${s.packages} packages, ${s.locks} lock${s.locks === 1 ? "" : "s"}: ${mb(s.size)} (${mb(s.stored)} stored)`;
+  } catch (e) {
+    out.textContent = `unavailable (${(e as Error).message})`;
+  }
+}
+
+async function cleanPackageCache(op: Exclude<CacheOp, "stats">) {
+  if (op === "clear" && !confirm("Remove every package? The next build downloads them again."))
+    return;
+  for (const b of cacheButtons()) b.disabled = true;
+  try {
+    const r = await packageCache(op);
+    log(
+      `package cache: ${op}: ${r.removed ?? 0} files removed; ${r.packages} packages left (${mb(r.size)})`,
+    );
+    if ((document.getElementById("cache-rebuild") as HTMLInputElement | null)?.checked) {
+      say("Rebuilding…");
+      location.reload();
+      return;
+    }
+  } catch (e) {
+    log(`package cache: ${op} failed: ${(e as Error).message}`);
+  }
+  await showPackageCache(false);
+}
+for (const b of cacheButtons())
+  b.addEventListener("click", () => void cleanPackageCache(b.dataset.cache as never));
+// For the tests and the console: `await __packageCache("prune")`.
+Object.assign(window, { __packageCache: packageCache });
 
 /** The EmDash template's bindings (wrangler.jsonc), and its canonical URL: this origin. */
 function emdashConfig() {
@@ -230,6 +296,8 @@ if (measure && crossOriginIsolated)
 
 start().catch((e) => {
   document.body.dataset.error = String(e?.stack ?? e);
+  // A failed build may come from what the cache holds: its clean-up stays available.
+  if (USE_STORE && cacheEl && !cacheEl.hidden) void showPackageCache(false);
   say(`Failed: ${e?.message ?? e}`);
   log(String(e?.stack ?? e));
 });

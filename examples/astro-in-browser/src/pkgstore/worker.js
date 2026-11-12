@@ -8,6 +8,16 @@
 //                           (kept raw where that saves under 10%)   → 204
 //   GET  …/files/<path>     Range: bytes=a-b supported             → 200 / 206 / 404
 //   HEAD …/files/<path>                                             → 200 (Content-Length) / 404
+//   DELETE …/files/<path>                                           → 204 / 404
+//
+// Clean-up (the host page's "Package cache" buttons):
+//
+//   GET  …/admin/stats              → { files, packages, locks, size, stored } (JSON; bytes)
+//   POST …/admin/clear[?prefix=/p]  every file (or those under the prefix)  → { removed, … }
+//   POST …/admin/prune              the packs no lock (/locks/*.json) names, and index.json's
+//                                   entries that resolve to them             → { removed, … }
+//
+// Freed pages are reused by the next writes; the database file itself does not shrink.
 //
 // Plain JavaScript with no imports: the runtime provides the DurableObject base class (cellb's
 // browser realm: globalThis.__cellsWorkersModule; the module stays valid for workerd, where
@@ -47,11 +57,15 @@ export class PackageStore extends DurableObject {
 
   async fetch(request) {
     const url = new URL(request.url);
+    const admin = url.pathname.indexOf("/admin/");
+    if (admin >= 0) return this.admin(request, url.pathname.slice(admin + "/admin/".length), url);
     const at = url.pathname.indexOf("/files/");
     if (at < 0) return new Response("not found", { status: 404 });
     const path = decodeURIComponent(url.pathname.slice(at + "/files".length));
     if (request.method === "PUT")
       return this.put(path, new Uint8Array(await request.arrayBuffer()));
+    if (request.method === "DELETE")
+      return new Response(null, { status: this.remove([path]) ? 204 : 404 });
     const row = this.sql.exec("SELECT size FROM files WHERE path = ?", path).toArray()[0];
     if (!row) return new Response(null, { status: 404 });
     const size = Number(row.size);
@@ -91,6 +105,105 @@ export class PackageStore extends DurableObject {
       this.sql.exec("INSERT OR REPLACE INTO files (path, size) VALUES (?, ?)", path, bytes.length);
     });
     return new Response(null, { status: 204 });
+  }
+
+  /** The clean-up and statistics routes (see the header). */
+  async admin(request, op, url) {
+    const json = (body, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      });
+    if (op === "stats" && request.method === "GET") return json(this.stats());
+    if (request.method !== "POST") return json({ error: `${request.method} ${op}` }, 405);
+    if (op === "clear") {
+      const prefix = url.searchParams.get("prefix") ?? "";
+      const paths = this.sql
+        .exec("SELECT path FROM files WHERE substr(path, 1, length(?1)) = ?1", prefix)
+        .toArray()
+        .map((r) => String(r.path));
+      return json({ removed: this.remove(paths), ...this.stats() });
+    }
+    if (op === "prune") return json(await this.prune());
+    return json({ error: `unknown operation ${op}` }, 404);
+  }
+
+  /** Files, packs and locks held, their bytes (`size`) and what they take stored (`stored`). */
+  stats() {
+    const count = (where) =>
+      Number(this.sql.exec(`SELECT count(*) AS n FROM files ${where}`).toArray()[0].n);
+    const size = Number(
+      this.sql.exec("SELECT coalesce(sum(size), 0) AS n FROM files").toArray()[0].n,
+    );
+    const stored = Number(
+      this.sql.exec("SELECT coalesce(sum(length(data)), 0) AS n FROM zblocks").toArray()[0].n,
+    );
+    return {
+      files: count(""),
+      packages: count("WHERE path LIKE '/pkgs/%'"),
+      locks: count("WHERE path LIKE '/locks/%'"),
+      size,
+      stored,
+    };
+  }
+
+  /** Removes these files (one transaction): how many existed. */
+  remove(paths) {
+    let n = 0;
+    this.ctx.storage.transactionSync(() => {
+      for (const path of paths) {
+        this.sql.exec("DELETE FROM zblocks WHERE path = ?", path);
+        n += this.sql.exec("DELETE FROM files WHERE path = ?", path).rowsWritten > 0 ? 1 : 0;
+      }
+    });
+    return n;
+  }
+
+  async readJson(path) {
+    const row = this.sql.exec("SELECT size FROM files WHERE path = ?", path).toArray()[0];
+    if (!row) return undefined;
+    try {
+      return JSON.parse(new TextDecoder().decode(await this.slice(path, 0, Number(row.size))));
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Keeps the packs that some build's lock names (each lock: the `name@version` list of a
+   * build), removes every other one, and drops index.json's ranges that resolve to a removed
+   * version. With no lock at all, nothing is removed (`clear` empties the store).
+   */
+  async prune() {
+    const locks = this.sql
+      .exec("SELECT path FROM files WHERE path LIKE '/locks/%'")
+      .toArray()
+      .map((r) => String(r.path));
+    if (!locks.length) return { removed: 0, kept: 0, reason: "no lock", ...this.stats() };
+    const keep = new Set();
+    for (const lock of locks) for (const nv of (await this.readJson(lock)) ?? []) keep.add(nv);
+    const packs = this.sql
+      .exec("SELECT path FROM files WHERE path LIKE '/pkgs/%.pack'")
+      .toArray()
+      .map((r) => String(r.path));
+    const nameVersion = (path) => path.slice("/pkgs/".length, -".pack".length);
+    const removed = packs.filter((p) => !keep.has(nameVersion(p)));
+    const index = await this.readJson("/index.json");
+    if (index) {
+      const left = {};
+      for (const [key, version] of Object.entries(index)) {
+        // `name@range`: the name's own "@" (a scope) is its first character.
+        const at = key.indexOf("@", 1);
+        const name = at > 0 ? key.slice(0, at) : key;
+        if (keep.has(`${name}@${version}`)) left[key] = version;
+      }
+      await this.put("/index.json", new TextEncoder().encode(JSON.stringify(left)));
+    }
+    return {
+      removed: this.remove(removed),
+      kept: packs.length - removed.length,
+      ...this.stats(),
+    };
   }
 
   /** Bytes [start, end) of a file: only the blocks the range covers are read. */
