@@ -83,6 +83,7 @@ export class SyncKvStorage {
         (e as Error).message.replace(/^Failed to execute '[^']+' on '[^']+': /, ""),
       );
     }
+    this.#sql.checkWrite();
     this.#sql.internalExec("INSERT OR REPLACE INTO _cf_KV (scope, k, v) VALUES (?, ?, ?)", [
       this.scope,
       key,
@@ -91,6 +92,7 @@ export class SyncKvStorage {
   }
   delete(key: string): boolean {
     this.#init();
+    this.#sql.checkWrite();
     return (
       this.#sql.internalExec("DELETE FROM _cf_KV WHERE scope = ? AND k = ?", [this.scope, key])
         .rowsWritten > 0
@@ -137,6 +139,7 @@ export class SyncKvStorage {
   }
   deleteAll(): void {
     this.#init();
+    this.#sql.checkWrite();
     this.#sql.internalExec("DELETE FROM _cf_KV WHERE scope = ?", [this.scope]);
   }
 }
@@ -218,6 +221,23 @@ export class DurableObjectStorage extends AsyncKvApi {
     });
     this.kv = kv;
     this.#sync = sync;
+    sql.outsideTransaction = () => this.#outsideTransaction();
+  }
+  /**
+   * Async storage calls from another event wait while a transaction() is open, as that event
+   * would on workerd: their writes would otherwise land in its savepoint and be undone if it
+   * rolls back. Telling the events apart needs async context, as for nesting.
+   */
+  protected override op<T>(fn: () => T): Promise<T> {
+    return this.gate.runClosed(async () => {
+      await Promise.resolve();
+      while (this.#txnDone && this.#outsideTransaction()) await this.#txnDone;
+      return fn();
+    });
+  }
+  #outsideTransaction(): boolean {
+    const scope = this.#txnScope;
+    return this.#txnDepth > 0 && scope !== undefined && scope.get() !== this;
   }
   deleteAll(): Promise<void> {
     return this.op(() => {
@@ -252,6 +272,8 @@ export class DurableObjectStorage extends AsyncKvApi {
    */
   #txnScope = txnScope();
   #txnDepth = 0;
+  /** Settles when the transaction open now (the outermost one) ends. */
+  #txnDone: Promise<void> | undefined;
   transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
     if (this.#txnScope?.get() === this) return this.#transaction(closure);
     const run = () => this.#transaction(closure);
@@ -262,6 +284,8 @@ export class DurableObjectStorage extends AsyncKvApi {
   #transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
     return this.gate.runClosed(async () => {
       const release = this.sql.hold();
+      let ended: (() => void) | undefined;
+      if (this.#txnDepth === 0) this.#txnDone = new Promise<void>((r) => (ended = r));
       const sp = `_cf_atx${++this.#txnDepth}`;
       this.sql.internalExec(`SAVEPOINT ${sp}`);
       const txn = new DurableObjectTransaction(this.kv, this.gate);
@@ -277,6 +301,10 @@ export class DurableObjectStorage extends AsyncKvApi {
       } finally {
         this.#txnDepth--;
         release();
+        if (ended) {
+          this.#txnDone = undefined;
+          ended();
+        }
       }
     });
   }

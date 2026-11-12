@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NodeSqliteDriver } from "../src/adapters/node-sqlite.js";
 import type { OpenCellSql } from "../src/index.js";
 import { wasmMemoryOpener } from "../src/index.js";
@@ -264,6 +264,58 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
         return [...(await ctx.storage.list()).keys()];
       });
       expect(r).toEqual(["a", "c"]);
+    });
+
+    it("async transaction(): another event's async writes wait for it, and survive its rollback", async () => {
+      const { inObject } = probeRuntime();
+      const r = await inObject("tx4", async (ctx) => {
+        const order: string[] = [];
+        let wake!: () => void;
+        // Event B, already past the gate, wakes while A's transaction is open.
+        const b = (async () => {
+          await new Promise<void>((res) => (wake = res));
+          await ctx.storage.put("b", 1);
+          order.push("b written");
+        })();
+        await ctx.storage
+          .transaction(async (txn) => {
+            await txn.put("a", 1);
+            wake();
+            await new Promise((res) => setTimeout(res, 5));
+            order.push("a rolls back");
+            throw new Error("a");
+          })
+          .catch(() => {});
+        await b;
+        return { order, keys: [...(await ctx.storage.list()).keys()] };
+      });
+      expect(r).toEqual({ order: ["a rolls back", "b written"], keys: ["b"] });
+    });
+
+    it("async transaction(): another event's synchronous write warns, once", async () => {
+      const { inObject } = probeRuntime();
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        await inObject("tx5", async (ctx) => {
+          ctx.storage.sql.exec("CREATE TABLE t (x)");
+          let wake!: () => void;
+          const b = (async () => {
+            await new Promise<void>((res) => (wake = res));
+            ctx.storage.sql.exec("SELECT * FROM t"); // a read: no warning
+            ctx.storage.sql.exec("INSERT INTO t VALUES (1)");
+            ctx.storage.kv.put("k", 1);
+          })();
+          await ctx.storage.transaction(async () => {
+            ctx.storage.sql.exec("INSERT INTO t VALUES (0)"); // the transaction's own: no warning
+            wake();
+            await b;
+          });
+        });
+        const ours = warn.mock.calls.filter((c) => String(c[0]).includes("storage.transaction()"));
+        expect(ours).toHaveLength(1);
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it("deleteAll wipes KV and user tables", async () => {
