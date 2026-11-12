@@ -43,17 +43,34 @@ export class NodeSqliteDriver implements SyncSqlDriver {
     this.#temporary = !!opts.temporary && path !== ":memory:";
     this.#exclusive = !!opts.exclusive;
     this.#pageCapture = !!opts.pageCapture && path !== ":memory:";
+    this.#db = this.#connect();
+    this.#walSetup();
+  }
+
+  /** Extensions loaded so far, by name: a new connection (restore()) loads them again. */
+  #extensions: string[] = [];
+  /** The directory restore() made for an in-memory database's file. */
+  #restoredDir: string | undefined;
+
+  /** A connection to `#path`, set up as every connection of this driver is. */
+  #connect(): DatabaseSyncT {
     // As celld and workerd: a double-quoted name that is no column is a string literal.
-    this.#db = new DatabaseSync(path, {
+    const db = new DatabaseSync(this.#path, {
       allowExtension: true,
       enableDoubleQuotedStringLiterals: true,
     });
-    this.#db.enableLoadExtension(false); // only loadExtension() below may load, by name
+    db.enableLoadExtension(false); // only loadExtension() below may load, by name
     // EXCLUSIVE locking: the first write takes an OS lock on the file that is
     // kept until close (or process death) — a second process can neither read
     // nor write the cell. Storage-level fencing on one host, no lease needed.
-    if (opts.exclusive) this.#db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
-    this.#walSetup();
+    if (this.#exclusive) db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
+    try {
+      for (const name of this.#extensions) this.#load(db, name);
+    } catch (e) {
+      db.close(); // not left open behind the error
+      throw e;
+    }
+    return db;
   }
 
   // ---- page capture through the WAL (what the WASM driver does with its xWrite hook) ----
@@ -180,6 +197,11 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   }
   close(): void {
     this.#db.close();
+    if (this.#restoredDir) {
+      rmSync(this.#restoredDir, { recursive: true, force: true });
+      temporaryDirs.delete(this.#restoredDir);
+      this.#restoredDir = undefined;
+    }
     if (!this.#temporary) return;
     for (const suffix of ["", "-wal", "-shm", "-journal"])
       rmSync(this.#path + suffix, { force: true });
@@ -226,13 +248,17 @@ export class NodeSqliteDriver implements SyncSqlDriver {
 
   /** Known extensions only: "sqlite_vec" → the sqlite-vec npm package's loadable library. */
   loadExtension(name: string): void {
+    this.#load(this.#db, name);
+    if (!this.#extensions.includes(name)) this.#extensions.push(name);
+  }
+  #load(db: DatabaseSyncT, name: string): void {
     const path = KNOWN_EXTENSIONS[name]?.();
     if (!path) throw new Error(`Unknown SQLite extension "${name}"`);
-    this.#db.enableLoadExtension(true);
+    db.enableLoadExtension(true);
     try {
-      this.#db.loadExtension(path);
+      db.loadExtension(path);
     } finally {
-      this.#db.enableLoadExtension(false);
+      db.enableLoadExtension(false);
     }
   }
 
@@ -266,12 +292,15 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   /** Replaces the database file with `image` and reopens it (an in-memory DB becomes file-backed). */
   restore(image: Uint8Array): void {
     this.#db.close();
-    if (this.#path === ":memory:")
-      this.#path = join(mkdtempSync(join(tmpdir(), "cell-mem-")), "db.sqlite");
+    if (this.#path === ":memory:") {
+      // A directory of its own, removed with the driver (close() or process exit).
+      this.#restoredDir = mkdtempSync(join(tmpdir(), "cell-mem-"));
+      removeAtExit(this.#restoredDir);
+      this.#path = join(this.#restoredDir, "db.sqlite");
+    }
     for (const suffix of ["-wal", "-shm", "-journal"]) rmSync(this.#path + suffix, { force: true });
     writeFileSync(this.#path, image);
-    this.#db = new DatabaseSync(this.#path, { enableDoubleQuotedStringLiterals: true });
-    if (this.#exclusive) this.#db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
+    this.#db = this.#connect(); // with the extensions loaded before
     this.#walSetup(); // a new file: a new WAL
   }
 }
