@@ -170,7 +170,9 @@ export async function runAgentLoop(
     opts.llmToken,
   );
   const redact = redactor([credentials.apiKey, opts.llmToken, env.LLM_API_KEY]);
-  const metered = !req.llm;
+  // Every run is metered: the session's budget (turns, tokens; none set: unlimited) is spent by
+  // the person's own key as by a deployment's.
+  const metered = true;
   // The capability must carry the model right (decided in the Workspace cell).
   await cap.model("grant", metered);
   const emit = opts.onEvent ?? (() => {});
@@ -276,7 +278,14 @@ export async function runAgentLoop(
     streamFn: streamSimple as never,
     getApiKey: async () => {
       if (stopped) throw new Error("stopped");
-      await cap.model("reserve", metered); // the right again: a revocation stops the next turn
+      try {
+        // The right again (a revocation stops the next turn) and a turn from the budget.
+        await cap.model("reserve", metered);
+      } catch (e) {
+        if (/EACCES/.test(String((e as Error)?.message ?? e)))
+          stopped ??= String((e as Error).message).replace(/^(Error: )?E[A-Z]+: /, "");
+        throw e;
+      }
       return credentials.apiKey;
     },
     initialState: {
@@ -374,5 +383,9 @@ export async function runAgentLoop(
     stopReason: stopped ? "limit" : (last?.stopReason ?? "unknown"),
     error: [stopped, providerError].filter(Boolean).join("; ") || undefined,
     turns,
+    // What is left of the session's model budget (null: unlimited).
+    budget: (await cap.model("grant", false).catch(() => undefined)) as
+      | { turnsLeft: number | null; tokensLeft: number | null }
+      | undefined,
   };
 }

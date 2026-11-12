@@ -118,6 +118,9 @@ export class Workspace extends DurableObject {
   setMode(session: string, mode: string) {
     return this.#auth.setMode(session, mode);
   }
+  setModelBudget(session: string, limits: { turns?: number | null; tokens?: number | null }) {
+    return this.#auth.setModelBudget(session, limits);
+  }
   revoke(session: string, rid?: string) {
     return this.#auth.revoke(session, rid);
   }

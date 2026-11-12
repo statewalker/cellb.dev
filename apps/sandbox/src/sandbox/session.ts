@@ -108,6 +108,11 @@ export interface ProjectSession {
   buildToken: string;
   /** A token for this mode (cached): the agents' and other agents' capabilities. */
   tokenFor(mode: AgentMode, opts?: { model?: boolean }): Promise<string>;
+  /** The model budget of the session behind tokenFor(mode, { model: true }); null: unlimited. */
+  setBudget(
+    mode: AgentMode,
+    budget: { turns: number | null; tokens: number | null },
+  ): Promise<void>;
 }
 
 const slug = (name: string) =>
@@ -125,24 +130,37 @@ export async function openProjectSession(
   // One workspace per opening: its sessions and conversations belong to this project.
   const ws = `${slug(name)}-${crypto.randomUUID().slice(0, 8)}`;
   await studio.mount(ws, source);
-  const tokens = new Map<string, Promise<string>>();
-  const tokenFor = (mode: AgentMode, opts: { model?: boolean } = {}) => {
+  const sessions = new Map<string, Promise<{ session: string; token: string }>>();
+  const sessionFor = (mode: AgentMode, opts: { model?: boolean } = {}) => {
     const key = `${mode}:${opts.model ? 1 : 0}`;
-    let t = tokens.get(key);
+    let t = sessions.get(key);
     if (!t) {
       t = studio
-        .request<{ token: string }>(`/api/w/${ws}/sessions`, {
+        .request<{ session: string; token: string }>(`/api/w/${ws}/sessions`, {
           admin: true,
           body: { user: "owner", rights: ["/"], mode, model: !!opts.model },
         })
         .then((r) => {
           if (r.status >= 400 || !r.value) throw new Error(`session: ${r.error ?? r.status}`);
-          return r.value.token;
+          return r.value;
         });
-      t.catch(() => tokens.delete(key));
-      tokens.set(key, t);
+      t.catch(() => sessions.delete(key));
+      sessions.set(key, t);
     }
     return t;
+  };
+  const tokenFor = async (mode: AgentMode, opts: { model?: boolean } = {}) =>
+    (await sessionFor(mode, opts)).token;
+  const setBudget = async (
+    mode: AgentMode,
+    budget: { turns: number | null; tokens: number | null },
+  ) => {
+    const { session } = await sessionFor(mode, { model: true });
+    const r = await studio.request(`/api/w/${ws}/sessions/${session}/model`, {
+      admin: true,
+      body: budget,
+    });
+    if (r.status >= 400) throw new Error(`budget: ${r.error ?? r.status}`);
   };
   const owner = new TokenCap(studio.send, ws, await tokenFor("yolo"));
   return {
@@ -152,6 +170,7 @@ export async function openProjectSession(
     fs: files(owner),
     buildToken: await tokenFor("readonly"),
     tokenFor,
+    setBudget,
   };
 }
 

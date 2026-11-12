@@ -18,7 +18,16 @@ const MODES: { value: AgentMode; label: string; hint: string }[] = [
   { value: "readonly", label: "Read-only", hint: "read and answer: every write is refused" },
 ];
 
-type Settings = ModelChoice & { remember: boolean; mode: AgentMode; scope: string };
+type Settings = ModelChoice & {
+  remember: boolean;
+  mode: AgentMode;
+  scope: string;
+  /** The session's model budget: turns and tokens (empty: unlimited). */
+  maxTurns: string;
+  maxTokens: string;
+};
+
+const limit = (v: string) => (/^\d+$/.test(v.trim()) ? Number(v.trim()) : null);
 
 type Entry = { key: number } & (
   | { kind: "user"; text: string }
@@ -41,6 +50,8 @@ function loadSettings(): Settings {
     remember: false,
     mode: "yolo",
     scope: "",
+    maxTurns: "",
+    maxTokens: "",
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -139,11 +150,15 @@ export function AgentPanel(props: {
         scope: settings.scope,
         model: settings,
         session: conversation.current,
+        budget: { turns: limit(settings.maxTurns), tokens: limit(settings.maxTokens) },
         onEvent,
         signal: ctrl.signal,
       });
       if (r.error) onEvent({ type: "error", message: r.error });
       onEvent({ type: "done", steps: r.turns });
+      const left = r.budget;
+      if (left && (left.turnsLeft !== null || left.tokensLeft !== null))
+        note(`budget left: ${left.turnsLeft ?? "∞"} turns · ${left.tokensLeft ?? "∞"} tokens`);
     } catch (err) {
       onEvent({ type: "error", message: (err as Error).message });
     } finally {
@@ -218,6 +233,30 @@ export function AgentPanel(props: {
               placeholder="client"
               value={settings.scope}
               onChange={(e) => update({ scope: e.target.value })}
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-muted-foreground text-xs">
+              Budget: model turns per session (empty: unlimited)
+            </span>
+            <input
+              aria-label="Max turns"
+              inputMode="numeric"
+              className={`${field} font-mono text-xs`}
+              placeholder="unlimited"
+              value={settings.maxTurns}
+              onChange={(e) => update({ maxTurns: e.target.value })}
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-muted-foreground text-xs">Budget: tokens per session</span>
+            <input
+              aria-label="Max tokens"
+              inputMode="numeric"
+              className={`${field} font-mono text-xs`}
+              placeholder="unlimited"
+              value={settings.maxTokens}
+              onChange={(e) => update({ maxTokens: e.target.value })}
             />
           </label>
           {settings.provider === "openai" && (

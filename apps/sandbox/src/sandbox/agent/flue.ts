@@ -43,13 +43,24 @@ export interface FlueRunResult {
   stopReason: string;
   error?: string;
   turns: number;
+  /** What is left of the session's model budget (null: unlimited). */
+  budget?: { turnsLeft: number | null; tokensLeft: number | null };
+}
+
+export interface Budget {
+  turns: number | null;
+  tokens: number | null;
 }
 
 export interface FlueAgentOptions {
   studio: Pick<StudioConnection, "request">;
   /** The open project: its workspace and a token per mode (with the model right). */
   project: () =>
-    | { ws: string; tokenFor(mode: AgentMode, o?: { model?: boolean }): Promise<string> }
+    | {
+        ws: string;
+        tokenFor(mode: AgentMode, o?: { model?: boolean }): Promise<string>;
+        setBudget(mode: AgentMode, budget: Budget): Promise<void>;
+      }
     | undefined;
   /** The project's own instructions for agents (AGENTS.md), added to the agent's prompt. */
   instructions?: () => string | undefined;
@@ -57,6 +68,7 @@ export interface FlueAgentOptions {
 }
 
 export function createFlueAgent(opts: FlueAgentOptions) {
+  const budgets = new Map<string, string>();
   function projectInstructions() {
     const text = opts.instructions?.();
     return text ? `The project's AGENTS.md:\n<agents_md>\n${text}\n</agents_md>` : undefined;
@@ -70,6 +82,8 @@ export function createFlueAgent(opts: FlueAgentOptions) {
       model: ModelChoice;
       session?: string;
       instructions?: string;
+      /** The session's model budget for this mode (applied before the run when it changed). */
+      budget?: Budget;
       onEvent: (e: AgentEvent) => void;
       signal?: AbortSignal;
     },
@@ -77,6 +91,14 @@ export function createFlueAgent(opts: FlueAgentOptions) {
     const project = opts.project();
     if (!project) throw new Error("no project is open");
     const token = await project.tokenFor(run.mode, { model: true });
+    if (run.budget) {
+      const key = `${project.ws}:${run.mode}`;
+      const applied = JSON.stringify(run.budget);
+      if (budgets.get(key) !== applied) {
+        await project.setBudget(run.mode, run.budget);
+        budgets.set(key, applied);
+      }
+    }
     const runId = crypto.randomUUID();
     const agent = `agent-${project.ws}`;
     const scope = run.scope?.trim().replace(/^\/+|\/+$/g, "");

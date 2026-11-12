@@ -63,6 +63,26 @@ export interface ProjectHistory {
     remote: string,
     opts?: { branch?: string; token?: string; force?: boolean },
   ): Promise<PushInfo>;
+  /**
+   * Fetches a branch of a git remote and merges it into the current branch (a fast-forward when
+   * the history has not diverged), updating the project's files. Uncommitted changes refuse it.
+   */
+  pull(remote: string, opts?: { branch?: string; token?: string }): Promise<PullInfo>;
+  /** The branches, and the current one. */
+  branches(): Promise<{ current: string; all: string[] }>;
+  /** A new branch at the current commit, made current (the files stay as they are). */
+  createBranch(name: string): Promise<void>;
+  /** Switches to a branch: the project's files become that branch's. */
+  switchBranch(name: string): Promise<void>;
+}
+
+export interface PullInfo {
+  remote: string;
+  branch: string;
+  /** The current commit after the pull. */
+  commit?: string;
+  ok: boolean;
+  message?: string;
 }
 
 export interface PushInfo {
@@ -258,9 +278,81 @@ export async function openHistory(files: FilesApi): Promise<ProjectHistory> {
     };
   }
 
+  async function pull(
+    remote: string,
+    opts: { branch?: string; token?: string } = {},
+  ): Promise<PullInfo> {
+    const branch = opts.branch ?? "main";
+    // The project's changes are committed first, or the pull would overwrite them.
+    await stageAll();
+    const status = await git.status().call();
+    await staging.write();
+    if ((await head()) && !status.isClean())
+      throw new Error("uncommitted changes: commit them before pulling");
+    // A URL is not a remote's name (refs/remotes/<name>/…): fetch into a tracking ref of our own.
+    const tracking = `refs/remotes/pulled/${branch}`;
+    let fetch = git.fetch().setRemote(remote).setRefSpecs(`+refs/heads/${branch}:${tracking}`);
+    if (opts.token) fetch = fetch.setCredentials({ token: opts.token } as never);
+    await fetch.call();
+    const fetched = (await history.refs.resolve(tracking))?.objectId;
+    if (!fetched) throw new Error(`${remote} has no branch ${branch}`);
+    if (!(await head())) {
+      // An empty history takes the remote's as it is.
+      await history.refs.set(
+        `refs/heads/${(await workingCopy.getCurrentBranch()) ?? "main"}`,
+        fetched,
+      );
+    } else {
+      const merged = (await git.merge().include(fetched).call()) as {
+        status: string;
+        newHead?: string;
+      };
+      if (!/fast-forward|already-up-to-date|merged$/.test(String(merged.status)))
+        return { remote, branch, commit: await head(), ok: false, message: String(merged.status) };
+    }
+    // The files become the new head's.
+    const now = (await head()) as string;
+    await git.reset().setRef(now).setMode(ResetMode.HARD).call();
+    await staging.write();
+    return { remote, branch, commit: now, ok: true };
+  }
+
+  async function branches() {
+    const list = (await git.branchList().call()) as { name: string }[];
+    const current = (await workingCopy.getCurrentBranch()) ?? "main";
+    return {
+      current,
+      all: list.map((b) => String(b.name).replace(/^refs\/heads\//, "")).sort(),
+    };
+  }
+
+  async function createBranch(name: string) {
+    if (!/^[A-Za-z0-9._/-]+$/.test(name) || name.includes(".."))
+      throw new Error(`not a branch name: ${name}`);
+    await git.checkout().setName(name).setCreateBranch(true).call();
+    await staging.write();
+  }
+
+  async function switchBranch(name: string) {
+    const target = (await history.refs.resolve(`refs/heads/${name}`))?.objectId;
+    if (!target) throw new Error(`no branch ${name}`);
+    await stageAll();
+    const status = await git.status().call();
+    await staging.write();
+    if (!status.isClean()) throw new Error("uncommitted changes: commit them before switching");
+    // HEAD names the branch; the files and the index become its commit's.
+    await history.refs.setSymbolic("HEAD", `refs/heads/${name}`);
+    await git.reset().setRef(target).setMode(ResetMode.HARD).call();
+    await staging.write();
+  }
+
   return {
     git,
     push: serial(push),
+    pull: serial(pull),
+    branches: serial(branches),
+    createBranch: serial(createBranch),
+    switchBranch: serial(switchBranch),
     commitAll: serial(api.commitAll),
     log: serial(api.log),
     changes: serial(api.changes),

@@ -5,6 +5,7 @@
 //     GET  /api/w/:ws/sessions/:sid      mode, revocations, model budget
 //     POST /api/w/:ws/sessions/:sid/mode { mode }    yolo · plan · readonly
 //     POST /api/w/:ws/sessions/:sid/revoke { rid? } one capability (and its descendants), or all
+//     POST /api/w/:ws/sessions/:sid/model { turns?, tokens? }  the model budget (null: unlimited)
 //   holder (a session token, no admin key):
 //     POST /api/fs/:ws                   { token, req } a file call through the capability
 //                                        (bytes as { $b64 }): the token transport
@@ -96,6 +97,13 @@ export default {
         if (what === "sessions" && sid && !action) return json(await ws.sessionInfo(sid));
         if (what === "sessions" && sid && action === "mode")
           return json(await ws.setMode(sid, (await body<{ mode: string }>()).mode));
+        if (what === "sessions" && sid && action === "model")
+          return json(
+            await ws.setModelBudget(
+              sid,
+              await body<{ turns?: number | null; tokens?: number | null }>(),
+            ),
+          );
         if (what === "sessions" && sid && action === "revoke")
           return json(await ws.revoke(sid, (await body<{ rid?: string }>()).rid));
         return json("not found", 404);

@@ -141,6 +141,22 @@ async function scenario(label: string, ws: string, backing: FilesApi, onDisk?: s
     ["/client/index.html"],
   );
   assert.equal(new TextDecoder().decode(tree[0]?.data), "<h1>x</h1>");
+  // A model budget: one turn left, and a run that needs two stops at the limit; the next one
+  // is refused before any model request.
+  const budgeted = (
+    await call(`/api/w/${ws}/sessions`, { user: "me", rights: ["/"], mode: "yolo", model: true })
+  ).value as { session: string; token: string };
+  await call(`/api/w/${ws}/sessions/${budgeted.session}/model`, { turns: 1 });
+  const before = fake.requests.length;
+  const limited = await run(budgeted.token, "READ /secret.txt");
+  assert.equal(limited.value?.stopReason, "limit", JSON.stringify(limited));
+  assert.match(String(limited.value?.error), /budget/);
+  assert.equal(limited.value?.budget?.turnsLeft, 0);
+  assert.equal(fake.requests.length - before, 1);
+  const refused2 = await run(budgeted.token, "READ /secret.txt");
+  assert.equal(refused2.status, 403, JSON.stringify(refused2));
+  assert.equal(fake.requests.length - before, 1);
+
   // Delegation: a sub-agent holds the agent's capability narrowed to /client.
   await run(owner.token, "DELEGATE-OUTSIDE");
   assert.match(lastResult(), /EACCES|denied/i, lastResult());
@@ -158,7 +174,7 @@ async function scenario(label: string, ws: string, backing: FilesApi, onDisk?: s
   assert.ok(!visible.some((e) => e.path.startsWith("/.git")));
   assert.ok(visible.some((e) => e.path === "/server/index.ts"));
   console.log(
-    `• ${label}: token FilesApi, Flue edit, read-only refusal, scope, readTree, no .git, delegation`,
+    `• ${label}: token FilesApi, Flue edit, read-only refusal, scope, readTree, no .git, delegation, budget`,
   );
 }
 

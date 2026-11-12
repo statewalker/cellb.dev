@@ -303,7 +303,7 @@ try {
   await writeFile(join(dir, "ok"), "");
 
   step(
-    "history: the checkpoint before the agent run restores the project; the history pushed to a git server",
+    "history: the checkpoint before the agent run restores the project; the history pushed to a git server, a commit pulled, a branch made",
   );
   await page.getByRole("tab", { name: "Ship" }).click();
   const historyPanel = page.getByTestId("history-panel");
@@ -343,6 +343,39 @@ try {
     const remoteLog = gitServer.git("agent-ui.git", "log", "--format=%s", "main");
     if (!remoteLog.includes("Before the agent: Rename")) throw new Error(`git log: ${remoteLog}`);
     gitServer.git("agent-ui.git", "fsck", "--strict");
+
+    // A commit made elsewhere (with git), pulled from the panel: the file is in the project.
+    const other = await mkdtemp(join(tmpdir(), "other-"));
+    const sh = (...a) =>
+      execFileSync("git", ["-c", "user.name=Other", "-c", "user.email=o@x", ...a], { cwd: other });
+    sh("clone", "-q", join(gitServer.root, "agent-ui.git"), ".");
+    await writeFile(join(other, "FROM_ELSEWHERE.md"), "pulled\n");
+    sh("add", ".");
+    sh("commit", "-q", "-m", "elsewhere");
+    sh("push", "-q", "origin", "main");
+    await historyPanel.getByRole("button", { name: "Pull", exact: true }).click();
+    await historyPanel
+      .getByTestId("push-status")
+      .filter({ hasText: /^pulled / })
+      .waitFor({ timeout: 60_000 });
+    for (let i = 0; ; i++) {
+      const f = await page.evaluate(() =>
+        window.cellbSandbox.call("read_file", { path: "FROM_ELSEWHERE.md" }),
+      );
+      if (f.ok && f.result.content === "pulled\n") break;
+      if (i > 100) throw new Error(`the pulled file: ${JSON.stringify(f)}`);
+      await page.waitForTimeout(200);
+    }
+
+    // A branch, made and switched to from the panel.
+    await historyPanel.getByLabel("New branch").fill("experiment");
+    await historyPanel.getByRole("button", { name: "New branch" }).click();
+    await historyPanel
+      .getByLabel("Branch")
+      .locator("option", { hasText: "experiment" })
+      .waitFor({ state: "attached" });
+    if ((await historyPanel.getByLabel("Branch", { exact: true }).inputValue()) !== "experiment")
+      throw new Error("the new branch is not current");
   } finally {
     await gitServer.close();
   }

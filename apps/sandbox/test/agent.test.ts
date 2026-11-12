@@ -258,6 +258,7 @@ describe("Flue agent client (the page holds the project's capabilities)", () => 
   it("runs on a token for the mode, with the scope, the model and the key, and follows progress", async () => {
     const calls: { path: string; body?: unknown; headers?: Record<string, string> }[] = [];
     const modes: string[] = [];
+    const budgets: string[] = [];
     const request = async (
       path: string,
       init: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
@@ -285,6 +286,9 @@ describe("Flue agent client (the page holds the project's capabilities)", () => 
           modes.push(`${mode}:${o?.model}`);
           return `tok-${mode}`;
         },
+        setBudget: async (mode, b) => {
+          budgets.push(`${mode}:${b.turns}:${b.tokens}`);
+        },
       }),
       instructions: () => "Use Hono.",
       pollMs: 5,
@@ -295,10 +299,12 @@ describe("Flue agent client (the page holds the project's capabilities)", () => 
       mode: "readonly",
       scope: "/client/",
       model,
+      budget: { turns: 5, tokens: null },
       onEvent: (e) => events.push(e),
     });
     expect(r).toMatchObject({ reply: "ok", turns: 2 });
     expect(modes).toEqual(["readonly:true"]);
+    expect(budgets).toEqual(["readonly:5:null"]);
     const run = calls.find((c) => c.path === "/api/agents/agent-demo-1/run");
     expect(run?.body).toMatchObject({
       workspace: "demo-1",

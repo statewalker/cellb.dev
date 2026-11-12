@@ -166,6 +166,11 @@ Beyond files, the agent has `run_app`, `read_logs` and `http_request`: host tool
 the studio worker to the page, which reads the latest files and runs its own tools. A denied
 operation comes back to the model as `EACCES`.
 
+**Budgets**: every run is metered against its session (the Agent tab's "Budget" fields: model
+turns and tokens per session, empty for unlimited). The Workspace cell reserves a turn before each
+model request and charges the tokens after it; a spent budget ends the run (`stopReason: "limit"`)
+and refuses the next one before any model request. The tab shows what is left after each run.
+
 **Delegation**: the agent's `delegate` tool hands a self-contained task to a sub-agent whose
 capability is the agent's own narrowed by one more Biscuit block (`scope`: one folder,
 `read_only`): a sub-agent can only ever have fewer rights. It runs the same loop and model,
@@ -221,6 +226,9 @@ project's `.gitignore` files are honored too.
   files written back, files the commit lacks removed; ignored files untouched).
 - **Checkpoints**: with the box ticked, every agent run starts with a commit ("Before the agent:
   …"), so undoing an agent is a Restore.
+- **Pull and branches**: Pull fetches a remote branch and fast-forwards (or merges) it into the
+  current branch, then the files follow (uncommitted changes refuse it); the Branch row lists the
+  branches, switches (the files become the branch's) and makes new ones.
 - **Push to a git remote**: the history goes to any git server over smart HTTP (webrun-vcs builds
   the pack in the tab; a token goes as HTTP Basic `x-access-token`). A browser needs CORS from the
   server: GitHub, GitLab and Codeberg send none, so push through **`git-proxy/`**, a small Worker

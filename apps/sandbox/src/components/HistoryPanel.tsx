@@ -1,4 +1,11 @@
-import { CloudUpload, GitCommitHorizontal, History, RotateCcw } from "lucide-react";
+import {
+  CloudDownload,
+  CloudUpload,
+  GitBranch,
+  GitCommitHorizontal,
+  History,
+  RotateCcw,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Changes, CommitInfo, ProjectHistory } from "@/sandbox/history";
@@ -35,12 +42,15 @@ export function HistoryPanel(props: {
   });
   const [remoteToken, setRemoteToken] = useState("");
   const [pushed, setPushed] = useState<string>();
+  const [branches, setBranches] = useState<{ current: string; all: string[] }>();
+  const [newBranch, setNewBranch] = useState("");
   const { history, version, log, onRestored } = props;
 
   const refresh = useCallback(async () => {
     try {
       const h = await history();
       setCommits(await h.log(30));
+      setBranches(await h.branches().catch(() => undefined));
       setChanges(await h.changes());
       setError(undefined);
     } catch (err) {
@@ -117,6 +127,56 @@ export function HistoryPanel(props: {
           <GitCommitHorizontal /> {busy === "commit" ? "Committing…" : "Commit"}
         </Button>
       </div>
+      {branches && commits.length > 0 && (
+        <div className="flex flex-wrap items-end gap-2" data-testid="history-branches">
+          <label className="grid gap-1">
+            <span className="text-muted-foreground flex items-center gap-1 text-xs">
+              <GitBranch className="size-3" /> Branch
+            </span>
+            <select
+              aria-label="Branch"
+              className="bg-background h-8 rounded-md border px-2 font-mono text-xs"
+              value={branches.current}
+              disabled={!!busy}
+              onChange={(e) => {
+                const name = e.target.value;
+                void task("switch", async () => {
+                  await (await history()).switchBranch(name);
+                  log(`history: switched to ${name}`);
+                  onRestored();
+                });
+              }}
+            >
+              {branches.all.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </label>
+          <input
+            aria-label="New branch"
+            className="bg-background h-8 w-40 rounded-md border px-2 font-mono text-xs"
+            placeholder="new-branch"
+            value={newBranch}
+            onChange={(e) => setNewBranch(e.target.value)}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!!busy || !newBranch.trim()}
+            onClick={() =>
+              task("branch", async () => {
+                await (await history()).createBranch(newBranch.trim());
+                log(`history: branch ${newBranch.trim()} made at the current commit`);
+                setNewBranch("");
+              })
+            }
+          >
+            New branch
+          </Button>
+        </div>
+      )}
       <label className="text-muted-foreground flex items-center gap-2 text-xs">
         <input
           type="checkbox"
@@ -191,6 +251,27 @@ export function HistoryPanel(props: {
             }
           >
             <CloudUpload /> {busy === "push" ? "Pushing…" : "Push"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!!busy || !remote.url}
+            onClick={() =>
+              task("pull", async () => {
+                const r = await (await history()).pull(remote.url as string, {
+                  branch: remote.branch || "main",
+                  token: remoteToken || undefined,
+                });
+                const text = r.ok
+                  ? `pulled ${r.branch}: now at ${r.commit?.slice(0, 7)}`
+                  : `pull not merged: ${r.message}`;
+                setPushed(text);
+                log(`history: ${text} (${r.remote})`, r.ok ? "info" : "error");
+                if (r.ok) onRestored();
+              })
+            }
+          >
+            <CloudDownload /> {busy === "pull" ? "Pulling…" : "Pull"}
           </Button>
           {pushed && (
             <span role="status" className="text-muted-foreground text-xs" data-testid="push-status">
