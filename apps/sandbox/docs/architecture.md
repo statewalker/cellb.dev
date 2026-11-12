@@ -64,7 +64,7 @@ browser memory limits, and Cloudflare shipping its own in-browser playground wit
 | Agents | Flue agents in Durable Objects on CellB, tools over a Biscuit-capability FilesApi | `studio/` (capability core vendored from `statewalker-sandbox/apps/flue-capfs-do`), `@flue/runtime`, `@earendil-works/pi-agent-core`, `just-bash`, `@statewalker/webrun-biscuit` | [built] |
 | Agent ingress for other agents | `window.cellbSandbox`, WebMCP, MCP endpoint | `agent/bridge.ts`, `agent/mcp.ts` | [built] |
 | Ship | deployable folder, GitHub push/pull, CI deploy workflow | `deploy.ts`, `export.ts`, `github.ts`, `@statewalker/cellb-bundler` (`buildProject`) | [built] |
-| Remote reach | the running app and the tools for people/agents outside this browser | `@statewalker/httpeers-member` (`createSession`, `createMounts`), `httpeers-access` (Biscuit) | [next] |
+| Remote reach | the running app and the tools for people/agents outside this browser | `@statewalker/httpeers-member` (`createSession`, `createMounts`), `httpeers-access` (Biscuit), `apps/sandbox-hub` | [built] |
 | History | git in `.cellb/history` inside the project's FilesApi: commit, log, changes, restore, checkpoints before agent runs; hidden from agents (`NO_GIT`) | `src/sandbox/history.ts`, `@statewalker/vcs-commands`, `vcs-store-files`, `vcs-working-tree` | [built] |
 | Git remotes | push of that history over smart HTTP; `git-proxy/` (a Worker) adds CORS for GitHub & co | `history.ts` (`push`), `git-proxy/`, `@statewalker/vcs-commands` | [built], with pull (fetch + merge) and branches |
 | Notebooks | `notebooks/*.md` (Observable Notebook Kit cells) served at `notebooks/`, next to the app, cells calling its Worker | `src/sandbox/notebooks.ts`, `@statewalker/notebook-build`, `notebook-site`, linkedom | [built], in the deployable build too (static mode) |
@@ -114,7 +114,7 @@ act on ("old_text occurs 2 times: make it unique"), paths confined to the projec
 | Browser-driving agents (Playwright, extensions, computer use) | `window.cellbSandbox.call(name, args)`, `.tools` | `agent/bridge.ts` |
 | Agents built into the browser | **WebMCP** `navigator.modelContext.registerTool` (feature-detected) | `agent/bridge.ts` |
 | Any MCP client that can reach the origin | **MCP** Streamable HTTP (stateless JSON) at `<origin>/<id>/mcp`, served by the page's ServiceWorker | `agent/mcp.ts` |
-| Agents elsewhere (desktop Claude Code, a CI agent, a teammate's agent) | the same MCP handler as an **HTTPeers mount**, Biscuit-guarded **[next]** | §7 |
+| Agents elsewhere (desktop Claude Code, a CI agent, a teammate's agent) | the same MCP handler as an **HTTPeers mount**, Biscuit-guarded, reached through `sandbox-hub bridge` **[built]** | §7 |
 
 `AGENTS.md` at the project's root goes into the Flue agent's instructions and is the first thing
 the tools point external agents to. Templates ship one.
@@ -210,32 +210,43 @@ through a small CORS proxy, which can itself be a cellb Worker, or peer-to-peer 
 does not travel by default. **[next]**: move a cell's state with the code — cellb stores cells in
 celld's format, so "promote" = upload the OPFS cell files to the celld bucket.
 
-## 7. CellB over HTTPeers [next]
+## 7. CellB over HTTPeers [built]
 
-HTTPeers is a libp2p mesh where every service is a `fetch` handler; a tab can serve one. Both the
-running app and the tool surface already are fetch handlers, so publishing is a mount:
+HTTPeers is a libp2p mesh where every service is a `fetch` handler, and a tab can serve one. The
+running app and the tool surface already are fetch handlers, so publishing is a mount table
+(`src/sandbox/mesh/publish.ts`):
 
-```ts
-import { createMounts } from "@statewalker/httpeers-core";
-import { createSession } from "@statewalker/httpeers-member/browser";
-
-const mounts = createMounts();
-mounts.provide("/app", (req) => runningSite(req));        // the app the preview shows
-mounts.provide("/mcp", createMcpHandler(tools, { readOnly: !owner }));
-const session = createSession({
-  key: "cellb-sandbox", mounts, rules: [
-    'capability("app:read") <- role("member");',
-    'capability("studio:tools") <- role("owner");',
-  ],
-  serviceWorkerUrl: "/sw.js", readDeploymentConfig: async () => null,
-});
-await session.start();                                     // then join with an invitation
+```
+ sandbox tab (member, role publisher)            ../sandbox-hub (a local Node app)
+   /app/…     → the preview's site                hub: identity = the mesh, invitations with roles,
+   /mcp/read  → MCP, tools on a read-only token        reservation on relay.httpeers.net,
+   /mcp/edit  → MCP, tools on a read-write token       answers members' WebRTC upgrade
+   withAccess(rules.ts): role → capability       bridge: a member on a computer → 127.0.0.1:8790
+                                                       (the app for a browser, /mcp for an agent)
 ```
 
-Members open it with `openSession` + `pinnedPeer` on a `*.p.httpeers.net` origin (the
-`apps/demos` session-frame pattern). Two pieces are missing upstream: an **anonymous public
-gateway** (today every viewer is a mesh member) and an **MCP-over-mesh client bridge** for
-desktop agents (a local `httpeers-share` bridge exposing the mesh MCP mount on `localhost`).
+- **The mesh's rules are one document** (`src/sandbox/mesh/rules.ts`), read by the hub (which
+  mints tokens and checks invitations against it) and by the tab (whose mounts are guarded with
+  it). The roles: `viewer` gets `/app`, `agent` gets `/mcp/read`, `editor` gets `/mcp/edit`, and
+  `publisher` is a tab that serves.
+- **The hub is a separate local app** (`apps/sandbox-hub`). It follows httpeers' hub daemon and
+  holds a reservation on the public relay. Members link to it directly over WebRTC, and the
+  reservations it gives them let members reach each other. `sandbox-hub start` prints the
+  publisher link (`?join=`), and `sandbox-hub invite <role>` prints more invitations.
+- **The tab is a member without a ServiceWorker edge**: it serves and calls nobody. Its identity
+  and its mesh stay in IndexedDB, so a reload resumes the membership. The `?join=` link is read
+  once and removed from the URL. The two MCP mounts hold capabilities of their own: a read-only
+  token and a read-write token, both narrowed off the history.
+- **The bridge** (`sandbox-hub bridge <invitation>`) is the MCP-over-mesh client that desktop
+  agents lacked. It is a Node member serving `127.0.0.1` only, with a Host check against DNS
+  rebinding: the published sandboxes, their apps, and `/mcp` (edit for an editor, read otherwise).
+
+Tested on the public relay: `apps/sandbox-hub test` (Node members), and `e2e:mesh` (the hub
+process, a tab that publishes from the link, an editor's bridge reading and writing through MCP,
+a viewer's bridge refused MCP).
+
+**[next]**: an anonymous public gateway (today every viewer is a mesh member), a `*.p.httpeers.net`
+session page for viewers without the bridge, and revoking a member from the hub's CLI.
 
 ## 8. The client side: UIs agents can pilot
 

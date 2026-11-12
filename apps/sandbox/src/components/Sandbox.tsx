@@ -20,6 +20,7 @@ import { AgentPanel } from "@/components/AgentPanel";
 import { CodeEditor } from "@/components/CodeEditor";
 import { FileTree } from "@/components/FileTree";
 import { HistoryPanel } from "@/components/HistoryPanel";
+import { PublishPanel } from "@/components/PublishPanel";
 import { type Build, ShipPanel } from "@/components/ShipPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { type PublishedTools, publishTools } from "@/sandbox/agent/bridge";
 import { createFlueAgent } from "@/sandbox/agent/flue";
+import { createMcpHandler } from "@/sandbox/agent/mcp";
 import {
   callTool,
   createTools,
@@ -36,6 +38,12 @@ import {
 } from "@/sandbox/agent/tools";
 import { canPickFolder, ensureWritable, filesFromInput, pickFolder } from "@/sandbox/folder";
 import { openHistory, type ProjectHistory } from "@/sandbox/history";
+import {
+  appMount,
+  createPublisher,
+  type Publisher,
+  type PublishState,
+} from "@/sandbox/mesh/publish";
 import {
   decode,
   describeProject,
@@ -634,10 +642,10 @@ export default function Sandbox() {
   // too. Their writes show here as any change does (the studio's notices, the watcher). Agent
   // edits do not rerun the app on their own: the agent runs it (run_app) when its change is
   // complete.
-  const outsideFs = async () => {
+  const outsideFs = async (mode: AgentMode) => {
     const l = loadedRef.current;
     if (!l) throw new Error("no project is open");
-    const token = await l.session.tokenFor(outsideModeRef.current);
+    const token = await l.session.tokenFor(mode);
     // Narrowed offline (one more Biscuit block): the history (.git) is not theirs.
     const cap = await new TokenCap(studioRef.current?.send as never, l.session.ws, token).attenuate(
       NO_GIT,
@@ -649,20 +657,21 @@ export default function Sandbox() {
     checkSoon.current();
     return out;
   };
-  const hostImpl = useRef<StudioHost>(null as unknown as StudioHost);
-  hostImpl.current = {
+  // One host per rights: the outside tools' (the Agent tab's choice), the mesh's (read-only for
+  // /mcp/read, read-write for /mcp/edit).
+  const makeHost = (modeOf: () => AgentMode): StudioHost => ({
     project: () => {
       const l = loadedRef.current;
       return (
         l && {
           name: l.name,
           source: describeSource(l.session.source),
-          rights: outsideModeRef.current,
+          rights: modeOf(),
         }
       );
     },
     tree: async (opts = {}) => {
-      const { cap } = await outsideFs();
+      const { cap } = await outsideFs(modeOf());
       const tree = await cap.readTree("/", {
         contents: opts.contents,
         dirs: true,
@@ -671,7 +680,7 @@ export default function Sandbox() {
       return tree.map((e): TreeItem => ({ path: e.path, size: e.size, dir: e.dir, data: e.data }));
     },
     read: async (path) => {
-      const { fs } = await outsideFs();
+      const { fs } = await outsideFs(modeOf());
       if (!(await fs.exists(path))) return undefined;
       const chunks: Uint8Array[] = [];
       for await (const c of fs.read(path)) chunks.push(c);
@@ -684,20 +693,20 @@ export default function Sandbox() {
       return out;
     },
     writeFile: async (path, bytes) => {
-      const { fs } = await outsideFs();
+      const { fs } = await outsideFs(modeOf());
       await after(fs.write(path, [bytes]));
       reveal(path);
     },
     mkdir: async (path) => {
-      const { fs } = await outsideFs();
+      const { fs } = await outsideFs(modeOf());
       await after(fs.mkdir(path));
     },
     remove: async (path) => {
-      const { fs } = await outsideFs();
+      const { fs } = await outsideFs(modeOf());
       if (!(await after(fs.remove(path)))) throw new Error(`${path.slice(1)} does not exist`);
     },
     move: async (from, to) => {
-      const { fs } = await outsideFs();
+      const { fs } = await outsideFs(modeOf());
       if (await fs.exists(to)) throw new Error(`${to.slice(1)} already exists`);
       if (!(await after(fs.move(from, to)))) throw new Error(`${from.slice(1)} does not exist`);
     },
@@ -744,7 +753,11 @@ export default function Sandbox() {
       setSelected(path);
       setOpenFile(path);
     },
-  };
+  });
+  const hostImpl = useRef<StudioHost>(null as unknown as StudioHost);
+  hostImpl.current = makeHost(() => outsideModeRef.current);
+  const meshHosts = useRef<{ read: StudioHost; edit: StudioHost }>(null as never);
+  meshHosts.current = { read: makeHost(() => "readonly"), edit: makeHost(() => "yolo") };
   const tools = useMemo(() => {
     const host: StudioHost = new Proxy({} as StudioHost, {
       get: (_t, key) => hostImpl.current[key as keyof StudioHost],
@@ -753,6 +766,54 @@ export default function Sandbox() {
   }, []);
   const getTools = useCallback(() => tools, [tools]);
   toolsRef.current = tools;
+
+  // Publishing in an HTTPeers mesh (Ship tab): the tab serves the running app and the IDE's tools,
+  // read-only and read-write, each on a capability of its own; the mesh's rules say who reaches
+  // which. A `?join=` link (from sandbox-hub) joins at once; a tab that published before resumes.
+  const [publishState, setPublishState] = useState<PublishState>({
+    phase: "idle",
+    controls: { join: true, disconnect: false, reconnect: false, reset: false },
+  });
+  const publisher = useMemo<Publisher>(() => {
+    const toolsOf = (which: "read" | "edit") =>
+      createTools(
+        new Proxy({} as StudioHost, {
+          get: (_t, key) => meshHosts.current[which][key as keyof StudioHost],
+        }),
+      );
+    return createPublisher({
+      app: appMount((path, init) => hostImpl.current.fetchApp(path, init)),
+      mcpRead: createMcpHandler(toolsOf("read"), { readOnly: true }),
+      mcpEdit: createMcpHandler(toolsOf("edit")),
+      title: () => loadedRef.current?.name ?? "CellB sandbox",
+      onChange: (s) => {
+        setPublishState(s);
+        try {
+          if (s.phase === "live") localStorage.setItem("cellb-sandbox-publish", "1");
+          if (s.phase === "disconnected" || s.phase === "no-membership")
+            localStorage.removeItem("cellb-sandbox-publish");
+        } catch {}
+      },
+      dev: ["localhost", "127.0.0.1"].includes(location.hostname),
+    });
+  }, []);
+  useEffect(() => {
+    const search = location.search;
+    let resume = false;
+    try {
+      resume = localStorage.getItem("cellb-sandbox-publish") === "1";
+    } catch {}
+    if (!new URLSearchParams(search).has("join") && !resume) return;
+    // The first visit reloads once to be cross-origin isolated (see above): join after it.
+    if (!crossOriginIsolated && !sessionStorage.getItem("cellb-sandbox-coi-reload")) return;
+    // The invitation is single-use: the URL forgets it once it is read.
+    if (new URLSearchParams(search).has("join")) {
+      const u = new URL(location.href);
+      u.searchParams.delete("join");
+      window.history.replaceState(null, "", u);
+    }
+    void publisher.start(search).catch((err) => addLog(`mesh: ${(err as Error).message}`, "error"));
+  }, [publisher, addLog]);
 
   useEffect(() => {
     let alive = true;
@@ -1127,6 +1188,9 @@ export default function Sandbox() {
                   onPulled={(name, files) => mayDiscard() && void openMemory(name, files)}
                   log={addLog}
                 />
+                <div className="mx-auto max-w-3xl border-t p-4 text-sm">
+                  <PublishPanel publisher={publisher} state={publishState} log={addLog} />
+                </div>
               </TabsContent>
               <TabsContent value="log" className="min-h-0 overflow-auto">
                 <LogView lines={log} onClear={() => setLog([])} />

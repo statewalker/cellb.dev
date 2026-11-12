@@ -315,6 +315,34 @@ project's `.gitignore` files are honored too.
 - The Durable Objects' OPFS pool is named after the project: data survives reruns. If another tab
   holds it, the run gets a fresh pool.
 
+## Publish (HTTPeers)
+
+The Ship tab's Publish section puts the tab in an HTTPeers mesh. Its hub is
+[`../sandbox-hub`](../sandbox-hub), a separate local Node app that holds a reservation on
+`relay.httpeers.net`. Members the hub invited reach the tab as their role allows: a viewer gets
+the running app (`/app/`), an agent the IDE's tools read-only (`/mcp/read`), an editor the tools
+that change the project (`/mcp/edit`). Each MCP mount runs on a capability of its own, and
+neither reaches the history.
+
+```sh
+pnpm --filter @statewalker/cellb-sandbox-hub start
+```
+
+Open the link it prints, then open a project.
+
+```sh
+pnpm --filter @statewalker/cellb-sandbox-hub invite editor
+```
+
+On the invited machine:
+
+```sh
+pnpm --filter @statewalker/cellb-sandbox-hub bridge '<blob>'
+```
+
+The bridge serves `http://127.0.0.1:8790/mcp`, which a desktop agent can use as its MCP server.
+`pnpm e2e:mesh` tests all of it on the public relay.
+
 ## Limits, and where it goes next
 
 - Inline `<script type="module">` blocks are not compiled (only `src` scripts).
@@ -325,5 +353,4 @@ project's `.gitignore` files are honored too.
 - Astro: root-absolute links in pages (`href="/posts/x"`) leave the preview's path (the deployed
   site is fine); Safari, without `COEP: credentialless`, cannot build Astro in the tab.
 - Next steps (see `docs/architecture.md` §10): the server compiled per module, a FilesApi over the
-  folder with webrun-vcs history, the app and the MCP endpoint published over HTTPeers with
-  Biscuit-guarded permissions, cell state promoted to a celld bucket.
+  folder with webrun-vcs history, an anonymous public gateway for published apps, cell state promoted to a celld bucket.
