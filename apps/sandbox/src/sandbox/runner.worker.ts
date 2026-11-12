@@ -12,7 +12,11 @@ import { linkOverPort } from "@statewalker/cellb";
 import { type LoadedProject, loadProject } from "@statewalker/cellb/browser";
 import { bundleCompiler } from "@statewalker/cellb/bundle";
 import { type HostedProjectSite, siteHostOverPort } from "@statewalker/cellb/site";
+import { astroCompilerFromRegistry } from "@statewalker/cellb-astro-builder/compiler";
+import { buildAstroProject } from "@statewalker/cellb-astro-builder/project";
 import { buildProject } from "@statewalker/cellb-bundler";
+import { buildAny } from "@statewalker/cellb-bundler/any";
+import { projectPeers } from "@statewalker/cellb-platform-core/peers";
 import { npmPackages } from "@statewalker/webrun-bundler";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import * as esbuild from "esbuild-wasm";
@@ -70,6 +74,59 @@ const moduleCache = new MemFilesApi();
 const notebookCache = new MemFilesApi();
 const compile = bundleCompiler({ esbuild, packages });
 const hostSite = siteHostOverPort(scope);
+// Astro's compiler (compiler-rs as wasm32-wasi, from the npm registry): loaded on the first Astro
+// build. It needs a shared WebAssembly memory, so the page is cross-origin isolated (its
+// ServiceWorker adds COOP/COEP, integrations/sw-worker.mjs).
+let astroCompiler: ReturnType<typeof astroCompilerFromRegistry> | undefined;
+const compilerOfAstro = () => {
+  if (!globalThis.crossOriginIsolated)
+    throw new Error(
+      "Astro's compiler needs a cross-origin isolated page: reload the sandbox (its ServiceWorker isolates it)",
+    );
+  astroCompiler ??= astroCompilerFromRegistry();
+  astroCompiler.catch(() => {
+    astroCompiler = undefined;
+  });
+  return astroCompiler;
+};
+
+/** An Astro site's sources → what Astro's Cloudflare build writes (wrangler.json, server/, client/). */
+async function buildAstro(entries: [string, Uint8Array][]) {
+  const src = new MemFilesApi();
+  for (const [path, bytes] of entries) await src.write(path, [bytes]);
+  const out = await buildAstroProject({
+    files: src,
+    esbuild,
+    transform: await compilerOfAstro(),
+    packages: await projectPeers(packages, src),
+    log: (m) => log(`astro: ${m}`),
+  });
+  const built = new MemFilesApi();
+  for (const [p, b] of out.files) await built.write(p, [b]);
+  return { files: built, routes: out.routes, ms: out.ms };
+}
+
+/**
+ * Astro's pages name their bundles from the site's root (/_astro/…); the preview serves the site
+ * under a path of its own. The page's and the modules' references are moved under it.
+ */
+function underSitePath(
+  server: LoadedProject,
+  sitePath: () => string,
+): Pick<LoadedProject, "fetch"> {
+  return {
+    async fetch(request: Request) {
+      const res = await server.fetch(request);
+      const type = res.headers.get("content-type") ?? "";
+      const base = sitePath();
+      if (base === "/" || !/text\/html|javascript|text\/css/.test(type)) return res;
+      const text = (await res.text()).replace(/(["'(=\s])\/_astro\//g, `$1${base}_astro/`);
+      const headers = new Headers(res.headers);
+      headers.delete("content-length");
+      return new Response(text, { status: res.status, statusText: res.statusText, headers });
+    },
+  };
+}
 
 let current: {
   project?: LoadedProject;
@@ -103,11 +160,25 @@ async function run(entries: [string, Uint8Array][], folderName: string) {
   const all = new Map(entries);
   const layout = describeProject(all, folderName);
   for (const p of layout.problems) log(p, "error");
-  if (!layout.wranglerPath && !layout.clientRoot && !layout.notebooks)
+  if (!layout.wranglerPath && !layout.clientRoot && !layout.notebooks && !layout.astro)
     throw new Error(layout.problems.join("; "));
 
   let project: LoadedProject | undefined;
-  if (layout.wranglerPath && layout.config?.main) {
+  let sitePath = "/";
+  let server: Pick<LoadedProject, "fetch"> | undefined;
+  if (layout.astro) {
+    let t = performance.now();
+    esbuildReady ??= esbuild.initialize({ wasmURL, worker: false });
+    await esbuildReady;
+    log(`an Astro site (${layout.astro.slice(1)}): building it from its sources`);
+    const astro = await buildAstro(entries);
+    log(`astro: ${astro.routes} routes built (${since(t)})`);
+    t = performance.now();
+    project = await openProject(astro.files, layout.name);
+    current.project = project;
+    server = underSitePath(project, () => sitePath);
+    log(`server: Astro's Worker started on CellB (${since(t)})`);
+  } else if (layout.wranglerPath && layout.config?.main) {
     let t = performance.now();
     esbuildReady ??= esbuild.initialize({ wasmURL, worker: false });
     await esbuildReady;
@@ -123,6 +194,7 @@ async function run(entries: [string, Uint8Array][], folderName: string) {
         await files.write(path, [bytes]);
     project = await openProject(files, layout.name);
     current.project = project;
+    server = project;
     const unsupported = project.unsupported?.length
       ? ` (not supported: ${project.unsupported.join(", ")})`
       : "";
@@ -131,11 +203,10 @@ async function run(entries: [string, Uint8Array][], folderName: string) {
     );
   } else log("no server part: the client runs alone");
 
-  let sitePath = "/";
   const notebookFiles = notebookFilesOf(all);
   const site = await createAppSite({
     client: layout.clientRoot ? clientFilesOf(all, layout.clientRoot) : undefined,
-    server: project,
+    server,
     log,
     moduleCache,
     notebooks: notebookFiles
@@ -188,12 +259,24 @@ async function build(id: number, entries: [string, Uint8Array][], folderName: st
   const t0 = performance.now();
   const all = new Map(entries);
   const layout = describeProject(all, folderName);
-  if (!layout.wranglerPath && !layout.clientRoot && !layout.notebooks)
+  if (!layout.wranglerPath && !layout.clientRoot && !layout.notebooks && !layout.astro)
     throw new Error(layout.problems.join("; "));
   esbuildReady ??= esbuild.initialize({ wasmURL, worker: false });
   await esbuildReady;
   let server: { config: Record<string, unknown>; files: Map<string, Uint8Array> } | undefined;
-  if (layout.wranglerPath && layout.config?.main) {
+  if (layout.astro) {
+    // Astro's Cloudflare output, built from the sources, then bundled like any Worker project.
+    const files = new MemFilesApi();
+    for (const [path, bytes] of entries) await files.write(path, [bytes]);
+    const out = await buildAny({
+      files,
+      esbuild,
+      packages,
+      astroCompiler: compilerOfAstro,
+      log: (m) => log(`build: ${m}`),
+    });
+    server = { config: out.config as Record<string, unknown>, files: out.files };
+  } else if (layout.wranglerPath && layout.config?.main) {
     const files = new MemFilesApi();
     for (const [path, bytes] of entries)
       if (

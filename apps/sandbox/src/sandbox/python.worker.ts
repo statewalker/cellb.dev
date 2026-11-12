@@ -85,8 +85,16 @@ scope.addEventListener("message", async (e: MessageEvent) => {
       py.FS.writeFile(full, bytes);
     }
     py.FS.chdir(`${ROOT}${cwd && cwd !== "/" ? cwd : ""}`);
-    py.setStdout({ batched: (s) => void (stdout.length < MAX_OUT && (stdout += `${s}\n`)) });
-    py.setStderr({ batched: (s) => void (stderr.length < MAX_OUT && (stderr += `${s}\n`)) });
+    py.setStdout({
+      batched: (s) => {
+        if (stdout.length < MAX_OUT) stdout += `${s}\n`;
+      },
+    });
+    py.setStderr({
+      batched: (s) => {
+        if (stderr.length < MAX_OUT) stderr += `${s}\n`;
+      },
+    });
     let value: unknown;
     let error: string | undefined;
     try {

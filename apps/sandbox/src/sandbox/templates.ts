@@ -50,6 +50,13 @@ export const TEMPLATES: Template[] = [
       "An event log in a Durable Object's SQLite table, and notebooks/index.md as its dashboard: reactive JS cells (Observable Notebook Kit) that fetch the Worker's API and plot it.",
     files: () => filesUnder(others, "../../templates/notebook-dashboard"),
   },
+  {
+    id: "astro-site",
+    title: "Astro site: pages, a React island, a Durable Object",
+    description:
+      "An Astro SSR site built from its sources in the tab (compiler-rs as WebAssembly, no Vite), run on CellB: .astro pages, an API route, a hydrated React island, a Durable Object.",
+    files: () => filesUnder(others, "../../templates/astro-site"),
+  },
 ];
 
 export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id);

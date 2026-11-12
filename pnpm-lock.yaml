@@ -202,6 +202,9 @@ importers:
       '@statewalker/cellb':
         specifier: workspace:*
         version: link:../../packages/cellb
+      '@statewalker/cellb-astro-builder':
+        specifier: workspace:*
+        version: link:../../packages/astro-builder
       '@statewalker/cellb-bundler':
         specifier: workspace:*
         version: link:../../packages/bundler

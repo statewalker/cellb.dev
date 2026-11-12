@@ -13,10 +13,6 @@ export interface LocalFolder {
   handle?: FileSystemDirectoryHandle;
 }
 
-type DirHandle = FileSystemDirectoryHandle & {
-  entries(): AsyncIterable<[string, FileSystemHandle]>;
-};
-
 export const canPickFolder = () =>
   typeof (globalThis as { showDirectoryPicker?: unknown }).showDirectoryPicker === "function";
 

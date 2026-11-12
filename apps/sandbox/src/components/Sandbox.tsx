@@ -196,6 +196,20 @@ export default function Sandbox() {
     const unhost = hostSitesForWorker(w, {
       serviceWorkerUrl: new URL(`${base}sw-worker.js`, location.href).href,
     });
+    // That ServiceWorker makes the page cross-origin isolated (Astro's compiler needs shared
+    // memory), but only for pages it controls from their first request: the very first visit is
+    // reloaded once through it, while no project is open yet.
+    const COI_RELOAD = "cellb-sandbox-coi-reload";
+    if (crossOriginIsolated) sessionStorage.removeItem(COI_RELOAD);
+    else if (!sessionStorage.getItem(COI_RELOAD) && "serviceWorker" in navigator) {
+      const reload = () => {
+        if (loadedRef.current) return;
+        sessionStorage.setItem(COI_RELOAD, "1");
+        location.reload();
+      };
+      if (navigator.serviceWorker.controller) reload();
+      else navigator.serviceWorker.addEventListener("controllerchange", reload, { once: true });
+    }
     w.addEventListener("message", (e: MessageEvent<FromRunner>) => {
       const m = e.data;
       if (!m || typeof m !== "object" || !("type" in m)) return;

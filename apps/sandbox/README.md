@@ -57,6 +57,18 @@ client. "Try the sample" runs it; "Download the sample" gives it as a ZIP to ope
 `templates/agent-ui` is a screen an agent pilots: a JSON spec (json-render / A2UI shape) kept in
 a Durable Object, rendered from a fixed catalog of components.
 
+**Astro sites**: a folder with an `astro.config.*` is an Astro site (`templates/astro-site`:
+`.astro` pages, an API route, a React island, a Durable Object). The runner builds it from its
+sources with `@statewalker/cellb-astro-builder` (the config and its integrations evaluated, the
+pages compiled by compiler-rs as WebAssembly, the bundles made by esbuild-wasm; no Vite, no Node:
+about 8 s for the template), then runs Astro's Cloudflare output on CellB like any Worker. The
+preview serves the site under a path of its own, so the pages' and modules' `/_astro/` references
+are moved under it; links in pages should be relative. Ship builds the same output into the
+deployable folder (`buildAny`). The compiler needs a shared WebAssembly memory, so the sandbox is
+cross-origin isolated: its ServiceWorker (`integrations/sw-worker.mjs`, around webrun's runtime)
+adds `COOP: same-origin` and `COEP: credentialless` to every response it gives the sandbox's pages,
+and the very first visit reloads once through it.
+
 ## Running it
 
 ```sh
@@ -309,8 +321,9 @@ project's `.gitignore` files are honored too.
 - The server is re-bundled whole on each run (under a second for the sample); `siteCompiler`
   would recompile one module instead.
 - The editor has no type checking or cross-file completion (no TypeScript language service).
-- Git is a snapshot model (no local history); the Durable Objects' state does not travel with a
-  build.
+- The Durable Objects' state does not travel with a build.
+- Astro: root-absolute links in pages (`href="/posts/x"`) leave the preview's path (the deployed
+  site is fine); Safari, without `COEP: credentialless`, cannot build Astro in the tab.
 - Next steps (see `docs/architecture.md` §10): the server compiled per module, a FilesApi over the
   folder with webrun-vcs history, the app and the MCP endpoint published over HTTPeers with
-  Biscuit-guarded permissions, cell state promoted to a celld bucket, notebook and Astro projects.
+  Biscuit-guarded permissions, cell state promoted to a celld bucket.

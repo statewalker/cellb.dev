@@ -33,6 +33,8 @@ export interface ProjectLayout {
   clientRoot?: string;
   /** True when the project has notebooks (`notebooks/*.md` or Notebook Kit `.html`). */
   notebooks: boolean;
+  /** The Astro config's path, if the project is an Astro site (built from its sources). */
+  astro?: string;
   /** Problems worth showing (a Wrangler file that does not parse, no part to run). */
   problems: string[];
 }
@@ -60,8 +62,16 @@ export function normalizePath(path: string): string {
 const dirOf = (path: string) => path.slice(0, path.lastIndexOf("/")) || "/";
 const join = (dir: string, path: string) => normalizePath(`${dir}/${path}`);
 
+const ASTRO_CONFIGS = [
+  "/astro.config.mjs",
+  "/astro.config.ts",
+  "/astro.config.js",
+  "/astro.config.mts",
+];
+
 export function describeProject(files: ProjectFiles, folderName = "app"): ProjectLayout {
   const problems: string[] = [];
+  const astro = ASTRO_CONFIGS.find((p) => files.has(p));
   const wranglerPath = WRANGLER_FILES.find((p) => files.has(p));
   let config: WranglerLike | undefined;
   if (wranglerPath) {
@@ -70,17 +80,20 @@ export function describeProject(files: ProjectFiles, folderName = "app"): Projec
     } catch (err) {
       problems.push(`${wranglerPath.slice(1)} does not parse: ${(err as Error).message}`);
     }
-    if (config && !config.main) problems.push(`${wranglerPath.slice(1)} has no "main"`);
+    if (config && !config.main && !astro) problems.push(`${wranglerPath.slice(1)} has no "main"`);
     if (config?.main && !files.has(join("/", config.main)))
       problems.push(`"main" names ${config.main}, which is not in the folder`);
   }
 
   const declared = typeof config?.client === "string" ? config.client : config?.client?.root;
   const candidates = declared ? [join("/", declared)] : ["/client", "/public", "/"];
-  const clientRoot = candidates.find((dir) => files.has(join(dir, "index.html")));
+  // An Astro site serves its own pages (src/pages) and public/: no separate client part.
+  const clientRoot = astro
+    ? undefined
+    : candidates.find((dir) => files.has(join(dir, "index.html")));
   if (declared && !clientRoot) problems.push(`"client" names ${declared}, which has no index.html`);
   const hasNotebooks = [...files.keys()].some((p) => /^\/notebooks\/.+\.(md|html)$/i.test(p));
-  if (!wranglerPath && !clientRoot && !hasNotebooks)
+  if (!wranglerPath && !clientRoot && !hasNotebooks && !astro)
     problems.push(
       "no wrangler.jsonc (server part), no index.html (client part) and no notebooks/ in the folder",
     );
@@ -91,6 +104,7 @@ export function describeProject(files: ProjectFiles, folderName = "app"): Projec
     config,
     clientRoot,
     notebooks: hasNotebooks,
+    astro,
     problems,
   };
 }

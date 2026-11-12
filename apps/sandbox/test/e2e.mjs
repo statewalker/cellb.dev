@@ -131,6 +131,8 @@ try {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(APP);
+  // The first visit reloads once through the ServiceWorker, which makes the page cross-origin isolated.
+  await page.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
 
   const status = page.getByTestId("status");
   const frame = page.frameLocator('iframe[title="The running app"]');

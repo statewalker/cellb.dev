@@ -83,6 +83,8 @@ const shot = async (name) => {
 };
 try {
   await page.goto(APP);
+  // The first visit reloads once through the ServiceWorker, which makes the page cross-origin isolated.
+  await page.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
   await page.getByRole("button", { name: /^Template: Agent UI/ }).waitFor();
   await shot("01-welcome-sources");
 

@@ -68,7 +68,7 @@ browser memory limits, and Cloudflare shipping its own in-browser playground wit
 | History | git in `.cellb/history` inside the project's FilesApi: commit, log, changes, restore, checkpoints before agent runs; hidden from agents (`NO_GIT`) | `src/sandbox/history.ts`, `@statewalker/vcs-commands`, `vcs-store-files`, `vcs-working-tree` | [built] |
 | Git remotes | push of that history over smart HTTP; `git-proxy/` (a Worker) adds CORS for GitHub & co | `history.ts` (`push`), `git-proxy/`, `@statewalker/vcs-commands` | [built], with pull (fetch + merge) and branches |
 | Notebooks | `notebooks/*.md` (Observable Notebook Kit cells) served at `notebooks/`, next to the app, cells calling its Worker | `src/sandbox/notebooks.ts`, `@statewalker/notebook-build`, `notebook-site`, linkedom | [built], in the deployable build too (static mode) |
-| Astro | Astro sites built in the tab | `@statewalker/cellb-astro-builder` (needs cross-origin isolation: COOP/COEP from the SW) | [next] |
+| Astro | Astro sites built in the tab | `@statewalker/cellb-astro-builder` (cross-origin isolation: COOP/COEP from the SW) | [built] |
 
 ## 4. The project format (no proprietary format)
 
@@ -254,9 +254,14 @@ The spec shape is deliberately the one of **json-render** (vercel-labs; used by
 `statewalker-sandbox/apps/httpeers-shell-protos/lib`). **[next]**: a `@json-render/react`
 template, and A2UI message streams for incremental updates.
 
-**Astro** is the layout/pages layer **[next]**: Astro projects build in the tab with
-`@statewalker/cellb-astro-builder` (the `examples/astro-in-browser` path; needs COOP/COEP from the
-sandbox's ServiceWorker for the compiler's shared memory), deploy with the same folder.
+**Astro** is the layout/pages layer **[built]**: a folder with an `astro.config.*` builds in the
+runner with `@statewalker/cellb-astro-builder` (config and integrations evaluated, compiler-rs as
+wasm32-wasi, esbuild-wasm) into Astro's Cloudflare output, which CellB runs (its `client/` as the
+assets binding) and `buildAny` turns into the deployable folder. The preview's site path is applied
+to the `/_astro/` references of pages and modules. The compiler's shared memory comes from cross-origin
+isolation: the sandbox's ServiceWorker adds COOP/COEP (credentialless) to its pages' responses, and
+the first visit reloads once through it. **[next]**: a `base` in the builder itself, so root-absolute
+links work in the preview too.
 
 ## 9. Notebooks: literate programs by people and agents [built]
 
@@ -277,7 +282,7 @@ Observable-style notebooks — Markdown with fenced reactive `js` cells, `npm:` 
 | 1 (this change) | Flue agents in Durable Objects on CellB with a Biscuit-capability file system (studio Worker), IDE tools for other agents (window/WebMCP/MCP), console capture, deployable build, GitHub snapshot push/pull, CI deploy workflow, agent-ui template, AGENTS.md |
 | 2 | per-module server compile (`siteCompiler`) for fast reruns; TypeScript language service in the editor |
 | 3 | HTTPeers: publish the app and the MCP mount; Biscuit permission modes; desktop-agent bridge; promote cell state to celld |
-| 4 | Astro project type; json-render/A2UI templates; agent screenshots of the preview as a tool |
+| 4 | json-render/A2UI templates; agent screenshots of the preview as a tool (the Astro project type, the Python tool and isolated script runs are built) |
 
 ## 11. Security notes
 

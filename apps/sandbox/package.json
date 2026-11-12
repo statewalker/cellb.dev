@@ -39,6 +39,7 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@sqlite.org/sqlite-wasm": "^3.53.4-build1",
     "@statewalker/cellb": "workspace:*",
+    "@statewalker/cellb-astro-builder": "workspace:*",
     "@statewalker/cellb-bundler": "workspace:*",
     "@statewalker/cellb-platform-core": "workspace:*",
     "@statewalker/notebook-build": "catalog:",

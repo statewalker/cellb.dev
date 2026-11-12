@@ -119,6 +119,8 @@ try {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(APP);
+  // The first visit reloads once through the ServiceWorker, which makes the page cross-origin isolated.
+  await page.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
   const frame = page.frameLocator('iframe[title="The running app"]');
   const showLog = async () =>
     console.log(
@@ -441,6 +443,7 @@ try {
   );
   const opfsPage = await context.newPage();
   await opfsPage.goto(APP);
+  await opfsPage.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
   await opfsPage.evaluate(async () => {
     let dir = await navigator.storage.getDirectory();
     for (const name of ["projects", "e2e-opfs"])
@@ -474,6 +477,7 @@ try {
   );
   const nbPage = await context.newPage();
   await nbPage.goto(APP);
+  await nbPage.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
   await nbPage.getByRole("button", { name: /^Template: Notebook dashboard/ }).click();
   const nb = nbPage.frameLocator('iframe[title="The running app"]');
   try {
@@ -549,6 +553,78 @@ try {
     throw new Error(`node: api → ${JSON.stringify(nbApi).slice(0, 300)}`);
   await nbPage.close();
 
+  step(
+    "Astro: a site built from its sources in the tab (compiler-rs), run on CellB, its island hydrated; its deployable build run by cellb on Node",
+  );
+  const astroPage = await context.newPage();
+  astroPage.on("pageerror", (e) => errors.push(`astro page: ${e.message}`));
+  await astroPage.goto(APP);
+  await astroPage.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
+  await astroPage.getByRole("button", { name: /^Template: Astro site/ }).click();
+  const astro = astroPage.frameLocator('iframe[title="The running app"]');
+  try {
+    await astro.getByRole("heading", { name: "Astro on CellB" }).waitFor({ timeout: 240_000 });
+    await astro.getByText(/visits: \d+/).waitFor({ timeout: 30_000 });
+    // The island: React from npm, hydrated from the site's own path (its /_astro/ bundles).
+    const island = astro.getByRole("button", { name: /island clicks/ });
+    for (let i = 0; i < 50; i++) {
+      await island.click();
+      if (/island clicks: [1-9]/.test(await island.textContent())) break;
+      await astroPage.waitForTimeout(200);
+    }
+    if (!/island clicks: [1-9]/.test(await island.textContent()))
+      throw new Error("the island did not hydrate");
+    await astro.getByRole("link", { name: "islands" }).click();
+    await astro.getByRole("heading", { name: "Post: islands" }).waitFor({ timeout: 30_000 });
+  } catch (err) {
+    await astroPage.getByRole("tab", { name: "Log" }).click();
+    console.log(
+      await astroPage.evaluate(() => document.querySelector('[data-testid="log"]')?.textContent),
+    );
+    throw err;
+  }
+  const time = await astroPage.evaluate(() =>
+    window.cellbSandbox.call("http_request", { path: "api/time" }),
+  );
+  if (!time.ok || !time.result.body.includes('"ok":true'))
+    throw new Error(`astro api: ${JSON.stringify(time)}`);
+  await astroPage.getByRole("tab", { name: "Ship" }).click();
+  await astroPage.getByRole("button", { name: "Build", exact: true }).click();
+  await astroPage.getByTestId("build-files").waitFor({ timeout: 240_000 });
+  const astroFiles = await astroPage.getByTestId("build-files").locator("li").allTextContents();
+  if (!astroFiles.includes("worker.js")) throw new Error(`the Astro build: ${astroFiles}`);
+  const astroAsset = astroFiles.find((f) => /^assets\/_astro\/.+\.js$/.test(f));
+  if (!astroAsset) throw new Error(`the Astro build has no client bundle: ${astroFiles}`);
+  const [astroZip] = await Promise.all([
+    astroPage.waitForEvent("download"),
+    astroPage.getByRole("button", { name: "Download build .zip" }).click(),
+  ]);
+  const astroDir = await mkdtemp(join(tmpdir(), "sandbox-astro-build-"));
+  await astroZip.saveAs(join(astroDir, "build.zip"));
+  execFileSync("unzip", ["-q", join(astroDir, "build.zip"), "-d", astroDir]);
+  const astroOut = execFileSync(
+    join(root, "node_modules/.bin/tsx"),
+    [
+      join(root, "test/run-build.ts"),
+      join(astroDir, "astro-site-deploy"),
+      "/",
+      "/api/time",
+      `/${astroAsset.slice("assets/".length)}`,
+    ],
+    { cwd: root, encoding: "utf8", timeout: 120_000 },
+  );
+  const [aHome, aApi, aAsset] = astroOut
+    .trim()
+    .split("\n")
+    .filter((l) => l.startsWith("{"))
+    .map((l) => JSON.parse(l));
+  if (aHome?.status !== 200 || !aHome.body.includes("Astro on CellB"))
+    throw new Error(`node: astro page → ${JSON.stringify(aHome).slice(0, 300)}`);
+  if (aApi?.status !== 200 || !aApi.body.includes('"ok":true'))
+    throw new Error(`node: astro api → ${JSON.stringify(aApi).slice(0, 300)}`);
+  if (aAsset?.status !== 200) throw new Error(`node: astro asset → ${JSON.stringify(aAsset)}`);
+  await astroPage.close();
+
   // S3 in the browser (any S3-compatible store whose bucket allows CORS from this origin):
   // S3_ENDPOINT=http://127.0.0.1:9200 S3_BUCKET=projects S3_KEY=… S3_SECRET=…
   if (process.env.S3_ENDPOINT) {
@@ -589,6 +665,7 @@ try {
       console.log("s3 page failed", r.url(), r.failure()?.errorText),
     );
     await s3Page.goto(APP);
+    await s3Page.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
     await s3Page.getByText("An S3 bucket").click();
     await s3Page.getByLabel("Endpoint (empty: AWS)", { exact: true }).fill(cfg.endpoint);
     await s3Page.getByLabel("Region", { exact: true }).fill(cfg.region);
