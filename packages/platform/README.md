@@ -126,7 +126,7 @@ Each demo is built and run on every host.
 | Themed notebook site exported as static files, its cells run from a file server | yes | yes | yes | exported in the tab |
 | Notebook pages, hosted or exported, load notebook-kit's built-ins (`Inputs`…) from the site, not esm.sh | yes | yes | yes | yes |
 | Astro demo built from its sources in the object, then run and hydrated | yes (Worker Loader) | yes (Worker Loader) | yes | yes (built in the tab, run on CellB) |
-| EmDash built from its sources on the Node runner (225 routes), setup seeds D1 | yes | yes | yes | n/a |
+| EmDash built from its sources on the Node runner (227 routes), setup seeds D1 | yes | yes | yes | n/a |
 | EmDash built from its sources in the object | 146 s (Worker Loader) | 102 s (Worker Loader, `CELLD_V8_HEAP_LIMIT_MB=4096`) | 87 s | not tried |
 
 ## Internals

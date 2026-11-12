@@ -5,7 +5,7 @@ compiler and esbuild run as WebAssembly, packages come from the npm registry, an
 runs in CellB's shards with its Durable Objects on CellB's LTX storage. Two apps are built this way,
 a small Astro app (`app/`) and [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare`
 template
-(`../emdash`), which brings `astro.config.mjs`, its integrations, 225 routes, React islands, D1,
+(`../emdash`), which brings `astro.config.mjs`, its integrations, 227 routes, React islands, D1,
 R2, KV and a cron trigger. The same builder runs on Node, and its output runs on CellB in Node too.
 The package is private, since it is a test of CellB and of webrun-bundler and not a library.
 
