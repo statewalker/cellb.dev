@@ -48,6 +48,28 @@ const fake = await startFakeOpenAi({
     const results = toolResults(req);
     const prompt = lastUserText(req);
     if (results.length) return { text: `done: ${results.join(" | ").slice(0, 300)}` };
+    if (prompt === "SCRIPT")
+      return {
+        tool: "run_script",
+        args: {
+          code: "export default async function (files) { const t = await files.readText('/client/index.html'); await files.writeText('/client/upper.txt', t.toUpperCase()); return { length: t.length, listed: (await files.list('/client')).map((e) => e.name) }; }",
+        },
+      };
+    if (prompt === "SCRIPT-SCOPED")
+      return {
+        tool: "run_script",
+        args: {
+          scope: "/client",
+          code: "export default async function (files) { return await files.readText('/secret.txt'); }",
+        },
+      };
+    if (prompt === "SCRIPT-NET")
+      return {
+        tool: "run_script",
+        args: {
+          code: "export default async function () { const r = await fetch('http://example.com/'); return r.status; }",
+        },
+      };
     if (prompt === "DELEGATE-OUTSIDE")
       return { tool: "delegate", args: { task: "WRITE something", scope: "/client" } };
     if (prompt === "DELEGATE-INSIDE")
@@ -157,6 +179,17 @@ async function scenario(label: string, ws: string, backing: FilesApi, onDisk?: s
   assert.equal(refused2.status, 403, JSON.stringify(refused2));
   assert.equal(fake.requests.length - before, 1);
 
+  // Scripts in an isolate: they act on files only through the capability, and have no network.
+  await run(owner.token, "SCRIPT");
+  assert.match(lastResult(), /"length": 10/, lastResult());
+  assert.equal(await readText(backing, "/client/upper.txt"), "<H1>X</H1>");
+  await run(owner.token, "SCRIPT-SCOPED");
+  assert.match(lastResult(), /EACCES|denied/i, lastResult());
+  assert.doesNotMatch(lastResult(), /s3cret/);
+  await run(owner.token, "SCRIPT-NET");
+  assert.doesNotMatch(lastResult(), /^200$/m, lastResult());
+  assert.match(lastResult(), /error|not|denied|outbound|fetch/i, lastResult());
+
   // Delegation: a sub-agent holds the agent's capability narrowed to /client.
   await run(owner.token, "DELEGATE-OUTSIDE");
   assert.match(lastResult(), /EACCES|denied/i, lastResult());
@@ -174,7 +207,7 @@ async function scenario(label: string, ws: string, backing: FilesApi, onDisk?: s
   assert.ok(!visible.some((e) => e.path.startsWith("/.git")));
   assert.ok(visible.some((e) => e.path === "/server/index.ts"));
   console.log(
-    `• ${label}: token FilesApi, Flue edit, read-only refusal, scope, readTree, no .git, delegation, budget`,
+    `• ${label}: token FilesApi, Flue edit, read-only refusal, scope, readTree, no .git, delegation, budget, scripts`,
   );
 }
 

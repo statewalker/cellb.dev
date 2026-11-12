@@ -166,6 +166,13 @@ Beyond files, the agent has `run_app`, `read_logs` and `http_request`: host tool
 the studio worker to the page, which reads the latest files and runs its own tools. A denied
 operation comes back to the model as `EACCES`.
 
+**Scripts**: the agent's `run_script` tool runs JavaScript it writes in a Worker Loader isolate
+(`studio/src/script-tool.ts`; a Dedicated Worker of its own in a browser) with no network
+(`globalOutbound: null`) and one object to act on: `files` (`readText`, `writeText`, `list`,
+`exists`, `remove`), an RpcTarget over the agent's capability, narrowed further by `scope` /
+`read_only`. One isolate per run, 30 s at most. `TOOL_ISOLATES: "off"` turns it off where an
+isolate could reach the host (cellb on Node runs isolates as worker threads).
+
 **Budgets**: every run is metered against its session (the Agent tab's "Budget" fields: model
 turns and tokens per session, empty for unlimited). The Workspace cell reserves a turn before each
 model request and charges the tokens after it; a spent budget ends the run (`stopReason: "limit"`)

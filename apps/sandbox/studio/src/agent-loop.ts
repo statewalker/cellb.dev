@@ -35,6 +35,7 @@ import { rgForFlue } from "./capfs/flue-compat.ts";
 import { type LlmConfig, llmConfig, llmCredentials, redactor } from "./capfs/llm-config.ts";
 import { attenuationBlock } from "./capfs/policy.ts";
 import { hostTools, type StudioHost } from "./host-tools.ts";
+import { scriptTool } from "./script-tool.ts";
 
 export interface AgentRunRequest {
   prompt: string;
@@ -54,6 +55,8 @@ export type AgentEvent =
   | { type: "tool_result"; id: string; name: string; ok: boolean; output: string };
 
 export interface AgentLoopEnv {
+  LOADER?: unknown;
+  TOOL_ISOLATES?: string;
   LLM?: unknown;
   LLM_API_KEY?: string;
   LLM_FROM_REQUEST?: string;
@@ -201,6 +204,7 @@ export async function runAgentLoop(
         },
     ),
     ...(opts.host ? hostTools(opts.host) : []),
+    ...(env.LOADER && env.TOOL_ISOLATES !== "off" ? [scriptTool(cap, env.LOADER as never)] : []),
     ...((opts.depth ?? 0) < MAX_DEPTH ? [delegateTool()] : []),
   ];
 

@@ -74,6 +74,15 @@ const NEW_TITLE = "Edited by the agent";
 const fake = await startFakeOpenAi({
   reply: (req) => {
     const done = toolResults(req).length;
+    if (lastUserText(req).startsWith("SCRIPT"))
+      return done === 0
+        ? {
+            tool: "run_script",
+            args: {
+              code: "export default async function (files) { const names = (await files.list('/')).map((e) => e.name); await files.writeText('/generated.json', JSON.stringify({ names })); return names.length; }",
+            },
+          }
+        : { text: `Script done: ${toolResults(req).at(-1).slice(0, 80)}` };
     if (lastUserText(req).startsWith("WRITE"))
       return done === 0
         ? { tool: "write", args: { path: "/server/sneaky.ts", content: "export {};\n" } }
@@ -239,6 +248,21 @@ try {
     window.cellbSandbox.call("list_files", { pattern: "**/sneaky.ts" }),
   );
   if (sneaky.result.files.length) throw new Error("a read-only agent wrote a file");
+
+  step("run_script: JavaScript in a Worker Loader isolate, on the agent's capability");
+  if (!(await settings.evaluate((d) => d.open))) await settings.locator("summary").click();
+  await panel.getByLabel("Rights", { exact: true }).selectOption("yolo");
+  await panel.getByLabel("Message to the agent").fill("SCRIPT: list the root");
+  await panel.getByRole("button", { name: "Send" }).click();
+  await panel.getByText(/^Script done:/).waitFor({ timeout: 120_000 });
+  for (let i = 0; ; i++) {
+    const g = await page.evaluate(() =>
+      window.cellbSandbox.call("read_file", { path: "generated.json" }),
+    );
+    if (g.ok && JSON.parse(g.result.content).names.includes("server")) break;
+    if (i > 50) throw new Error(`the script's file: ${JSON.stringify(g)}`);
+    await page.waitForTimeout(200);
+  }
 
   step("other agents' tools hold their own capability: read-only refuses their writes");
   await panel.getByLabel("Rights of other agents").selectOption("readonly");

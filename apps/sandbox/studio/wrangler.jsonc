@@ -16,12 +16,18 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Workspace", "Agent"] }],
+  // Isolates for the agent's run_script tool (a Dedicated Worker each in a browser).
+  "worker_loaders": [{ "binding": "LOADER" }],
   "vars": {
     // In a browser the studio has no network ingress: only the page that owns the folder (through
     // its runner) reaches it. Deployed elsewhere, set ADMIN_KEY as a secret and unset this.
     "ADMIN_KEY": "sandbox-page",
     // The model comes with each run (the person's own key, from their tab). A deployment that
     // names its own model sets LLM (JSON) and the LLM_API_KEY secret, and "0" here.
-    "LLM_FROM_REQUEST": "1"
+    "LLM_FROM_REQUEST": "1",
+    // The agent's run_script tool: JS in a Worker Loader isolate with no network and only the
+    // agent's capability. "off" where an isolate could reach the host (cellb on Node: a worker
+    // thread with the host's files).
+    "TOOL_ISOLATES": "on"
   }
 }

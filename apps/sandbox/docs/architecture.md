@@ -170,8 +170,10 @@ narrowed by one Biscuit block (a scope, read-only), one level deep; `test/studio
 checks that a sub-agent scoped to `/client` is refused a write in `/server` and may write in
 `/client`.
 
-**[next]**: untrusted tools in Worker
-Loader isolates, Python (Pyodide) and Wasmer sandboxes on the same capability, and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
+**Scripts [built]**: `run_script` runs agent-written JavaScript in a Worker Loader isolate with
+no network and only a `files` RpcTarget over the (optionally narrowed) capability.
+
+**[next]**: approved tool bundles (flue-capfs-do's bundle checks and hashes), Python (Pyodide) and Wasmer sandboxes on the same capability, and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
 
 ## 6. From the tab to the hosts
 
