@@ -40,6 +40,8 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - ".github/workflows/site.yml"
+      - ".github/scripts/install-chromium.sh"
+      - ".github/scripts/install-rclone.sh"
   pull_request:
     paths:
       - "site/**"
@@ -59,6 +61,8 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - ".github/workflows/site.yml"
+      - ".github/scripts/install-chromium.sh"
+      - ".github/scripts/install-rclone.sh"
   workflow_dispatch:
 
 # One publish at a time, the latest commit last; pull requests cancel their own older runs.
@@ -86,7 +90,7 @@ jobs:
         run: pnpm --filter @statewalker/cellb-site build
       # Every example page, run in Chromium as a visitor runs it (about two minutes: `cron` waits
       # for its trigger).
-      - run: pnpm --filter @statewalker/cellb-site exec playwright install --with-deps chromium
+      - run: bash ${{ github.workspace }}/.github/scripts/install-chromium.sh pnpm --filter @statewalker/cellb-site exec playwright
       - name: Example pages
         run: pnpm --filter @statewalker/cellb-site check:examples
       # The home page's Durable Object code: serve-node.ts on Node, and the demo in Chromium.
@@ -130,7 +134,7 @@ jobs:
           test -f site/dist/index.html || { echo "::error::site/dist/index.html is missing."; exit 1; }
           test -f site/dist/sandbox/app/index.html || { echo "::error::site/dist/sandbox/app/index.html is missing."; exit 1; }
 
-          sudo apt-get install -y -qq rclone >/dev/null
+          bash "${{ github.workspace }}/.github/scripts/install-rclone.sh"
           # Within the site's own prefix: files the build no longer has are removed, after the
           # new ones are uploaded (rclone's default), so the site is never half missing.
           rclone sync site/dist "httpeers:sites/$SITE_DOMAIN" --checksum --stats-one-line -v

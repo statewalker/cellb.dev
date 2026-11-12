@@ -40,7 +40,7 @@ jobs:
           node-version-file: cellb.dev/.nvmrc
       - run: pnpm install --frozen-lockfile
       - name: Chromium
-        run: pnpm --dir emdash exec playwright install --with-deps chromium
+        run: bash ${{ github.workspace }}/cellb.dev/.github/scripts/install-chromium.sh pnpm --dir emdash exec playwright
 
       - name: EmDash's static build, tested
         working-directory: cellb.dev/examples/emdash
@@ -62,7 +62,7 @@ jobs:
           RCLONE_CONFIG_HTTPEERS_SECRET_ACCESS_KEY: ${{ secrets.HTTPEERS_S3_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
-          sudo apt-get install -y -qq rclone >/dev/null
+          bash "${{ github.workspace }}/cellb.dev/.github/scripts/install-rclone.sh"
           publish() { # <dir> <domain>: within the domain's own prefix, new files first, then removals
             test -f "$1/index.html" || { echo "::error::$1/index.html is missing."; exit 1; }
             rclone sync "$1" "httpeers:sites/$2" --checksum --stats-one-line -v

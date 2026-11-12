@@ -1,6 +1,6 @@
 {
   "kind": "bundler",
-  "recordedAt": "2026-11-11",
+  "recordedAt": "2026-11-12",
   "host": "the platform on CellB in Node (packages/platform, dist/platform/cellb)",
   "steps": [
     {
@@ -18,10 +18,10 @@
           "content-type": "application/json; charset=utf-8",
           "access-control-allow-origin": "*"
         },
-        "body": "{\n  \"id\": \"b6e03e331adc9c5f41b6\",\n  \"status\": \"done\",\n  \"tier\": \"object\",\n  \"spec\": {},\n  \"stats\": {\n    \"inputFiles\": 4,\n    \"inputBytes\": 2026,\n    \"packages\": [\n      \"hono@4.13.18\"\n    ],\n    \"workerBytes\": 66270,\n    \"ms\": 869,\n    \"warnings\": 0\n  },\n  \"log\": [\n    \"inputs: 4 files, 0.0 MB → tier object\",\n    \"bundling src/index.ts (worker, 4 files, 0.0 MB)\",\n    \"built worker.js: 0.07 MB, 1 packages, 869 ms\"\n  ],\n  \"outputs\": {\n    \"folder\": \"http://localhost:8787/b/b6e03e331adc9c5f41b6/\",\n    \"zip\": \"http://localhost:8787/b/b6e03e331adc9c5f41b6/project.zip\",\n    \"loader\": \"http://localhost:8787/b/b6e03e331adc9c5f41b6/loader.json\",\n    \"files\": [\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/assets/index.html\",\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/worker.js\",\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/worker.js.map\",\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/wrangler.json\"\n    ]\n  }\n}",
+        "body": "{\n  \"id\": \"b6e03e331adc9c5f41b6\",\n  \"status\": \"done\",\n  \"tier\": \"object\",\n  \"spec\": {},\n  \"stats\": {\n    \"inputFiles\": 4,\n    \"inputBytes\": 2026,\n    \"packages\": [\n      \"hono@4.13.18\"\n    ],\n    \"workerBytes\": 66270,\n    \"ms\": 827,\n    \"warnings\": 0\n  },\n  \"log\": [\n    \"inputs: 4 files, 0.0 MB → tier object\",\n    \"bundling src/index.ts (worker, 4 files, 0.0 MB)\",\n    \"built worker.js: 0.07 MB, 1 packages, 827 ms\"\n  ],\n  \"outputs\": {\n    \"folder\": \"http://localhost:8787/b/b6e03e331adc9c5f41b6/\",\n    \"zip\": \"http://localhost:8787/b/b6e03e331adc9c5f41b6/project.zip\",\n    \"loader\": \"http://localhost:8787/b/b6e03e331adc9c5f41b6/loader.json\",\n    \"files\": [\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/assets/index.html\",\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/worker.js\",\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/worker.js.map\",\n      \"http://localhost:8787/b/b6e03e331adc9c5f41b6/wrangler.json\"\n    ]\n  }\n}",
         "bodyLang": "json",
         "bytes": 945,
-        "ms": 946
+        "ms": 893
       }
     },
     {
@@ -40,7 +40,7 @@
         "body": "[\n  \"/assets/index.html\",\n  \"/worker.js\",\n  \"/worker.js.map\",\n  \"/wrangler.json\"\n]",
         "bodyLang": "json",
         "bytes": 82,
-        "ms": 6
+        "ms": 7
       }
     },
     {
@@ -82,7 +82,7 @@
         "body": "var __defProp = Object.defineProperty;\nvar __name = (target, value) => __defProp(target, \"name\", { value, configurable: true });\n\n// webrun:~/src/index.ts\nimport { DurableObject } from \"cloudflare:workers\";\n\n// webrun:npm:hono@4.13.18/dist/http-exception.js?type=module.mjs\nvar HTTPException = class extends Error {\n  static {\n    __name(this, \"HTTPException\");\n  }\n  res;\n  status;\n  /**\n// … 1981 more lines",
         "bodyLang": "js",
         "bytes": 66270,
-        "ms": 6
+        "ms": 5
       }
     },
     {
@@ -102,7 +102,7 @@
         "body": "{\n  \"compatibilityDate\": \"2026-02-24\",\n  \"compatibilityFlags\": [],\n  \"mainModule\": \"worker.js\",\n  \"modules\": {\n    \"worker.js\": \"… 66270 chars\"\n  }\n}",
         "bodyLang": "json",
         "bytes": 69131,
-        "ms": 4
+        "ms": 3
       }
     },
     {
@@ -123,7 +123,7 @@
         "body": "{\n  \"id\": \"b6e03e331adc9c5f41b6\",\n  \"status\": \"done\",\n  \"…\": \"as above\"\n}",
         "bodyLang": "json",
         "bytes": 945,
-        "ms": 11
+        "ms": 14
       }
     },
     {
@@ -160,10 +160,10 @@
         "headers": {
           "content-type": "application/json"
         },
-        "body": "[\n  {\n    \"name\": \"Ada\",\n    \"text\": \"First!\",\n    \"at\": \"2026-11-11T11:58:13.220Z\"\n  }\n]",
+        "body": "[\n  {\n    \"name\": \"Ada\",\n    \"text\": \"First!\",\n    \"at\": \"2026-11-12T07:25:02.181Z\"\n  }\n]",
         "bodyLang": "json",
         "bytes": 64,
-        "ms": 17
+        "ms": 14
       }
     },
     {
@@ -179,7 +179,7 @@
         "headers": {
           "content-type": "application/json"
         },
-        "body": "[\n  {\n    \"name\": \"Ada\",\n    \"text\": \"First!\",\n    \"at\": \"2026-11-11T11:58:13.220Z\"\n  },\n  {\n    \"name\": \"Grace\",\n    \"text\": \"Hello from a Durable Object.\",\n    \"at\": \"2026-11-11T11:58:13.227Z\"\n  }\n]",
+        "body": "[\n  {\n    \"name\": \"Ada\",\n    \"text\": \"First!\",\n    \"at\": \"2026-11-12T07:25:02.181Z\"\n  },\n  {\n    \"name\": \"Grace\",\n    \"text\": \"Hello from a Durable Object.\",\n    \"at\": \"2026-11-12T07:25:02.188Z\"\n  }\n]",
         "bodyLang": "json",
         "bytes": 151,
         "ms": 6
@@ -208,7 +208,7 @@
   "shots": [],
   "facts": {
     "buildId": "b6e03e331adc9c5f41b6",
-    "buildMs": 946,
+    "buildMs": 893,
     "workerBytes": 66270
   }
 }

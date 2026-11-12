@@ -18,7 +18,7 @@ worker, on Node.
 ## Use cases
 
 - **Astro sites built by the platform from their sources.** A small app takes about 6 seconds in
-  the bundler's object. EmDash (225 routes) takes about 35 seconds on the Node runner. Inside the
+  the bundler's object. EmDash (227 routes) takes about 35 seconds on the Node runner. Inside the
   bundler's object, on hosts without the 128 MB limit, it took 87 s on CellB in Node, 102 s on
   celld and 146 s on Wrangler ([the platform's results](../platform/README.md#results-on-each-host)).
 - **Astro in a browser tab.** The platform's tab builds an Astro app from its sources. The result
