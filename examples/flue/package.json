@@ -23,7 +23,7 @@
     "@playwright/test": "^1.65.0",
     "@sparticuz/chromium": "^153.0.0",
     "@sqlite.org/sqlite-wasm": "^3.54.1-build1",
-    "@statewalker/cellb": "~0.8.3",
+    "@statewalker/cellb": "~0.8.5",
     "@statewalker/fake-openai": "workspace:*",
     "@statewalker/webrun-files-mem": "^0.10.3",
     "@types/node": "catalog:",

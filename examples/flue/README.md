@@ -139,7 +139,7 @@ CORS preflights, since the worker's origin is the Vite server's) and a fresh OPF
   conversations need more than the worker's first 64 OPFS files. Older versions grew the pool
   only once it was full, by doubling it, and in a busy worker each new file takes seconds, so a
   conversation waited for minutes and the specs timed out. 0.8.3 grows it ahead of need
-  (`packages/cellb/src/adapters/wasm-sqlite.ts`), which is why the example asks for `~0.8.3`.
+  (`packages/cellb/src/adapters/wasm-sqlite.ts`), so the example's cellb range starts above it.
 - What CellB still lacks for Agents SDK apps is listed in [Gaps](../../packages/cellb/docs/gaps.md).
 
 ### Dependencies
