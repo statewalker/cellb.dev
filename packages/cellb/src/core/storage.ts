@@ -159,6 +159,10 @@ export class AsyncKvApi {
       return fn();
     });
   }
+  /** An async op that writes (`ctx.storage` holds it back while another event's transaction is open). */
+  protected writeOp<T>(fn: () => T): Promise<T> {
+    return this.op(fn);
+  }
   get<T = unknown>(key: string): Promise<T | undefined>;
   get<T = unknown>(keys: string[]): Promise<Map<string, T>>;
   get(keyOrKeys: string | string[]): Promise<unknown> {
@@ -176,7 +180,7 @@ export class AsyncKvApi {
   put(key: string, value: unknown): Promise<void>;
   put(entries: Record<string, unknown>): Promise<void>;
   put(keyOrEntries: string | Record<string, unknown>, value?: unknown): Promise<void> {
-    return this.op(() => {
+    return this.writeOp(() => {
       if (typeof keyOrEntries === "string") return this.kv.put(keyOrEntries, value);
       const entries = Object.entries(keyOrEntries);
       checkKeys(entries.map(([k]) => k));
@@ -186,7 +190,7 @@ export class AsyncKvApi {
   delete(key: string): Promise<boolean>;
   delete(keys: string[]): Promise<number>;
   delete(keyOrKeys: string | string[]): Promise<boolean | number> {
-    return this.op(() => {
+    return this.writeOp(() => {
       if (!Array.isArray(keyOrKeys)) return this.kv.delete(keyOrKeys);
       checkKeys(keyOrKeys);
       return keyOrKeys.filter((k) => this.kv.delete(k)).length;
@@ -221,26 +225,54 @@ export class DurableObjectStorage extends AsyncKvApi {
     });
     this.kv = kv;
     this.#sync = sync;
-    sql.outsideTransaction = () => this.#outsideTransaction();
+    sql.outsideTransaction = () => this.#otherEvent();
   }
   /**
-   * Async storage calls from another event wait while a transaction() is open, as that event
-   * would on workerd: their writes would otherwise land in its savepoint and be undone if it
-   * rolls back. Telling the events apart needs async context, as for nesting.
+   * Async writes from another event wait while a transaction() is open, as that event would on
+   * workerd: they would otherwise land in its savepoint and be undone if it rolls back. Reads do
+   * not wait: an event may await, inside its transaction, a read another event started (a
+   * memoized load). Events are told apart by the token `runEvent()` gives each one, which needs
+   * async context; without it nothing waits.
    */
-  protected override op<T>(fn: () => T): Promise<T> {
+  protected override writeOp<T>(fn: () => T): Promise<T> {
     return this.gate.runClosed(async () => {
       await Promise.resolve();
-      while (this.#txnDone && this.#outsideTransaction()) await this.#txnDone;
+      if (this.#waitFor()) {
+        // On workerd such a wait cannot end if the transaction awaits this very write: say so.
+        const slow = setTimeout(
+          () =>
+            console.warn(
+              "cellb: a storage write from another event has waited 5 s for an open storage.transaction(); does the transaction await it?",
+            ),
+          5000,
+        );
+        try {
+          for (let done = this.#waitFor(); done; done = this.#waitFor()) await done;
+        } finally {
+          clearTimeout(slow);
+        }
+      }
       return fn();
     });
   }
-  #outsideTransaction(): boolean {
-    const scope = this.#txnScope;
-    return this.#txnDepth > 0 && scope !== undefined && scope.get() !== this;
+  #events = asyncSlot("cellb.event");
+  #txnOwner: unknown;
+  /** Runs one event's handler under a token of its own (the object host delivers through it). */
+  runEvent<R>(fn: () => R): R {
+    return this.#events ? this.#events.run({}, fn) : fn();
+  }
+  /** The open transaction's end, when a write from the calling event must wait for it. */
+  #waitFor(): Promise<void> | undefined {
+    return this.#otherEvent() ? this.#txnDone : undefined;
+  }
+  /** Called from an event other than the one whose transaction() is open now. */
+  #otherEvent(): boolean {
+    return (
+      this.#txnDepth > 0 && this.#events !== undefined && this.#events.get() !== this.#txnOwner
+    );
   }
   deleteAll(): Promise<void> {
-    return this.op(() => {
+    return this.writeOp(() => {
       this.kv.deleteAll();
       // deleteAll() also deletes the alarm, as on Cloudflare, unless `delete_all_preserves_alarm`.
       if (!this.deleteAllPreservesAlarm) this.clearAlarmSync();
@@ -270,12 +302,14 @@ export class DurableObjectStorage extends AsyncKvApi {
    * (AsyncLocalStorage on Node, or the engine's AsyncContext); without it, such a call waits
    * for its parent forever: use the `txn` argument there.
    */
-  #txnScope = txnScope();
+  #txnScope = asyncSlot("cellb.storage.transaction");
   #txnDepth = 0;
   /** Settles when the transaction open now (the outermost one) ends. */
   #txnDone: Promise<void> | undefined;
   transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
-    if (this.#txnScope?.get() === this) return this.#transaction(closure);
+    // Nested: inside a transaction's closure while it is still open. (A call its closure left
+    // running after returning queues like any other.)
+    if (this.#txnDepth > 0 && this.#txnScope?.get() === this) return this.#transaction(closure);
     const run = () => this.#transaction(closure);
     const result = this.#transactions.then(run, run);
     this.#transactions = result.catch(() => {});
@@ -285,7 +319,10 @@ export class DurableObjectStorage extends AsyncKvApi {
     return this.gate.runClosed(async () => {
       const release = this.sql.hold();
       let ended: (() => void) | undefined;
-      if (this.#txnDepth === 0) this.#txnDone = new Promise<void>((r) => (ended = r));
+      if (this.#txnDepth === 0) {
+        this.#txnDone = new Promise<void>((r) => (ended = r));
+        this.#txnOwner = this.#events?.get();
+      }
       const sp = `_cf_atx${++this.#txnDepth}`;
       this.sql.internalExec(`SAVEPOINT ${sp}`);
       const txn = new DurableObjectTransaction(this.kv, this.gate);
@@ -402,7 +439,7 @@ export class DurableObjectStorage extends AsyncKvApi {
     // As celld: the time is coerced to a number and a non-number becomes 0 (due at once).
     const n = scheduledTime instanceof Date ? scheduledTime.getTime() : Number(scheduledTime);
     const at = Number.isNaN(n) ? 0 : n;
-    return this.op(() => {
+    return this.writeOp(() => {
       this.#meta();
       this.sql.internalExec(
         // celld's statement: counters reset, a new random generation
@@ -422,7 +459,7 @@ export class DurableObjectStorage extends AsyncKvApi {
     this.onAlarmChange(at);
   }
   deleteAlarm(_opts?: unknown): Promise<void> {
-    return this.op(() => this.clearAlarmSync());
+    return this.writeOp(() => this.clearAlarmSync());
   }
   clearAlarmSync(): void {
     this.#meta();
@@ -431,13 +468,13 @@ export class DurableObjectStorage extends AsyncKvApi {
   }
 }
 
-interface TxnScope {
+interface AsyncSlot {
   get(): unknown;
   run<R>(value: unknown, fn: () => R): R;
 }
 
-/** An async-context slot marking "inside this storage's transaction", where the platform has one. */
-function txnScope(): TxnScope | undefined {
+/** A value that follows async context, where the platform has it (Node, or AsyncContext). */
+function asyncSlot(name: string): AsyncSlot | undefined {
   const hooks = (
     globalThis as { process?: { getBuiltinModule?(id: string): unknown } }
   ).process?.getBuiltinModule?.("node:async_hooks") as
@@ -454,7 +491,7 @@ function txnScope(): TxnScope | undefined {
   }
   const native = nativeAsyncContext();
   if (native) {
-    const v = new native.Variable<unknown>({ name: "cellb.storage.transaction" });
+    const v = new native.Variable<unknown>({ name });
     return { get: () => v.get(), run: (value, fn) => v.run(value, fn) };
   }
   return undefined;
