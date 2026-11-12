@@ -266,6 +266,32 @@ describe.each(drivers)("P02 [%s]", (_name, opener) => {
       expect(r).toEqual(["a", "c"]);
     });
 
+    it("async transaction(): one a finished closure starts later does not nest into another's", async () => {
+      const { inObject } = probeRuntime();
+      let late!: Promise<unknown>;
+      await inObject("tx7", (ctx) =>
+        ctx.storage.transaction(async () => {
+          late = new Promise((res) => setTimeout(res, 10)).then(() =>
+            ctx.storage.transaction(async (txn) => {
+              await txn.put("late", 1);
+            }),
+          );
+        }),
+      );
+      await inObject("tx7", (ctx) =>
+        ctx.storage
+          .transaction(async (txn) => {
+            await txn.put("b", 1);
+            await new Promise((res) => setTimeout(res, 20)); // the late one comes due meanwhile
+            throw new Error("b");
+          })
+          .catch(() => {}),
+      );
+      await late;
+      const keys = await inObject("tx7", async (ctx) => [...(await ctx.storage.list()).keys()]);
+      expect(keys).toEqual(["late"]);
+    });
+
     it("async transaction(): another event's async writes wait for it, and survive its rollback", async () => {
       const { inObject } = probeRuntime();
       const order: string[] = [];

@@ -306,10 +306,13 @@ export class DurableObjectStorage extends AsyncKvApi {
   #txnDepth = 0;
   /** Settles when the transaction open now (the outermost one) ends. */
   #txnDone: Promise<void> | undefined;
+  /** A token per transaction open now; its closure runs with it in `#txnScope`. */
+  #openTxns = new Set<object>();
   transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
-    // Nested: inside a transaction's closure while it is still open. (A call its closure left
-    // running after returning queues like any other.)
-    if (this.#txnDepth > 0 && this.#txnScope?.get() === this) return this.#transaction(closure);
+    // Nested: inside the closure of a transaction still open. (A call its closure left running
+    // after returning queues like any other.)
+    const parent = this.#txnScope?.get();
+    if (parent && this.#openTxns.has(parent as object)) return this.#transaction(closure);
     const run = () => this.#transaction(closure);
     const result = this.#transactions.then(run, run);
     this.#transactions = result.catch(() => {});
@@ -323,12 +326,19 @@ export class DurableObjectStorage extends AsyncKvApi {
         this.#txnDone = new Promise<void>((r) => (ended = r));
         this.#txnOwner = this.#events?.get();
       }
-      const sp = `_cf_atx${++this.#txnDepth}`;
+      const depth = ++this.#txnDepth;
+      const sp = `_cf_atx${depth}`;
       this.sql.internalExec(`SAVEPOINT ${sp}`);
       const txn = new DurableObjectTransaction(this.kv, this.gate);
+      const token = {};
+      this.#openTxns.add(token);
       try {
         const scope = this.#txnScope;
-        const r = await (scope ? scope.run(this, () => closure(txn)) : closure(txn));
+        const r = await (scope ? scope.run(token, () => closure(txn)) : closure(txn));
+        if (this.#txnDepth !== depth)
+          console.warn(
+            "cellb: a storage.transaction() ended while one nested in it was still running; await nested transactions",
+          );
         if (txn.rolledBack) this.#rollbackTo(sp);
         else this.sql.internalExec(`RELEASE ${sp}`);
         return r;
@@ -336,6 +346,7 @@ export class DurableObjectStorage extends AsyncKvApi {
         this.#rollbackTo(sp);
         throw e;
       } finally {
+        this.#openTxns.delete(token);
         this.#txnDepth--;
         release();
         if (ended) {
