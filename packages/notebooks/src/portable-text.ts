@@ -363,6 +363,13 @@ export interface OutlineEntry {
   slug: string;
 }
 
+/** A page section for the search index: the text under one heading (`anchor` its id). */
+export interface SearchSection {
+  heading: string;
+  anchor: string;
+  text: string;
+}
+
 /**
  * Prose → HTML with markdown-it: headings get ids (collected into `outline`), each expression's
  * placeholder becomes the `<span id="cell-<id>">` its cell displays into, or the error of an
@@ -374,10 +381,20 @@ export function renderProse(
   outline: OutlineEntry[],
   used: Set<string>,
   errors: ReadonlyMap<number, string> = new Map(),
+  /** Collects the prose's text by section, for the search index; the last entry is the current one. */
+  sections?: SearchSection[],
 ): string {
   const sources = part.exprs.map((e) => e.source);
   const tokens = md.parse(part.markdown, {});
   for (const [i, t] of tokens.entries()) {
+    if (sections && t.type === "inline" && tokens[i - 1]?.type !== "heading_open") {
+      const words = (t.children ?? [])
+        .filter((c) => c.type === "text" || c.type === "code_inline")
+        .map((c) => c.content.replace(PLACEHOLDER, " "))
+        .join("");
+      const current = sections.at(-1);
+      if (current && words.trim()) current.text += `${current.text ? " " : ""}${words.trim()}`;
+    }
     if (t.type !== "heading_open") continue;
     const raw = tokens[i + 1]?.content ?? "";
     const text = showExprs(raw, sources);
@@ -387,6 +404,7 @@ export function renderProse(
     used.add(slug);
     t.attrSet("id", slug);
     outline.push({ depth: Number(t.tag.slice(1)), text, slug });
+    sections?.push({ heading: raw.replace(PLACEHOLDER, "").trim(), anchor: slug, text: "" });
   }
   const html = md.renderer.render(tokens, md.options, {});
   return html.replace(/<[^>]*>|(\d+)/g, (match, n?: string) => {

@@ -10,6 +10,7 @@
  *   PUT  /nb/<site>/theme             { build: <id> }: a bundler build of an Astro theme
  *   GET  /nb/<site>/t/<page>          a page rendered by the theme, from the page models
  *   POST /nb/<site>/export            the themed site as static files, a ZIP
+ *   GET  /nb/<site>/search.json       the search index of the last build (search.ts)
  *
  * The build is `@statewalker/notebook-build` in hosted mode: Markdown and notebook-kit HTML
  * become pages that import notebook-kit's runtime and their own `npm:` imports from the site's
@@ -112,6 +113,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       dom: dom as never,
       siteTitle: site,
       base: `/nb/${site}/t`,
+      searchUrl: `/nb/${site}/search.json`,
     });
     const home = models.pages.find((p) => p.id === "index");
     if (home) models.site.title = home.title;
@@ -129,6 +131,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       pages: Object.fromEntries(models.pages.map((p) => [p.id, p])),
     };
     await this.#writeJson("/models.json", stored);
+    await this.#writeJson("/search.json", models.search);
     return { models: models.pages.length, modelFailures: models.failures };
   }
 
@@ -286,7 +289,12 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       const html = (res.headers.get("content-type") ?? "").includes("text/html");
       out.set(html ? `${path.replace(/\/$/, "")}/index.html`.slice(1) : path.slice(1), bytes);
       if (!html) continue;
-      for (const [, link] of new TextDecoder().decode(bytes).matchAll(/(?:href|src)="([^"#?]+)/g)) {
+      // Links in the markup only: a script's text is code (the theme's search script builds
+      // `href="${…}"` strings), not links to follow.
+      const markup = new TextDecoder()
+        .decode(bytes)
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+      for (const [, link] of markup.matchAll(/(?:href|src)="([^"#?]+)/g)) {
         const u = new URL(link, origin + path);
         if (u.origin !== origin || !u.pathname.startsWith(`${prefix}/`)) continue;
         if (seen.has(u.pathname) || out.has(u.pathname.slice(1))) continue;
@@ -295,6 +303,10 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       }
     }
     if (failed.length) return text(`export: ${failed.join(", ")}\n`, 502);
+    // The search index: the theme fetches it from JavaScript, so no crawl finds it.
+    const search = await this.#readJson<unknown>("/search.json");
+    if (search)
+      out.set(`${prefix.slice(1)}/search.json`, new TextEncoder().encode(JSON.stringify(search)));
     const home = `${prefix}/t/`;
     out.set(
       "index.html",
@@ -419,6 +431,10 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       } finally {
         this.#building = undefined;
       }
+    }
+    if (area === "search.json" && rest.length === 0) {
+      const search = await this.#readJson<unknown>("/search.json");
+      return search ? json(search) : text("no search index: build first\n", 404);
     }
     if (area === "models.json" && rest.length === 0) {
       const models = await this.#readJson<StoredModels>("/models.json");

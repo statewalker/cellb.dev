@@ -26,6 +26,7 @@ The demo notebooks are in
 | `PUT /nb/<site>/theme` | `{ "build": "<id>" }`: a bundler build of an Astro theme (`POST /builds`) |
 | `GET /nb/<site>/t/<page>` | a page rendered by the theme from the page models (`t/` is the home page) |
 | `POST /nb/<site>/export` | the themed site as static files, a ZIP (`x-export-pages`, `x-export-modules`) |
+| `GET /nb/<site>/search.json` | the search index of the last build: one entry per page section |
 
 ## How it works
 
@@ -93,6 +94,23 @@ GET  /nb/<site>/t/<page> ─► the theme's build in a Worker Loader isolate,
   release. The platform's Astro demo takes the latest 7.x; between them both places Astro has
   kept its client directives in are checked.
 
+### Search
+
+Each build writes a search index (`src/search.ts`), served at `/nb/<site>/search.json` and named in
+the site model (`site.search`):
+
+- **One entry per page section**: the text under a heading, with the heading's anchor. Text above
+  the first heading belongs to the page itself. Code cells are left out, and expressions count as
+  a space.
+- **Collected in the same markdown-it pass that gives headings their ids**, so an entry's anchor is
+  always an id the page has.
+- **Compact**: `{ pages: [{ path, title }], entries: [{ p, h, a, t }] }`, with up to 2,000
+  characters of text per section, fetched whole.
+
+The default theme has a search box in its header. A small inline script loads the index on first
+focus, matches every query word against the page title, heading and text (headings weigh more),
+and lists up to ten links to `page#anchor`. It needs no library and no CDN.
+
 ### Static export
 
 `POST /nb/<site>/export` returns the themed site as a ZIP that any static file server serves:
@@ -102,6 +120,7 @@ GET  /nb/<site>/t/<page> ─► the theme's build in a Worker Loader isolate,
   closure of the page models' pins (notebook-kit's runtime and the notebooks' `npm:` imports),
   materialized with notebook-build's `materializeDeps`, with the `.css`, `.wasm` and font files
   their packages ship;
+- the search index, `nb/<site>/search.json`, which the theme fetches from JavaScript;
 - a root `index.html` that redirects to `/nb/<site>/t/`.
 
 Paths stay as served (`/nb/<site>/t/…`, `/nb/<site>/_m/…`), so no page is rewritten. One kind of
