@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
@@ -114,6 +114,26 @@ describe("p47 a cell restored from a backup keeps its sqlExtensions", () => {
       expect(version).toMatch(/^v/);
     } finally {
       await r2.close();
+    }
+  });
+});
+
+describe("p47 an in-memory driver's restore() file goes with close()", () => {
+  it("removes the directory restore() made for it", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "cellb-p47-tmp-"));
+    dirs.push(tmp);
+    const saved = process.env.TMPDIR;
+    process.env.TMPDIR = tmp; // os.tmpdir() reads it on every call
+    try {
+      const d = new NodeSqliteDriver();
+      d.restore(image());
+      const made = readdirSync(tmp).filter((n) => n.startsWith("cell-mem-"));
+      expect(made.length).toBe(1);
+      d.close();
+      expect(existsSync(join(tmp, made[0]))).toBe(false);
+    } finally {
+      if (saved === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = saved;
     }
   });
 });

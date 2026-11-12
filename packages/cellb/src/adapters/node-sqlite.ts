@@ -49,6 +49,8 @@ export class NodeSqliteDriver implements SyncSqlDriver {
 
   /** Extensions loaded so far, by name: a new connection (restore()) loads them again. */
   #extensions: string[] = [];
+  /** The directory restore() made for an in-memory database's file. */
+  #restoredDir: string | undefined;
 
   /** A connection to `#path`, set up as every connection of this driver is. */
   #connect(): DatabaseSyncT {
@@ -62,7 +64,12 @@ export class NodeSqliteDriver implements SyncSqlDriver {
     // kept until close (or process death) — a second process can neither read
     // nor write the cell. Storage-level fencing on one host, no lease needed.
     if (this.#exclusive) db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
-    for (const name of this.#extensions) this.#load(db, name);
+    try {
+      for (const name of this.#extensions) this.#load(db, name);
+    } catch (e) {
+      db.close(); // not left open behind the error
+      throw e;
+    }
     return db;
   }
 
@@ -190,6 +197,11 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   }
   close(): void {
     this.#db.close();
+    if (this.#restoredDir) {
+      rmSync(this.#restoredDir, { recursive: true, force: true });
+      temporaryDirs.delete(this.#restoredDir);
+      this.#restoredDir = undefined;
+    }
     if (!this.#temporary) return;
     for (const suffix of ["", "-wal", "-shm", "-journal"])
       rmSync(this.#path + suffix, { force: true });
@@ -280,8 +292,12 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   /** Replaces the database file with `image` and reopens it (an in-memory DB becomes file-backed). */
   restore(image: Uint8Array): void {
     this.#db.close();
-    if (this.#path === ":memory:")
-      this.#path = join(mkdtempSync(join(tmpdir(), "cell-mem-")), "db.sqlite");
+    if (this.#path === ":memory:") {
+      // A directory of its own, removed with the driver (close() or process exit).
+      this.#restoredDir = mkdtempSync(join(tmpdir(), "cell-mem-"));
+      removeAtExit(this.#restoredDir);
+      this.#path = join(this.#restoredDir, "db.sqlite");
+    }
     for (const suffix of ["-wal", "-shm", "-journal"]) rmSync(this.#path + suffix, { force: true });
     writeFileSync(this.#path, image);
     this.#db = this.#connect(); // with the extensions loaded before
