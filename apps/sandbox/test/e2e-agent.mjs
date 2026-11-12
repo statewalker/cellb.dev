@@ -83,6 +83,15 @@ const fake = await startFakeOpenAi({
             },
           }
         : { text: `Script done: ${toolResults(req).at(-1).slice(0, 80)}` };
+    if (lastUserText(req).startsWith("PYTHON"))
+      return done === 0
+        ? {
+            tool: "python",
+            args: {
+              code: "import os, json\nnames = sorted(os.listdir('.'))\nopen('py-out.json', 'w').write(json.dumps({'names': names, 'sum': sum(range(10))}))\nprint('listed', len(names))\nlen(names)",
+            },
+          }
+        : { text: `Python done: ${toolResults(req).at(-1).replace(/\s+/g, " ").slice(0, 300)}` };
     if (lastUserText(req).startsWith("WRITE"))
       return done === 0
         ? { tool: "write", args: { path: "/server/sneaky.ts", content: "export {};\n" } }
@@ -263,6 +272,29 @@ try {
     if (i > 50) throw new Error(`the script's file: ${JSON.stringify(g)}`);
     await page.waitForTimeout(200);
   }
+
+  step("python: Pyodide in a Worker; its writes go back through the agent's capability");
+  await panel.getByLabel("Message to the agent").fill("PYTHON: list the root");
+  await panel.getByRole("button", { name: "Send" }).click();
+  await panel.getByText(/^Python done:/).waitFor({ timeout: 180_000 });
+  for (let i = 0; ; i++) {
+    const g = await page.evaluate(() =>
+      window.cellbSandbox.call("read_file", { path: "py-out.json" }),
+    );
+    if (g.ok && JSON.parse(g.result.content).sum === 45) break;
+    if (i > 50) throw new Error(`python's file: ${JSON.stringify(g)}`);
+    await page.waitForTimeout(200);
+  }
+  await page.evaluate(() => window.cellbSandbox.call("delete_path", { path: "py-out.json" }));
+  await panel.getByLabel("Rights", { exact: true }).selectOption("readonly");
+  await panel.getByLabel("Message to the agent").fill("PYTHON: again, read-only");
+  await panel.getByRole("button", { name: "Send" }).click();
+  await panel.getByText(/^Python done:.*denied.*py-out\.json/).waitFor({ timeout: 120_000 });
+  const pyDenied = await page.evaluate(() =>
+    window.cellbSandbox.call("read_file", { path: "py-out.json" }),
+  );
+  if (pyDenied.ok) throw new Error("a read-only Python run wrote a file");
+  await panel.getByLabel("Rights", { exact: true }).selectOption("yolo");
 
   step("other agents' tools hold their own capability: read-only refuses their writes");
   await panel.getByLabel("Rights of other agents").selectOption("readonly");

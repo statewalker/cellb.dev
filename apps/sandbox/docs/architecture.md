@@ -173,7 +173,9 @@ checks that a sub-agent scoped to `/client` is refused a write in `/server` and 
 **Scripts [built]**: `run_script` runs agent-written JavaScript in a Worker Loader isolate with
 no network and only a `files` RpcTarget over the (optionally narrowed) capability.
 
-**[next]**: approved tool bundles (flue-capfs-do's bundle checks and hashes), Python (Pyodide) and Wasmer sandboxes on the same capability, and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
+**Python [built]**: `python` runs Pyodide in a Worker of its own (a host seam: `cellbStudioHost.python`). It works on a copy of the files the capability may read; the changes are written back through the capability, each authorized, the refused ones reported as `denied`.
+
+**[next]**: approved tool bundles (flue-capfs-do's bundle checks and hashes), Wasmer (WASIX) sandboxes on the same copy-in / write-back scheme, and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
 
 ## 6. From the tab to the hosts
 

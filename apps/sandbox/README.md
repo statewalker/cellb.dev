@@ -173,6 +173,15 @@ operation comes back to the model as `EACCES`.
 `read_only`. One isolate per run, 30 s at most. `TOOL_ISOLATES: "off"` turns it off where an
 isolate could reach the host (cellb on Node runs isolates as worker threads).
 
+**Python**: the agent's `python` tool runs Python 3 (Pyodide, from jsdelivr, in a Worker the
+studio worker starts on first use; `src/sandbox/python.worker.ts`). The engine never holds the
+capability: before the run, `studio/src/python-tool.ts` copies in the files the capability may
+read (`readTree`, each one authorized; 5000 files / 16 MB at most); after it, each file the code
+wrote or deleted goes back through the capability, authorized again. A write the rights refuse
+(read-only, plan, outside the scope, `.cellb/`) is reported as `denied` and not applied. Packages
+such as numpy or pandas are loaded from the code's imports. 120 s at most per run, after which
+the engine is replaced. A host without a Python engine (cellb on Node, workerd) has no such tool.
+
 **Budgets**: every run is metered against its session (the Agent tab's "Budget" fields: model
 turns and tokens per session, empty for unlimited). The Workspace cell reserves a turn before each
 model request and charges the tokens after it; a spent budget ends the run (`stopReason: "limit"`)

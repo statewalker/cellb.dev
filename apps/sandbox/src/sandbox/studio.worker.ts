@@ -24,7 +24,45 @@ const stores = new Map<string, FilesApi>();
 let hostCallId = 0;
 const hostCalls = new Map<number, (out: HostOut) => void>();
 
+// The Python engine (Pyodide), one per tab, started on the first `python` call.
+const PYTHON_TIMEOUT_MS = 120_000; // the first run downloads Pyodide (~10 MB)
+let pythonEngine: Worker | undefined;
+let pythonId = 0;
+const pythonRuns = new Map<number, (out: unknown) => void>();
+function python(req: { files: [string, Uint8Array][]; code: string; cwd?: string }) {
+  if (!pythonEngine) {
+    pythonEngine = new Worker(new URL("./python.worker.ts", import.meta.url), { type: "module" });
+    pythonEngine.addEventListener("message", (e: MessageEvent<{ id: number }>) => {
+      pythonRuns.get(e.data.id)?.(e.data);
+      pythonRuns.delete(e.data.id);
+    });
+  }
+  const id = ++pythonId;
+  const engine = pythonEngine;
+  return new Promise((resolve) => {
+    // A run that does not end (a loop, a hung download) costs the engine: it is replaced.
+    const timer = setTimeout(() => {
+      pythonRuns.delete(id);
+      if (pythonEngine === engine) pythonEngine = undefined;
+      engine.terminate();
+      resolve({
+        stdout: "",
+        stderr: "",
+        value: null,
+        error: `ETIMEDOUT: Python ran over ${PYTHON_TIMEOUT_MS / 1000} s`,
+        changes: [],
+      });
+    }, PYTHON_TIMEOUT_MS);
+    pythonRuns.set(id, (out) => {
+      clearTimeout(timer);
+      resolve(out);
+    });
+    engine.postMessage({ id, ...req });
+  });
+}
+
 (globalThis as { cellbStudioHost?: unknown }).cellbStudioHost = {
+  python,
   store: (ws: string) => stores.get(ws),
   notify: (ws: string, path: string, kind: "write" | "delete" | "mkdir") =>
     post({ type: "changed", ws, path, kind }),

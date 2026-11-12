@@ -23,7 +23,17 @@ export interface StudioHost {
     args: Record<string, unknown>,
   ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }>;
   store?(workspace: string): FilesApi | undefined;
+  /** Runs Python (Pyodide) on a copy of files; reports what changed (python-tool.ts). */
+  python?(req: { files: [string, Uint8Array][]; code: string; cwd?: string }): Promise<PythonOut>;
   notify?(workspace: string, path: string, kind: "write" | "delete" | "mkdir"): void;
+}
+
+export interface PythonOut {
+  stdout: string;
+  stderr: string;
+  value: string | null;
+  error?: string;
+  changes: [string, Uint8Array | null][];
 }
 
 export function studioHost(): StudioHost | undefined {
