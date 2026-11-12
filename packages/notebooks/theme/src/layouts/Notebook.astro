@@ -45,6 +45,8 @@ const toc = page.outline.filter((o) => o.depth >= 2 && o.depth <= 3);
   .toc .depth-3 { padding-left: 12px; }
   .notebook { max-width: 760px; }
   .cell { margin: 12px 0; }
+  .cell-source { margin: 4px 0 12px; padding: 8px 12px; border-left: 3px solid var(--line); overflow-x: auto; font-size: 13px; color: var(--muted); }
+  .expr, .expr > * { display: inline; }
   .cell-error { color: #b91c1c; white-space: pre-wrap; }
   @media (max-width: 900px) {
     .frame { grid-template-columns: minmax(0, 1fr); padding: 16px; }
