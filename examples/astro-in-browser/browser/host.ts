@@ -173,6 +173,17 @@ async function start() {
   }
   say(`Running: built in ${document.body.dataset.buildMs} ms, served from this tab.`);
   document.body.dataset.ready = "true";
+  // For the chooser (start.html): which app this origin serves now.
+  try {
+    localStorage.setItem("cellb:last-build", JSON.stringify({ app: APP, at: Date.now() }));
+  } catch {}
+  // Sent here by the chooser for a path of the site (?next=): the link opens that path.
+  const next = new URLSearchParams(location.search).get("next");
+  const open = document.getElementById("open") as HTMLAnchorElement | null;
+  if (open && next?.startsWith("/") && !next.startsWith("//")) {
+    open.href = next;
+    open.textContent = `Open ${next}`;
+  }
   if (USE_STORE) await showPackageCache(false);
 }
 
