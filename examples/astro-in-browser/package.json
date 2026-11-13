@@ -22,14 +22,14 @@
     "@emnapi/runtime": "1.11.3",
     "@napi-rs/wasm-runtime": "1.2.7",
     "@statewalker/webrun-modules": "0.3.6",
-    "@statewalker/webrun-files-sqlite": "0.11.0",
+    "@statewalker/webrun-files-sqlite": "0.11.1",
     "@statewalker/db-sqlite-browser": "0.2.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",
     "@sparticuz/chromium": "^153.0.0",
     "@sqlite.org/sqlite-wasm": "^3.54.1-build1",
-    "@statewalker/cellb": "~0.8.5",
+    "@statewalker/cellb": "~0.8.8",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

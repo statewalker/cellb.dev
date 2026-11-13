@@ -3,7 +3,9 @@
 import { joinProjectShards } from "@statewalker/cellb/tabs";
 import { pkgstoreConfig } from "../src/pkgstore/config.ts";
 import pkgstoreSource from "../src/pkgstore/worker.js?raw";
+import { type AppName, loadBuild, type SavedBuild, saveBuild } from "./builds.ts";
 import { crawlSite, zip } from "./export-site.ts";
+import { nextPath } from "./next-path.ts";
 
 const STORE = `${location.origin}/__cellb/projects/pkgstore`;
 /**
@@ -11,6 +13,17 @@ const STORE = `${location.origin}/__cellb/projects/pkgstore`;
  * `?memory`: in the builder's memory only, fetched from the registry on every build.
  */
 const USE_STORE = !new URLSearchParams(location.search).has("memory");
+/**
+ * The app runs from its saved build (builds.ts) when there is one; `?rebuild` compiles it again
+ * (and saves the new build).
+ */
+const REBUILD = new URLSearchParams(location.search).has("rebuild");
+/** This page's URL with `?rebuild`, its other parameters kept. */
+function rebuildURL(): string {
+  const q = new URLSearchParams(location.search);
+  q.set("rebuild", "");
+  return `${location.pathname}?${q.toString().replace(/rebuild=(&|$)/, "rebuild$1")}`;
+}
 
 /** The package store: a Durable Object project run by cellb in this tab (the builder's cache). */
 async function startPackageStore(serviceWorker: () => Promise<ServiceWorker>) {
@@ -40,7 +53,69 @@ const log = (line: string) => {
   console.info(`[build] ${line}`);
   logEl.textContent += `${line}\n`;
   logEl.scrollTop = logEl.scrollHeight;
+  advance(line);
 };
+
+// --- Progress: the build's stages, read from its log lines, and the time spent so far ---
+
+/**
+ * Where a log line puts the start of the app, in percent, and the stage it begins. The weights
+ * follow a cold EmDash build (the server bundle takes the longest); a small app skips stages.
+ */
+const STAGES: [RegExp, number, string][] = [
+  [/^cross-origin isolated/, 2, "Reading the sources"],
+  [/^saved build of /, 80, "Starting the saved build"],
+  [/^package store \(a Durable Object/, 4, "Starting the compilers"],
+  [/^esbuild-wasm .* ready/, 6, "Loading Astro's compiler"],
+  [/^Astro's compiler .* ready/, 9, "Fetching packages"],
+  [/^package cache: /, 11, "Fetching packages"],
+  [/^preloading the packages/, 13, "Preloading the packages the integrations read"],
+  [/^build-time file system/, 24, "Running astro.config.mjs"],
+  [/^astro\.config\.mjs bundled/, 28, "Running the integrations"],
+  [/^integrations: /, 33, "Reading the routes"],
+  [/^\d+ routes/, 35, "Scanning the components"],
+  [/bundling the server$/, 38, "Bundling the server (the longest stage)"],
+  [/^bundling the client/, 74, "Bundling the client"],
+  [/^built in /, 86, "Storing the packages"],
+  [/^package store: \d+ packages downloaded/, 89, "Saving the build"],
+  [/^build saved|^build not saved/, 91, "Starting the built Worker"],
+  [/^starting the built Worker/, 93, "Starting the built Worker on cellb"],
+  [/^shards joined/, 96, "Waiting for the site to answer"],
+];
+const progressEl = document.getElementById("progress") as HTMLProgressElement | null;
+const phaseEl = document.getElementById("phase");
+let percent = 0;
+let phase = "Starting";
+/** Packages downloaded so far: shown beside the stage (downloads go on during the bundles). */
+let downloaded = 0;
+const startedAt = performance.now();
+const elapsed = () => `${Math.round((performance.now() - startedAt) / 1000)} s`;
+function showProgress() {
+  if (progressEl) progressEl.value = percent;
+  const packages = downloaded ? ` · ${downloaded} packages downloaded` : "";
+  if (phaseEl) phaseEl.textContent = `${phase}${packages} · ${percent}% · ${elapsed()}`;
+}
+function advance(line: string) {
+  const downloads = /^downloading packages: (\d+)/.exec(line);
+  if (downloads) downloaded = Number(downloads[1]);
+  const total = /^package store: (\d+) packages downloaded/.exec(line);
+  if (total) downloaded = Number(total[1]);
+  for (const [re, at, next] of STAGES)
+    if (re.test(line) && at >= percent) {
+      percent = at;
+      phase = next;
+    }
+  showProgress();
+}
+const ticker = setInterval(showProgress, 1000);
+/** The end of the progress: done, or failed. */
+function finishProgress(ok: boolean) {
+  clearInterval(ticker);
+  percent = ok ? 100 : percent;
+  phase = ok ? "Running" : "Failed";
+  showProgress();
+  document.getElementById("progress-box")?.toggleAttribute("data-failed", !ok);
+}
 
 async function serviceWorker(): Promise<ServiceWorker> {
   const script = import.meta.env.DEV ? `${import.meta.env.BASE_URL}sw.ts` : "/cellb-sw.js";
@@ -53,7 +128,7 @@ async function serviceWorker(): Promise<ServiceWorker> {
   return reg.active!;
 }
 
-const APP = (document.body.dataset.app ?? "app") as "app" | "emdash";
+const APP = (document.body.dataset.app ?? "app") as AppName;
 
 async function sources(): Promise<Record<string, Uint8Array>> {
   const base = `${import.meta.env.BASE_URL}${APP}-src/`;
@@ -70,19 +145,29 @@ async function sources(): Promise<Record<string, Uint8Array>> {
 
 function build(
   src: Record<string, Uint8Array>,
-): Promise<{ code: string; clientAssets: Map<string, Uint8Array> }> {
+): Promise<{ code: string; clientAssets: Map<string, Uint8Array>; routes: number }> {
   const worker = new Worker(new URL("./builder-worker.ts", import.meta.url), { type: "module" });
   return new Promise((resolve, reject) => {
     worker.onmessage = (e) => {
       if (e.data.log) log(e.data.log);
-      else if (e.data.error) reject(new Error(e.data.error));
-      else if (e.data.code) {
+      else if (e.data.error) {
+        // The worker has stopped its downloads and given its lease back: nothing of it is left.
+        worker.terminate();
+        reject(new Error(e.data.error));
+      } else if (e.data.code) {
         log(`${e.data.routes} routes`);
         worker.terminate();
-        resolve({ code: new TextDecoder().decode(e.data.code), clientAssets: e.data.clientAssets });
+        resolve({
+          code: new TextDecoder().decode(e.data.code),
+          clientAssets: e.data.clientAssets,
+          routes: e.data.routes,
+        });
       }
     };
-    worker.onerror = (e) => reject(new Error(e.message));
+    worker.onerror = (e) => {
+      worker.terminate(); // its lease lapses within a minute
+      reject(new Error(e.message));
+    };
     worker.postMessage({
       sources: src,
       integrations: APP === "emdash",
@@ -105,19 +190,60 @@ async function start() {
   }
   sessionStorage.removeItem("coi-reload");
   log(`cross-origin isolated: ${crossOriginIsolated} (headers added by the ServiceWorker)`);
-  say("Reading the app's sources…");
-  const src = await sources();
-  log(`${Object.keys(src).length} source files: ${Object.keys(src).join(" ")}`);
+  // The saved build, unless asked to compile again.
+  const saved: SavedBuild | undefined = REBUILD
+    ? undefined
+    : await loadBuild(APP).catch((err) => {
+        log(`saved build: cannot be read (${err?.message ?? err}); compiling`);
+        return undefined;
+      });
   say("Starting the package store…");
-  if (USE_STORE) await startPackageStore(serviceWorker);
-  log("package store (a Durable Object on cellb) ready");
-  say("Building the app in a worker…");
-  const t0 = performance.now();
-  // (A debugging cache of the build, written here as JSON with every asset byte as a number,
-  // held ~370 MB on the page's heap: removed.)
-  const built = await build(src);
-  const { code: bundle, clientAssets } = built;
-  document.body.dataset.buildMs = String(Math.round(performance.now() - t0));
+  if (USE_STORE) {
+    await startPackageStore(serviceWorker);
+    log("package store (a Durable Object on cellb) ready");
+    await showPackageCache();
+  }
+  let bundle: string;
+  let clientAssets: Map<string, Uint8Array>;
+  if (saved) {
+    const when = new Date(saved.meta.at).toLocaleString();
+    log(
+      `saved build of ${when}: ${saved.meta.routes} routes, ${(saved.meta.codeBytes / 1e6).toFixed(2)} MB; running it (Rebuild compiles the sources again)`,
+    );
+    document.body.dataset.saved = String(saved.meta.at);
+    document.body.dataset.buildMs = "0";
+    ({ code: bundle, clientAssets } = saved);
+  } else {
+    say("Reading the app's sources…");
+    const src = await sources();
+    log(`${Object.keys(src).length} source files: ${Object.keys(src).join(" ")}`);
+    say("Building the app in a worker…");
+    const t0 = performance.now();
+    const built = await build(src);
+    ({ code: bundle, clientAssets } = built);
+    const buildMs = Math.round(performance.now() - t0);
+    document.body.dataset.buildMs = String(buildMs);
+    // Kept until the app is built again: the next visit runs it without compiling.
+    try {
+      const meta = await saveBuild(APP, {
+        code: bundle,
+        clientAssets,
+        buildMs,
+        routes: built.routes,
+      });
+      log(
+        `build saved (${(meta.codeBytes / 1e6).toFixed(2)} MB, ${meta.assets.length} assets): the next visit runs it`,
+      );
+    } catch (err) {
+      log(`build not saved: ${(err as Error)?.message ?? err}`);
+    }
+    // A reload runs the saved build; it does not compile again.
+    if (REBUILD) {
+      const q = new URLSearchParams(location.search);
+      q.delete("rebuild");
+      history.replaceState(null, "", `${location.pathname}${q.size ? `?${q}` : ""}`);
+    }
+  }
   say("Starting the built Worker on cellb…");
   log("starting the built Worker on cellb");
   await joinProjectShards({
@@ -159,12 +285,115 @@ async function start() {
     if (r?.ok) break;
     if (i % 25 === 0)
       log(`GET / → ${r?.status}: ${(await r?.text().catch(() => ""))?.slice(0, 500)}`);
-    if (i > 300) throw new Error("the built site does not answer");
+    if (i > 300)
+      throw new Error(
+        `the built site does not answer${saved ? " (a saved build: Rebuild compiles it again)" : ""}`,
+      );
     await new Promise((r) => setTimeout(r, 200));
   }
-  say(`Running: built in ${document.body.dataset.buildMs} ms, served from this tab.`);
+  say(
+    saved
+      ? `Running the build saved ${new Date(saved.meta.at).toLocaleString()}, served from this tab (Rebuild compiles it again).`
+      : `Running: built in ${document.body.dataset.buildMs} ms, served from this tab.`,
+  );
   document.body.dataset.ready = "true";
+  finishProgress(true);
+  // For the chooser (start.html): which app this origin serves now.
+  try {
+    localStorage.setItem("cellb:last-build", JSON.stringify({ app: APP, at: Date.now() }));
+  } catch {}
+  // Sent here by the chooser for a path of the site (?next=): the link opens that path.
+  const next = nextPath();
+  const open = document.getElementById("open") as HTMLAnchorElement | null;
+  if (open && next) {
+    open.setAttribute("href", next);
+    open.textContent = `Open ${next}`;
+  }
+
+  if (USE_STORE) await showPackageCache(false);
 }
+
+// --- The package cache: statistics and clean-up (the package store's /admin/* routes) ---
+
+type CacheStats = {
+  files: number;
+  packages: number;
+  locks: number;
+  size: number;
+  stored: number;
+  /** Builds holding a lease on the store (this tab or another): a clean-up waits for them. */
+  builds: number;
+};
+type CacheOp = "stats" | "prune" | "forget" | "clear";
+const CACHE_ROUTES: Record<CacheOp, [string, string]> = {
+  stats: ["GET", "admin/stats"],
+  prune: ["POST", "admin/prune"], // the packs no build's lock names
+  forget: ["POST", "admin/forget"], // the locks and the version index: versions resolved again
+  clear: ["POST", "admin/clear"], // every package, the version index and the locks
+};
+
+/**
+ * Runs one operation on the package store: its statistics afterwards (and `removed`). A
+ * clean-up while a build uses the store (409) throws the store's reason.
+ */
+async function packageCache(op: CacheOp): Promise<CacheStats & { removed?: number }> {
+  const [method, path] = CACHE_ROUTES[op];
+  const r = await fetch(`${STORE}/${path}`, { method });
+  if (!r.ok) {
+    const text = await r.text();
+    let reason = text;
+    try {
+      reason = JSON.parse(text).error ?? text;
+    } catch {}
+    throw new Error(
+      r.status === 409 ? reason : `package store: ${method} ${path} → ${r.status}: ${reason}`,
+    );
+  }
+  return r.json();
+}
+
+const cacheEl = document.getElementById("cache");
+const cacheButtons = () => [...(cacheEl?.querySelectorAll("button") ?? [])];
+const mb = (n: number) => `${(n / 1e6).toFixed(1)} MB`;
+
+/** Shows the panel and the store's statistics; `busy`: its buttons wait (a build reads the store). */
+async function showPackageCache(busy = true) {
+  if (!cacheEl) return;
+  cacheEl.hidden = false;
+  for (const b of cacheButtons()) b.disabled = busy;
+  const out = document.getElementById("cache-stats");
+  if (!out) return;
+  try {
+    const s = await packageCache("stats");
+    out.textContent = `${s.packages} packages, ${s.locks} lock${s.locks === 1 ? "" : "s"}: ${mb(s.size)} (${mb(s.stored)} stored)${s.builds ? `; ${s.builds} build${s.builds === 1 ? "" : "s"} using it` : ""}`;
+  } catch (e) {
+    out.textContent = `unavailable (${(e as Error).message})`;
+  }
+}
+
+async function cleanPackageCache(op: Exclude<CacheOp, "stats">) {
+  if (op === "clear" && !confirm("Remove every package? The next build downloads them again."))
+    return;
+  for (const b of cacheButtons()) b.disabled = true;
+  try {
+    const r = await packageCache(op);
+    log(
+      `package cache: ${op}: ${r.removed ?? 0} files removed; ${r.packages} packages left (${mb(r.size)})`,
+    );
+    if ((document.getElementById("cache-rebuild") as HTMLInputElement | null)?.checked) {
+      say("Rebuilding…");
+      location.assign(rebuildURL());
+      return;
+    }
+  } catch (e) {
+    log(`package cache: ${op} failed: ${(e as Error).message}`);
+  }
+  await showPackageCache(false);
+}
+for (const b of cacheButtons())
+  b.addEventListener("click", () => void cleanPackageCache(b.dataset.cache as never));
+// For the tests and the console: `await __packageCache("prune")`.
+Object.assign(window, { __packageCache: packageCache });
 
 /** The EmDash template's bindings (wrangler.jsonc), and its canonical URL: this origin. */
 function emdashConfig() {
@@ -198,6 +427,7 @@ async function exportSite() {
 }
 Object.assign(window, { __exportSite: exportSite });
 document.getElementById("export")?.addEventListener("click", () => void exportSite());
+document.getElementById("rebuild")?.setAttribute("href", rebuildURL());
 
 // Memory by realm (page, each worker), every 10 s: what fills the tab (cross-origin isolated
 // pages only; the measurement waits for a garbage collection, so it can lag).
@@ -230,6 +460,9 @@ if (measure && crossOriginIsolated)
 
 start().catch((e) => {
   document.body.dataset.error = String(e?.stack ?? e);
+  finishProgress(false);
+  // A failed build may come from what the cache holds: its clean-up stays available.
+  if (USE_STORE && cacheEl && !cacheEl.hidden) void showPackageCache(false);
   say(`Failed: ${e?.message ?? e}`);
   log(String(e?.stack ?? e));
 });

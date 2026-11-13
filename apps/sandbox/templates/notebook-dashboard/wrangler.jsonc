@@ -1,0 +1,11 @@
+{
+  // A Worker with a Durable Object that records events, and notebooks/ over its API: the
+  // notebook is the dashboard (no client to write). Cells fetch ../api/… like any client.
+  "name": "notebook-dashboard",
+  "main": "server/index.ts",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": {
+    "bindings": [{ "name": "EVENTS", "class_name": "EventLog" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EventLog"] }]
+}

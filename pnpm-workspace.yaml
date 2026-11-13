@@ -5,25 +5,25 @@ packages:
 
 catalog:
   "@changesets/cli": "^3.0.3"
-  "@biomejs/biome": 2.6.6
-  "@statewalker/webrun-http-browser": "^0.12.5"
+  "@biomejs/biome": 2.6.7
+  "@statewalker/webrun-http-browser": "^0.13.0"
   "@statewalker/webrun-modules": ^0.3.6
   "@statewalker/webrun-site-builder": "^0.2.2"
   "@statewalker/webrun-site-host": "^0.3.0"
   "@types/node": ^26.6.6
   "@types/ws": ^8.18.2
-  turbo: ^2.11.10
+  turbo: ^2.11.11
   typescript: ^7.0.2
   vite: ^8.3.8
   vitest: ^5.1.0
   ws: ^8.22.2
   # The platform packages (packages/platform*, esm-cdn, bundler, astro-builder, notebooks)
-  "@statewalker/webrun-bundler": ^0.1.1
-  "@statewalker/webrun-files": ^0.10.3
-  "@statewalker/webrun-files-mem": ^0.10.3
-  "@statewalker/webrun-files-node": ^0.10.3
-  "@statewalker/webrun-builder": ^0.2.1
-  "@statewalker/notebook-build": ^0.1.1
+  "@statewalker/webrun-bundler": ^0.1.2
+  "@statewalker/webrun-files": ^0.10.4
+  "@statewalker/webrun-files-mem": ^0.10.4
+  "@statewalker/webrun-files-node": ^0.10.4
+  "@statewalker/webrun-builder": ^0.4.1
+  "@statewalker/notebook-build": ^0.2.0
   "@statewalker/notebook-site": ^0.1.2
   "@astrojs/compiler-rs": 0.5.3
   "@emnapi/core": 1.11.3
@@ -36,4 +36,9 @@ catalog:
   linkedom: ^0.18.15
   tsx: ^4.23.15
   urlpattern-polyfill: ^10.1.0
-  wrangler: ^4.160.0
+  wrangler: ^4.161.0
+
+overrides:
+  "@earendil-works/pi-agent-core": ~1.4.0
+  "@modelcontextprotocol/client@<2.2.0": ^2.2.0
+  "undici@<7.29.1": ^7.30.0

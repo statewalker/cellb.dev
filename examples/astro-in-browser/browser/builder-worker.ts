@@ -32,6 +32,7 @@ function downloadPool(n: number, store: string) {
   >();
   for (const x of workers) x.w.onmessage = (e) => waiting.get(e.data.id)?.(e.data);
   let next = 0;
+  let done = 0; // downloads finished, logged every 10 (the page's progress)
   return {
     /** Packages fetched from the registry (not found in the store). */
     downloads: 0,
@@ -44,6 +45,7 @@ function downloadPool(n: number, store: string) {
         waiting.set(id, (r) => {
           waiting.delete(id);
           x.busy--;
+          if (!r.error && ++done % 10 === 0) log(`downloading packages: ${done}`);
           if (r.error) reject(new Error(r.error));
           else resolve({ name: r.name as string, version: r.version as string });
         });
@@ -87,9 +89,29 @@ async function readText(files: { read(p: string): AsyncIterable<Uint8Array> }, p
     : undefined;
 }
 
+/**
+ * A lease on the package store while this build reads and writes it, renewed every 15 s (the
+ * store lets it lapse after 60 s): the host pages' clean-up waits for it. `release()` gives it
+ * back.
+ */
+async function storeLease(store: string) {
+  const url = `${store}/admin/lease?id=${crypto.randomUUID()}`;
+  const take = () => fetch(url, { method: "POST" }).catch(() => undefined);
+  const r = await take();
+  if (!r?.ok)
+    throw new Error(`package store: could not take a lease (${r?.status ?? "no answer"})`);
+  const timer = setInterval(take, 15_000);
+  return async () => {
+    clearInterval(timer);
+    await fetch(url, { method: "DELETE" }).catch(() => undefined);
+  };
+}
+
 self.onmessage = async (
-  e: MessageEvent<{ sources: Record<string, Uint8Array>; integrations?: boolean }>,
+  e: MessageEvent<{ sources: Record<string, Uint8Array>; integrations?: boolean; store?: string }>,
 ) => {
+  // What a failed build must stop too: the download workers, the store's lease.
+  let cleanup = async () => {};
   try {
     const t0 = performance.now();
     // esbuild's wasm in a worker of its own: its memory grows during a bundle and is released
@@ -108,8 +130,13 @@ self.onmessage = async (
     let afterBuild = async () => {};
     if (e.data.store) {
       const app = e.data.integrations ? "emdash" : "app";
+      const release = await storeLease(e.data.store);
       const cache = httpFiles(e.data.store);
       const pool = downloadPool(DOWNLOADERS, e.data.store);
+      cleanup = async () => {
+        pool.close();
+        await release();
+      };
       const source = cachedSource(cache, npmRegistrySource() as never, undefined, (ref) =>
         pool.download(ref),
       );
@@ -138,7 +165,7 @@ self.onmessage = async (
         ]);
         await source.flush();
         log(`package store: ${pool.downloads} packages downloaded from the registry`);
-        pool.close();
+        await cleanup();
       };
     }
     let extra = {};
@@ -211,6 +238,7 @@ self.onmessage = async (
       { transfer: [code.buffer] },
     );
   } catch (err) {
+    await cleanup();
     postMessage({ error: (err as Error)?.stack ?? String(err) });
   }
 };

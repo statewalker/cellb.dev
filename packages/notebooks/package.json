@@ -21,6 +21,7 @@
   "dependencies": {
     "@statewalker/cellb-platform-core": "workspace:*",
     "@statewalker/cellb-esm-cdn": "workspace:*",
+    "@statewalker/cellb-bundler": "workspace:*",
     "@statewalker/notebook-build": "catalog:",
     "@statewalker/notebook-site": "catalog:",
     "@statewalker/webrun-builder": "catalog:",
@@ -30,8 +31,8 @@
     "urlpattern-polyfill": "catalog:",
     "markdown-it": "^15.0.3",
     "@statewalker/webrun-files-mem": "catalog:",
-    "@observablehq/notebook-kit": "^2.10.1",
-    "@portabletext/markdown": "^2.9.1",
+    "@observablehq/notebook-kit": "^2.11.0",
+    "@portabletext/markdown": "^2.9.4",
     "@portabletext/to-html": "^6.0.0"
   },
   "devDependencies": {

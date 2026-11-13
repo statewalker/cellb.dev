@@ -46,8 +46,9 @@ those transcripts, and that CellB matches:
   `fallthrough = true` closes it, and later rules of that type are dropped with a warning. Other
   rule types (`PythonModule`, a typo) are listed in `unsupported`. `loadProject` on Node and
   `cellb build` inline the bytes as base64 (about 1.33 times the file), so a built folder stays one
-  self-contained `worker.js`; a wasm is compiled with a top-level `await WebAssembly.compile(…)`, so
-  a CommonJS `require()` of a `.wasm` does not bundle. The rules do not apply to sources compiled
+  self-contained `worker.js`; a wasm is compiled synchronously when its module is evaluated, as
+  workerd imports one (a top-level await would make every importer async, and esbuild's async
+  module inits deadlock on circular imports). The rules do not apply to sources compiled
   in a browser (`compile: "bundle"` or `"site"`, `createProjectSite`/`siteCompiler`), nor to
   bundles made with `cellbHostModule` by Vite or another bundler: use that bundler's own wasm or
   raw-import plugin there.

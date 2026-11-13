@@ -156,11 +156,14 @@ function createStub(id: DurableObjectId, endpoint: () => ObjectEndpoint): Durabl
       return endpoint().fetch(source ? carryWebSocketHeaders(source, req) : req);
     },
   });
-  return new Proxy(target, {
+  const stub = new Proxy(target, {
     get(t, prop, recv) {
       if (prop in t) return Reflect.get(t, prop, recv);
       if (prop === "then" || typeof prop === "symbol") return undefined;
       return (...args: unknown[]) => rpcCall(() => endpoint().call(String(prop), args));
     },
   }) as unknown as DurableObjectStub;
+  // workerd's `stub.dup()`: a Durable Object stub holds nothing to release, so it is itself.
+  Object.defineProperty(target, "dup", { value: () => stub });
+  return stub;
 }

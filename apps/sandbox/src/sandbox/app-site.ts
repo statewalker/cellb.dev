@@ -32,6 +32,8 @@ export interface AppSiteOptions {
   log?: (text: string, level?: "info" | "error") => void;
   /** The module server's cache: one per runner, so a rebuild downloads no package twice. */
   moduleCache?: MemFilesApi;
+  /** The notebooks' handler (notebooks.ts), for requests below `notebooks/`. */
+  notebooks?: (request: Request, path: string) => Promise<Response>;
 }
 
 /** Where webrun-modules keeps the project's own compiled files in its cache (target "browser"). */
@@ -91,6 +93,13 @@ export async function createAppSite(opts: AppSiteOptions): Promise<AppSite> {
     const url = new URL(request.url);
     const path = url.pathname;
     try {
+      if (opts.notebooks && (path === "/notebooks" || path.startsWith("/notebooks/"))) {
+        if (path === "/notebooks")
+          return new Response(null, { status: 302, headers: { location: "notebooks/" } });
+        const res = await opts.notebooks(request, path.slice("/notebooks".length));
+        if (res.status >= 400) log(`notebooks: ${path} → ${res.status}`, "error");
+        return res;
+      }
       if (modules && path.startsWith(MODULES_PREFIX)) {
         const res = await modules.fetch(request);
         if (res.status >= 400) {

@@ -13,7 +13,7 @@ import { withUpgrade } from "../ws/upgrade.js";
 import { type AlarmEntry, AlarmScheduler } from "./alarms.js";
 import { type AsyncRoot, asyncRoot } from "./async-context.js";
 import type { ExecutionContext } from "./durable-object.js";
-import { ctxExports, type DurableObjectClass, storedExports } from "./handles.js";
+import { ctxExports, type DurableObjectClass, defaultHandler, storedExports } from "./handles.js";
 import { DurableObjectId, namespaceKey } from "./id.js";
 import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./namespace.js";
 import {
@@ -26,7 +26,15 @@ import { installRequestBody } from "./request-body.js";
 import { type RejectionHandler, rejectionScope, reportToStderr } from "./worker-rejections.js";
 
 export interface WorkerModule {
-  default: { fetch?(req: Request, env: any, ctx: ExecutionContext): Response | Promise<Response> };
+  /**
+   * An object with handlers (`fetch(req, env, ctx)`), or a class (`export default class extends
+   * WorkerEntrypoint`): an instance per request, built with `(ctx, env)`, whose `fetch(req)`
+   * answers. A class matches through its `prototype`, so `default.fetch` stays readable.
+   */
+  default: {
+    fetch?(req: Request, env: any, ctx: ExecutionContext): Response | Promise<Response>;
+    prototype?: { fetch?(req: Request): Response | Promise<Response> };
+  };
   [exportName: string]: unknown;
 }
 
@@ -496,7 +504,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       await storage.close?.();
     },
     async fetch(req) {
-      const handler = opts.worker.default?.fetch;
+      const handler = defaultHandler(opts.worker.default, "fetch");
       if (!handler) return new Response("Worker has no fetch handler", { status: 500 });
       // A closed runtime serves nothing: its cells are closed, or another runtime's now.
       if (closed) return new Response("cellb: the runtime is closed", { status: 503 });
@@ -511,7 +519,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       if ((req as { cf?: unknown }).cf === undefined)
         Object.defineProperty(req, "cf", { value: {}, enumerable: true });
       try {
-        const r = await rejections(() => handler.call(opts.worker.default, req, env, ctx));
+        const r = await rejections(() => handler(req, env, ctx));
         // A non-Response is sent as text (celld), not a failure.
         return r instanceof Response ? r : new Response(String(r));
       } catch (e) {

@@ -1,0 +1,6 @@
+{
+  "name": "agent-ui",
+  "private": true,
+  "type": "module",
+  "dependencies": {}
+}

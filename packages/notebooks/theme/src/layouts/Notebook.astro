@@ -12,7 +12,15 @@ const toc = page.outline.filter((o) => o.depth >= 2 && o.depth <= 3);
     <link rel="stylesheet" href={page.stylesUrl} />
   </head>
   <body>
-    <header class="site-header"><a href={site.home}>{site.title}</a></header>
+    <header class="site-header">
+      <a href={site.home}>{site.title}</a>
+      {site.search && (
+        <div class="site-search">
+          <input type="search" placeholder="Search" aria-label="Search the notebooks" data-index={site.search} />
+          <ul class="search-results" hidden></ul>
+        </div>
+      )}
+    </header>
     <div class="frame">
       <nav class="site-nav" aria-label="Notebooks">
         <ul>
@@ -28,6 +36,77 @@ const toc = page.outline.filter((o) => o.depth >= 2 && o.depth <= 3);
         </aside>
       )}
     </div>
+    <script is:inline>
+        // Search: the index (search.json, one entry per page section) loads on first use; every
+        // query word must match the page title, the heading or the text; headings weigh more.
+        (() => {
+          const input = document.querySelector(".site-search input");
+          const out = document.querySelector(".search-results");
+          if (!input || !out) return;
+          let index;
+          // A failed load (not built yet, offline) is retried on the next keystroke.
+          const load = () =>
+            (index ??= fetch(input.dataset.index)
+              .then((r) => {
+                if (!r.ok) throw new Error(`search index: ${r.status}`);
+                return r.json();
+              })
+              .catch((e) => {
+                index = undefined;
+                throw e;
+              }));
+          const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+          input.addEventListener("focus", () => load().catch(() => {}), { once: true });
+          input.addEventListener("input", async () => {
+            const query = input.value;
+            const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+            if (!terms.length) {
+              out.hidden = true;
+              out.innerHTML = "";
+              return;
+            }
+            let loaded;
+            try {
+              loaded = await load();
+            } catch {
+              if (input.value !== query) return;
+              out.innerHTML = '<li class="none">Search is unavailable</li>';
+              out.hidden = false;
+              return;
+            }
+            // A later keystroke (or a cleared box) has its own results.
+            if (input.value !== query) return;
+            const { pages, entries } = loaded;
+            const hits = [];
+            for (const e of entries) {
+              const head = `${pages[e.p].title} ${e.h}`.toLowerCase();
+              const text = e.t.toLowerCase();
+              let score = 0;
+              for (const t of terms) {
+                const s = (head.includes(t) ? 3 : 0) + (text.includes(t) ? 1 : 0);
+                if (!s) {
+                  score = 0;
+                  break;
+                }
+                score += s;
+              }
+              if (score) hits.push({ e, score });
+            }
+            hits.sort((a, b) => b.score - a.score);
+            out.innerHTML =
+              hits
+                .slice(0, 10)
+                .map(({ e }) => {
+                  const page = pages[e.p];
+                  const href = page.path + (e.a ? `#${e.a}` : "");
+                  const label = e.h && e.h !== page.title ? `${page.title} › ${e.h}` : page.title;
+                  return `<li><a href="${esc(href)}">${esc(label)}</a></li>`;
+                })
+                .join("") || '<li class="none">No results</li>';
+            out.hidden = false;
+          });
+        })();
+      </script>
   </body>
 </html>
 <style is:global>
@@ -37,7 +116,13 @@ const toc = page.outline.filter((o) => o.depth >= 2 && o.depth <= 3);
   }
   body { margin: 0; color: var(--fg); background: var(--bg); font: 16px/1.6 system-ui, sans-serif; }
   .site-header { padding: 12px 24px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  .site-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .site-header a { color: inherit; text-decoration: none; }
+  .site-search { position: relative; font-weight: 400; }
+  .site-search input { width: 220px; max-width: 50vw; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+  .search-results { position: absolute; right: 0; z-index: 10; min-width: 280px; margin: 4px 0 0; padding: 4px 0; list-style: none; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+  .search-results a, .search-results .none { display: block; padding: 4px 12px; color: var(--fg); }
+  .search-results a:hover { background: var(--line); }
   .frame { display: grid; grid-template-columns: 200px minmax(0, 1fr) 200px; gap: 32px; padding: 24px; }
   .site-nav ul, .toc ul { list-style: none; margin: 0; padding: 0; }
   .site-nav a, .toc a { display: block; padding: 4px 0; color: var(--muted); text-decoration: none; }

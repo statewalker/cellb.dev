@@ -157,6 +157,7 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
   }
 
   // With the package store: a rebuild in the same browser finds every package in it (the lock).
+  // (A reload would run the saved build: `?rebuild` compiles again.)
   if (STORE) {
     const cold = Number(await host.evaluate(() => document.body.dataset.buildMs));
     const downloaded = async () =>
@@ -166,7 +167,7 @@ test("EmDash: built, run and exported entirely in the browser", async ({ context
         )?.[1],
       );
     const coldDownloads = await downloaded();
-    await host.reload();
+    await host.goto("/__cellb/emdash.html?rebuild");
     await host.waitForFunction(
       () => document.body.dataset.ready === "true" || document.body.dataset.error,
       null,

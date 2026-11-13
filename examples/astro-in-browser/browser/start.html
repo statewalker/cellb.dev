@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Astro, built in the browser, on CellB</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+      .note { padding: .6rem 1rem; border-radius: 6px; background: #8882; }
+      table { border-collapse: collapse; margin: 1rem 0; width: 100%; }
+      th, td { text-align: left; padding: .5rem .75rem .5rem 0; border-bottom: 1px solid #8884; vertical-align: top; }
+      th { font-weight: 600; }
+      .actions a { margin-right: .75rem; white-space: nowrap; }
+      .actions .launch { font-weight: 600; }
+      tr[data-last] th::after { content: " · launched last"; font-weight: 400; color: #2a7; }
+      @media (max-width: 36rem) { th, td { display: block; border: 0; padding: .15rem 0; } tr { display: block; border-bottom: 1px solid #8884; padding: .5rem 0; } }
+    </style>
+  </head>
+  <body>
+    <!--
+      The chooser: under /__cellb/, so the ServiceWorker always serves it (every other path of the
+      origin belongs to the site built here). It is the ServiceWorker's host page: a navigation
+      that finds no tab running the site lands here, with the path it asked for as ?next=.
+    -->
+    <h1>Astro, built in the browser, on CellB</h1>
+    <p>Each app is compiled in this tab (esbuild and Astro's compiler as WebAssembly, packages
+      from the npm registry), runs on CellB and is served from the tab at this origin's root. Its
+      build is saved in this browser: launching it again runs the saved build without compiling,
+      until it is rebuilt. One app runs at a time: launching the other one replaces it, and each
+      app keeps its own data.</p>
+    <p class="note" id="next" hidden></p>
+    <table id="apps">
+      <tbody>
+        <tr data-app="app">
+          <th>A small Astro app</th>
+          <td class="state">…</td>
+          <td class="actions">
+            <a class="launch" href="/__cellb/">Launch</a>
+            <a class="rebuild" href="/__cellb/?rebuild">Rebuild</a>
+          </td>
+        </tr>
+        <tr data-app="emdash">
+          <th>EmDash, the Astro CMS</th>
+          <td class="state">…</td>
+          <td class="actions">
+            <a class="launch" href="/__cellb/emdash.html">Launch</a>
+            <a class="rebuild" href="/__cellb/emdash.html?rebuild">Rebuild</a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p>This page stays at <a href="/__cellb/start.html">/__cellb/start.html</a>: while a tab runs an
+      app, the origin's root (<code>/</code>) is that app.</p>
+    <script type="module" src="./start.ts"></script>
+  </body>
+</html>

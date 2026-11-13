@@ -1,0 +1,33 @@
+{
+  // CellB sandbox's studio: the agents' side of the IDE, as an ordinary Worker project.
+  //   Workspace  one per project: the files (SQLite), the Biscuit root key, the sessions, and a
+  //              journal of what agents changed (the host mirrors it to the folder on disk)
+  //   Agent      one per agent: a Flue agent loop whose tools hold only a capability
+  // In the browser the sandbox's runner runs it on CellB next to the app; the same project runs
+  // on wrangler, celld and cellb on Node (where git, not a page, feeds the Workspace).
+  "name": "cellb-sandbox-studio",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      { "name": "WORKSPACE", "class_name": "Workspace" },
+      { "name": "AGENT", "class_name": "Agent" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Workspace", "Agent"] }],
+  // Isolates for the agent's run_script tool (a Dedicated Worker each in a browser).
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "vars": {
+    // In a browser the studio has no network ingress: only the page that owns the folder (through
+    // its runner) reaches it. Deployed elsewhere, set ADMIN_KEY as a secret and unset this.
+    "ADMIN_KEY": "sandbox-page",
+    // The model comes with each run (the person's own key, from their tab). A deployment that
+    // names its own model sets LLM (JSON) and the LLM_API_KEY secret, and "0" here.
+    "LLM_FROM_REQUEST": "1",
+    // The agent's run_script tool: JS in a Worker Loader isolate with no network and only the
+    // agent's capability. "off" where an isolate could reach the host (cellb on Node: a worker
+    // thread with the host's files).
+    "TOOL_ISOLATES": "on"
+  }
+}

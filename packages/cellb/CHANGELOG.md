@@ -1,5 +1,39 @@
 # @statewalker/cellb
 
+## 0.8.9
+
+### Patch Changes
+
+- 6bdec16: cellb now depends on webrun-rpc 0.11, webrun-streams 0.3, webrun-http-streams 0.5 and webrun-http-browser 0.13. cellb's API and its messages on the wire are unchanged.
+  
+  - **HTTP over a port, through webrun-http-streams:** a response body that is idle when its exchange is torn down is cancelled at once, with the abort's reason. Examples are an SSE stream between events or a long poll. Before, it was cancelled only when its next chunk arrived. A handler waiting on its request body fails at once, and an upload is cancelled as soon as its request's signal aborts.
+  - **Windowed HTTP links:** from a link's second exchange on, a request's body goes out before the peer's ack instead of waiting a round trip for it (webrun-rpc's `presumeAck`). The isolate links have no window and are unaffected.
+  - **Ports closed before a stream starts:** a stream on such a port now fails at once instead of waiting.
+- a5ce11c: Worker Loader and Workers behaviours of workerd that CellB lacked (found running Cloudflare's Kitesurf browser engine Worker on CellB):
+  
+  - A class as the default export (`export default class extends WorkerEntrypoint`) answers `fetch`, `scheduled` and `queue` with an instance per event, built with `(ctx, env)`; the static assets router passes it the requests the assets do not answer. Before, such a Worker answered "Worker has no fetch handler", and with assets every miss was a 404.
+  - A wasm import (`CompiledWasm` rule) is compiled synchronously, as workerd imports one. Its top-level `await WebAssembly.compile` made every importer async, and with circular imports and a dynamic `import()` esbuild's async module inits waited on each other: `loadProject` never settled.
+  - Worker Loader `{ cjs }` modules: not in strict mode unless they say so, `this` is `module.exports`, and an import gives `module.exports` as the default export. Before, the module was `undefined`.
+  - `abortIsolate(reason)` of `cloudflare:workers`: in a loaded Worker's isolate, the call and the calls in flight reject with `internal error; reference = …`, the isolate ends, and the next `get()` of its id loads the code again (workerd's `abortIsolateDynamic` test). Before, code importing it did not build.
+  - `stub.dup()` on stubs that cross into an isolate gives another stub of the same value, released on its own; on Durable Object stubs, service and loaded-Worker entrypoint stubs in one realm, it gives the stub. Before, `dup` was sent as a remote method call. (A function or `RpcTarget` passed within one realm is still the value itself, with no `dup`.)
+  - `Request`, `Response`, `Headers` and `ReadableStream` values cross an isolate in arguments and results, as on workerd; bodies stream over a port of their own when read, and a body cancelled unread is cancelled on the sending side. Before, they failed with `DataCloneError`. In one realm, a call passes a Request, Response or stream itself and copies Headers.
+  - A loaded Worker's isolate lets its code assign `navigator` (Node's and a Dedicated Worker's are getters).
+  - `Uint8Array.prototype.toBase64`/`toHex` and `Uint8Array.fromBase64`/`fromHex` where the engine lacks them (Node 22).
+  - workerd's read-only `/bundle` in `node:fs` (nodejs_compat), on Node and in browser bundles: each `.wasm`, Text or Data module a bundle imports, named `<sha1>-<file name>` as wrangler uploads it (`readdirSync`, `readFileSync`, `statSync`, `existsSync`, `accessSync`, their callback forms and `promises`). On Node every other path is still the real file system.
+  - Worker code's `Request` takes a streamed body without `duplex: "half"`, as workerd does (Node's `Request` refuses one without it); the outbound `fetch()` of a loaded Worker builds its requests with it.
+  - `import()` in a loaded Worker resolves against its own modules, as on workerd: a module's whole name (a URL, say) or a path relative to the importer, also when computed at run time (Node and the browser loader). On Node, an `import()` in code built with `Function` resolves too, through module hooks in the isolate thread (`module.registerHooks`, Node 22.15 and later). Before, such specifiers went to the host's own loader and failed.
+  - `withUpgrade` is exported from `@statewalker/cellb`: in a browser `new Request()` drops `Upgrade` and `Sec-WebSocket-*`, so an embedder that hands a project a WebSocket from a page (a project in a Dedicated Worker) had no public way to make the upgrade request.
+  - A browser isolate keeps its channel to the host when the loaded code replaces the global `postMessage` (a page emulation such as Kitesurf's window does): the isolate worker takes its own `postMessage` and listeners before the code runs. Before, every later answer went into the code's own `postMessage` and the host waited forever.
+  - An import in loaded code that names none of its modules (a missing sibling, a package) no longer fails the whole load: it becomes a module that throws when it is evaluated, as on workerd, so an unused module may import anything, and a CommonJS `require()` of something absent throws where it is called (`try { require("optional") } catch {}` works). A static import of a module's whole name (a URL) resolves to it.
+
+## 0.8.8
+
+### Patch Changes
+
+- 2292f58: node:sqlite driver: `restore()` loads the extensions loaded before (e.g. a cell's `sqlExtensions` such as `sqlite_vec`) into the new connection. A cell restored from a backup lost them: its first `vec_version()` failed with "no such function". SQL still cannot load a library by itself after a restore.
+  
+  An in-memory driver's `restore()` makes a directory for the database file; `close()` (or process exit) now removes it, where it was left in the temp directory. A connection whose extensions fail to load is closed before the error is thrown.
+
 ## 0.8.7
 
 ### Patch Changes

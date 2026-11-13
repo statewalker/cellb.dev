@@ -64,14 +64,40 @@ export async function notebooksDemo(host: string, base: string, t: Tools) {
       ms: number;
       models: number;
       modelFailures: { notebook: string; error: string }[];
+      loaders: { output: string; cached: boolean; bytes: number }[];
+      loaderFailures: { loader: string; error: string }[];
     };
     assert(
       res.pages.includes("/plots.html") && res.pages.includes("/index.html"),
       `pages ${res.pages}`,
     );
+    // A loader first: a failed one fails the page that reads its output.
+    assert(
+      res.loaderFailures.length === 0,
+      `loader failures ${JSON.stringify(res.loaderFailures)}`,
+    );
     assert(res.failures.length === 0, `failures ${JSON.stringify(res.failures)}`);
     assert(res.models === 3, `${res.models} page models`);
     assert(res.modelFailures.length === 0, `model failures ${JSON.stringify(res.modelFailures)}`);
+    // The data loader: built, run, its output served beside the pages; its source is not.
+    assert(
+      res.loaders.some((l) => l.output === "/numbers.json"),
+      `loaders ${JSON.stringify(res.loaders)}`,
+    );
+    const numbers = (await (await fetch(`${site}/numbers.json`)).json()) as number[];
+    assert(numbers.join() === "1,2,3,4,5,6,7,8,9,10", `numbers.json: ${numbers}`);
+    for (const p of [
+      "numbers.json.js",
+      "numbers.json.js/%2E",
+      "t/numbers.json.js/%2E",
+      "t/features.md/%2E",
+    ])
+      assert((await fetch(`${site}/${p}`)).status === 404, `a source is served at ${p}`);
+    const again = (await (await fetch(`${site}/build`, { method: "POST" })).json()) as typeof res;
+    assert(
+      again.loaders.find((l) => l.output === "/numbers.json")?.cached === true,
+      "an unchanged loader ran again",
+    );
     const page = await (await fetch(`${site}/plots.html`)).text();
     assert(page.includes("/nb/demo/_m/"), "the page does not import from the module server");
     const css = /<link rel="stylesheet" href="([^"]+)"/.exec(page)?.[1];
@@ -82,7 +108,7 @@ export async function notebooksDemo(host: string, base: string, t: Tools) {
       /text\/css/.test(sheet.headers.get("content-type") ?? ""),
       `stylesheet ${css} is not CSS`,
     );
-    return `${res.pages.length} pages in ${res.ms} ms; stylesheet ${css.replace(/^.*\/_m\//, "")}`;
+    return `${res.pages.length} pages in ${res.ms} ms; a data loader's output, kept on rebuild; stylesheet ${css.replace(/^.*\/_m\//, "")}`;
   });
   if (!built) return;
   if (browserOn) await plainPagesInBrowser(host, site, t);
@@ -154,7 +180,18 @@ async function themedDemo(host: string, site: string, t: Tools) {
       assert(html.includes('href="/nb/demo/t/"'), "no link to the themed home page");
       assert((await fetch(`${site}/t/`)).status === 200, "themed home page");
       assert((await fetch(`${site}/t/no-such-page`)).status === 404, "a missing page is not a 404");
-      return `theme build ${s.id}; /t/plots and /t/ rendered from the page models`;
+      const search = (await (await fetch(`${site}/search.json`)).json()) as {
+        pages: { path: string; title: string }[];
+        entries: { p: number; h: string; a: string; t: string }[];
+      };
+      assert(search.pages.length === 3, `search index pages: ${search.pages.length}`);
+      const answer = search.entries.find((e) => e.t.includes("The answer is"));
+      assert(
+        answer && search.pages[answer.p]?.path === "/nb/demo/t/features",
+        "no search entry for the features notebook's prose",
+      );
+      assert(html.includes('class="site-search"'), "no search box");
+      return `theme build ${s.id}; /t/plots and /t/ rendered from the page models; search index: ${search.entries.length} sections`;
     },
   );
   if (!themed) return;
@@ -226,8 +263,14 @@ async function themedDemo(host: string, site: string, t: Tools) {
       );
       const sentence = await page.textContent(".prose p");
       assert(sentence?.includes("The answer is 42"), `sentence: ${sentence}`);
+      // FileAttachment("numbers.json") on the themed page: the data loader's output
+      await page.waitForFunction(
+        () => document.body.textContent?.includes("10 numbers, summing to 55"),
+        null,
+        { timeout: 30000 },
+      );
       assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
-      return `"${sentence?.trim().slice(0, 60)}…", no page error`;
+      return `"${sentence?.trim().slice(0, 60)}…"; the loader's data: 10 numbers, summing to 55; no page error`;
     } finally {
       await b.close();
     }
@@ -255,11 +298,27 @@ async function themedDemo(host: string, site: string, t: Tools) {
       assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
       // notebook-kit's built-ins (Inputs, htl) come from the site's module server, not esm.sh
       assert(offOrigin.length === 0, `off-origin requests: ${offOrigin.join("; ")}`);
-      return `Plot drew 60 dots in the themed page, no request off the platform; navigation: ${nav.join(", ")}`;
+      // Search from the header: "answer" is in the features notebook's prose.
+      const hits = await searchFor(page, "answer");
+      assert(
+        /^\/nb\/demo\/t\/features(#|$)/.test(hits[0] ?? ""),
+        `search results: ${hits.join(", ")}`,
+      );
+      await page.click(".search-results a");
+      await page.waitForURL(/\/nb\/demo\/t\/features(#.*)?$/, { timeout: 15000 });
+      return `Plot drew 60 dots in the themed page, no request off the platform; navigation: ${nav.join(", ")}; search "answer" led to features`;
     } finally {
       await b.close();
     }
   });
+}
+
+/** Types `query` into the themed page's search box and returns the result links' hrefs. */
+// biome-ignore lint/suspicious/noExplicitAny: Playwright is untyped here
+async function searchFor(page: any, query: string): Promise<string[]> {
+  await page.fill(".site-search input", query);
+  await page.waitForSelector(".search-results:not([hidden]) li", { timeout: 15000 });
+  return page.$$eval(".search-results a", (a: Element[]) => a.map((x) => x.getAttribute("href")));
 }
 
 /** A static file server over `dir`: a directory answers with its index.html. */
@@ -304,7 +363,13 @@ async function exportDemo(host: string, site: string, t: Tools) {
       assert(res.headers.get("content-type") === "application/zip", "not a ZIP");
       const files = await unzip(bytes);
       // unzip names entries as absolute paths in the archive's tree
-      for (const p of ["/index.html", "/nb/demo/t/index.html", "/nb/demo/t/plots/index.html"])
+      for (const p of [
+        "/index.html",
+        "/nb/demo/t/index.html",
+        "/nb/demo/t/plots/index.html",
+        "/nb/demo/search.json",
+        "/nb/demo/t/numbers.json",
+      ])
         assert(files.has(p), `${p} missing from the export`);
       const models = (await (await fetch(`${site}/models.json`)).json()) as {
         pins: Record<string, string>;
@@ -356,7 +421,20 @@ async function exportDemo(host: string, site: string, t: Tools) {
         // Nothing leaves the file server, notebook-kit's built-ins (Inputs, htl) included: the
         // site serves them, and the export carries the ones its cells use.
         assert(offOrigin.length === 0, `off-origin requests: ${offOrigin.join("; ")}`);
-        return "root redirected home, navigation led to plots, Plot drew 60 dots; no request left the file server";
+        // The data loader's output, from the files: FileAttachment on the features page.
+        await page.goto(`${files.url}/nb/demo/t/features/`);
+        await page.waitForFunction(
+          () => document.body.textContent?.includes("10 numbers, summing to 55"),
+          null,
+          { timeout: 30000 },
+        );
+        // Search works from the files too: the export carries search.json.
+        const hits = await searchFor(page, "answer");
+        assert(
+          /^\/nb\/demo\/t\/features(#|$)/.test(hits[0] ?? ""),
+          `search results in the export: ${hits.join(", ")}`,
+        );
+        return "root redirected home, navigation led to plots, Plot drew 60 dots, the loader's data on features, search found features; no request left the file server";
       } finally {
         await b.close();
         files.close();

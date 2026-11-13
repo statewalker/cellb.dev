@@ -3,7 +3,7 @@ import type { AssetFiles, AssetsConfig } from "../bindings/assets.js";
 import type { QueueConsumerConfig } from "../bindings/celld-queues.js";
 import type { ModuleLoader } from "../bindings/worker-loader.js";
 import { type WorkersAiOptions, workersAi } from "../bindings/workers-ai.js";
-import { entrypointStub } from "../core/handles.js";
+import { defaultHandler, entrypointStub } from "../core/handles.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
   type CellRuntime,
@@ -287,14 +287,12 @@ export function createProjectRuntime(
   for (const p of config.queues?.producers ?? [])
     env[p.binding] = queues!.producer(p.queue, p.delivery_delay ?? 0);
   if (consumers.size) {
-    const handler = (module.default as { queue?: (b: unknown, e: unknown, c: unknown) => unknown })
-      .queue;
-    if (typeof handler !== "function")
-      unsupported.push("queues.consumers without a queue() handler");
+    const handler = defaultHandler(module.default, "queue");
+    if (!handler) unsupported.push("queues.consumers without a queue() handler");
     queueDispatcher = {
       deliver: async (batch) => {
         const pending: Promise<unknown>[] = [];
-        await handler?.call(module.default, batch, env, {
+        await handler?.(batch, env, {
           waitUntil: (p: Promise<unknown>) => pending.push(p),
           passThroughOnException() {},
         });
@@ -327,16 +325,13 @@ export function createProjectRuntime(
   // Cron Triggers (validated at load time like `celld deploy` does).
   const crons = config.triggers?.crons ?? [];
   if (crons.length) {
-    const scheduled = (
-      module.default as { scheduled?: (c: unknown, e: unknown, x: unknown) => unknown }
-    ).scheduled;
-    if (typeof scheduled !== "function")
-      unsupported.push("triggers.crons without a scheduled() handler");
+    const scheduled = defaultHandler(module.default, "scheduled");
+    if (!scheduled) unsupported.push("triggers.crons without a scheduled() handler");
     else {
       const db = host.openSql("__cellb/cron");
       const stop = binding(host, "cron", "triggers.crons").startCronTriggers(
         crons,
-        (c, x) => runtime.runEvent(() => scheduled.call(module.default, c, env, x)),
+        (c, x) => runtime.runEvent(() => scheduled(c, env, x)),
         host.clock ?? systemClock,
         cronState(db),
       );
@@ -350,7 +345,7 @@ export function createProjectRuntime(
   }
   // Static assets: routed before the Worker; `assets.binding` exposes env.ASSETS.
   if (config.assets) {
-    const hasWorker = typeof (module.default as { fetch?: unknown })?.fetch === "function";
+    const hasWorker = defaultHandler(module.default, "fetch") !== undefined;
     if (host.assetFiles?.has("/.assetsignore"))
       throw new Error(
         `${config.assets.directory ?? "assets"}/.assetsignore is not supported by celld; remove it`,

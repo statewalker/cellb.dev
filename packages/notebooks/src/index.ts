@@ -10,6 +10,12 @@
  *   PUT  /nb/<site>/theme             { build: <id> }: a bundler build of an Astro theme
  *   GET  /nb/<site>/t/<page>          a page rendered by the theme, from the page models
  *   POST /nb/<site>/export            the themed site as static files, a ZIP
+ *   GET  /nb/<site>/search.json       the search index of the last build (search.ts)
+ *   GET  /nb/<site>/[t/]<path>        a data file: a source file, or a data loader's output
+ *
+ * Data loaders (`data/x.csv.js` → `data/x.csv`, data-loaders.ts) run with each build: each is
+ * bundled by the platform's bundler as a small Worker and run once in a Worker Loader isolate. Its
+ * output is kept until the loader's build changes; a loader's source is never served.
  *
  * The build is `@statewalker/notebook-build` in hosted mode: Markdown and notebook-kit HTML
  * become pages that import notebook-kit's runtime and their own `npm:` imports from the site's
@@ -24,6 +30,7 @@
  */
 import "urlpattern-polyfill";
 import { DurableObject } from "cloudflare:workers";
+import { handleBuilds } from "@statewalker/cellb-bundler/job";
 import { passthroughCss } from "@statewalker/cellb-esm-cdn";
 import type { PlatformEnv } from "@statewalker/cellb-platform-core/env";
 import { registryFetch } from "@statewalker/cellb-platform-core/registry";
@@ -41,6 +48,14 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { newModuleServer, npmRegistrySource } from "@statewalker/webrun-modules";
 import { DOMParser, parseHTML } from "linkedom";
 import { builtinClosure, type LocalBuiltinsServer, withLocalBuiltins } from "./builtins.js";
+import {
+  contentType,
+  isDataPath,
+  isServedSource,
+  loaderProject,
+  loaderTarget,
+  withLoaderOutputs,
+} from "./data-loaders.js";
 import { buildPageModels, type PageModels } from "./page-models.js";
 
 export type { OutlineEntry, PageBlock, PageModel, PageModels, SiteModel } from "./page-models.js";
@@ -51,6 +66,40 @@ interface WorkerLoaderLike {
     id: string,
     code: () => Record<string, unknown> | Promise<Record<string, unknown>>,
   ): { getEntrypoint(): { fetch(request: Request): Promise<Response> } };
+}
+
+/** A data loader's last run: its output stays until its build (a hash of its sources) changes. */
+interface LoaderRun {
+  loader: string;
+  build: string;
+  bytes: number;
+  ms: number;
+}
+
+/** How long a data loader may run before the build gives up on it. */
+const LOADER_TIMEOUT_MS = 60_000;
+
+function withTimeout<T>(run: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what}: no answer in ${ms / 1000} s`)), ms);
+  });
+  return Promise.race([run, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** A URL path's segments decoded, or `undefined` for a malformed `%` escape. */
+function decodePath(segments: readonly (string | undefined)[]): string | undefined {
+  try {
+    return `/${segments.map((s) => decodeURIComponent(s ?? "")).join("/")}`;
+  } catch {
+    return undefined;
+  }
+}
+
+async function readAll(files: SqlFilesApi, path: string): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  for await (const c of files.read(path)) chunks.push(c);
+  return new Uint8Array(await new Blob(chunks as BlobPart[]).arrayBuffer());
 }
 
 /** The page models as the theme reads them, with the version that names its loader isolate. */
@@ -79,8 +128,10 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
   output: SqlFilesApi;
   cache: SqlFilesApi;
   modules: SqlFilesApi;
-  /** `/models.json` (the page models) and `/theme.json` (the theme's build id). */
+  /** `/models.json` (the page models), `/theme.json` (the theme's build id), `/loaders.json`. */
   meta: SqlFilesApi;
+  /** The data loaders' outputs, at the paths they produce. */
+  data: SqlFilesApi;
   #server?: LocalBuiltinsServer;
   #building?: Promise<unknown>;
 
@@ -91,6 +142,112 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     this.cache = new SqlFilesApi(ctx.storage.sql, "nbcache");
     this.modules = new SqlFilesApi(ctx.storage.sql, "nbmod");
     this.meta = new SqlFilesApi(ctx.storage.sql, "nbmeta");
+    this.data = new SqlFilesApi(ctx.storage.sql, "nbdata");
+  }
+
+  /**
+   * Every data loader in the sources, built and run (data-loaders.ts). A loader whose build is the
+   * one of its last run keeps its output, unless `refresh` (a loader that reads an API is not run
+   * again until its source changes); one that fails or times out keeps its last output, if any, and
+   * is reported. Two loaders of one output: the second is reported, not run. Outputs of loaders
+   * that are gone are removed.
+   */
+  async runLoaders(origin: string, refresh = false) {
+    const last = (await this.#readJson<Record<string, LoaderRun>>("/loaders.json")) ?? {};
+    const runs: Record<string, LoaderRun> = {};
+    const loaders: (LoaderRun & { output: string; cached: boolean })[] = [];
+    const failures: { loader: string; error: string }[] = [];
+    const workers = this.env.LOADER as WorkerLoaderLike | undefined;
+    const owners = new Map<string, string>();
+    for (const path of this.sources.filePaths("/")) {
+      const output = loaderTarget(path);
+      if (!output || !isDataPath(output)) continue;
+      const owner = owners.get(output);
+      if (owner) {
+        failures.push({ loader: path, error: `${owner} already produces ${output}` });
+        continue;
+      }
+      owners.set(output, path);
+      const t = Date.now();
+      try {
+        if (!workers) throw new Error("this host has no Worker Loader (worker_loaders)");
+        const source = new TextDecoder().decode(await readAll(this.sources, path));
+        const res = await handleBuilds(
+          new Request(`${origin}/builds?tier=object&sourcemap=0`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ files: loaderProject(path, source) }),
+          }),
+          this.env,
+        );
+        const built = (await res.json()) as { id: string; status: string; error?: string };
+        if (built.status !== "done")
+          throw new Error(`build ${built.id}: ${built.status} ${built.error ?? ""}`.trim());
+        const previous = last[output];
+        if (
+          !refresh &&
+          previous?.loader === path &&
+          previous.build === built.id &&
+          (await this.data.exists(output))
+        ) {
+          runs[output] = previous;
+          loaders.push({ ...previous, output, cached: true });
+          continue;
+        }
+        const builds = stubOf(this.env.BUILDS, built.id);
+        // A fresh isolate for each run: a loader's module scope (a Response, a computed value) is
+        // evaluated again, as a process would be started again.
+        const worker = workers.get(`nb-data:${built.id}:${crypto.randomUUID()}`, async () => {
+          const r = await builds.fetch(`${origin}/b/${built.id}/loader.json`);
+          if (!r.ok) throw new Error(`loader.json ${r.status}`);
+          return (await r.json()) as Record<string, unknown>;
+        });
+        const bytes = await withTimeout(
+          (async () => {
+            const answer = await worker.getEntrypoint().fetch(new Request(`${origin}${output}`));
+            if (!answer.ok) throw new Error((await answer.text()).slice(0, 1000));
+            return new Uint8Array(await answer.arrayBuffer());
+          })(),
+          LOADER_TIMEOUT_MS,
+          path,
+        );
+        await this.data.write(output, [bytes]);
+        runs[output] = { loader: path, build: built.id, bytes: bytes.length, ms: Date.now() - t };
+        loaders.push({ ...(runs[output] as LoaderRun), output, cached: false });
+      } catch (e) {
+        failures.push({ loader: path, error: String((e as Error)?.message ?? e) });
+        const previous = last[output];
+        if (previous && (await this.data.exists(output))) runs[output] = previous;
+      }
+    }
+    for (const p of this.data.filePaths("/")) if (!runs[p]) await this.data.remove(p);
+    await this.#writeJson("/loaders.json", runs);
+    return { loaders, loaderFailures: failures };
+  }
+
+  /**
+   * A data file at `path`: a data loader's output, or a source file with a data, media or font
+   * extension (`isDataPath`). Never a notebook's or a loader's source (a loader can hold an API
+   * key), nor a dot-file, nor a path with `.`/`..` segments.
+   */
+  async dataFile(path: string): Promise<Response | undefined> {
+    if (!isDataPath(path)) return undefined;
+    const from = (await this.data.exists(path))
+      ? this.data
+      : isServedSource(path) && (await this.sources.exists(path))
+        ? this.sources
+        : undefined;
+    if (!from) return undefined;
+    return new Response((await readAll(from, path)) as BodyInit, {
+      headers: { "content-type": contentType(path) },
+    });
+  }
+
+  /** Every data file's path (`dataFile`). */
+  dataPaths(): string[] {
+    const paths = new Set(this.data.filePaths("/"));
+    for (const p of this.sources.filePaths("/")) if (isServedSource(p)) paths.add(p);
+    return [...paths].sort();
   }
 
   async #readJson<T>(path: string): Promise<T | undefined> {
@@ -112,6 +269,8 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       dom: dom as never,
       siteTitle: site,
       base: `/nb/${site}/t`,
+      searchUrl: `/nb/${site}/search.json`,
+      dataFiles: this.dataPaths(),
     });
     const home = models.pages.find((p) => p.id === "index");
     if (home) models.site.title = home.title;
@@ -129,6 +288,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       pages: Object.fromEntries(models.pages.map((p) => [p.id, p])),
     };
     await this.#writeJson("/models.json", stored);
+    await this.#writeJson("/search.json", models.search);
     return { models: models.pages.length, modelFailures: models.failures };
   }
 
@@ -144,6 +304,9 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     if (path !== "/" && !path.endsWith("/")) {
       const asset = await builds.fetch(`${origin}/b/${theme.build}/assets${path}`);
       if (asset.ok) return asset;
+      // A page's FileAttachment("x.csv") resolves next to the page: `/t/x.csv`.
+      const data = await this.dataFile(path);
+      if (data) return data;
     }
     const loader = this.env.LOADER as WorkerLoaderLike | undefined;
     if (!loader) return text("this host has no Worker Loader (worker_loaders)\n", 501);
@@ -174,7 +337,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     return this.#server;
   }
 
-  async build(site: string) {
+  async build(site: string, origin: string, refreshLoaders = false) {
     await ensureLightningCss();
     const moduleServer = this.moduleServer(site);
     const basePath = `/nb/${site}/_m/`;
@@ -189,8 +352,10 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     const changed: string[] = [];
     const failures: { notebook: string; error: string }[] = [];
     const t = Date.now();
+    // Loaders first: a notebook's FileAttachment of a loader's output must find it.
+    const data = await this.runLoaders(origin, refreshLoaders);
     const build = newNotebookBuild({
-      notebooks: this.sources,
+      notebooks: withLoaderOutputs(this.sources, this.data),
       output: this.output,
       cache: this.cache,
       moduleServer,
@@ -214,6 +379,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       failures,
       ms: Date.now() - t,
       pages: this.output.filePaths("/").filter((p) => p.endsWith(".html")),
+      ...data,
       ...themed,
     };
   }
@@ -286,7 +452,12 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       const html = (res.headers.get("content-type") ?? "").includes("text/html");
       out.set(html ? `${path.replace(/\/$/, "")}/index.html`.slice(1) : path.slice(1), bytes);
       if (!html) continue;
-      for (const [, link] of new TextDecoder().decode(bytes).matchAll(/(?:href|src)="([^"#?]+)/g)) {
+      // Links in the markup only: a script's text is code (the theme's search script builds
+      // `href="${…}"` strings), not links to follow. Its opening tag stays (`<script src>`).
+      const markup = new TextDecoder()
+        .decode(bytes)
+        .replace(/(<script\b[^>]*>)[\s\S]*?<\/script>/gi, "$1");
+      for (const [, link] of markup.matchAll(/(?:href|src)="([^"#?]+)/g)) {
         const u = new URL(link, origin + path);
         if (u.origin !== origin || !u.pathname.startsWith(`${prefix}/`)) continue;
         if (seen.has(u.pathname) || out.has(u.pathname.slice(1))) continue;
@@ -295,6 +466,16 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       }
     }
     if (failed.length) return text(`export: ${failed.join(", ")}\n`, 502);
+    // Data files: cells fetch them from JavaScript (FileAttachment), so no crawl finds them.
+    for (const p of this.dataPaths()) {
+      const target = `${prefix.slice(1)}/t${p}`;
+      const file = out.has(target) ? undefined : await this.dataFile(p);
+      if (file) out.set(target, new Uint8Array(await file.arrayBuffer()));
+    }
+    // The search index: the theme fetches it from JavaScript, so no crawl finds it.
+    const search = await this.#readJson<unknown>("/search.json");
+    if (search)
+      out.set(`${prefix.slice(1)}/search.json`, new TextEncoder().encode(JSON.stringify(search)));
     const home = `${prefix}/t/`;
     out.set(
       "index.html",
@@ -412,13 +593,17 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     if (area === "build" && request.method === "POST") {
       // One build at a time: a second request waits for the running one, then builds again.
       while (this.#building) await this.#building.catch(() => {});
-      const run = this.build(site);
+      const run = this.build(site, url.origin, url.searchParams.get("loaders") === "refresh");
       this.#building = run;
       try {
         return json(await run);
       } finally {
         this.#building = undefined;
       }
+    }
+    if (area === "search.json" && rest.length === 0) {
+      const search = await this.#readJson<unknown>("/search.json");
+      return search ? json(search) : text("no search index: build first\n", 404);
     }
     if (area === "models.json" && rest.length === 0) {
       const models = await this.#readJson<StoredModels>("/models.json");
@@ -434,11 +619,18 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       return this.exportSite(request, site);
     }
     if (area === "t") {
-      return this.themed(request, site, `/${rest.map(decodeURIComponent).join("/")}`);
+      const path = decodePath(rest);
+      return path ? this.themed(request, site, path) : text("malformed path\n", 400);
     }
     if (area === "_m") {
       await ensureLightningCss();
       return this.moduleServer(site).fetch(request);
+    }
+    // A data loader's output beside the plain pages, as their attachments are.
+    const own = decodePath([area, ...rest]);
+    if (own && request.method === "GET" && isDataPath(own) && (await this.data.exists(own))) {
+      const data = await this.dataFile(own);
+      if (data) return data;
     }
     // Pages and attachments: the built output, as notebook-site serves it (modules handled above).
     const inner = new URL(request.url);

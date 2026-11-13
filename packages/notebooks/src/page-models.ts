@@ -37,8 +37,10 @@ import {
   type OutlineEntry,
   type PtBlock,
   renderProse,
+  type SearchSection,
   toPortableText,
 } from "./portable-text.js";
+import { buildSearchIndex, type SearchIndex } from "./search.js";
 
 export type { OutlineEntry } from "./portable-text.js";
 
@@ -77,6 +79,8 @@ export interface SiteModel {
   /** The home page's path (`<base>/`). */
   home: string;
   pages: { id: string; path: string; title: string }[];
+  /** The search index's URL, when the site has one (`search.json`). */
+  search?: string;
 }
 
 export interface PageModels {
@@ -86,6 +90,8 @@ export interface PageModels {
   pins: Record<string, string>;
   /** Every free variable of every cell: which built-ins (`Inputs`, `Plot`, `d3`…) the site uses. */
   inputs: string[];
+  /** The search index: every page's text by section. */
+  search: SearchIndex;
 }
 
 const RUNTIME_SPECIFIER = "npm:@observablehq/notebook-kit/runtime";
@@ -136,9 +142,52 @@ async function readText(files: FilesApi, path: string): Promise<string> {
   return new TextDecoder().decode(bytes);
 }
 
-/** The page path of a notebook id under `base`: `index` is the base itself. */
+/**
+ * The page path of a notebook id under `base`: `index` is the base itself, `guide/index` is
+ * `<base>/guide/` (a directory: a relative link or FileAttachment resolves inside it).
+ */
 const pagePath = (base: string, id: string) =>
-  id === "index" ? `${base}/` : `${base}/${id.replace(/\/index$/, "")}`;
+  id === "index" ? `${base}/` : `${base}/${id.replace(/(^|\/)index$/, "$1")}`;
+
+/** `to` relative to the directory `fromDir` (both absolute, `/`-separated). */
+function relative(fromDir: string, to: string): string {
+  const from = fromDir.split("/").filter(Boolean);
+  const target = to.split("/").filter(Boolean);
+  let i = 0;
+  while (i < from.length && i < target.length - 1 && from[i] === target[i]) i++;
+  return [...from.slice(i).map(() => ".."), ...target.slice(i)].join("/");
+}
+
+/**
+ * The `registerFile` calls of a notebook's page: each data file a cell names by its path relative
+ * to the notebook (`FileAttachment("data/x.csv")`), registered at its absolute URL.
+ */
+function registrations(
+  notebook: string,
+  dataFiles: readonly string[],
+  base: string,
+  parts: ReturnType<typeof numberCells>["parts"],
+): string[] {
+  if (!dataFiles.length) return [];
+  const code = parts
+    .map((p) => (p.kind === "cell" ? p.cell.source : p.exprs.map((e) => e.source).join("\n")))
+    .join("\n");
+  const dir = notebook.slice(0, notebook.lastIndexOf("/") + 1);
+  const out: string[] = [];
+  const named = (name: string) =>
+    code.includes(`"${name}"`) || code.includes(`'${name}'`) || code.includes(`\`${name}\``);
+  for (const path of dataFiles) {
+    const rel = relative(dir, path);
+    // As written in the notebook: relative, `./`-relative, or from the site's root (`/data/x.csv`,
+    // which the page's own URL would resolve against the origin, not the site).
+    for (const name of [rel, ...(rel.startsWith(".") ? [] : [`./${rel}`]), path])
+      if (named(name))
+        out.push(
+          `registerFile(${JSON.stringify(name)}, {"path":${JSON.stringify(`${base}${path}`)}});`,
+        );
+  }
+  return out;
+}
 
 /** A notebook's document: Markdown directly, a Notebook Kit document through notebook-build's parser. */
 function documentOf(file: string, text: string, dom: DomEnv): NotebookDocument {
@@ -158,7 +207,16 @@ export async function buildPageModels(opts: {
   dom: DomEnv;
   siteTitle: string;
   base?: string;
+  /** Where the search index will be served (`SiteModel.search`), if it is. */
+  searchUrl?: string;
+  /**
+   * The site's data files (`/data/x.csv`: attachments, data loaders' outputs), served at
+   * `<base><path>`. A page registers those its cells name (`registerFile`), so `FileAttachment`
+   * finds them wherever the page is served from (`/t/x` or `/t/x/`).
+   */
+  dataFiles?: readonly string[];
 }): Promise<PageModels & { failures: { notebook: string; error: string }[] }> {
+  const sectionsOf = new Map<string, SearchSection[]>();
   const allPins: Record<string, string> = {};
   const allInputs = new Set<string>();
   const base = (opts.base ?? "").replace(/\/$/, "");
@@ -208,11 +266,17 @@ export async function buildPageModels(opts: {
 
       const outline: OutlineEntry[] = [];
       const used = new Set<string>();
+      // Text above the first heading belongs to the page itself (no anchor).
+      const sections: SearchSection[] = [{ heading: "", anchor: "", text: "" }];
+      sectionsOf.set(id, sections);
       const blocks: PageBlock[] = [];
       const defines: string[] = [];
       for (const part of parts) {
         if (part.kind === "prose") {
-          blocks.push({ kind: "prose", html: renderProse(part, outline, used, exprErrors) });
+          blocks.push({
+            kind: "prose",
+            html: renderProse(part, outline, used, exprErrors, sections),
+          });
           for (const e of part.exprs) {
             const def = compiled.get(e.id);
             if (def && !def.error) defines.push(defineCall(def));
@@ -242,8 +306,10 @@ export async function buildPageModels(opts: {
         }
       }
       const content = toPortableText(parts);
+      const files = registrations(file, opts.dataFiles ?? [], base, parts);
+      const imports = files.length ? "define, registerFile" : "define";
       // A literal `</script` would end the inline script early; `<\/script` is the same string.
-      const script = [`import {define} from "${runtimeUrl}";`, ...defines]
+      const script = [`import {${imports}} from "${runtimeUrl}";`, ...files, ...defines]
         .join("\n")
         .replace(/<\/script/gi, "<\\/script");
       pages.push({
@@ -268,5 +334,9 @@ export async function buildPageModels(opts: {
     home: `${base}/`,
     pages: pages.map(({ id, path, title }) => ({ id, path, title })),
   };
-  return { site, pages, pins: allPins, inputs: [...allInputs].sort(), failures };
+  if (opts.searchUrl) site.search = opts.searchUrl;
+  const search = buildSearchIndex(
+    pages.map((p) => ({ path: p.path, title: p.title, sections: sectionsOf.get(p.id) ?? [] })),
+  );
+  return { site, pages, pins: allPins, inputs: [...allInputs].sort(), search, failures };
 }

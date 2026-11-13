@@ -1,6 +1,6 @@
 {
   "kind": "user-code",
-  "recordedAt": "2026-11-12",
+  "recordedAt": "2026-11-13",
   "host": "the platform on CellB in Node (packages/platform, dist/platform/cellb)",
   "steps": [
     {
@@ -21,7 +21,7 @@
         "body": "{\n  \"files\": 6\n}",
         "bodyLang": "json",
         "bytes": 16,
-        "ms": 18
+        "ms": 29
       }
     },
     {
@@ -41,7 +41,7 @@
         "body": "{\n  \"snapshot\": \"02915a7ffc23f663\",\n  \"base\": \"http://localhost:8787/p/tasks/s/02915a7ffc23f663/\"\n}",
         "bodyLang": "json",
         "bytes": 99,
-        "ms": 16
+        "ms": 8
       }
     },
     {
@@ -62,7 +62,7 @@
         "body": "import {jsxs as _jsxs, jsx as _jsx} from \"../~deps/react/jsx-runtime.js\";import { useState } from \"../~deps/react/index.js\";\nimport { newTask, summary, } from \"./tasks.ts\";\n\nexport function App({ title }) {\n  const [tasks, setTasks] = useState(() =>\n    [\"Write the files\", \"Take a snapshot\", \"Open the page\"].map(newTask),\n  );\n  const [text, setText] = useState(\"\");\n  const toggle = (id) =>\n    setTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));\n  return (\n    _jsxs('main', { className: \"tasks\", children: [\n      _jsx('h1', { children: title})\n      , _jsx('p', { className: \"summary\", children: summary(tasks)})\n      , _jsx('ul', { children: \n        tasks.map((t) => (\n          _jsxs('li', { className: t.done ? \"done\" : \"\", children: [\n            _jsxs('label', { children: [\n              _jsx('input', { type: \"checkbox\", checked: t.done, onChange: () => toggle(t.id),} ), \" \" , t.text\n            ]})\n            , _jsx('code', { children: t.id})\n          ]}, t.id)\n        ))\n      })\n      , _jsxs('form', {\n        onSubmit: (e) => {\n          e.preventDefault();\n          if (text.trim()) setTasks([...tasks, newTask(text.trim())]);\n          setText(\"\");\n        },\n// … 8 more lines",
         "bodyLang": "js",
         "bytes": 1416,
-        "ms": 367
+        "ms": 525
       }
     },
     {
@@ -104,7 +104,7 @@
         "body": "{\n  \"urls\": {\n    \"src/main.tsx\": \"/p/tasks/s/02915a7ffc23f663/~/src/main.tsx\"\n  },\n  \"preload\": [\n    \"/p/tasks/s/02915a7ffc23f663/~/src/App.tsx\",\n    \"/p/tasks/s/02915a7ffc23f663/~/src/main.tsx\",\n    \"/p/tasks/s/02915a7ffc23f663/~/src/styles.css\",\n    \"/p/tasks/s/02915a7ffc23f663/~/src/tasks.ts\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/nanoid/index.js\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/react-dom/client.js\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/react/index.js\",\n    \"/p/tasks/s/02915a7ffc23f663/~/~deps/react/jsx-runtime.js\"\n  ]\n}",
         "bodyLang": "json",
         "bytes": 548,
-        "ms": 591
+        "ms": 681
       }
     },
     {
@@ -123,7 +123,7 @@
         "body": "",
         "bodyLang": "txt",
         "bytes": 0,
-        "ms": 8
+        "ms": 10
       }
     },
     {
@@ -143,7 +143,7 @@
         "body": "{\n  \"snapshot\": \"862d3ce67d334733\",\n  \"base\": \"http://localhost:8787/p/tasks/s/862d3ce67d334733/\"\n}",
         "bodyLang": "json",
         "bytes": 99,
-        "ms": 18
+        "ms": 12
       }
     }
   ],

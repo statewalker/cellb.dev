@@ -71,6 +71,8 @@ export default defineConfig({
       "path-browserify",
       "util",
       "@statewalker/webrun-files",
+      // The Worker Loader's CommonJS modules and import() routing parse loaded code with acorn.
+      "acorn",
     ],
     entries: [
       "index.html",
