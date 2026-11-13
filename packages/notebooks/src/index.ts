@@ -290,10 +290,10 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       out.set(html ? `${path.replace(/\/$/, "")}/index.html`.slice(1) : path.slice(1), bytes);
       if (!html) continue;
       // Links in the markup only: a script's text is code (the theme's search script builds
-      // `href="${…}"` strings), not links to follow.
+      // `href="${…}"` strings), not links to follow. Its opening tag stays (`<script src>`).
       const markup = new TextDecoder()
         .decode(bytes)
-        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+        .replace(/(<script\b[^>]*>)[\s\S]*?<\/script>/gi, "$1");
       for (const [, link] of markup.matchAll(/(?:href|src)="([^"#?]+)/g)) {
         const u = new URL(link, origin + path);
         if (u.origin !== origin || !u.pathname.startsWith(`${prefix}/`)) continue;

@@ -376,6 +376,22 @@ export interface SearchSection {
  * expression that does not compile. A placeholder inside a tag (an attribute value) shows its
  * source as text: a span cannot go there.
  */
+/**
+ * An inline token's words, for the search index: text and code, a line break as a space (so
+ * wrapped lines do not run together), an expression's placeholder as `expr`.
+ */
+function inlineText(children: { type: string; content: string }[] | null, expr: string): string {
+  return (children ?? [])
+    .map((c) =>
+      c.type === "text" || c.type === "code_inline"
+        ? c.content.replace(PLACEHOLDER, expr)
+        : c.type === "softbreak" || c.type === "hardbreak"
+          ? " "
+          : "",
+    )
+    .join("");
+}
+
 export function renderProse(
   part: Extract<NumberedPart, { kind: "prose" }>,
   outline: OutlineEntry[],
@@ -388,10 +404,7 @@ export function renderProse(
   const tokens = md.parse(part.markdown, {});
   for (const [i, t] of tokens.entries()) {
     if (sections && t.type === "inline" && tokens[i - 1]?.type !== "heading_open") {
-      const words = (t.children ?? [])
-        .filter((c) => c.type === "text" || c.type === "code_inline")
-        .map((c) => c.content.replace(PLACEHOLDER, " "))
-        .join("");
+      const words = inlineText(t.children, " ");
       const current = sections.at(-1);
       if (current && words.trim()) current.text += `${current.text ? " " : ""}${words.trim()}`;
     }
@@ -404,7 +417,10 @@ export function renderProse(
     used.add(slug);
     t.attrSet("id", slug);
     outline.push({ depth: Number(t.tag.slice(1)), text, slug });
-    sections?.push({ heading: raw.replace(PLACEHOLDER, "").trim(), anchor: slug, text: "" });
+    const heading = inlineText(tokens[i + 1]?.children ?? null, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    sections?.push({ heading, anchor: slug, text: "" });
   }
   const html = md.renderer.render(tokens, md.options, {});
   return html.replace(/<[^>]*>|(\d+)/g, (match, n?: string) => {

@@ -44,17 +44,39 @@ const toc = page.outline.filter((o) => o.depth >= 2 && o.depth <= 3);
           const out = document.querySelector(".search-results");
           if (!input || !out) return;
           let index;
-          const load = () => (index ??= fetch(input.dataset.index).then((r) => r.json()));
+          // A failed load (not built yet, offline) is retried on the next keystroke.
+          const load = () =>
+            (index ??= fetch(input.dataset.index)
+              .then((r) => {
+                if (!r.ok) throw new Error(`search index: ${r.status}`);
+                return r.json();
+              })
+              .catch((e) => {
+                index = undefined;
+                throw e;
+              }));
           const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-          input.addEventListener("focus", () => load(), { once: true });
+          input.addEventListener("focus", () => load().catch(() => {}), { once: true });
           input.addEventListener("input", async () => {
-            const terms = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+            const query = input.value;
+            const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
             if (!terms.length) {
               out.hidden = true;
               out.innerHTML = "";
               return;
             }
-            const { pages, entries } = await load();
+            let loaded;
+            try {
+              loaded = await load();
+            } catch {
+              if (input.value !== query) return;
+              out.innerHTML = '<li class="none">Search is unavailable</li>';
+              out.hidden = false;
+              return;
+            }
+            // A later keystroke (or a cleared box) has its own results.
+            if (input.value !== query) return;
+            const { pages, entries } = loaded;
             const hits = [];
             for (const e of entries) {
               const head = `${pages[e.p].title} ${e.h}`.toLowerCase();

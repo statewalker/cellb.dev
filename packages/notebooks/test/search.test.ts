@@ -68,6 +68,17 @@ describe("search index", () => {
     expect(html).toContain('<h2 id="loading-data-2">');
   });
 
+  it("keeps wrapped lines apart and indexes a heading's words, not its Markdown", async () => {
+    const notebooks = new MemFilesApi({
+      initialFiles: {
+        "/w.md": "# W\n\n## Use [Plot](https://x.com) `x`\n\nRows come from\na warehouse.\n",
+      },
+    });
+    const models = await buildPageModels({ notebooks, moduleServer, dom, siteTitle: "S" });
+    const entry = models.search.entries.find((e) => e.t.startsWith("Rows"));
+    expect(entry).toMatchObject({ h: "Use Plot x", t: "Rows come from a warehouse." });
+  });
+
   it("keeps a section's text bounded and drops empty untitled sections", () => {
     const index = buildSearchIndex([
       {
