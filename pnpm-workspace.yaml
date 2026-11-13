@@ -22,8 +22,8 @@ catalog:
   "@statewalker/webrun-files": ^0.10.4
   "@statewalker/webrun-files-mem": ^0.10.4
   "@statewalker/webrun-files-node": ^0.10.4
-  "@statewalker/webrun-builder": ^0.2.1
-  "@statewalker/notebook-build": ^0.1.1
+  "@statewalker/webrun-builder": ^0.4.1
+  "@statewalker/notebook-build": ^0.2.0
   "@statewalker/notebook-site": ^0.1.2
   "@astrojs/compiler-rs": 0.5.3
   "@emnapi/core": 1.11.3

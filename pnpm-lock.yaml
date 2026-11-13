@@ -25,14 +25,14 @@ catalogs:
       specifier: 1.2.7
       version: 1.2.7
     '@statewalker/notebook-build':
-      specifier: ^0.1.1
-      version: 0.1.1
+      specifier: ^0.2.0
+      version: 0.2.0
     '@statewalker/notebook-site':
       specifier: ^0.1.2
       version: 0.1.2
     '@statewalker/webrun-builder':
-      specifier: ^0.2.1
-      version: 0.2.1
+      specifier: ^0.4.1
+      version: 0.4.1
     '@statewalker/webrun-bundler':
       specifier: ^0.1.2
       version: 0.1.2
@@ -240,7 +240,7 @@ importers:
         version: 0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25)(@statewalker/webrun-http-browser@0.13.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
       '@statewalker/notebook-build':
         specifier: 'catalog:'
-        version: 0.1.1(@statewalker/webrun-builder@0.2.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@statewalker/notebook-site':
         specifier: 'catalog:'
         version: 0.1.2(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4))
@@ -261,7 +261,7 @@ importers:
         version: 0.2.3
       '@statewalker/webrun-builder':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.4.1
       '@statewalker/webrun-bundler':
         specifier: ^0.1.2
         version: 0.1.2(esbuild-wasm@0.28.2)
@@ -678,13 +678,13 @@ importers:
         version: link:../platform-core
       '@statewalker/notebook-build':
         specifier: 'catalog:'
-        version: 0.1.1(@statewalker/webrun-builder@0.2.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@statewalker/notebook-site':
         specifier: 'catalog:'
         version: 0.1.2(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4))
       '@statewalker/webrun-builder':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.4.1
       '@statewalker/webrun-files':
         specifier: 'catalog:'
         version: 0.10.4
@@ -2802,10 +2802,10 @@ packages:
       libp2p:
         optional: true
 
-  '@statewalker/notebook-build@0.1.1':
-    resolution: {integrity: sha512-SrMBK98mehNN2mqd+Npedew5tbdr7hg2zfYnZJUEQJa5ZXUqn4aUiXM39BNGke2nyyeZF/4nR+4Es48X7FhO0g==}
+  '@statewalker/notebook-build@0.2.0':
+    resolution: {integrity: sha512-w7yFwzCF2x1d2++SUNs9/RO6CHN0ld/3JtaBM4yOlH87D4psFK8T4OigeVbQphzqPpYuL6RK4WO+71hedFvFyw==}
     peerDependencies:
-      '@statewalker/webrun-builder': ^0.1.1 || ^0.2.0
+      '@statewalker/webrun-builder': ^0.3.1
       '@statewalker/webrun-files': ^0.10.0
       '@statewalker/webrun-modules': ^0.2.1 || ^0.3.0
 
@@ -2839,16 +2839,13 @@ packages:
   '@statewalker/webrun-biscuit@0.2.3':
     resolution: {integrity: sha512-OgdQqAzzmDI2OQd8Mt1pWlEkAbshIbql0lbRitBqCVAZG0zuGtAS+K2qSoTEczdDGWUrAH+hm/cD9UdoDOXfJA==}
 
-  '@statewalker/webrun-builder@0.2.1':
-    resolution: {integrity: sha512-SoLZ88zccPEQ0KqZkIS/OZIiUJbDFsDeZzzIYTu/ymRJKKHfZPOLdVsr2iHGxn7NJWJTs0yA8CRKrZNhx1ImcQ==}
+  '@statewalker/webrun-builder@0.4.1':
+    resolution: {integrity: sha512-32iTLau4woJdSkG94apZ41n2XnfiExrbPRfXA59Xy7DDLGtR55HCvKytRrut9iw2QdQrjk3yGNe+6U2z8dDcaA==}
 
   '@statewalker/webrun-bundler@0.1.2':
     resolution: {integrity: sha512-DrPllJChQvgXwIFQRDJEK4AlDxEHmN200dR2ZgEqqPbuL13jEvZPin8sbO+J1PCmHKemc0yHXClmdu6EC0MSmw==}
     peerDependencies:
       esbuild-wasm: ^0.28.0
-
-  '@statewalker/webrun-dataflow@0.1.3':
-    resolution: {integrity: sha512-SrvSkwk8PQIPm3bgg3ZoXc1c5Abce1Wdjo5+qVCO4hRC2SpypOk8TsgqdPA4ydEs+mqrFWphZcNt96fv5UtfLg==}
 
   '@statewalker/webrun-files-browser@0.10.3':
     resolution: {integrity: sha512-O5ZOp3uqJuoRyit3VWz66rtfwpEXdTuXTb6k/WcOGjkqGBtOKTGznYSVMz4HSPNl/nLZYOeokdEBtyBnIxQPuA==}
@@ -8241,10 +8238,10 @@ snapshots:
       - react-native-webrtc
       - utf-8-validate
 
-  '@statewalker/notebook-build@0.1.1(@statewalker/webrun-builder@0.2.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
+  '@statewalker/notebook-build@0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
     dependencies:
       '@observablehq/notebook-kit': 2.11.0(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
-      '@statewalker/webrun-builder': 0.2.1
+      '@statewalker/webrun-builder': 0.4.1
       '@statewalker/webrun-files': 0.10.4
       '@statewalker/webrun-modules': 0.3.6
       markdown-it: 15.0.3
@@ -8327,9 +8324,8 @@ snapshots:
       '@noble/curves': 2.4.0
       '@noble/hashes': 2.4.0
 
-  '@statewalker/webrun-builder@0.2.1':
+  '@statewalker/webrun-builder@0.4.1':
     dependencies:
-      '@statewalker/webrun-dataflow': 0.1.3
       '@statewalker/webrun-files': 0.10.4
 
   '@statewalker/webrun-bundler@0.1.2(esbuild-wasm@0.28.2)':
@@ -8338,8 +8334,6 @@ snapshots:
       '@statewalker/webrun-modules': 0.3.6
       esbuild-wasm: 0.28.2
       resolve.exports: 2.0.4
-
-  '@statewalker/webrun-dataflow@0.1.3': {}
 
   '@statewalker/webrun-files-browser@0.10.3':
     dependencies:
