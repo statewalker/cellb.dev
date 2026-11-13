@@ -228,6 +228,36 @@ try {
     throw new Error(`a viewer: app ${vApp.status}, MCP ${vMcp.status}`);
   step("a viewer's bridge opens the app and is refused the MCP endpoint (403)");
 
+  // An agent (read-only tools): the bridge falls back from /mcp/edit to /mcp/read, body and all.
+  const agentInv = blobOf(await oneShot(["src/main.ts", "invite", "agent"], hubEnv));
+  const agent = await run(
+    ["src/bridge.ts", agentInv],
+    {
+      SANDBOX_BRIDGE_DIR: await mkdtemp(join(tmpdir(), "sandbox-bridge-")),
+      SANDBOX_BRIDGE_PORT: "0",
+    },
+    /bridge: (http:\/\/127\.0\.0\.1:\d+\/) /,
+  );
+  const agentTools = await rpc(`${agent.m[1]}s/${peerId}/`, {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tools/list",
+  });
+  const agentNames = agentTools.value?.result?.tools?.map((t) => t.name) ?? [];
+  if (!agentNames.includes("read_file") || agentNames.includes("write_file"))
+    throw new Error(`an agent's tools: ${JSON.stringify(agentTools)}`);
+  // Another site's page cannot drive a local bridge (it sends its own Origin).
+  const crossSite = await fetch(`${B}mcp`, {
+    method: "POST",
+    headers: { "content-type": "text/plain", origin: "https://evil.example" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+  });
+  if (crossSite.status !== 403)
+    throw new Error(`a cross-site POST to the bridge: ${crossSite.status}`);
+  step(
+    "an agent's bridge gets the read-only tools; a cross-site POST to a bridge is refused (403)",
+  );
+
   await page.getByRole("button", { name: "Deploy to the hub" }).click();
   try {
     await page.getByTestId("hosted-apps").getByText("tasks").waitFor({ timeout: 180_000 });

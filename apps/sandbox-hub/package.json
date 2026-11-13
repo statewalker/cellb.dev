@@ -13,7 +13,9 @@
     "test": "tsx test/mesh.test.ts",
     "build": "node build.mjs",
     "revoke": "tsx src/main.ts revoke",
-    "gateway": "tsx src/bridge.ts --public"
+    "gateway": "tsx src/bridge.ts --public",
+    "apps": "tsx src/main.ts apps",
+    "takedown": "tsx src/main.ts takedown"
   },
   "dependencies": {
     "@chainsafe/libp2p-noise": "^17.0.0",

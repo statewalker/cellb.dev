@@ -65,7 +65,7 @@ try {
   expect("editor → /mcp/read", await call(editor, "/mcp/read"), 200);
   expect("editor → /mcp/edit", await call(editor, "/mcp/edit"), 200);
   step("roles hold: a viewer is refused the MCP endpoints, an editor reaches both");
-  // Ship to the hub: the publisher deploys a folder (a no_bundle Worker with a Durable Object); the
+  // Ship to the hub: a deployer deploys a folder (a no_bundle Worker with a Durable Object); the
   // hub runs it on CellB and serves it at /apps/<name>/ to viewers; a viewer cannot deploy.
   const b64 = (t: string) => Buffer.from(t).toString("base64");
   const folder = {
@@ -109,7 +109,13 @@ export default {
     const res = await who.fetch(new Request(`http://local/peers/${hub.peerId}${path}`));
     return { status: res.status, body: await res.text() };
   };
-  expect("publisher → deploy", await deploy(publisher, folder), 200);
+  // Deploying runs code on the hub's machine: a publisher may not, a deployer may.
+  expect("publisher → deploy", await deploy(publisher, folder), 403);
+  const deployer = await join_(["deployer"]);
+  const deployer2 = await join_(["deployer"]);
+  expect("deployer → deploy", await deploy(deployer, folder), 200);
+  // An app belongs to whoever deployed it: another deployer cannot replace it.
+  expect("another deployer → replace", await deploy(deployer2, folder), 403);
   const hosted = await onHub(viewer, "/apps/counter/hello");
   expect("viewer → hosted app", hosted, 200);
   if (!hosted.body.includes("hosted on the hub: /hello #1"))
@@ -118,18 +124,18 @@ export default {
   expect("viewer → list", await onHub(viewer, "/host/apps"), 200);
   expect("viewer → deploy", await deploy(viewer, folder), 403);
   // A new release keeps the Durable Object's data.
-  expect("publisher → redeploy", await deploy(publisher, folder), 200);
+  expect("deployer → redeploy", await deploy(deployer, folder), 200);
   const again = await onHub(editor, "/apps/counter/x");
   if (!again.body.includes("#3")) throw new Error(`after the redeploy: ${again.body}`);
   if (hub.apps().length !== 1) throw new Error(`apps: ${JSON.stringify(hub.apps())}`);
   step(
-    "Ship to the hub: deployed, served on CellB to members, redeployed with its data; a viewer cannot deploy",
+    "Ship to the hub: a deployer deploys, members open it on CellB, a redeploy keeps its data; a viewer, a publisher and another deployer cannot",
   );
 
   const links = hub.members();
-  if (links.length !== 3 || !links.every((m) => m.link === "direct"))
+  if (links.length !== 5 || !links.every((m) => m.link === "direct"))
     throw new Error(`members' links: ${JSON.stringify(links)}`);
-  step("the hub sees three members, each on a direct link");
+  step("the hub sees five members, each on a direct link");
 
   // Revoked: out of the member list, its reservation freed, its calls refused once the publisher's
   // revocation cache refreshes (or its link to the publisher drops).

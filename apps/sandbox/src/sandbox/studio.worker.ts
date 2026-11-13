@@ -24,39 +24,45 @@ const stores = new Map<string, FilesApi>();
 let hostCallId = 0;
 const hostCalls = new Map<number, (out: HostOut) => void>();
 
-// The Python engine (Pyodide), one per tab, started on the first `python` call.
+// The Python engine (Pyodide), one per tab, started on the first `python` call. Runs go one at a
+// time: they share the engine's /workspace (a second run copying in other files would make the
+// first one's diff report everything else as deleted), and a model may call tools in parallel.
 const PYTHON_TIMEOUT_MS = 120_000; // the first run downloads Pyodide (~10 MB)
 let pythonEngine: Worker | undefined;
+let pythonQueue: Promise<unknown> = Promise.resolve();
 let pythonId = 0;
-const pythonRuns = new Map<number, (out: unknown) => void>();
+const failed = (error: string) => ({ stdout: "", stderr: "", value: null, error, changes: [] });
 function python(req: { files: [string, Uint8Array][]; code: string; cwd?: string }) {
-  if (!pythonEngine) {
-    pythonEngine = new Worker(new URL("./python.worker.ts", import.meta.url), { type: "module" });
-    pythonEngine.addEventListener("message", (e: MessageEvent<{ id: number }>) => {
-      pythonRuns.get(e.data.id)?.(e.data);
-      pythonRuns.delete(e.data.id);
-    });
-  }
-  const id = ++pythonId;
+  const run = pythonQueue.then(() => pythonRun(req));
+  pythonQueue = run.catch(() => {});
+  return run;
+}
+function pythonRun(req: { files: [string, Uint8Array][]; code: string; cwd?: string }) {
+  pythonEngine ??= new Worker(new URL("./python.worker.ts", import.meta.url), { type: "module" });
   const engine = pythonEngine;
+  const id = ++pythonId;
   return new Promise((resolve) => {
-    // A run that does not end (a loop, a hung download) costs the engine: it is replaced.
-    const timer = setTimeout(() => {
-      pythonRuns.delete(id);
-      if (pythonEngine === engine) pythonEngine = undefined;
-      engine.terminate();
-      resolve({
-        stdout: "",
-        stderr: "",
-        value: null,
-        error: `ETIMEDOUT: Python ran over ${PYTHON_TIMEOUT_MS / 1000} s`,
-        changes: [],
-      });
-    }, PYTHON_TIMEOUT_MS);
-    pythonRuns.set(id, (out) => {
+    const done = (out: unknown, replaceEngine: boolean) => {
       clearTimeout(timer);
+      engine.removeEventListener("message", onMessage);
+      engine.removeEventListener("error", onError);
+      if (replaceEngine) {
+        if (pythonEngine === engine) pythonEngine = undefined;
+        engine.terminate();
+      }
       resolve(out);
-    });
+    };
+    const onMessage = (e: MessageEvent<{ id: number }>) => {
+      if (e.data?.id === id) done(e.data, false);
+    };
+    const onError = (e: ErrorEvent) => done(failed(`the Python engine failed: ${e.message}`), true);
+    // A run that does not end (a loop, a hung download) costs the engine: it is replaced.
+    const timer = setTimeout(
+      () => done(failed(`ETIMEDOUT: Python ran over ${PYTHON_TIMEOUT_MS / 1000} s`), true),
+      PYTHON_TIMEOUT_MS,
+    );
+    engine.addEventListener("message", onMessage);
+    engine.addEventListener("error", onError);
     engine.postMessage({ id, ...req });
   });
 }
@@ -121,6 +127,17 @@ async function handle(request: Request): Promise<Response> {
   }
 }
 
+function fsOnly(request: Request): Promise<Response> {
+  const { pathname } = new URL(request.url);
+  if (request.method === "POST" && pathname.startsWith("/api/fs/")) return handle(request);
+  return Promise.resolve(
+    new Response(JSON.stringify({ error: "this port reaches the files API only" }), {
+      status: 403,
+      headers: { "content-type": "application/json" },
+    }),
+  );
+}
+
 scope.addEventListener("message", (e: MessageEvent<ToStudio>) => {
   const msg = e.data;
   if (!msg || typeof msg !== "object" || !("type" in msg)) return;
@@ -138,7 +155,9 @@ scope.addEventListener("message", (e: MessageEvent<ToStudio>) => {
   } else if (msg.type === "unmount") {
     stores.delete(msg.ws);
   } else if (msg.type === "connect") {
-    void serveHandlerOverPort(msg.port, handle);
+    // The runner's port: the app's own server code runs in the runner's realm, so this port
+    // reaches the files API alone (a token is still needed there), never the admin routes.
+    void serveHandlerOverPort(msg.port, msg.scope === "fs" ? fsOnly : handle);
   } else if (msg.type === "host-reply") {
     hostCalls.get(msg.id)?.(msg.out);
     hostCalls.delete(msg.id);

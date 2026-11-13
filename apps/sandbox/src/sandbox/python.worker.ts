@@ -65,7 +65,13 @@ function clear(py: Pyodide, dir: string) {
 const same = (a: Uint8Array, b: Uint8Array) =>
   a.length === b.length && a.every((x, i) => x === b[i]);
 
-scope.addEventListener("message", async (e: MessageEvent) => {
+// One run at a time, whoever sends them: runs share /workspace.
+let running: Promise<void> = Promise.resolve();
+scope.addEventListener("message", (e: MessageEvent) => {
+  running = running.then(() => runOne(e)).catch(() => {});
+});
+
+async function runOne(e: MessageEvent) {
   const { id, files, code, cwd } = e.data as {
     id: number;
     files: [string, Uint8Array][];
@@ -123,4 +129,4 @@ scope.addEventListener("message", async (e: MessageEvent) => {
       changes: [],
     });
   }
-});
+}

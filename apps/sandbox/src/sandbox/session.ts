@@ -92,7 +92,7 @@ export function connectStudio(
     },
     portForRunner() {
       const ch = new MessageChannel();
-      post({ type: "connect", port: ch.port2 }, [ch.port2]);
+      post({ type: "connect", port: ch.port2, scope: "fs" }, [ch.port2]);
       return ch.port1;
     },
   };

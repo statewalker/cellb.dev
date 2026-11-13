@@ -242,7 +242,8 @@ running app and the tool surface already are fetch handlers, so publishing is a 
   rebinding: the published sandboxes, their apps, and `/mcp` (edit for an editor, read otherwise).
 
 - **Ship to the hub.** A published tab uploads its deployable folder to the hub
-  (`PUT /host/apps/<name>`, capability `sandbox:host.deploy`: publisher, admin). The hub runs it
+  (`PUT /host/apps/<name>`, capability `sandbox:host.deploy`: deployer, admin; a hosted app runs
+  in the hub's process, so deploying is a shell on the hub's machine). The hub runs it
   on CellB in Node (`loadProject`), in release folders whose Durable Object data carries over, and
   serves it to viewers at `/apps/<name>/`. This is the original brief's last step: develop in the
   tab, then run in an isomorphic environment (CellB, here over HTTPeers; the same folder on celld

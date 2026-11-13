@@ -37,6 +37,8 @@ const KEEP_RELEASES = 3;
 export function createAppHost(opts: {
   dir: string;
   log?: (line: string) => void;
+  /** Whether a peer is an admin of the mesh: it may replace or take down anyone's app. */
+  isAdmin?: (peerId: string) => boolean;
   /** Loads a deployable folder (default: @statewalker/cellb/node's loadProject). */
   load?: (dir: string, data: string) => Promise<Loaded>;
 }) {
@@ -80,12 +82,20 @@ export function createAppHost(opts: {
     }
   }
 
+  /** An app belongs to the peer that deployed it first; admins may replace or remove any. */
+  function mayChange(name: string, by: string | null) {
+    const owner = apps.get(name)?.meta.by;
+    if (!owner || by === owner || (by && opts.isAdmin?.(by))) return;
+    throw new HttpError(403, `${name} was deployed by another member (${owner})`);
+  }
+
   async function deploy(
     name: string,
     files: Record<string, string>,
     by: string | null,
     isPublic = false,
   ) {
+    mayChange(name, by);
     if (!NAME.test(name))
       throw new HttpError(400, "a name is lowercase letters, digits and dashes");
     const entries = Object.entries(files);
@@ -96,15 +106,22 @@ export function createAppHost(opts: {
       );
     const release = `r${Date.now().toString(36)}`;
     const root = join(opts.dir, name, release);
-    let bytes = 0;
-    for (const [path, b64] of entries) {
-      const rel = normalize(path).replace(/^\/+/, "");
-      if (!rel || rel.startsWith("..")) throw new HttpError(400, `bad path ${path}`);
-      const data = Buffer.from(b64, "base64");
-      bytes += data.length;
-      if (bytes > MAX_BYTES) throw new HttpError(413, `more than ${MAX_BYTES} bytes`);
-      await mkdir(dirname(join(root, rel)), { recursive: true });
-      await writeFile(join(root, rel), data);
+    const bytes = 0;
+    try {
+      let bytes = 0;
+      for (const [path, b64] of entries) {
+        const rel = normalize(path).replace(/^\/+/, "");
+        if (!rel || rel.startsWith("..")) throw new HttpError(400, `bad path ${path}`);
+        const data = Buffer.from(b64, "base64");
+        bytes += data.length;
+        if (bytes > MAX_BYTES) throw new HttpError(413, `more than ${MAX_BYTES} bytes`);
+        await mkdir(dirname(join(root, rel)), { recursive: true });
+        await writeFile(join(root, rel), data);
+      }
+    } catch (err) {
+      // Nothing half-written stays behind (a bad path, a size over the limit, a disk error).
+      await rm(root, { recursive: true, force: true });
+      throw err;
     }
     const meta: HostedApp = {
       name,
@@ -132,9 +149,10 @@ export function createAppHost(opts: {
     return meta;
   }
 
-  async function remove(name: string) {
+  async function remove(name: string, by: string | null, operator = false) {
     const app = apps.get(name);
     if (!app) return false;
+    if (!operator) mayChange(name, by);
     apps.delete(name);
     await app.project.close().catch(() => {});
     await rm(join(opts.dir, name), { recursive: true, force: true });
@@ -150,10 +168,12 @@ export function createAppHost(opts: {
       if (!m[1] && request.method === "GET")
         return Response.json([...apps.values()].map((a) => a.meta));
       if (m[1] && request.method === "PUT") {
-        const body = (await request.json()) as { files?: Record<string, string>; public?: boolean };
+        const body = JSON.parse(await readLimited(request, Math.ceil(MAX_BYTES * 1.4))) as {
+          files?: Record<string, string>;
+          public?: boolean;
+        };
         if (!body.files) throw new HttpError(400, "expected { files: { path: base64 } }");
-        const peer = lookupPeer(request);
-        const by = typeof peer === "string" ? peer : null;
+        const by = peerOf(request);
         return Response.json(
           await serial(() =>
             deploy(m[1], body.files as Record<string, string>, by, body.public === true),
@@ -161,7 +181,7 @@ export function createAppHost(opts: {
         );
       }
       if (m[1] && request.method === "DELETE")
-        return (await serial(() => remove(m[1])))
+        return (await serial(() => remove(m[1], peerOf(request))))
           ? Response.json({ removed: m[1] })
           : Response.json({ error: "no such app" }, { status: 404 });
       throw new HttpError(405, "method not allowed");
@@ -193,7 +213,8 @@ export function createAppHost(opts: {
     restore,
     deploy: (name: string, files: Record<string, string>, by: string | null = null) =>
       serial(() => deploy(name, files, by)),
-    remove: (name: string) => serial(() => remove(name)),
+    /** By the operator (the hub's CLI): any app. */
+    remove: (name: string) => serial(() => remove(name, null, true)),
     list: () => [...apps.values()].map((a) => a.meta),
     mounts: { "/host": hostApi, "/apps": appsMount } as Record<string, FetchHandler>,
     async close() {
@@ -201,6 +222,32 @@ export function createAppHost(opts: {
       apps.clear();
     },
   };
+}
+
+const peerOf = (request: Request) => {
+  const peer = lookupPeer(request);
+  return typeof peer === "string" ? peer : null;
+};
+
+/** The body as text, refused (413) once it passes `max` bytes: never read whole first. */
+async function readLimited(request: Request, max: number): Promise<string> {
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared > max) throw new HttpError(413, `more than ${max} bytes`);
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > max) {
+      await reader.cancel().catch(() => {});
+      throw new HttpError(413, `more than ${max} bytes`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 class HttpError extends Error {

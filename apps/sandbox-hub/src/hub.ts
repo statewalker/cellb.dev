@@ -67,6 +67,8 @@ export interface SandboxHub {
   revoke(peerId: string): boolean;
   /** What the hub hosts (empty when hosting is off). */
   apps(): HostedApp[];
+  /** Takes an app down (the operator: whoever deployed it). */
+  removeApp(name: string): Promise<boolean>;
   stop(): Promise<void>;
 }
 
@@ -130,8 +132,12 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
     unwind.push(() => supervisor.stop());
     log(`hub: reserved on ${relayAddr}`);
 
+    // Late-bound, as isMember: the member store does not exist until createHub runs.
+    let isAdmin = (_peerId: string) => false;
     const appHost =
-      opts.host === false ? undefined : createAppHost({ dir: join(dir, "apps"), log });
+      opts.host === false
+        ? undefined
+        : createAppHost({ dir: join(dir, "apps"), log, isAdmin: (p) => isAdmin(p) });
     if (appHost) {
       await appHost.restore();
       unwind.push(() => appHost.close());
@@ -159,6 +165,8 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
     });
     unwind.push(() => hub.stop());
     isMember = (p) => hub.isMember(p);
+    isAdmin = (p) =>
+      ((hub.members.get(p) as { roles?: string[] } | undefined)?.roles ?? []).includes("admin");
 
     const peer = await servePeer({
       node,
@@ -208,6 +216,7 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
           link: linkOf(node, m.peerId),
         })),
       apps: () => appHost?.list() ?? [],
+      removeApp: async (name) => (await appHost?.remove(name)) ?? false,
       revoke(member) {
         if (!hub.members.get(member)) return false;
         hub.members.remove(member);

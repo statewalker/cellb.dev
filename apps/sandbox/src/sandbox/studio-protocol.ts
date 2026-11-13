@@ -11,7 +11,8 @@ export type ToStudio =
   | { type: "mount"; id: number; ws: string; source: SourceSpec }
   | { type: "unmount"; ws: string }
   /** Serves the studio's HTTP over this port (to the page, or to the runner). */
-  | { type: "connect"; port: MessagePort }
+  /** `fs`: only the files API (`POST /api/fs/…`): the runner, where app code runs. */
+  | { type: "connect"; port: MessagePort; scope?: "fs" }
   | { type: "host-reply"; id: number; out: HostOut };
 
 export type FromStudio =

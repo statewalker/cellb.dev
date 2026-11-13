@@ -201,10 +201,15 @@ async function scenario(label: string, ws: string, backing: FilesApi, onDisk?: s
   await backing.write("/.git/HEAD", [text("ref: refs/heads/main\n")]);
   const noGit = files(await new TokenCap(send, ws, owner.token).attenuate(NO_GIT));
   await assert.rejects(readText(noGit, "/.git/HEAD"), /EACCES/);
+  // In any case: on APFS or NTFS "/.GIT/hooks" is the repository's own hooks folder.
+  await assert.rejects(noGit.write("/.GIT/hooks/pre-commit", [text("x")]), /EACCES/);
+  await assert.rejects(noGit.write("/.Cellb/history/HEAD", [text("x")]), /EACCES/);
+  await noGit.write("/.github/ok.yml", [text("ok\n")]); // .github is not .git
   const visible = await (
     (await new TokenCap(send, ws, owner.token).attenuate(NO_GIT)) as TokenCap
   ).readTree("/", {});
-  assert.ok(!visible.some((e) => e.path.startsWith("/.git")));
+  assert.ok(!visible.some((e) => e.path === "/.git" || e.path.startsWith("/.git/")));
+  assert.ok(visible.some((e) => e.path === "/.github/ok.yml"));
   assert.ok(visible.some((e) => e.path === "/server/index.ts"));
   console.log(
     `• ${label}: token FilesApi, Flue edit, read-only refusal, scope, readTree, no .git, delegation, budget, scripts`,

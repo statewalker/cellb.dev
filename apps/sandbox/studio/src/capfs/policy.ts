@@ -132,4 +132,5 @@ export function attenuationBlock(spec: {
  * studio: the project's history stays the owner's: agents and tools never see the sandbox's
  * history (`.cellb/`) or the project's own repository (`.git/`).
  */
-export const NO_GIT = `check if resource($p), !$p.starts_with("/.git/"), !$p.starts_with("/.cellb/");`;
+// In any letter case: on a case-insensitive file system (APFS, NTFS) "/.GIT/hooks" is "/.git/hooks".
+export const NO_GIT = `check if resource($p), !$p.matches("^/[.][gG][iI][tT](/|$)"), !$p.matches("^/[.][cC][eE][lL][lL][bB](/|$)");`;

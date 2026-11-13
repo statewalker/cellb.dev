@@ -10,7 +10,7 @@ over [HTTPeers](https://github.com/statewalker/httpeers):
 - **the hub** (`pnpm start`) holds the mesh's identity (`.sandbox-hub/hub.key`: a new key is a
   new, empty mesh). It holds a reservation on a public relay, by default `relay.httpeers.net`,
   so members anywhere can reach it, and it mints invitations with roles;
-- **the host**: tabs deploy their builds to the hub (Publish → Deploy to the hub). The hub runs
+- **the host**: a deployer's tab deploys its builds to the hub (Publish → Deploy to the hub). The hub runs
   them on CellB in its own Node process and serves them to the mesh at `/apps/<name>/`;
 - **the bridge** (`pnpm bridge <invitation>`) is a mesh member on your computer. It serves a
   published sandbox at `127.0.0.1:8790`: the running app for a browser, and the MCP endpoint
@@ -27,7 +27,8 @@ read by both sides):
 | `agent` | + `/mcp/read`: the IDE's tools, read-only |
 | `editor` | + `/mcp/edit`: the tools that change the project |
 | `admin` | + the hub's admin endpoints, deploys |
-| `publisher` | a sandbox tab that serves, and deploys its builds to the hub |
+| `publisher` | a sandbox tab that serves |
+| `deployer` | a publisher that also deploys its builds to the hub. **A deploy runs code on the hub's machine**: give it only to whom you would give a shell there |
 
 Viewers and up also open the apps the hub hosts (`/apps/<name>/…`), and `GET /host/apps` lists
 them.
@@ -39,7 +40,8 @@ pnpm --filter @statewalker/cellb-sandbox-hub start
 ```
 
 It prints a link for the sandbox (`SANDBOX_URL`, default `http://localhost:4321/`) with a
-single-use publisher invitation. Open it, then open or start a project. To invite others:
+single-use `deployer` invitation. It is for your own tab, so don't pass it on. Open it, then open
+or start a project. Others who should publish get `invite publisher`, which cannot deploy. To invite others:
 
 ```sh
 pnpm --filter @statewalker/cellb-sandbox-hub invite editor
@@ -110,6 +112,32 @@ SANDBOX_HUB_GATEWAY_PORT=8080 pnpm --filter @statewalker/cellb-sandbox-hub start
 - **Reaching it from the internet** is up to you: a reverse proxy with TLS (Caddy, nginx) on the
   hub's machine, or a tunnel (`cloudflared`, `tailscale funnel`). It has no TLS, rate limits or
   accounts of its own: put those in the proxy.
+
+### What a deploy can do
+
+A hosted app runs in the hub's own Node process, as CellB runs any Worker on Node. It is not an
+isolate, so its code can read the hub's files, `hub.key` included, and that key is the mesh. Only
+`deployer` and `admin` may deploy for that reason, and the start link is a `deployer` invitation
+for the operator's own tab. Apps also share the process environment (each app's `vars` reach
+`process.env`).
+
+An app belongs to the member that first deployed it: another deployer cannot replace or remove
+it (403). An admin can, and so can the operator, from the hub's CLI:
+
+```sh
+pnpm --filter @statewalker/cellb-sandbox-hub apps
+```
+
+```sh
+pnpm --filter @statewalker/cellb-sandbox-hub takedown <name>
+```
+
+A deploy body over about 90 MB is refused before it is read (413), and a failed upload leaves no
+half-written release behind.
+
+**[next]**: run each app in a child process under Node's permission model, with reads limited
+to its release and writes to its data folder. CellB's Node SQLite adapter must first stop asking
+for extension loading, which the permission model refuses.
 
 ## Deploy
 

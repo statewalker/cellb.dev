@@ -4,6 +4,7 @@
 //   pnpm invite editor [agent …]     another invitation, from the running hub
 //   pnpm members                     who is in the mesh, and how each reaches the hub
 //   pnpm revoke <peerId>             removes a member (a new invitation is needed to come back)
+//   pnpm apps | pnpm takedown <name> what the hub hosts; take one down
 //
 // Settings (environment): SANDBOX_HUB_DIR (./.sandbox-hub), SANDBOX_URL (the sandbox the links
 // open, http://localhost:4321/), SANDBOX_HUB_RELAY_DOC (the public relay's document),
@@ -49,6 +50,12 @@ async function serve() {
         return send(200, { ...inv, link: linkOf(inv.blob) });
       }
       if (req.method === "GET" && req.url === "/members") return send(200, hub.members());
+      if (req.method === "GET" && req.url === "/apps") return send(200, hub.apps());
+      const app = req.url?.match(/^\/apps\/([^/]+)$/);
+      if (req.method === "DELETE" && app) {
+        const done = await hub.removeApp(decodeURIComponent(app[1]));
+        return send(done ? 200 : 404, done ? { removed: app[1] } : { error: "no such app" });
+      }
       const revoke = req.url?.match(/^\/members\/([^/]+)$/);
       if (req.method === "DELETE" && revoke) {
         const done = hub.revoke(decodeURIComponent(revoke[1]));
@@ -82,14 +89,17 @@ async function serve() {
     });
   }
 
-  const publisher = await hub.invite(["publisher"]);
+  // The operator's own tab may deploy (deployer: a deploy runs code on this machine). Others get
+  // `invite publisher` (serves, cannot deploy) or the roles below.
+  const publisher = await hub.invite(["deployer"]);
   console.log(`
 The sandbox mesh's hub is up: ${hub.peerId}
 
-Open this link to publish a sandbox tab in the mesh (single use, 24 h):
+Open this link in YOUR sandbox tab to publish it in the mesh (single use, 24 h). It may also deploy
+to this hub, which runs the deployed code on this machine: do not hand it to others.
   ${linkOf(publisher.blob)}
 
-Invite people and agents to it:  pnpm invite viewer | agent | editor${gateway ? `\nPublic gateway (public apps, for anyone): port ${gateway.port}` : ""}
+Invite people and agents to it:  pnpm invite viewer | agent | editor | publisher${gateway ? `\nPublic gateway (public apps, for anyone): port ${gateway.port}` : ""}
 `);
   console.log(`READY ${hub.peerId}`);
   const stop = async () => {
@@ -141,13 +151,27 @@ try {
       console.log(
         `${m.peerId}  ${m.roles.join(",").padEnd(10)}  ${m.link ?? "offline"}${m.link === "relay" ? "  (others cannot reach it)" : ""}`,
       );
+  } else if (cmd === "apps") {
+    const list = (await door("/apps")) as unknown as {
+      name: string;
+      release: string;
+      by: string | null;
+      public?: boolean;
+    }[];
+    if (!list.length) console.log("Nothing hosted yet.");
+    for (const a of list)
+      console.log(`${a.name}  ${a.release}  ${a.public ? "public" : "members"}  by ${a.by ?? "?"}`);
+  } else if (cmd === "takedown") {
+    if (!args[0]) throw new Error("takedown <app name> (see: apps)");
+    await door(`/apps/${encodeURIComponent(args[0])}`, undefined, "DELETE");
+    console.log(`${args[0]} taken down`);
   } else if (cmd === "revoke") {
     if (!args[0]) throw new Error("revoke <peerId> (see: members)");
     await door(`/members/${encodeURIComponent(args[0])}`, undefined, "DELETE");
     console.log(
       `revoked ${args[0]}: its tokens stop verifying; it needs a new invitation to come back`,
     );
-  } else throw new Error(`unknown command ${cmd} (start, invite, members, revoke)`);
+  } else throw new Error(`unknown command ${cmd} (start, invite, members, revoke, apps, takedown)`);
 } catch (err) {
   console.error(`sandbox-hub: ${(err as Error).message}`);
   process.exit(1);

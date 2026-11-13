@@ -7,7 +7,9 @@
 //   agent      + reads the project (MCP)    /mcp/read
 //   editor     + changes it (MCP)           /mcp/edit
 //   admin      + the hub's admin endpoints, deploys
-//   publisher  a tab that serves, and deploys its builds to the hub   /host/apps/<name>
+//   publisher  a tab that serves (its app, its tools by the roles above)
+//   deployer   + deploys its builds to the hub: /host/apps/<name>. A deploy RUNS CODE ON THE HUB'S
+//              MACHINE, in the hub's process: give it only to whom you would give a shell there.
 //
 // Roles are given by the hub, in the invitation: `sandbox-hub invite editor`.
 
@@ -27,7 +29,8 @@ export const MESH_RULES = {
     // A publishing sandbox: a member that serves, and ships its builds to the hub.
     'role("member") <- role("publisher");',
     'capability("sandbox:app")         <- role("publisher");',
-    'capability("sandbox:host.deploy") <- role("publisher");',
+    'role("publisher") <- role("deployer");',
+    'capability("sandbox:host.deploy") <- role("deployer");',
     'capability("sandbox:host.deploy") <- role("admin");',
   ],
   policies: [
@@ -47,7 +50,7 @@ export const MESH_RULES = {
   ],
 };
 
-export const MESH_ROLES = ["viewer", "agent", "editor", "admin", "publisher"] as const;
+export const MESH_ROLES = ["viewer", "agent", "editor", "admin", "publisher", "deployer"] as const;
 export type MeshRole = (typeof MESH_ROLES)[number];
 
 /** What a publishing sandbox advertises: other members find it by this id. */

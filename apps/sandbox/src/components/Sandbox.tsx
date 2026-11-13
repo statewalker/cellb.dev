@@ -734,18 +734,32 @@ export default function Sandbox() {
     // A rerun (a change seen by the watcher) can replace the app while a request is on its way:
     // then the request waits for the new run and goes again.
     fetchApp: async (path, init) => {
+      // About 15 s of retries: a rerun (an agent's edit seen by the watcher, then its run_app)
+      // can take that long on a busy machine.
+      const RETRIES = 12;
       for (let attempt = 0; ; attempt++) {
         const s = statusRef.current;
         if (s.kind === "running") {
           try {
-            return await fetch(`${s.baseUrl.replace(/\/$/, "")}/${path}`, init);
+            const res = await fetch(`${s.baseUrl.replace(/\/$/, "")}/${path}`, init);
+            // The ServiceWorker answers 502/503 when the site was taken down mid-request (a
+            // rerun): a read goes again, on the new run. A write is not repeated: it "may or
+            // may not have been applied".
+            const method = (init.method ?? "GET").toUpperCase();
+            const replaced =
+              (res.status === 502 || res.status === 503) &&
+              /no active handler|no handler attached|handler was detached/i.test(
+                `${res.statusText} ${await res.clone().text()}`,
+              );
+            if (!replaced || attempt >= RETRIES || (method !== "GET" && method !== "HEAD"))
+              return res;
           } catch (err) {
-            if (attempt >= 4) throw err;
+            if (attempt >= RETRIES) throw err;
           }
-        } else if (s.kind !== "building" || attempt >= 4) {
+        } else if (s.kind !== "building" || attempt >= RETRIES) {
           throw new Error(`the app is not running (${s.kind})`);
         }
-        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, Math.min(400 * (attempt + 1), 1500)));
       }
     },
     reveal: (path) => {
@@ -814,15 +828,26 @@ export default function Sandbox() {
       resume = localStorage.getItem("cellb-sandbox-publish") === "1";
     } catch {}
     if (!new URLSearchParams(search).has("join") && !resume) return;
-    // The first visit reloads once to be cross-origin isolated (see above): join after it.
-    if (!crossOriginIsolated && !sessionStorage.getItem("cellb-sandbox-coi-reload")) return;
-    // The invitation is single-use: the URL forgets it once it is read.
-    if (new URLSearchParams(search).has("join")) {
-      const u = new URL(location.href);
-      u.searchParams.delete("join");
-      window.history.replaceState(null, "", u);
-    }
-    void publisher.start(search).catch((err) => addLog(`mesh: ${(err as Error).message}`, "error"));
+    const join = () => {
+      // The invitation is single-use: the URL forgets it once it is read.
+      if (new URLSearchParams(search).has("join")) {
+        const u = new URL(location.href);
+        u.searchParams.delete("join");
+        window.history.replaceState(null, "", u);
+      }
+      void publisher
+        .start(search)
+        .catch((err) => addLog(`mesh: ${(err as Error).message}`, "error"));
+    };
+    // The first visit reloads once to be cross-origin isolated (see above): join after it. If
+    // that reload does not come (no ServiceWorker control, a project opened first), join anyway:
+    // publishing does not need isolation, only Astro builds do.
+    if (crossOriginIsolated || sessionStorage.getItem("cellb-sandbox-coi-reload")) return join();
+    const late = setTimeout(() => {
+      addLog("mesh: joining without cross-origin isolation (the page was not reloaded for it)");
+      join();
+    }, 8000);
+    return () => clearTimeout(late);
   }, [publisher, addLog]);
 
   useEffect(() => {

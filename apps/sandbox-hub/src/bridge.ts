@@ -96,9 +96,21 @@ export async function startBridge(opts: {
         .then((r) => (r.ok ? r.json() : []))
         .catch(() => [])) as { name: string; release: string; public?: boolean }[]
     ).filter((a) => !pub || a.public);
+  // The request body, read once (a retry, as the MCP fallback below, reuses it).
+  const bodies = new WeakMap<IncomingMessage, Promise<Buffer>>();
+  const bodyOf = (req: IncomingMessage) => {
+    let b = bodies.get(req);
+    if (!b) {
+      b = (async () => {
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(c as Buffer);
+        return Buffer.concat(chunks);
+      })();
+      bodies.set(req, b);
+    }
+    return b;
+  };
   const toMesh = async (req: IncomingMessage, peer: string, path: string) => {
-    const chunks: Buffer[] = [];
-    for await (const c of req) chunks.push(c as Buffer);
     const headers = new Headers();
     // Public: a visitor's cookies and credentials are not passed on (one origin serves every app).
     const dropped = pub
@@ -106,7 +118,8 @@ export async function startBridge(opts: {
       : ["host", "connection", "origin", "referer"];
     for (const [k, v] of Object.entries(req.headers))
       if (v !== undefined && !dropped.includes(k)) headers.set(k, String(v));
-    const body = req.method === "GET" || req.method === "HEAD" ? undefined : Buffer.concat(chunks);
+    const body =
+      req.method === "GET" || req.method === "HEAD" ? undefined : new Uint8Array(await bodyOf(req));
     return member.fetch(
       new Request(`http://local/peers/${peer}${path}`, { method: req.method, headers, body }),
     );
@@ -131,6 +144,13 @@ export async function startBridge(opts: {
       // Loopback only, and not a DNS-rebound page: the Host must be this server's own.
       if (!pub && !allowedHosts().has(String(req.headers.host))) {
         res.writeHead(421).end("misdirected");
+        return;
+      }
+      // Not another site's page either: a cross-site form or no-cors POST carries the right Host
+      // but its own Origin. The bridge's own pages (an app's fetches) carry the bridge's origin.
+      const origin = req.headers.origin;
+      if (!pub && origin && !allowedHosts().has(origin.replace(/^http:\/\//, ""))) {
+        res.writeHead(403).end("cross-origin request refused");
         return;
       }
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
