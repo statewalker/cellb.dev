@@ -348,6 +348,9 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
     runtime,
     unsupported,
     bucket: shared,
+    /** The cells' databases in the OPFS pool (none with a bucket: there the bucket has them). */
+    exportCells: async (): Promise<[string, Uint8Array][]> =>
+      (openSql as { exportFiles?: () => [string, Uint8Array][] }).exportFiles?.() ?? [],
     close: async () => {
       await runtime.close();
       openSql.release(); // the pool's files, for the next worker that opens it

@@ -298,6 +298,10 @@ project's `.gitignore` files are honored too.
   branch's tree with deletions, a commit, a fast-forward of the branch). Empty repositories and
   new branches work. "Open … here" loads a branch into the tab. A fine-grained token with
   Contents: read and write is enough (add Workflows to push the deploy workflow).
+- **Include the preview's data** puts the Durable Objects' databases in the folder's
+  `.cellb-data/` (CellB's `exportCells()`: each cell's database from the runner's OPFS pool, named
+  as CellB on Node names it). `node serve.mjs` and the hub start from them. Cloudflare and celld
+  do not read them.
 - **Build and push** commits the build to a `deploy` branch with `.github/workflows/deploy.yml`
   (`npx wrangler@4 deploy`, repository secrets `CLOUDFLARE_API_TOKEN` and
   `CLOUDFLARE_ACCOUNT_ID`).
@@ -368,14 +372,19 @@ members (never the tools).
 ## Limits, and where it goes next
 
 - Inline `<script type="module">` blocks are not compiled (only `src` scripts).
-- The server is re-bundled whole on each run (under a second for the sample); `siteCompiler`
-  would recompile one module instead.
+- The server is re-bundled whole on each run. Measured on the sample (Hono and a Durable Object):
+  the first run takes about 1.9 s (esbuild-wasm starting, npm packages fetched) and reruns take
+  215–250 ms. CellB's `siteCompiler`, which serves the modules one by one, measured 0.9 s for the
+  first run and 235–290 ms for reruns: its compile cache does not outlive a run, and a rerun's
+  time is mostly the project starting. The bundle is kept, so that the preview runs what the
+  deployable build runs.
 - A page worker's script is occasionally refused (`ERR_BLOCKED_BY_RESPONSE`). The page is
   cross-origin isolated, and only the ServiceWorker adds the headers a worker script then needs;
   a request that misses it gets none from a plain static host. The page replaces such a worker
   (studio, runner, language service). A host that sends `Cross-Origin-Embedder-Policy:
   credentialless` and `Cross-Origin-Opener-Policy: same-origin` itself avoids it.
-- The Durable Objects' state does not travel with a build.
+- The preview's Durable Object data travels to CellB on Node and to the hub (Ship: "Include the
+  preview's data"), not to Cloudflare or celld.
 - Astro: root-absolute links in pages (`href="/posts/x"`) leave the preview's path (the deployed
   site is fine); Safari, without `COEP: credentialless`, cannot build Astro in the tab.
 - Next steps (see `docs/architecture.md` §10): the server compiled per module, a FilesApi over the

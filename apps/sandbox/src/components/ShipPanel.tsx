@@ -32,13 +32,14 @@ export interface Build {
 export function ShipPanel(props: {
   name: string;
   files: () => ProjectFiles;
-  build(): Promise<Build>;
+  build(opts?: { withData?: boolean }): Promise<Build>;
   download(files: ProjectFiles, name: string): void;
   onPulled(name: string, files: ProjectFiles): void;
   log(text: string, level?: "info" | "error"): void;
 }) {
   const [s, setS] = useState(load);
   const [message, setMessage] = useState("Update from CellB sandbox");
+  const [withData, setWithData] = useState(false);
   const [busy, setBusy] = useState<string>();
   const [status, setStatus] = useState<{ text: string; error?: boolean; url?: string }>();
   const [build, setBuild] = useState<Build>();
@@ -80,7 +81,7 @@ export function ShipPanel(props: {
 
   const doBuild = () =>
     task("build", async () => {
-      const b = await props.build();
+      const b = await props.build({ withData });
       setBuild(b);
       return { text: b.summary };
     });
@@ -98,7 +99,7 @@ export function ShipPanel(props: {
 
   const pushBuild = () =>
     task("push-build", async () => {
-      const b = build ?? (await props.build());
+      const b = build ?? (await props.build({ withData }));
       setBuild(b);
       const files = new Map(b.files);
       files.set(
@@ -138,6 +139,23 @@ export function ShipPanel(props: {
           <code className="font-mono">celld</code> and cellb on Node (
           <code className="font-mono">serve.mjs</code>) run as is.
         </p>
+        <label className="text-muted-foreground flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            className="accent-primary"
+            aria-label="Include the preview's data"
+            checked={withData}
+            onChange={(e) => {
+              setWithData(e.target.checked);
+              // A build made with the other choice is not the one to download or push now.
+              setBuild(undefined);
+            }}
+          />
+          Include the preview's data: the Durable Objects' databases (not R2 objects), in{" "}
+          <code className="font-mono">.cellb-data/</code>, where cellb on Node and the hub start
+          from them (Cloudflare and celld do not read them). Pushed with the build when it is
+          pushed.
+        </label>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={doBuild} disabled={!!busy}>
             <Hammer /> {busy === "build" ? "Building…" : "Build"}

@@ -128,6 +128,7 @@ async function run(
     runtime,
     unsupported: project.unsupported,
     fetch: (req) => runtime.fetch(req),
+    exportCells: () => project.exportCells(),
     close: async () => {
       try {
         await project.close();

@@ -1,7 +1,7 @@
 // The sandbox mesh, for real: this hub (reserved on the public relay, relay.httpeers.net, or on
 // RELAY_DOC), a publishing member that serves /app and /mcp/*, and members with other roles
 // that call it. Roles come from the invitations; the publisher's withAccess enforces them.
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ruleSet } from "@statewalker/httpeers-access";
@@ -14,8 +14,9 @@ import { startHub } from "../src/hub.ts";
 const t0 = Date.now();
 const step = (s: string) => console.log(`• ${s} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 const rules = ruleSet(MESH_RULES);
+const hubDir = await mkdtemp(join(tmpdir(), "sandbox-hub-"));
 const hub = await startHub({
-  dataDir: await mkdtemp(join(tmpdir(), "sandbox-hub-")),
+  dataDir: hubDir,
   relayDoc: process.env.RELAY_DOC,
   log: () => {},
 });
@@ -130,6 +131,73 @@ export default {
   if (hub.apps().length !== 1) throw new Error(`apps: ${JSON.stringify(hub.apps())}`);
   step(
     "Ship to the hub: a deployer deploys, members open it on CellB, a redeploy keeps its data; a viewer, a publisher and another deployer cannot",
+  );
+
+  // The preview's data travels with a deploy (Ship with "the preview's data": .cellb-data/): a
+  // new app starts from it; an existing one keeps its own unless replaceData.
+  const dbOf = async (app: string) => {
+    const dir = join(hubDir, "apps", app, "data");
+    const name = (await readdir(dir)).find((n) => n.startsWith("Counter") && n.endsWith(".sqlite"));
+    if (!name) throw new Error(`no Counter database in ${dir}`);
+    return { name, b64: (await readFile(join(dir, name))).toString("base64") };
+  };
+  const deployAs = async (app: string, extra: Record<string, string>, replaceData = false) => {
+    const res = await deployer.fetch(
+      new Request(`http://local/peers/${hub.peerId}/host/apps/${app}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ files: { ...folder, ...extra }, replaceData }),
+      }),
+    );
+    return { status: res.status, body: await res.text() };
+  };
+  const db = await dbOf("counter"); // the counter is at 3
+  expect(
+    "deploy counter2 with counter's data",
+    await deployAs("counter2", { [`/.cellb-data/${db.name}`]: db.b64 }),
+    200,
+  );
+  const seeded = await onHub(viewer, "/apps/counter2/");
+  if (!seeded.body.includes("#4")) throw new Error(`a seeded app: ${seeded.body}`);
+  // A redeploy with data but without replaceData keeps the app's own (at 4).
+  expect(
+    "redeploy counter2 with data, no replace",
+    await deployAs("counter2", { [`/.cellb-data/${db.name}`]: db.b64 }),
+    200,
+  );
+  if (!(await onHub(viewer, "/apps/counter2/")).body.includes("#5"))
+    throw new Error("the app's data was replaced");
+  // replaceData: back to the deploy's data (3), so the next hit is 4.
+  expect(
+    "redeploy counter2 replacing its data",
+    await deployAs("counter2", { [`/.cellb-data/${db.name}`]: db.b64 }, true),
+    200,
+  );
+  if (!(await onHub(viewer, "/apps/counter2/")).body.includes("#4"))
+    throw new Error("replaceData did not replace");
+  // A data deploy that does not load leaves the app serving, on its own data (at 4 → 5).
+  const broken = { ...folder, "/worker.js": b64("export default {{ broken") };
+  const failed = await deployer.fetch(
+    new Request(`http://local/peers/${hub.peerId}/host/apps/counter2`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        files: { ...broken, [`/.cellb-data/${db.name}`]: db.b64 },
+        replaceData: true,
+      }),
+    }),
+  );
+  expect("a broken data deploy", { status: failed.status, body: await failed.text() }, 422);
+  if (!(await onHub(viewer, "/apps/counter2/")).body.includes("#5"))
+    throw new Error("a failed data deploy changed the app or its data");
+  // Only <cell>.sqlite files right under .cellb-data/.
+  expect(
+    "a bad .cellb-data path",
+    await deployAs("counter2", { "/.cellb-data/x.sqlite/y": db.b64 }),
+    400,
+  );
+  step(
+    "the preview's data in a deploy: a new app starts from it, a redeploy keeps its own, replaceData replaces it; a failed one leaves the app and its data as they were",
   );
 
   const links = hub.members();

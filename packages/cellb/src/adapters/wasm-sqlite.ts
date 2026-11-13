@@ -250,6 +250,7 @@ export async function sahpoolOpener(
       getCapacity(): number;
       getFileCount(): number;
       getFileNames?(): string[];
+      exportFile?(name: string): Uint8Array;
       // Not in older SQLite WASM builds (sqlite-vec's): there `release()` does nothing.
       pauseVfs?(): unknown;
       isPaused?(): boolean;
@@ -257,7 +258,13 @@ export async function sahpoolOpener(
     }>;
   },
   opts: { name?: string; initialCapacity?: number } = {},
-): Promise<OpenCellSql & { reserve(n: number): Promise<number>; release(): void }> {
+): Promise<
+  OpenCellSql & {
+    reserve(n: number): Promise<number>;
+    release(): void;
+    exportFiles?(): [string, Uint8Array][];
+  }
+> {
   const pool = await sqlite3.installOpfsSAHPoolVfs({
     name: opts.name ?? "cellb",
     initialCapacity: opts.initialCapacity ?? 16,
@@ -388,5 +395,22 @@ export async function sahpoolOpener(
      * (another tab's) can open the pool at once instead of when this worker is gone.
      */
     release: () => void pool.pauseVfs?.(),
+    /**
+     * Every cell database in the pool, as `[file name, bytes]` (`<cell key with [^\w.-] as _>.sqlite`,
+     * the name `nodeSqliteOpener(dir)` gives the same cell): what a deployment needs to start
+     * from this browser's data. Journals are left out; a database with a transaction under way
+     * is read as of its last commit only if the transaction is still in its journal (call it
+     * between events).
+     */
+    exportFiles:
+      pool.getFileNames && pool.exportFile
+        ? () =>
+            (pool.getFileNames?.() ?? [])
+              .filter((name) => name.endsWith(".sqlite"))
+              .map((name): [string, Uint8Array] => [
+                name.replace(/^\/+/, ""),
+                pool.exportFile?.(name) as Uint8Array,
+              ])
+        : undefined,
   });
 }
