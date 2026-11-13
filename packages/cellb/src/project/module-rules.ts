@@ -5,7 +5,9 @@
  * as base64 (about 1.33 times their size), so a bundle stays one self-contained module (a browser
  * loads it by URL).
  */
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 import type { Plugin } from "esbuild";
 
 /** A wrangler `rules` entry. */
@@ -74,8 +76,14 @@ export function effectiveRules(userRules: ModuleRule[] = []): {
   return { rules, ignored };
 }
 
-// Shared by every inlined file: base64 → bytes (Uint8Array.fromBase64 where the engine has it).
-const DECODE = `export const bytes = (s) => {
+// Shared by every inlined file: base64 → bytes (Uint8Array.fromBase64 where the engine has it),
+// and the registration of the file under workerd's `/bundle` (node-compat/bundle-files.ts reads
+// the same registry).
+const DECODE = `export const bundleFile = (name, b) => {
+  (globalThis.__cellsBundleFiles ??= new Map()).set(name, b);
+  return b;
+};
+export const bytes = (s) => {
   if (typeof Uint8Array.fromBase64 === "function") return Uint8Array.fromBase64(s);
   const t = atob(s);
   const u = new Uint8Array(t.length);
@@ -83,21 +91,30 @@ const DECODE = `export const bytes = (s) => {
   return u;
 };`;
 
-/** The module a matched file becomes. */
-function ruleModule(type: string, file: Buffer): string {
+/**
+ * The module a matched file becomes. It also registers the file as workerd's `/bundle/<name>`,
+ * named as wrangler uploads it: `<sha1 of its bytes>-<file name>`.
+ */
+function ruleModule(type: string, file: Buffer, path: string): string {
+  const name = JSON.stringify(`${createHash("sha1").update(file).digest("hex")}-${basename(path)}`);
   // A BOM stays part of the text, as wrangler uploads the file's bytes.
   if (type === "Text")
-    return `export default ${JSON.stringify(new TextDecoder("utf-8", { ignoreBOM: true }).decode(file))};`;
+    return [
+      'import { bundleFile } from "cellb-rule:decode";',
+      `const text = ${JSON.stringify(new TextDecoder("utf-8", { ignoreBOM: true }).decode(file))};`,
+      `bundleFile(${name}, () => new TextEncoder().encode(text));`,
+      "export default text;",
+    ].join("\n");
   const b64 = JSON.stringify(file.toString("base64"));
   return [
-    'import { bytes } from "cellb-rule:decode";',
+    'import { bundleFile, bytes } from "cellb-rule:decode";',
     type === "CompiledWasm"
       ? // Synchronous, as workerd imports a wasm module. A top-level await here would make every
         // importer async, and esbuild's async module inits deadlock on circular imports (the
         // bundle never finishes evaluating). Chromium refuses a synchronous compile over 8 MB
         // only on a page's main thread; projects run in Dedicated Workers and on Node.
-        `export default new WebAssembly.Module(bytes(${b64}));`
-      : `export default bytes(${b64}).buffer;`,
+        `export default new WebAssembly.Module(bundleFile(${name}, bytes(${b64})));`
+      : `export default bundleFile(${name}, bytes(${b64})).buffer;`,
   ].join("\n");
 }
 
@@ -137,7 +154,7 @@ export function moduleRulesPlugin(userRules?: ModuleRule[]): Plugin {
       }));
       for (const type of TYPES)
         b.onLoad({ filter: /.*/, namespace: `cellb-rule-${type}` }, (a) => ({
-          contents: ruleModule(type, readFileSync(a.path)),
+          contents: ruleModule(type, readFileSync(a.path), a.path),
           loader: "js",
         }));
     },

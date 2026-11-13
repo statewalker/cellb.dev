@@ -98,7 +98,13 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **`node:fs` and `node:os` in a browser have no host behind them.** With nodejs_compat a browser
   bundle gets `node:fs` whose calls fail with `ENOENT` (`existsSync` is false) and `node:os` with
   fixed answers (`EOL` is `"\n"`, no CPUs, no memory), so that libraries that probe for files can
-  load.
+  load. The one directory there is workerd's read-only `/bundle` (below).
+- **`/bundle` in `node:fs` holds the bundle's non-JS modules only.** Under nodejs_compat, as on
+  workerd, Worker code reads its modules from `/bundle`: each `.wasm`, Text or Data file the
+  bundle imports, named as wrangler uploads it (`<sha1 of its bytes>-<file name>`), on Node and in
+  browser bundles. A file is listed once its module has been evaluated (all of them, unless a
+  dynamic `import()` delays one), and the JavaScript modules are not there: CellB bundles them
+  into one. On Node, every other path is the host's real file system.
   Other Node.js modules without a browser polyfill (`node:child_process`, `node:readline`, …) load
   as stubs whose exports throw when called, as wrangler's nodejs_compat stubs do on Cloudflare.
 - **`AsyncLocalStorage` in a browser carries its stores only through code it can see.** The

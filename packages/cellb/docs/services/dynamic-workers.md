@@ -105,6 +105,11 @@ does not protect.
   with `internal error; reference = …`, so do the calls in flight, and the next `get()` of the
   same id loads the code again. In a loaded Worker that runs in the project's realm (a browser
   without `isolateScript`), there is no isolate to end, and the call only throws.
+- `import()` resolves against its own modules, as on workerd: a specifier is a module's whole name
+  (which may be a URL) or a path relative to the importing module, and may be computed at run
+  time. On Node this holds also for an `import()` in code built with `Function`, through the
+  isolate thread's module hooks (Node 22.15 and later); in a browser such an `import()` resolves
+  against the isolate worker's URL instead.
 - Its realm's `navigator` is writable, as on workerd, and `Uint8Array` has `toBase64`,
   `fromBase64`, `toHex` and `fromHex` where the engine lacks them (Node 22).
 - A call's result is an RpcPromise: `stub.a().b()` sends `b` before `a()` settles.

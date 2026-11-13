@@ -2,7 +2,7 @@
 // on Node: a class as the default export, CommonJS modules in loaded Workers, abortIsolate(),
 // stub.dup(), Request/Response/Headers/ReadableStream crossing an isolate, a writable
 // `navigator` in an isolate, and Uint8Array's base64/hex methods.
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
@@ -11,6 +11,7 @@ import { createCellRuntime, WorkerEntrypoint } from "../src/index.js";
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 import { FakeClock } from "./fake-clock.js";
 
+const FIXTURE = join(import.meta.dirname, "fixtures/wasm-modules");
 const running: { close(): Promise<void> }[] = [];
 afterEach(async () => {
   for (const r of running.splice(0)) await r.close();
@@ -31,7 +32,10 @@ async function project(files: Record<string, string>, config: object = {}, host:
   };
   for (const [path, contents] of Object.entries(all)) {
     mkdirSync(join(dir, path, ".."), { recursive: true });
-    writeFileSync(join(dir, path), contents);
+    writeFileSync(
+      join(dir, path),
+      path.endsWith(".wasm") ? Buffer.from(contents, "latin1") : contents,
+    );
   }
   const { runtime } = await loadNodeProject(dir, {
     openSql: nodeSqliteOpener(),
@@ -144,6 +148,164 @@ module.exports.info = function () {
         ),
       );
       expect(await json(runtime)).toEqual({ sloppy: true, thisIsExports: true, implicitGlobal: 7 });
+    });
+    it("reaches sibling modules: import() of an ES module, require() of CommonJS and ES modules", async () => {
+      const runtime = await project(
+        withLoaded(
+          {
+            "main.js": {
+              js: `import { WorkerEntrypoint } from "cloudflare:workers";
+import lib from "./lib.cjs";
+export default class extends WorkerEntrypoint { async info() { return await lib.info(); } }`,
+            },
+            "state.js": { js: "export const state = { from: 'esm' };" },
+            "helper.cjs": { cjs: "module.exports = { twice: (n) => n * 2 };" },
+            "lib.cjs": {
+              cjs: `const helper = require("./helper.cjs");
+const esm = require("./state.js");
+module.exports.info = async function () {
+  const { state } = await import("./state.js");
+  return { dynamic: state.from, twice: helper.twice(21), required: esm.state.from };
+};`,
+            },
+          },
+          "return Response.json(await load(env).getEntrypoint().info());",
+        ),
+      );
+      expect(await json(runtime)).toEqual({ dynamic: "esm", twice: 42, required: "esm" });
+    });
+  });
+
+  describe("import() in a loaded Worker resolves against its modules", () => {
+    it("a computed specifier, and a module named by a URL, as Kitesurf loads page modules", async () => {
+      const runtime = await project(
+        withLoaded(
+          {
+            "main.js": {
+              js: `import { WorkerEntrypoint } from "cloudflare:workers";
+export default class extends WorkerEntrypoint {
+  async load(spec) { return (await import(spec)).default; }
+  async byUrl() { return (await import("https://example.test/app/index.js")).default; }
+}`,
+            },
+            "pages/one.js": { js: "export default 'one';" },
+            "https://example.test/app/index.js": {
+              js: "import dep from './dep.js'; export default 'index+' + dep;",
+            },
+            "https://example.test/app/dep.js": { js: "export default 'dep';" },
+          },
+          `const c = load(env).getEntrypoint();
+return Response.json({
+  relative: await c.load("./pages/one.js"),
+  exact: await c.load("pages/one.js"),
+  url: await c.load("https://example.test/app/index.js"),
+  literalUrl: await c.byUrl(),
+});`,
+        ),
+      );
+      expect(await json(runtime)).toEqual({
+        relative: "one",
+        exact: "one",
+        url: "index+dep",
+        literalUrl: "index+dep",
+      });
+    });
+
+    it("from code built with Function (Kitesurf's importModule), in an isolate", async () => {
+      const runtime = await project(
+        withLoaded(
+          {
+            "main.js": {
+              js: `import { WorkerEntrypoint } from "cloudflare:workers";
+const dynamicImport = new (async () => {}).constructor("spec", "return await import(spec);");
+export default class extends WorkerEntrypoint {
+  async load(spec) {
+    const ns = await dynamicImport(spec);
+    return { value: ns.default, named: ns.answer ?? null, star: ns.fromStar ?? null };
+  }
+}`,
+            },
+            "https://example.test/app/index.js": {
+              js: "export * from './more.js'; export const answer = 42; export default 'index';",
+            },
+            "https://example.test/app/more.js": { js: "export const fromStar = 'star';" },
+            "__ks_user_classic_async.js": { cjs: "module.exports.run = () => 'ran';" },
+          },
+          `const c = load(env).getEntrypoint();
+return Response.json({
+  url: await c.load("https://example.test/app/index.js"),
+  relative: await c.load("./__ks_user_classic_async.js"),
+});`,
+        ),
+      );
+      expect(await json(runtime)).toEqual({
+        url: { value: "index", named: 42, star: "star" },
+        relative: { value: { run: {} }, named: null, star: null },
+      });
+    });
+
+    it("routes only the calls a bundler cannot link (unit)", async () => {
+      const { routeDynamicImports, resolveModuleName } = await import(
+        "../src/bindings/module-registry.js"
+      );
+      const src = `const a = import("./rel.js");\nconst b = import(spec);\nconst c = import("https://x/y.js"); // import(no)`;
+      expect(routeDynamicImports(src, "dir/m.js")).toBe(
+        `const a = import("./rel.js");\nconst b = __cellbImportFrom(spec, "dir/m.js");\nconst c = __cellbImportFrom("https://x/y.js", "dir/m.js"); // import(no)`,
+      );
+      expect(routeDynamicImports("export const x = 1;", "m.js")).toBeUndefined();
+      const names = new Set(["dir/a.js", "https://x/y.js", "b.js"]);
+      expect(resolveModuleName("./a.js", "dir/m.js", names)).toBe("dir/a.js");
+      expect(resolveModuleName("../b.js", "dir/m.js", names)).toBe("b.js");
+      expect(resolveModuleName("https://x/y.js", "dir/m.js", names)).toBe("https://x/y.js");
+      expect(resolveModuleName("node:fs", "dir/m.js", names)).toBeUndefined();
+    });
+
+    it("collects each module's export names, following export * within the modules (unit)", async () => {
+      const { exportNamesByModule } = await import("../src/bindings/module-registry.js");
+      expect(
+        exportNamesByModule({
+          "a.js":
+            "export * from './b.js'; export const { x, y: [z] } = o; export default 1; const q = 3; export { q as 'odd name' };",
+          "b.js":
+            "export function f() {} export class C {} export * as ns from './c.js'; export default 2;",
+          "c.js": "export let v;",
+        })["a.js"].sort(),
+      ).toEqual(["C", "default", "f", "ns", "odd name", "x", "z"].sort());
+    });
+  });
+
+  describe("wasm modules of loaded Workers", () => {
+    it("compile once per bytes object, however many Workers load them", async () => {
+      const compile = WebAssembly.compile;
+      let compiles = 0;
+      WebAssembly.compile = (bytes) => {
+        compiles++;
+        return compile(bytes);
+      };
+      try {
+        const runtime = await project(
+          {
+            "add.wasm": readFileSync(join(FIXTURE, "add.wasm")).toString("latin1"),
+            "index.js": `import fs from "node:fs";
+const WASM = new Uint8Array(fs.readFileSync("/bundle/" + fs.readdirSync("/bundle").find((n) => n.endsWith("-add.wasm")))).buffer;
+import "./add.wasm";
+const code = { compatibilityDate: "2026-01-01", mainModule: "main.js", modules: {
+  "main.js": "import m from './add.wasm'; import { WorkerEntrypoint } from 'cloudflare:workers'; export default class extends WorkerEntrypoint { add(a, b) { return new WebAssembly.Instance(m).exports.add(a, b); } }",
+  "add.wasm": { wasm: WASM },
+} };
+export default { async fetch(req, env) {
+  const a = await env.LOADER.get("one", () => code).getEntrypoint().add(1, 2);
+  const b = await env.LOADER.get("two", () => code).getEntrypoint().add(20, 22);
+  return Response.json([a, b]);
+} };`,
+          },
+          { compatibility_flags: ["nodejs_compat"] },
+        );
+        expect(await json(runtime)).toEqual([3, 42]);
+        expect(compiles).toBe(1);
+      } finally {
+        WebAssembly.compile = compile;
+      }
     });
   });
 
@@ -284,6 +446,30 @@ return Response.json({ described, fromIsolate, callBack });`,
       });
     });
 
+    it("a Request with a streamed body needs no duplex option, as on workerd", async () => {
+      const runtime = await project(
+        withLoaded(
+          {
+            "main.js": {
+              js: `import { WorkerEntrypoint } from "cloudflare:workers";
+export default class extends WorkerEntrypoint {
+  async post() {
+    const body = new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode("streamed")); c.close(); } });
+    return await new Request("https://example.test/", { method: "POST", body }).text();
+  }
+}`,
+            },
+          },
+          `const inProject = await new Request("https://example.test/", {
+  method: "POST",
+  body: new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode("here too")); c.close(); } }),
+}).text();
+return Response.json({ inIsolate: await load(env).getEntrypoint().post(), inProject });`,
+        ),
+      );
+      expect(await json(runtime)).toEqual({ inIsolate: "streamed", inProject: "here too" });
+    });
+
     it("streams a body chunk by chunk, and releases one cancelled unread", async () => {
       const runtime = await project(
         withLoaded(
@@ -314,6 +500,76 @@ return Response.json({ streamed, status, released });`,
         status: 200,
         released: "cancelled",
       });
+    });
+  });
+
+  describe("workerd's /bundle in node:fs (nodejs_compat)", () => {
+    const files = {
+      "add.wasm": readFileSync(join(FIXTURE, "add.wasm")).toString("latin1"),
+      "greeting.md": "hello from a text module",
+      "index.js": `import fs from "node:fs";
+import { readdir } from "node:fs/promises";
+import wasm from "./add.wasm";
+import greeting from "./greeting.md";
+export default { async fetch() {
+  const names = fs.readdirSync("/bundle");
+  const wasmName = names.find((n) => n.endsWith("-add.wasm"));
+  const bytes = fs.readFileSync("/bundle/" + wasmName);
+  const { add } = new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports;
+  let missing;
+  try { fs.readFileSync("/bundle/nope.wasm"); } catch (e) { missing = e.code; }
+  return Response.json({
+    names: names.map((n) => n.replace(/^[0-9a-f]{40}-/, "<sha1>-")).sort(),
+    sha1Named: names.every((n) => /^[0-9a-f]{40}-/.test(n)),
+    sum: add(2, 40),
+    sameModule: wasm instanceof WebAssembly.Module,
+    text: fs.readFileSync("/bundle/" + names.find((n) => n.endsWith("-greeting.md")), "utf8") === greeting,
+    isDir: fs.statSync("/bundle").isDirectory(),
+    exists: fs.existsSync("/bundle/" + wasmName),
+    missing,
+    viaPromises: (await readdir("/bundle")).length === names.length,
+    elsewhere: fs.existsSync("/definitely/not/here"),
+  });
+} };`,
+    };
+    const config = {
+      worker_loaders: [],
+      compatibility_flags: ["nodejs_compat"],
+      rules: [{ type: "Text", globs: ["**/*.md"] }],
+    };
+
+    it("on Node: lists and reads the bundle's non-JS modules, named <sha1>-<file> as wrangler uploads them", async () => {
+      const runtime = await project(files, config);
+      expect(await json(runtime)).toEqual({
+        names: ["<sha1>-add.wasm", "<sha1>-greeting.md"],
+        sha1Named: true,
+        sum: 42,
+        sameModule: true,
+        text: true,
+        isDir: true,
+        exists: true,
+        missing: "ENOENT",
+        viaPromises: true,
+        elsewhere: false,
+      });
+    });
+
+    it("in a browser's node:fs (no file system): /bundle is the one directory there is", async () => {
+      const { registerBundleFile } = await import("../src/node-compat/bundle-files.js");
+      const fs = await import("../src/node-compat/fs.js");
+      registerBundleFile(
+        "0123456789012345678901234567890123456789-x.bin",
+        new Uint8Array([1, 2, 3]),
+      );
+      expect(fs.readdirSync("/bundle")).toContain("0123456789012345678901234567890123456789-x.bin");
+      expect([
+        ...(fs.readFileSync(
+          "/bundle/0123456789012345678901234567890123456789-x.bin",
+        ) as Uint8Array),
+      ]).toEqual([1, 2, 3]);
+      expect(fs.existsSync("/etc/passwd")).toBe(false);
+      expect(() => fs.readFileSync("/etc/passwd")).toThrow(/ENOENT/);
+      expect(() => fs.readFileSync("/bundle/missing")).toThrow(/ENOENT/);
     });
   });
 

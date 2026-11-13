@@ -152,7 +152,8 @@ describe("module rules", () => {
     const out = mkdtempSync(join(tmpdir(), "cellb-build-wasm-"));
     await buildProject(FIXTURE, out);
     const code = readFileSync(join(out, "worker.js"), "utf8");
-    expect(code).not.toMatch(/\.(wasm|md|dat)\b["'?]/);
+    // No import of the files is left (their names remain, as workerd's /bundle names them).
+    expect(code).not.toMatch(/(from|import\()\s*["'][^"']*\.(wasm|md|dat)\b/);
     expect(code).toContain("new WebAssembly.Module(");
     expect(code).not.toContain("await WebAssembly.compile(");
     expect(await answer(out)).toEqual(EXPECTED);

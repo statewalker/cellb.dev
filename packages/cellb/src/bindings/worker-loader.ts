@@ -11,6 +11,7 @@ import {
   REFUSE,
   rpcPromise,
 } from "../core/handles.js";
+import { commonJsModule } from "./cjs-module.js";
 
 /** workerd's refusal of a loaded Worker's entrypoint passed on to another Worker. */
 const DYNAMIC_ENTRYPOINT =
@@ -30,7 +31,8 @@ export interface WorkerCode {
         cjs?: string;
         text?: string;
         json?: unknown;
-        wasm?: BufferSource;
+        /** The bytes, or (from `compileWasmModules`) the compiled module. */
+        wasm?: BufferSource | WebAssembly.Module;
       }
     | { data: BufferSource }
   >;
@@ -65,6 +67,8 @@ export function moduleText(entry: WorkerCode["modules"][string], name = "module.
   if (typeof entry === "string") return entry;
   const m = entry as Exclude<typeof entry, { data: BufferSource }>; // workerLoader refuses data
   if (typeof m.cjs === "string") return commonJsModule(m.cjs, name);
+  if (m.wasm instanceof WebAssembly.Module)
+    return `export default globalThis.${WASM_TABLE}[${JSON.stringify(wasmModuleKey(m.wasm))}];`;
   if (m.wasm) {
     const bytes = ArrayBuffer.isView(m.wasm)
       ? new Uint8Array(m.wasm.buffer, m.wasm.byteOffset, m.wasm.byteLength)
@@ -76,20 +80,62 @@ export function moduleText(entry: WorkerCode["modules"][string], name = "module.
   return m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`;
 }
 
+/** The realm's table of compiled wasm modules of loaded code, by key. */
+export const WASM_TABLE = "__cellsWasmModules";
+const keys = new WeakMap<WebAssembly.Module, string>();
+let lastKey = 0;
+
+/** The key of `mod` in this realm's wasm table (registered on first use). */
+export function wasmModuleKey(mod: WebAssembly.Module): string {
+  let key = keys.get(mod);
+  if (!key) {
+    key = `w${++lastKey}`;
+    keys.set(mod, key);
+    registerWasmModules({ [key]: mod });
+  }
+  return key;
+}
+
+/** Puts compiled modules in this realm's wasm table (an isolate receives its loader's). */
+export function registerWasmModules(modules: Record<string, WebAssembly.Module>): void {
+  const g = globalThis as Record<string, unknown>;
+  g[WASM_TABLE] ??= {};
+  Object.assign(g[WASM_TABLE] as Record<string, WebAssembly.Module>, modules);
+}
+
+/** The table entries the wasm modules of `code` use (what an isolate needs of this realm's table). */
+export function wasmModulesOf(code: WorkerCode): Record<string, WebAssembly.Module> {
+  const out: Record<string, WebAssembly.Module> = {};
+  for (const m of Object.values(code.modules))
+    if (typeof m === "object" && "wasm" in m && m.wasm instanceof WebAssembly.Module)
+      out[wasmModuleKey(m.wasm)] = m.wasm;
+  return out;
+}
+
+const compiled = new WeakMap<object, Promise<WebAssembly.Module>>();
+
 /**
- * A CommonJS module as an ES module. As on workerd, its code is not strict mode unless it says
- * so (an ES module's own code always is, so it runs through `Function`), `this` is
- * `module.exports`, and importing it gives `module.exports` as the default export. `require` is
- * the realm's own, where it has one.
+ * `code` with each `wasm` module compiled (asynchronously, once per bytes object: Kitesurf hands
+ * the same ArrayBuffer to every page's Worker), so loaders put a compiled module in the realm's
+ * table instead of the bytes as base64 text, which a large module makes slow to build, parse,
+ * decode and compile synchronously on every load.
  */
-function commonJsModule(source: string, name: string): string {
-  const body = JSON.stringify(`${source}\n//# sourceURL=${name.replace(/\s/g, "%20")}`);
-  return [
-    "const module = { exports: {} };",
-    `new Function("module", "exports", "require", "__filename", "__dirname", ${body})`,
-    `  .call(module.exports, module, module.exports, typeof require === "function" ? require : undefined, ${JSON.stringify(name)}, "/");`,
-    "export default module.exports;",
-  ].join("\n");
+export async function compileWasmModules(code: WorkerCode): Promise<WorkerCode> {
+  let modules: WorkerCode["modules"] | undefined;
+  for (const [name, m] of Object.entries(code.modules)) {
+    if (typeof m !== "object" || !("wasm" in m) || !m.wasm) continue;
+    if (m.wasm instanceof WebAssembly.Module) continue;
+    const bytes = m.wasm;
+    let p = compiled.get(bytes);
+    if (!p) {
+      p = WebAssembly.compile(bytes);
+      compiled.set(bytes, p);
+      p.catch(() => compiled.delete(bytes));
+    }
+    modules ??= { ...code.modules };
+    modules[name] = { ...m, wasm: await p };
+  }
+  return modules ? { ...code, modules } : code;
 }
 
 /**

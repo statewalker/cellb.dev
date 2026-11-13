@@ -1,4 +1,11 @@
 import {
+  IMPORT_FROM,
+  prefixModule,
+  resolveModuleName,
+  routeDynamicImports,
+} from "../bindings/module-registry.js";
+import {
+  compileWasmModules,
   type LogSink,
   type ModuleLoader,
   moduleText,
@@ -31,7 +38,8 @@ export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env 
 export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
   const blob = (text: string) => URL.createObjectURL(new Blob([text], { type: "text/javascript" }));
   const fixedShimUrl = workersModuleShim && blob(workersModuleShim);
-  return async (_id: string, code: WorkerCode, logs?: LogSink) => {
+  return async (_id: string, loaded: WorkerCode, logs?: LogSink) => {
+    const code = await compileWasmModules(loaded);
     const env = code.env ?? {};
     const scope = fixedShimUrl ? undefined : workerScope(env);
     let shimUrl = fixedShimUrl;
@@ -73,6 +81,27 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
       (g.__cellsOutbound as Record<string, unknown>)[key] = outbound;
       consolePrelude += `const fetch = globalThis.__cellsOutbound[${JSON.stringify(key)}];\n`;
     }
+    // `import()` the Blob URLs cannot link (a computed specifier, a module's whole name) resolves
+    // against this load's modules at run time (module-registry.ts).
+    const names = new Set(Object.keys(code.modules));
+    const importsKey = `i${Math.random().toString(36).slice(2)}`;
+    const g = globalThis as Record<string, unknown>;
+    g.__cellsImports ??= {};
+    const imports = g.__cellsImports as Record<string, unknown>;
+    imports[importsKey] = (spec: unknown, importer: string) => {
+      const name = resolveModuleName(String(spec), importer, names);
+      return import(/* @vite-ignore */ name === undefined ? String(spec) : urlOf(name));
+    };
+    const routed = (name: string) => {
+      const text = source(name);
+      const out = routeDynamicImports(text, name);
+      return out === undefined
+        ? text
+        : prefixModule(
+            out,
+            `const ${IMPORT_FROM} = globalThis.__cellsImports[${JSON.stringify(importsKey)}]; `,
+          );
+    };
     const urls = new Map<string, string>();
     // Modules whose Blob URL is being made: a Blob URL exists only once its text (with its
     // imports' URLs) does, so modules that import each other cannot be loaded this way.
@@ -93,7 +122,7 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
       const base = name.includes("/") ? name.slice(0, name.lastIndexOf("/") + 1) : "";
       // Only the module's own imports: the same words in a string, a template or a comment are
       // not imports (a code generator's template may well contain `from "cloudflare:workers"`).
-      const text = rewriteModuleSpecifiers(source(name), (spec) => {
+      const text = rewriteModuleSpecifiers(routed(name), (spec) => {
         if (spec === "cloudflare:workers") return shimUrl;
         if (spec.startsWith("./") || spec.startsWith("../"))
           return urlOf(new URL(spec, `file:///${base}`).pathname.slice(1));

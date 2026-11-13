@@ -11,6 +11,7 @@ import { realmWorkerScope } from "../project/worker-scope.js";
 import * as workersGlobals from "../project/workers-globals-module.js";
 import { serveIsolate } from "./isolate.js";
 import type { PortLike } from "./protocol.js";
+import { makeGlobalsWritable } from "./writable-globals.js";
 
 (globalThis as Record<string, unknown>).__cellsWorkersModule = workersModule;
 // The loaded Worker's own `env` and `exports` (serveIsolate binds the realm's scope to them).
@@ -28,15 +29,9 @@ workersHostRegistry({
   Response: workersGlobals.CellsResponse,
 });
 
-// workerd lets Worker code assign `navigator` (Kitesurf's DOM shim does); this realm's own is a
-// getter only (Node's global, a Dedicated Worker's WorkerGlobalScope). The isolate is the loaded
-// Worker's realm, so the global becomes a plain writable property with the same value.
-Object.defineProperty(globalThis, "navigator", {
-  value: globalThis.navigator,
-  writable: true,
-  configurable: true,
-  enumerable: true,
-});
+// workerd lets Worker code assign its globals (Kitesurf's DOM shim sets `navigator` and
+// `location`); this realm's getter-only ones become writable (writable-globals.ts).
+makeGlobalsWritable();
 
 // This worker is the loaded Worker's realm: its globals are the Workers ones (as on Node,
 // src/isolate/node-entry.ts). Loaded code reads them as free names (partyserver builds its

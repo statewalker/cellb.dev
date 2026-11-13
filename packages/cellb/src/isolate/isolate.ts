@@ -2,6 +2,7 @@
  * The isolate side: loads the Worker code in THIS realm and serves fetch/RPC for the host.
  * `importCode` is realm specific (data: URL of a bundle on Node, a site URL in browsers).
  */
+import { registerWasmModules } from "../bindings/worker-loader.js";
 import { ctxExports, entrypointStub } from "../core/handles.js";
 import type { DurableObjectId } from "../core/id.js";
 import { runInDurableObject } from "../core/namespace.js";
@@ -160,6 +161,7 @@ export function serveIsolate(
             "This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world.",
           );
         }) as typeof fetch;
+      if (m.wasm) registerWasmModules(m.wasm); // compiled by the host (Node: wasmModulesOf)
       scope.bind({ env, exports }); // read while the module is evaluated
       module = await importCode(m, sink);
       exports = ctxExports(module, env);

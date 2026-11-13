@@ -47,6 +47,20 @@ export function carryWebSocketHeaders<R extends Request>(from: Headers, to: R): 
 const HostRequest = globalThis.Request;
 
 /**
+ * `init` with `duplex: "half"` when its body is a stream: workerd takes a streamed request body
+ * as it is, while Node's `Request` (undici) refuses one without that option.
+ */
+function streamingInit(init?: RequestInit): RequestInit | undefined {
+  const body = init?.body as unknown;
+  if (!body || (init as { duplex?: unknown }).duplex !== undefined) return init;
+  const streamed =
+    body instanceof ReadableStream ||
+    (typeof body === "object" &&
+      typeof (body as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function");
+  return streamed ? ({ ...init, duplex: "half" } as RequestInit) : init;
+}
+
+/**
  * The `Request` global of Worker code. A browser drops `Upgrade`, `Sec-WebSocket-*` and `Cookie`
  * from every `new Request()`, so a Worker that copies an upgrade request (`new Request(req)`, as
  * partyserver does before it forwards a socket to its Durable Object) or a request with cookies
@@ -55,7 +69,7 @@ const HostRequest = globalThis.Request;
  */
 export class CellsRequest extends HostRequest {
   constructor(input: RequestInfo | URL, init?: RequestInit) {
-    super(input, init);
+    super(input, streamingInit(init));
     // `init.headers` replaces the input's headers, as in `Request` itself.
     // Not a fresh `Headers` from a Request's own: a browser's would drop what it carries.
     const from =
