@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: notebooks with `${…}` in SQL cells, as plain strings
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -174,6 +175,45 @@ describe("page paths", () => {
     expect(models.site.pages.map((p) => [p.id, p.path])).toEqual([
       ["index", "/t/"],
       ["guide/index", "/t/guide/"],
+    ]);
+  });
+});
+
+describe("SQL cells", () => {
+  it("lists the cells on named databases, and which interpolate", async () => {
+    const md = [
+      "# Q",
+      "",
+      "```sql database=warehouse output=sales",
+      "SELECT region FROM sales",
+      "```",
+      "",
+      "```sql database=warehouse",
+      "SELECT * FROM sales WHERE region = ${region}",
+      "```",
+      "",
+      "```sql database=var:db",
+      "SELECT 1",
+      "```",
+      "",
+      "```sql",
+      "SELECT 2",
+      "```",
+      "",
+      "```sql database=warehouse run=false",
+      "SELECT 3",
+      "```",
+    ].join("\n");
+    const models = await buildPageModels({
+      notebooks: new MemFilesApi({ initialFiles: { "/guide/q.md": md } }),
+      moduleServer,
+      dom: { document, parser: new DOMParser() } as never,
+      siteTitle: "S",
+      base: "/t",
+    });
+    expect(models.queries.map((q) => [q.page, q.database, q.source, q.interpolated])).toEqual([
+      ["/t/guide/q", "warehouse", "SELECT region FROM sales", false],
+      ["/t/guide/q", "warehouse", "SELECT * FROM sales WHERE region = ${region}", true],
     ]);
   });
 });

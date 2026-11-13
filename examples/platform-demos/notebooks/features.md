@@ -20,3 +20,12 @@ ${numbers.length} numbers, summing to ${numbers.reduce((a, b) => a + b, 0)}.
 ```js
 const numbers = FileAttachment("numbers.json").json();
 ```
+
+## Precomputed SQL
+
+A SQL cell on the `warehouse` database (`warehouse.sql`) runs at build time; the page reads its
+result: ${sales.map((d) => `${d.region} ${d.total}`).join(", ")}.
+
+```sql database=warehouse output=sales
+SELECT region, SUM(amount) AS total FROM sales GROUP BY region ORDER BY region
+```

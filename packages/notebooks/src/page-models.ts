@@ -83,6 +83,20 @@ export interface SiteModel {
   search?: string;
 }
 
+/**
+ * A `sql` cell on a named database (` ```sql database=warehouse `): notebook-kit's page fetches its
+ * result precomputed (`.observable/cache/…`), so the build runs it. `interpolated`: the query
+ * holds a `${…}`, a value known only in the page, so it cannot be precomputed.
+ */
+export interface SqlQuery {
+  page: string;
+  notebook: string;
+  cell: number;
+  database: string;
+  source: string;
+  interpolated: boolean;
+}
+
 export interface PageModels {
   site: SiteModel;
   pages: PageModel[];
@@ -92,6 +106,8 @@ export interface PageModels {
   inputs: string[];
   /** The search index: every page's text by section. */
   search: SearchIndex;
+  /** The `sql` cells on named databases, page by page (`SqlQuery`). */
+  queries: SqlQuery[];
 }
 
 const RUNTIME_SPECIFIER = "npm:@observablehq/notebook-kit/runtime";
@@ -217,6 +233,7 @@ export async function buildPageModels(opts: {
   dataFiles?: readonly string[];
 }): Promise<PageModels & { failures: { notebook: string; error: string }[] }> {
   const sectionsOf = new Map<string, SearchSection[]>();
+  const queries: SqlQuery[] = [];
   const allPins: Record<string, string> = {};
   const allInputs = new Set<string>();
   const base = (opts.base ?? "").replace(/\/$/, "");
@@ -235,6 +252,7 @@ export async function buildPageModels(opts: {
   const seen = new Set<string>();
   for (const file of paths) {
     const id = file.slice(1).replace(/\.(md|html)$/, "");
+    const docId = id;
     if (seen.has(id)) {
       failures.push({ notebook: file, error: `another notebook already publishes "${id}"` });
       continue;
@@ -289,6 +307,22 @@ export async function buildPageModels(opts: {
           continue;
         }
         const id = cell.id;
+        const database = cell.attrs.database;
+        // `var:x` and `file:x` databases are live (a variable, an attachment), not precomputed.
+        if (
+          cell.mode === "sql" &&
+          !notRun.has(id) &&
+          typeof database === "string" &&
+          !/^(var|file):/.test(database)
+        )
+          queries.push({
+            page: pagePath(base, docId),
+            notebook: file,
+            cell: id,
+            database,
+            source: cell.source,
+            interpolated: cell.source.includes("${"),
+          });
         const shown = cell.attrs.echo === true || notRun.has(id);
         const view = {
           ...(shown ? { source: cell.source, mode: cell.mode } : {}),
@@ -338,5 +372,5 @@ export async function buildPageModels(opts: {
   const search = buildSearchIndex(
     pages.map((p) => ({ path: p.path, title: p.title, sections: sectionsOf.get(p.id) ?? [] })),
   );
-  return { site, pages, pins: allPins, inputs: [...allInputs].sort(), search, failures };
+  return { site, pages, pins: allPins, inputs: [...allInputs].sort(), search, queries, failures };
 }

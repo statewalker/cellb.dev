@@ -66,7 +66,9 @@ const LOADER = /^(.+\.([A-Za-z0-9]+))\.(js|mjs|ts)$/;
 /** The file a loader produces (`/data/sales.csv` for `/data/sales.csv.js`), if `path` is one. */
 export function loaderTarget(path: string): string | undefined {
   const m = LOADER.exec(path);
-  return m?.[1] && DATA_EXTENSIONS.has((m[2] ?? "").toLowerCase()) ? m[1] : undefined;
+  const ext = (m?.[2] ?? "").toLowerCase();
+  // `.sql`: a database's script (`warehouse.sql.js` → `warehouse.sql`), never served.
+  return m?.[1] && (DATA_EXTENSIONS.has(ext) || ext === "sql") ? m[1] : undefined;
 }
 
 /** What a site serves of its sources besides loader outputs: data, media, documents, fonts. */
