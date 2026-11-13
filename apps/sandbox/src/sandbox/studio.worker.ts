@@ -189,3 +189,6 @@ scope.addEventListener("message", (e: MessageEvent<ToStudio>) => {
     hostCalls.delete(msg.id);
   }
 });
+
+// The page waits for this: a worker whose script did not load says nothing, and is replaced.
+post({ type: "hello" });

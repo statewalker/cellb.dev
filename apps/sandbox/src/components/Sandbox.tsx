@@ -151,6 +151,8 @@ export default function Sandbox() {
   const [openError, setOpenError] = useState<string>();
   // The studio worker (the project's files, the capabilities, the Flue agents).
   const studioRef = useRef<StudioConnection | null>(null);
+  /** Settles once the current studio worker has said hello (see startStudio). */
+  const studioReady = useRef<Promise<void>>(Promise.resolve());
   const toolsRef = useRef<ReturnType<typeof createTools> | null>(null);
   // The rights the IDE's tools give agents outside the page (window.cellbSandbox, WebMCP, MCP).
   const [outsideMode, setOutsideMode] = useState<AgentMode>("yolo");
@@ -172,34 +174,66 @@ export default function Sandbox() {
 
   useEffect(() => {
     const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
-    // The studio worker owns the project's files and runs the studio Worker (Flue agents) on
-    // CellB; the runner builds and runs the app, reading the files through a capability.
-    const sw = new Worker(new URL("../sandbox/studio.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    const studio = connectStudio(
-      sw,
-      new URL(`${base}studio/`, location.href).href,
-      (m: FromStudio) => {
-        if (m.type === "changed") checkSoon.current();
-        else if (m.type === "log") addLog(m.text, m.level);
-        else if (m.type === "host-call") {
-          // The studio's agent wants the app run, its log or a request: the page's tools act.
-          void callTool(toolsRef.current ?? [], m.tool, m.args).then((out) =>
-            sw.postMessage({ type: "host-reply", id: m.id, out } satisfies ToStudio),
-          );
-        }
-      },
-    );
-    studioRef.current = studio;
-    sw.addEventListener("error", (e) => addLog(`studio: ${e.message}`, "error"));
-
     const w = new Worker(new URL("../sandbox/runner.worker.ts", import.meta.url), {
       type: "module",
     });
     worker.current = w;
-    const port = studio.portForRunner();
-    w.postMessage({ type: "studio-port", port } satisfies ToRunner, [port]);
+    // The studio worker owns the project's files and runs the studio Worker (Flue agents) on
+    // CellB; the runner builds and runs the app, reading the files through a capability. A studio
+    // worker whose script does not load (rare, under load) says nothing at all and loses what it
+    // is sent: so it must say hello, and one that does not, in 20 s or with an error, is replaced.
+    let sw: Worker | undefined;
+    let stopped = false;
+    // One promise for the page: the first hello of any attempt settles it.
+    let ready = () => {};
+    studioReady.current = new Promise<void>((r) => {
+      ready = r;
+    });
+    const startStudio = (attempt: number) => {
+      const me = new Worker(new URL("../sandbox/studio.worker.ts", import.meta.url), {
+        type: "module",
+      });
+      sw = me;
+      let hello = false;
+      const studio = connectStudio(
+        me,
+        new URL(`${base}studio/`, location.href).href,
+        (m: FromStudio) => {
+          if (m.type === "hello") {
+            hello = true;
+            ready();
+          } else if (m.type === "changed") checkSoon.current();
+          else if (m.type === "log") addLog(m.text, m.level);
+          else if (m.type === "host-call") {
+            // The studio's agent wants the app run, its log or a request: the page's tools act.
+            void callTool(toolsRef.current ?? [], m.tool, m.args).then((out) =>
+              me.postMessage({ type: "host-reply", id: m.id, out } satisfies ToStudio),
+            );
+          }
+        },
+      );
+      studioRef.current = studio;
+      const port = studio.portForRunner();
+      w.postMessage({ type: "studio-port", port } satisfies ToRunner, [port]);
+      const replace = (why: string) => {
+        if (hello || stopped || sw !== me) return;
+        me.terminate();
+        if (attempt >= 3) {
+          const message = `the studio worker did not start (${why}): reload the page`;
+          addLog(message, "error");
+          setOpenError(message);
+          return;
+        }
+        addLog(`studio: ${why}; starting it again`, "error");
+        startStudio(attempt + 1);
+      };
+      me.addEventListener("error", (e) =>
+        hello ? addLog(`studio: ${e.message}`, "error") : replace(e.message || "it did not load"),
+      );
+      setTimeout(() => replace("no answer in 20 s"), 20_000);
+    };
+    startStudio(1);
+
     // The ServiceWorker next to this page (integrations/sw-worker.mjs): its scope is the sandbox.
     const unhost = hostSitesForWorker(w, {
       serviceWorkerUrl: new URL(`${base}sw-worker.js`, location.href).href,
@@ -252,9 +286,10 @@ export default function Sandbox() {
     });
     w.addEventListener("error", (e) => addLog(`runner: ${e.message}`, "error"));
     return () => {
+      stopped = true;
       unhost();
       w.terminate();
-      sw.terminate();
+      sw?.terminate();
     };
   }, [addLog]);
 
@@ -358,8 +393,6 @@ export default function Sandbox() {
 
   /** Opens a project: its files mounted in the studio worker, read through the owner token. */
   async function openProject(name: string, source: SourceSpec, handle?: FileSystemDirectoryHandle) {
-    const studio = studioRef.current;
-    if (!studio) throw new Error("the studio is not ready");
     const before = loadedRef.current?.session;
     setOpenError(undefined);
     // A step that never ends (a studio that cannot start its storage) is an error, not a page
@@ -373,6 +406,9 @@ export default function Sandbox() {
         ),
       ]);
     };
+    await step("waiting for the studio worker", studioReady.current);
+    const studio = studioRef.current;
+    if (!studio) throw new Error("the studio is not ready");
     const s = await step(
       "mounting the source, minting its tokens",
       openProjectSession(studio, name, source),
