@@ -12,7 +12,7 @@
 // Each deploy is a new release folder; the app's Durable Objects keep their data across releases
 // (<dir>/<name>/data). A release that does not load leaves the previous one serving.
 
-import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import type { FetchHandler } from "@statewalker/httpeers-core";
 import { lookupPeer } from "@statewalker/httpeers-core";
@@ -30,6 +30,8 @@ export interface HostedApp {
   bytes: number;
   /** Served by the public gateway too, to people who are not members. */
   public?: boolean;
+  /** The app's data folder under its directory (default "data"): a new one per data deploy. */
+  data?: string;
 }
 
 const NAME = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -63,7 +65,10 @@ export function createAppHost(opts: {
   };
 
   async function start(name: string, meta: HostedApp) {
-    const project = await load(join(opts.dir, name, meta.release), join(opts.dir, name, "data"));
+    const project = await load(
+      join(opts.dir, name, meta.release),
+      join(opts.dir, name, meta.data ?? "data"),
+    );
     const before = apps.get(name);
     apps.set(name, { meta, project });
     await before?.project.close().catch(() => {});
@@ -85,8 +90,13 @@ export function createAppHost(opts: {
   }
 
   /** An app belongs to the peer that deployed it first; admins may replace or remove any. */
-  function mayChange(name: string, by: string | null) {
-    const owner = apps.get(name)?.meta.by;
+  async function mayChange(name: string, by: string | null) {
+    // The owner from the app as it runs, or as it was saved (an app that did not restore).
+    const owner =
+      apps.get(name)?.meta.by ??
+      (await readFile(join(opts.dir, name, "app.json"), "utf8")
+        .then((t) => (JSON.parse(t) as HostedApp).by)
+        .catch(() => null));
     if (!owner || by === owner || (by && opts.isAdmin?.(by))) return;
     throw new HttpError(403, `${name} was deployed by another member (${owner})`);
   }
@@ -98,10 +108,19 @@ export function createAppHost(opts: {
     isPublic = false,
     replaceData = false,
   ) {
-    mayChange(name, by);
     if (!NAME.test(name))
       throw new HttpError(400, "a name is lowercase letters, digits and dashes");
+    await mayChange(name, by);
     const entries = Object.entries(files);
+    // The preview's data: databases right under .cellb-data/, nothing else there.
+    const seedFiles: string[] = [];
+    for (const [path] of entries) {
+      const rel = normalize(path).replace(/^\/+/, "");
+      if (!rel.startsWith(".cellb-data/")) continue;
+      if (!/^\.cellb-data\/[^/]+\.sqlite$/.test(rel))
+        throw new HttpError(400, `${path}: .cellb-data/ holds <cell>.sqlite files only`);
+      seedFiles.push(rel);
+    }
     if (!entries.some(([p]) => p === "/wrangler.json" || p === "/wrangler.jsonc"))
       throw new HttpError(
         400,
@@ -135,31 +154,47 @@ export function createAppHost(opts: {
       bytes,
       public: isPublic,
     };
-    // The preview's data (Ship with "the preview's data": .cellb-data/ in the folder) seeds the
-    // app's data on its first deploy, or replaces it when asked; otherwise the hub's data stays.
-    const dataDir = join(opts.dir, name, "data");
-    const seed = entries.some(([p]) => p.startsWith("/.cellb-data/"));
-    const hasData = await readdir(dataDir)
+    // The preview's data (Ship with "the preview's data": .cellb-data/) seeds the app's data on its
+    // first deploy, or replaces its databases when asked. It goes to a NEW data folder, a copy of
+    // the current one (R2 objects and all) with the databases replaced: the new release starts on
+    // it while the old one keeps serving, and the old folder goes only once the new one runs.
+    const current = apps.get(name)?.meta.data ?? (await savedData(name));
+    const currentDir = join(opts.dir, name, current);
+    const hasData = await readdir(currentDir)
       .then((names) => names.some((n) => n.endsWith(".sqlite")))
       .catch(() => false);
-    if (seed && (replaceData || !hasData)) {
-      // The running release holds those files open: it stops first.
-      const running = apps.get(name);
-      if (running) {
-        apps.delete(name);
-        await running.project.close().catch(() => {});
+    let freshData: string | undefined;
+    if (seedFiles.length && (replaceData || !hasData)) {
+      freshData = `data-${release}`;
+      const dir = join(opts.dir, name, freshData);
+      try {
+        await mkdir(dir, { recursive: true });
+        await cp(currentDir, dir, {
+          recursive: true,
+          filter: (src) => !/\.sqlite(-journal|-wal|-shm)?$/.test(src),
+        }).catch((err) => {
+          if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+        });
+        for (const rel of seedFiles)
+          await copyFile(join(root, rel), join(dir, rel.slice(".cellb-data/".length)));
+      } catch (err) {
+        await rm(dir, { recursive: true, force: true });
+        await rm(root, { recursive: true, force: true });
+        throw err;
       }
-      await rm(dataDir, { recursive: true, force: true });
-      await mkdir(dataDir, { recursive: true });
-      for (const f of await readdir(join(root, ".cellb-data")))
-        if (f.endsWith(".sqlite")) await copyFile(join(root, ".cellb-data", f), join(dataDir, f));
-      log(`host: ${name}'s data ${hasData ? "replaced" : "seeded"} from the deploy`);
     }
+    meta.data = freshData ?? current;
     try {
       await start(name, meta);
     } catch (err) {
       await rm(root, { recursive: true, force: true });
+      if (freshData) await rm(join(opts.dir, name, freshData), { recursive: true, force: true });
       throw new HttpError(422, `the release did not load: ${(err as Error).message}`);
+    }
+    if (freshData) {
+      // The old release is closed (start): its data folder goes.
+      if (current !== freshData) await rm(currentDir, { recursive: true, force: true });
+      log(`host: ${name}'s databases ${hasData ? "replaced" : "seeded"} from the deploy`);
     }
     await writeFile(join(opts.dir, name, "app.json"), `${JSON.stringify(meta, null, 2)}\n`);
     // Older releases go, the last few stay (a manual rollback is editing app.json).
@@ -172,10 +207,17 @@ export function createAppHost(opts: {
     return meta;
   }
 
+  /** The data folder app.json names (an app not running), or the default. */
+  async function savedData(name: string): Promise<string> {
+    return readFile(join(opts.dir, name, "app.json"), "utf8")
+      .then((t) => (JSON.parse(t) as HostedApp).data ?? "data")
+      .catch(() => "data");
+  }
+
   async function remove(name: string, by: string | null, operator = false) {
     const app = apps.get(name);
     if (!app) return false;
-    if (!operator) mayChange(name, by);
+    if (!operator) await mayChange(name, by);
     apps.delete(name);
     await app.project.close().catch(() => {});
     await rm(join(opts.dir, name), { recursive: true, force: true });

@@ -88,8 +88,10 @@ folder (the same one as Ship → Build) and uploads it to the hub (`PUT /host/ap
 - **A release that does not load** is refused (422), and the previous one goes on serving.
 - **Data from the preview.** A deploy made with "With the preview's data" (Publish section)
   carries the preview's Durable Object databases in `.cellb-data/`. They seed the app's data on
-  its first deploy. With `replaceData`, which that box sets, they replace what the app holds on
-  the hub. Without the box, the hub's data stays.
+  its first deploy. With `replaceData`, which that box sets, they replace the app's databases on
+  the hub (its R2 objects stay). The databases go to a new data folder; the new release starts on
+  it while the old one keeps serving, and the old folder goes only once the new release runs, so
+  a deploy that fails changes nothing. They count toward the 64 MB deploy limit.
 - **Restarts.** A restarted hub serves its apps again.
 
 The same folder still runs on Cloudflare (`wrangler deploy`) and celld. The hub is just one more

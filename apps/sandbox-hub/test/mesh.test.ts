@@ -175,8 +175,29 @@ export default {
   );
   if (!(await onHub(viewer, "/apps/counter2/")).body.includes("#4"))
     throw new Error("replaceData did not replace");
+  // A data deploy that does not load leaves the app serving, on its own data (at 4 → 5).
+  const broken = { ...folder, "/worker.js": b64("export default {{ broken") };
+  const failed = await deployer.fetch(
+    new Request(`http://local/peers/${hub.peerId}/host/apps/counter2`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        files: { ...broken, [`/.cellb-data/${db.name}`]: db.b64 },
+        replaceData: true,
+      }),
+    }),
+  );
+  expect("a broken data deploy", { status: failed.status, body: await failed.text() }, 422);
+  if (!(await onHub(viewer, "/apps/counter2/")).body.includes("#5"))
+    throw new Error("a failed data deploy changed the app or its data");
+  // Only <cell>.sqlite files right under .cellb-data/.
+  expect(
+    "a bad .cellb-data path",
+    await deployAs("counter2", { "/.cellb-data/x.sqlite/y": db.b64 }),
+    400,
+  );
   step(
-    "the preview's data in a deploy: a new app starts from it, a redeploy keeps its own, replaceData replaces it",
+    "the preview's data in a deploy: a new app starts from it, a redeploy keeps its own, replaceData replaces it; a failed one leaves the app and its data as they were",
   );
 
   const links = hub.members();

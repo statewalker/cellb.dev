@@ -142,13 +142,18 @@ async function stop() {
   await project?.close().catch(() => {});
 }
 
+/** The running preview is on a pool of its own (another tab held the project's): see build. */
+let freshPool = false;
+
 async function openProject(files: MemFilesApi, name: string) {
+  freshPool = false;
   const data = `${POOL_PREFIX}${name.replace(/[^a-z0-9-]/gi, "-").toLowerCase()}`;
   try {
     return await loadProject(files, { data, compile });
   } catch (err) {
     if (!/lock|busy|access handle|NoModificationAllowed/i.test(String(err))) throw err;
     log(`the data of "${name}" is open in another tab: this run starts with empty storage`);
+    freshPool = true;
     return loadProject(files, { data: `${data}-${Date.now().toString(36)}`, compile });
   }
 }
@@ -309,7 +314,15 @@ async function build(
   // The preview's Durable Object data: the cells' databases, named as CellB on Node names them in
   // its data directory, which the folder's serve.mjs (and the hub) use: they start from it.
   if (withData) {
-    const cells = (await current.project?.exportCells?.()) ?? [];
+    // The cells only: CellB's own databases (`__cellb/…`: cron state, the alarm index) stay.
+    const cells = ((await current.project?.exportCells?.()) ?? []).filter(
+      ([name]) => !name.startsWith("__cellb"),
+    );
+    if (freshPool)
+      log(
+        "build: the preview runs on a fresh pool (another tab holds this project's): its data is not the project's usual data",
+        "error",
+      );
     for (const [name, bytes] of cells) out.set(`/.cellb-data/${name}`, bytes);
     log(
       cells.length

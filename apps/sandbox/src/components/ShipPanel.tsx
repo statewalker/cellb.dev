@@ -145,11 +145,16 @@ export function ShipPanel(props: {
             className="accent-primary"
             aria-label="Include the preview's data"
             checked={withData}
-            onChange={(e) => setWithData(e.target.checked)}
+            onChange={(e) => {
+              setWithData(e.target.checked);
+              // A build made with the other choice is not the one to download or push now.
+              setBuild(undefined);
+            }}
           />
-          Include the preview's data: the Durable Objects' databases, in{" "}
+          Include the preview's data: the Durable Objects' databases (not R2 objects), in{" "}
           <code className="font-mono">.cellb-data/</code>, where cellb on Node and the hub start
-          from them (Cloudflare and celld do not read them)
+          from them (Cloudflare and celld do not read them). Pushed with the build when it is
+          pushed.
         </label>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={doBuild} disabled={!!busy}>

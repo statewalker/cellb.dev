@@ -342,8 +342,10 @@ A project loaded with an OPFS pool (no bucket) has `exportCells()` on its `Loade
 cell's database as `[file name, bytes]`, read from the pool. The names are the ones
 `nodeSqliteOpener(dir)` gives the same cells, so the files placed in a data directory make
 `loadProject(dir, { data })` on Node start where the browser's cells are. With a bucket it
-returns nothing: the bucket already holds the cells. Call it between events; a database is read
-as of its last commit.
+returns nothing: the bucket already holds the cells. CellB's own databases (`__cellb_*`: cron
+state, the alarm index) are included, R2 objects are not. Call it between events: a database is
+read from the pool's file, and a transaction under way whose pages SQLite already spilled to it
+would be read half done.
 
 ## A fleet bucket on S3
 
