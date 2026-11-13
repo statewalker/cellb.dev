@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Astro, built in the browser, on CellB</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+      .note { padding: .6rem 1rem; border-radius: 6px; background: #8882; }
+      li { margin: .35rem 0; }
+    </style>
+  </head>
+  <body>
+    <!--
+      The chooser: under /__cellb/, so the ServiceWorker always serves it (every other path of the
+      origin belongs to the site built here). It is the ServiceWorker's host page: a navigation
+      that finds no tab running the site lands here, with the path it asked for as ?next=.
+    -->
+    <h1>Astro, built in the browser, on CellB</h1>
+    <p>Each page reads an app's sources, builds them in this tab (esbuild and Astro's compiler as
+      WebAssembly, packages from the npm registry) and runs the result on CellB, served from the tab
+      at this origin's root. One app at a time: building the other replaces it.</p>
+    <p class="note" id="next" hidden></p>
+    <p class="note" id="last" hidden></p>
+    <ul>
+      <li><a data-app="app" href="/__cellb/">A small Astro app</a> (a few seconds)</li>
+      <li><a data-app="emdash" href="/__cellb/emdash.html">EmDash</a>, the Astro CMS (about two
+        minutes the first time, a few hundred packages; about one minute after that)</li>
+    </ul>
+    <p>This page stays at <a href="/__cellb/start.html">/__cellb/start.html</a>: while a tab runs a
+      site, the origin's root (<code>/</code>) is that site.</p>
+    <script type="module">
+      const NAMES = { app: "the small Astro app", emdash: "EmDash" };
+      const next = new URLSearchParams(location.search).get("next");
+      // The path asked for travels on to the host page, which links to it once the site runs.
+      if (next?.startsWith("/") && !next.startsWith("//")) {
+        for (const a of document.querySelectorAll("a[data-app]"))
+          a.setAttribute("href", `${a.getAttribute("href")}?${new URLSearchParams({ next })}`);
+        const el = document.getElementById("next");
+        el.hidden = false;
+        el.textContent = `No tab is running a site for ${next}: build one below, and the page links to it once it runs.`;
+      }
+      let last;
+      try {
+        last = JSON.parse(localStorage.getItem("cellb:last-build") ?? "null");
+      } catch {}
+      if (last && NAMES[last.app]) {
+        const el = document.getElementById("last");
+        el.hidden = false;
+        el.textContent = `Built last in this browser: ${NAMES[last.app]} (${new Date(last.at).toLocaleString()}). Its data stays in this browser; building it again keeps it.`;
+        document.querySelector(`a[data-app="${last.app}"]`)?.after(" ← built last");
+      }
+    </script>
+  </body>
+</html>

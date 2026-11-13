@@ -13,12 +13,12 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.7",
-    "@astrojs/react": "^7.1.7",
-    "astro": "^7.4.10",
+    "@astrojs/react": "^7.1.8",
+    "astro": "^7.4.11",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "wrangler": "^4.160.0"
+    "wrangler": "^4.161.0"
   }
 }

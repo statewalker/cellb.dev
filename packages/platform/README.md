@@ -125,6 +125,7 @@ Each demo is built and run on every host.
 | Notebooks rendered by an Astro theme built in the object (page models, Worker Loader), cells run | yes | yes | yes | yes (theme built in the tab) |
 | Themed pages: notebooks as Portable Text, `echo`, `run=false`, inline `${…}` | yes | yes | yes | n/a |
 | Themed pages: site search (`search.json`), hosted and in the export | yes | yes | yes | n/a |
+| Notebook data loaders (`x.json.js`): built by the bundler, run in a Worker Loader isolate, read by `FileAttachment`, hosted and in the export | yes | yes | yes | n/a |
 | Themed notebook site exported as static files, its cells run from a file server | yes | yes | yes | exported in the tab |
 | Notebook pages, hosted or exported, load notebook-kit's built-ins (`Inputs`…) from the site, not esm.sh | yes | yes | yes | yes |
 | Astro demo built from its sources in the object, then run and hydrated | yes (Worker Loader) | yes (Worker Loader) | yes | yes (built in the tab, run on CellB) |

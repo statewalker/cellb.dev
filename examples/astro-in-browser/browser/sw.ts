@@ -2,7 +2,8 @@
 // The origin's ServiceWorker. It does two things:
 // - it gives the host page and its workers cross-origin isolation, by adding COOP/COEP to the
 //   responses of /__cellb/ (Astro's compiler needs SharedArrayBuffer), as coi-serviceworker does;
-// - it routes every other path of the origin to the project the host page built ("app").
+// - it routes every other path of the origin to the project the host page built ("app"); a
+//   navigation that finds no tab running it goes to the chooser, /__cellb/start.html.
 import { installProjectRouter } from "@statewalker/cellb/tabs";
 
 declare const self: ServiceWorkerGlobalScope;
@@ -27,5 +28,7 @@ self.addEventListener("fetch", (e) => {
 
 installProjectRouter(self, {
   basePath: "/__cellb/projects/",
-  root: { name: "app", passthrough: [HOST], hostPage: HOST },
+  // The chooser (browser/start.html): where a navigation lands when no tab runs the site, so
+  // that either app can be picked (it was the small app's host page, which rebuilt that one).
+  root: { name: "app", passthrough: [HOST], hostPage: `${HOST}start.html` },
 });

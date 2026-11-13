@@ -19,7 +19,7 @@ The demo notebooks are in
 |---|---|
 | `PUT /nb/<site>/files/<path>` | writes a notebook (`.md`, Notebook Kit `.html`) or a data file |
 | `POST /nb/<site>/import` | replaces the sources: a ZIP, or JSON `{ files: { path: text } }` |
-| `POST /nb/<site>/build` | builds the pages (incrementally) and the page models → `{ changed, failures, pages, ms, models, modelFailures }` |
+| `POST /nb/<site>/build` | runs the data loaders, builds the pages (incrementally) and the page models → `{ changed, failures, pages, ms, models, modelFailures, loaders, loaderFailures }` |
 | `GET /nb/<site>/<page>.html` | a built page; its cells run in the browser |
 | `GET /nb/<site>/_m/…` | the npm modules the pages import |
 | `GET /nb/<site>/models.json` | the page models of the last build: `{ version, site, pages }` |
@@ -27,6 +27,7 @@ The demo notebooks are in
 | `GET /nb/<site>/t/<page>` | a page rendered by the theme from the page models (`t/` is the home page) |
 | `POST /nb/<site>/export` | the themed site as static files, a ZIP (`x-export-pages`, `x-export-modules`) |
 | `GET /nb/<site>/search.json` | the search index of the last build: one entry per page section |
+| `GET /nb/<site>/[t/]<path>` | a data file: a source file that is not a notebook, or a data loader's output |
 
 ## How it works
 
@@ -111,6 +112,42 @@ The default theme has a search box in its header. A small inline script loads th
 focus, matches every query word against the page title, heading and text (headings weigh more),
 and lists up to ten links to `page#anchor`. It needs no library and no CDN.
 
+### Data loaders
+
+A source file named like `data/sales.csv.js` (or `.ts`, `.mjs`) is the data loader of
+`data/sales.csv`, as in Observable Framework. Its default export is the data, or a function that
+returns it (async allowed):
+
+```js
+// quakes.json.js
+export default async () => (await fetch("https://example.com/quakes.json")).json();
+```
+
+- **A module, not a script.** A Worker or a browser has no process to run and no stdout to read,
+  so a loader returns its data: a string, bytes, a Blob or a Response as they are; any other value
+  as JSON.
+- **Built and run by the platform.** Each build sends a loader to the bundler as a small Worker
+  project (`src/data-loaders.ts`). Its npm imports come from the package store. The Worker runs
+  once in a Worker Loader isolate, and its `fetch` answers with the data. A loader may use `fetch`.
+- **Kept until it changes.** The output is stored in the object (`nbdata`) with the loader's build
+  id, a hash of its sources. A rebuild with the same loader reuses the output (`cached: true`), so a
+  loader that reads an API is not run again until its source changes, unless the build is
+  `POST /nb/<site>/build?loaders=refresh`. A failed loader, or one with no answer in 60 s, keeps its
+  last output and is reported in `loaderFailures`, as is a second loader of the same output. Each
+  run gets a fresh isolate.
+- **Loaders run first**, so a notebook's `FileAttachment("data/sales.csv")` finds the output, as it
+  finds any attachment.
+- **Served beside the notebooks**, at `/nb/<site>/data/sales.csv` and `/nb/<site>/t/data/sales.csv`.
+  A loader's source is never served, since it can hold an API key. Of the sources, only files with
+  a data, media or font extension are served (and exported), and never through a dot-file or a
+  `.`/`..` segment.
+- **Output types are data:** `csv`, `tsv`, `json`, `ndjson`, `txt`, `xml`, `yaml`, `parquet`,
+  `arrow`, `sqlite`, `xlsx`, `zip`, images and a few more. `lib/d3.min.js` is not a loader.
+
+Themed pages register the data files their cells name (`registerFile`, notebook-kit's runtime) at
+their absolute URLs. So `FileAttachment` resolves the same from `/t/guide/plots` as from
+`/t/guide/plots/`, which a static server may redirect to.
+
 ### Static export
 
 `POST /nb/<site>/export` returns the themed site as a ZIP that any static file server serves:
@@ -121,6 +158,8 @@ and lists up to ten links to `page#anchor`. It needs no library and no CDN.
   materialized with notebook-build's `materializeDeps`, with the `.css`, `.wasm` and font files
   their packages ship;
 - the search index, `nb/<site>/search.json`, which the theme fetches from JavaScript;
+- the data files (attachments and data loaders' outputs) at `nb/<site>/t/<path>`, which cells
+  fetch from JavaScript;
 - a root `index.html` that redirects to `/nb/<site>/t/`.
 
 Paths stay as served (`/nb/<site>/t/…`, `/nb/<site>/_m/…`), so no page is rewritten. One kind of
