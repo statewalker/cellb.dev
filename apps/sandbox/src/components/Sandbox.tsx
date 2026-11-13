@@ -1250,6 +1250,17 @@ export default function Sandbox() {
                 {openFile && loaded.files.has(openFile) ? (
                   <FileEditor
                     path={openFile}
+                    project={{
+                      // The project's scripts, with the unsaved edits: what the language service checks against.
+                      files: () => {
+                        const l = loadedRef.current;
+                        if (!l) return [];
+                        return [...l.files]
+                          .filter(([p]) => /\.(?:[cm]?[jt]sx?)$/i.test(p))
+                          .map(([p, b]): [string, string] => [p, drafts.get(p) ?? decode(b)]);
+                      },
+                      clientRoot: layout?.clientRoot,
+                    }}
                     bytes={loaded.files.get(openFile) as Uint8Array}
                     draft={drafts.get(openFile)}
                     where={describeSource(loaded.session.source)}
@@ -1493,6 +1504,7 @@ function FileEditor(props: {
   error?: string;
   onChange(text: string): void;
   onSave(): void;
+  project?: { files(): [string, string][]; clientRoot?: string };
 }) {
   const text = textOf(props.path, props.bytes);
   const dirty = props.draft !== undefined;
@@ -1531,6 +1543,7 @@ function FileEditor(props: {
               value={props.draft ?? text}
               onChange={props.onChange}
               onSave={props.onSave}
+              project={props.project}
             />
           </div>
         ) : (

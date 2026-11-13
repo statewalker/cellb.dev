@@ -18,7 +18,7 @@ import {
   syntaxHighlighting,
 } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState, type Extension, Prec } from "@codemirror/state";
+import { Compartment, EditorState, type Extension, Prec, StateEffect } from "@codemirror/state";
 import {
   drawSelection,
   EditorView,
@@ -27,7 +27,9 @@ import {
   keymap,
   lineNumbers,
 } from "@codemirror/view";
+import type { Remote } from "comlink";
 import { useEffect, useRef } from "react";
+import type { TsWorker } from "@/sandbox/ts.worker";
 
 /** The language support for a file, by its extension; undefined for plain text. */
 export async function languageFor(path: string): Promise<Extension | undefined> {
@@ -68,6 +70,78 @@ export async function languageFor(path: string): Promise<Extension | undefined> 
 
 const isDark = () => document.documentElement.classList.contains("dark");
 
+const SCRIPT = /\.(?:[cm]?[jt]sx?)$/i;
+// Codes not worth a red line while types are still arriving: a module whose types are not there
+// (yet: automatic type acquisition fetches them), an untyped module.
+const IGNORED = [2307, 7016];
+
+/** Types fetched for the imports have arrived: the open file is linted again. */
+const typesArrived = StateEffect.define<null>();
+
+/** The TypeScript language service (ts.worker.ts): one for the page, started with the first script. */
+let tsWorker: Promise<Remote<TsWorker>> | undefined;
+function languageService() {
+  tsWorker ??= (async () => {
+    const Comlink = await import("comlink");
+    // A worker's script can be refused (a cross-origin isolated page takes only scripts sent with
+    // its headers, which the ServiceWorker adds; a request that misses it is blocked): one that
+    // fails, or does not answer, is replaced.
+    for (let attempt = 1; ; attempt++) {
+      const inner = new Worker(new URL("../sandbox/ts.worker.ts", import.meta.url), {
+        type: "module",
+      });
+      const worker = Comlink.wrap<TsWorker>(inner);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          inner.addEventListener("error", (e) => reject(new Error(e.message || "it did not load")));
+          setTimeout(() => reject(new Error("no answer in 60 s")), 60_000);
+          worker.initialize().then(resolve, reject);
+        });
+        return worker;
+      } catch (err) {
+        inner.terminate();
+        if (attempt >= 3) throw err;
+        console.warn(
+          `the TypeScript language service: ${(err as Error).message}; starting it again`,
+        );
+      }
+    }
+  })();
+  tsWorker.catch(() => {
+    tsWorker = undefined;
+  });
+  return tsWorker;
+}
+
+/** Lint, completion, hover and go-on-typing sync for a script file, from the language service. */
+async function typescriptFor(
+  path: string,
+  project?: { files(): [string, string][]; clientRoot?: string },
+) {
+  const [cm, lint, worker] = await Promise.all([
+    import("@valtown/codemirror-ts"),
+    import("@codemirror/lint"),
+    languageService(),
+  ]);
+  // The other files first: imports and their types resolve against the project.
+  if (project) await worker.syncProject(project.files(), project.clientRoot);
+  return {
+    worker,
+    extension: [
+      cm.tsFacetWorker.of({ worker: worker as never, path }),
+      cm.tsSyncWorker(),
+      // The linter, here rather than tsLinterWorker's: it also runs again when types arrive
+      // (forceLinting only hurries a lint already due after an edit).
+      lint.linter(() => worker.getLints({ path, diagnosticCodesToIgnore: IGNORED }), {
+        needsRefresh: (u) => u.transactions.some((t) => t.effects.some((e) => e.is(typesArrived))),
+      }),
+      lint.lintGutter(),
+      autocompletion({ override: [cm.tsAutocompleteWorker()] }),
+      cm.tsHoverWorker(),
+    ] as Extension,
+  };
+}
+
 const baseTheme = EditorView.theme({
   "&": { height: "100%", fontSize: "13px" },
   ".cm-scroller": { fontFamily: "var(--font-mono, ui-monospace, monospace)", lineHeight: "1.6" },
@@ -80,6 +154,8 @@ export function CodeEditor(props: {
   value: string;
   onChange(text: string): void;
   onSave(): void;
+  /** The project's script files and where its client is: types, errors and completion across files. */
+  project?: { files(): [string, string][]; clientRoot?: string };
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -92,6 +168,8 @@ export function CodeEditor(props: {
     if (!host.current) return;
     const language = new Compartment();
     const theme = new Compartment();
+    const types = new Compartment();
+    const completion = new Compartment();
     const themeOf = async () =>
       isDark() ? (await import("@codemirror/theme-one-dark")).oneDark : [];
     const v = new EditorView({
@@ -107,7 +185,7 @@ export function CodeEditor(props: {
           indentOnInput(),
           bracketMatching(),
           closeBrackets(),
-          autocompletion(),
+          completion.of(autocompletion()),
           highlightActiveLine(),
           highlightSelectionMatches(),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
@@ -138,6 +216,7 @@ export function CodeEditor(props: {
           baseTheme,
           language.of([]),
           theme.of([]),
+          types.of([]),
         ],
       }),
     });
@@ -146,6 +225,23 @@ export function CodeEditor(props: {
     void languageFor(props.path).then((ext) => {
       if (alive && ext) v.dispatch({ effects: language.reconfigure(ext) });
     });
+    // TypeScript and JavaScript files get the language service (its completion replaces the
+    // plain one). The editor works without it: it loads in the background, and a failure to
+    // load (no network for the libraries) leaves the editor as it was.
+    if (SCRIPT.test(props.path))
+      void typescriptFor(`/${props.path.replace(/^\/+/, "")}`, callbacks.current.project)
+        .then(async ({ worker, extension }) => {
+          if (!alive) return;
+          v.dispatch({ effects: [types.reconfigure(extension), completion.reconfigure([])] });
+          // Types fetched for the imports arrive later: lint again then.
+          const Comlink = await import("comlink");
+          await worker.onTypes(
+            Comlink.proxy(() => {
+              if (alive) v.dispatch({ effects: typesArrived.of(null) });
+            }),
+          );
+        })
+        .catch((err) => console.warn("the TypeScript language service:", err));
     const applyTheme = () =>
       void themeOf().then((t) => alive && v.dispatch({ effects: theme.reconfigure(t) }));
     applyTheme();

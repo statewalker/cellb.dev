@@ -124,6 +124,15 @@ folder once (`webkitdirectory`) and keep edits in the tab.
   runs. A move is the source's own (`FilesApi.move`: the whole entry, with what the view leaves
   out, such as `node_modules`); a case-only rename goes through a temporary name.
 
+**Types in the editor**: TypeScript and JavaScript files get a language service: errors
+underlined, completion and hover across the project's files, from a worker
+(`src/sandbox/ts.worker.ts`). It runs TypeScript 6 (`typescript-js`, the last compiler written in
+JavaScript; 7 is native) over an in-memory file system, with two environments: the client's
+files see the DOM, the server's see Cloudflare's Workers types (`cloudflare:workers` included).
+The libraries come from jsdelivr. npm packages' types come from the files' imports (automatic
+type acquisition), and the open file is checked again when they arrive. The editor works without
+the service while it loads, or when the network is not there.
+
 ## Agents
 
 ### Files, capabilities, and who holds what
@@ -361,7 +370,11 @@ members (never the tools).
 - Inline `<script type="module">` blocks are not compiled (only `src` scripts).
 - The server is re-bundled whole on each run (under a second for the sample); `siteCompiler`
   would recompile one module instead.
-- The editor has no type checking or cross-file completion (no TypeScript language service).
+- A page worker's script is occasionally refused (`ERR_BLOCKED_BY_RESPONSE`). The page is
+  cross-origin isolated, and only the ServiceWorker adds the headers a worker script then needs;
+  a request that misses it gets none from a plain static host. The page replaces such a worker
+  (studio, runner, language service). A host that sends `Cross-Origin-Embedder-Policy:
+  credentialless` and `Cross-Origin-Opener-Policy: same-origin` itself avoids it.
 - The Durable Objects' state does not travel with a build.
 - Astro: root-absolute links in pages (`href="/posts/x"`) leave the preview's path (the deployed
   site is fine); Safari, without `COEP: credentialless`, cannot build Astro in the tab.

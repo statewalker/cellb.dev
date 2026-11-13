@@ -313,7 +313,7 @@ Observable-style notebooks — Markdown with fenced reactive `js` cells, `npm:` 
 | Phase | Content |
 |---|---|
 | 1 (this change) | Flue agents in Durable Objects on CellB with a Biscuit-capability file system (studio Worker), IDE tools for other agents (window/WebMCP/MCP), console capture, deployable build, GitHub snapshot push/pull, CI deploy workflow, agent-ui template, AGENTS.md |
-| 2 | per-module server compile (`siteCompiler`) for fast reruns; TypeScript language service in the editor |
+| 2 | per-module server compile (`siteCompiler`) for fast reruns (the TypeScript language service in the editor is built) |
 | 3 | HTTPeers: publish the app and the MCP mount; Biscuit permission modes; desktop-agent bridge; promote cell state to celld |
 | 4 | json-render/A2UI templates; agent screenshots of the preview as a tool (the Astro project type, the Python tool and isolated script runs are built) |
 
