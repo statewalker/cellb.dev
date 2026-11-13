@@ -92,7 +92,8 @@ function loadedModuleTexts(code: WorkerCode): {
   registry: string;
 } {
   const texts: Record<string, string> = {};
-  for (const [name, m] of Object.entries(code.modules)) texts[name] = moduleText(m, name);
+  const names = new Set(Object.keys(code.modules));
+  for (const [name, m] of Object.entries(code.modules)) texts[name] = moduleText(m, name, names);
   const modules: Record<string, string> = {};
   for (const [name, text] of Object.entries(texts)) {
     const routed = routeDynamicImports(text, name);
@@ -103,6 +104,20 @@ function loadedModuleTexts(code: WorkerCode): {
     modules[name] = prelude ? prefixModule(routed ?? text, prelude) : text;
   }
   return { modules, registry: registrySource(texts, code.mainModule) };
+}
+
+/**
+ * What an import of loaded code that names none of its modules becomes: a module that throws when
+ * it is evaluated, so the failure comes where workerd's would (when the importing module runs), not
+ * at build time or when an unrelated module loads. CommonJS, so any named import of it builds.
+ */
+function missingModule(spec: string, importer: string) {
+  const message = `No such module "${spec}" (imported from "${importer}")`;
+  return {
+    path: `${importer}\u0000${spec}`,
+    namespace: "cells-missing",
+    pluginData: `throw new Error(${JSON.stringify(message)});\nmodule.exports = {};`,
+  };
 }
 
 /**
@@ -302,14 +317,14 @@ export async function bundleWorker(
             path: a.path.slice(7),
             namespace: "memory",
           }));
-          b.onResolve({ filter: /^\.{1,2}\// }, (a) =>
-            a.namespace === "memory"
-              ? {
-                  path: new URL(a.path, `file:///${a.importer}`).pathname.slice(1),
-                  namespace: "memory",
-                }
-              : undefined,
-          );
+          b.onResolve({ filter: /^\.{1,2}\// }, (a) => {
+            if (a.namespace !== "memory") return undefined;
+            const path = new URL(a.path, `file:///${a.importer}`).pathname.slice(1);
+            // Not one of the loaded modules: it fails when it runs, as on workerd (missingModule).
+            return path in memory
+              ? { path, namespace: "memory" }
+              : missingModule(a.path, a.importer);
+          });
           b.onLoad({ filter: /.*/, namespace: "memory" }, (a) => ({
             contents: memory[a.path],
             loader: "js",
@@ -322,6 +337,17 @@ export async function bundleWorker(
             contents:
               (entry as { registry?: string }).registry ??
               "export const importFrom = (s) => import(s);",
+            loader: "js",
+          }));
+          // Anything else loaded code imports: a module's whole name (a URL, say), as workerd names
+          // modules, or else a module that throws when it is evaluated (missingModule).
+          b.onResolve({ filter: /.*/ }, (a) => {
+            if (a.namespace !== "memory") return undefined;
+            if (a.path in memory) return { path: a.path, namespace: "memory" };
+            return missingModule(a.path, a.importer);
+          });
+          b.onLoad({ filter: /.*/, namespace: "cells-missing" }, (a) => ({
+            contents: a.pluginData as string,
             loader: "js",
           }));
         },
@@ -482,14 +508,14 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
                 path: a.path.slice(7),
                 namespace: "memory",
               }));
-              b.onResolve({ filter: /^\.{1,2}\// }, (a) =>
-                a.namespace === "memory"
-                  ? {
-                      path: new URL(a.path, `file:///${a.importer}`).pathname.slice(1),
-                      namespace: "memory",
-                    }
-                  : undefined,
-              );
+              b.onResolve({ filter: /^\.{1,2}\// }, (a) => {
+                if (a.namespace !== "memory") return undefined;
+                const path = new URL(a.path, `file:///${a.importer}`).pathname.slice(1);
+                // Not one of the loaded modules: it fails when it runs, as on workerd (missingModule).
+                return path in modules
+                  ? { path, namespace: "memory" }
+                  : missingModule(a.path, a.importer);
+              });
               b.onLoad({ filter: /.*/, namespace: "memory" }, (a) => ({
                 contents: modules[a.path],
                 loader: "js",
@@ -500,6 +526,17 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
               }));
               b.onLoad({ filter: /.*/, namespace: "cells-modules" }, () => ({
                 contents: registry,
+                loader: "js",
+              }));
+              // Anything else loaded code imports: a module's whole name (a URL, say), as workerd names
+              // modules, or else a module that throws when it is evaluated (missingModule).
+              b.onResolve({ filter: /.*/ }, (a) => {
+                if (a.namespace !== "memory") return undefined;
+                if (a.path in modules) return { path: a.path, namespace: "memory" };
+                return missingModule(a.path, a.importer);
+              });
+              b.onLoad({ filter: /.*/, namespace: "cells-missing" }, (a) => ({
+                contents: a.pluginData as string,
                 loader: "js",
               }));
             },

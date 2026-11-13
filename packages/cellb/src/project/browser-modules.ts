@@ -109,7 +109,7 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
     const source = (name: string) => {
       const m = code.modules[name];
       if (m === undefined) throw new Error(`Worker Loader: module "${name}" not found`);
-      return moduleText(m, name);
+      return moduleText(m, name, names);
     };
     const urlOf = (name: string): string => {
       const known = urls.get(name);

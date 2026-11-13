@@ -63,10 +63,14 @@ export interface TailEvent {
  * wasm bytes a compiled `WebAssembly.Module`, and a CommonJS module's `module.exports` the
  * default export. `name` names a CommonJS module in stack traces.
  */
-export function moduleText(entry: WorkerCode["modules"][string], name = "module.cjs"): string {
+export function moduleText(
+  entry: WorkerCode["modules"][string],
+  name = "module.cjs",
+  names?: ReadonlySet<string>,
+): string {
   if (typeof entry === "string") return entry;
   const m = entry as Exclude<typeof entry, { data: BufferSource }>; // workerLoader refuses data
-  if (typeof m.cjs === "string") return commonJsModule(m.cjs, name);
+  if (typeof m.cjs === "string") return commonJsModule(m.cjs, name, names);
   if (m.wasm instanceof WebAssembly.Module)
     return `export default globalThis.${WASM_TABLE}[${JSON.stringify(wasmModuleKey(m.wasm))}];`;
   if (m.wasm) {
@@ -305,12 +309,14 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             refused.catch(() => {});
             return refused as never;
           }
-          return new Proxy(
+          const entrypoint: Record<string, unknown> = new Proxy(
             {},
             {
               get(_t, prop) {
                 if (prop === REFUSE) return DYNAMIC_ENTRYPOINT;
                 if (prop === "then" || typeof prop === "symbol") return undefined;
+                // workerd's `dup()`: this entrypoint holds nothing to release, so it is itself.
+                if (prop === "dup") return () => entrypoint;
                 return (...args: unknown[]) => {
                   // Boxed, so awaiting the load does not await the call: calls on its
                   // RpcPromise are pipelined.
@@ -334,6 +340,7 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
               },
             },
           );
+          return entrypoint;
         },
       };
     },

@@ -13,6 +13,7 @@
  * realm's own `require`.
  */
 import { type Node, parse } from "acorn";
+import { resolveModuleName } from "./module-registry.js";
 
 /** Marks the namespace of a module made here: `require()` of it gives its `module.exports`. */
 const CJS_MARK = "__cellbCommonJs";
@@ -61,15 +62,25 @@ function scan(source: string): Scan | undefined {
   return found;
 }
 
-export function commonJsModule(source: string, name: string): string {
+/**
+ * `names`: the loaded Worker's modules. Only a specifier that names one of them is listed (a
+ * relative path the bundler links): any other `require()` falls back to the realm's own, or throws
+ * when it is called, so `try { require("optional") } catch {}` works as in CommonJS; any other
+ * `import()` goes through the realm's resolution (the loaders' module registry).
+ */
+export function commonJsModule(source: string, name: string, names?: ReadonlySet<string>): string {
   const found = scan(source) ?? { imports: [], requires: new Set<string>() };
+  const listed = (spec: string | undefined): spec is string =>
+    spec !== undefined &&
+    /^\.{1,2}\//.test(spec) &&
+    (!names || resolveModuleName(spec, name, names) !== undefined);
   // Each `import(…)` keyword becomes `__cellbImport` (same length: positions stay valid).
   let body = source;
   for (const { at } of [...found.imports].sort((a, b) => b.at - a.at))
     body = `${body.slice(0, at)}__cellbImport${body.slice(at + "import".length)}`;
   const q = JSON.stringify;
-  const requires = [...found.requires];
-  const imports = [...new Set(found.imports.map((i) => i.spec).filter((s) => s !== undefined))];
+  const requires = [...found.requires].filter(listed);
+  const imports = [...new Set(found.imports.map((i) => i.spec).filter(listed))];
   const lines = [
     ...requires.map((spec, i) => `import * as __cellbDep${i} from ${q(spec)};`),
     `const __cellbRequired = { ${requires.map((spec, i) => `${q(spec)}: __cellbDep${i}`).join(", ")} };`,

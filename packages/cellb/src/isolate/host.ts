@@ -38,10 +38,12 @@ export function isolatedModuleLoader(opts: {
     };
     isolates.add(running);
     const onAbort: (() => void)[] = [];
+    let aborted = false;
     // The loaded code called `abortIsolate()`: calls in flight and later ones reject with
     // workerd's error, the isolate ends, and the loader forgets this module.
     const abort = (m: { reason: string; reference: string }) => {
       if (!isolates.delete(running)) return;
+      aborted = true;
       console.error(`cellb: loaded Worker "${id}" aborted its isolate: ${m.reason}`);
       void close(new Error(`internal error; reference = ${m.reference}`)).finally(() =>
         isolate.terminate(),
@@ -116,7 +118,9 @@ export function isolatedModuleLoader(opts: {
       attach: (cellKey, epoch, idName) =>
         call({ type: "object", op: "attach", className, cellKey, epoch, idName }),
     });
-    module[ON_ABORT] = (f: () => void) => onAbort.push(f);
+    // Registered after the load: an isolate that ended while its code was evaluated is forgotten
+    // at once.
+    module[ON_ABORT] = (f: () => void) => (aborted ? f() : onAbort.push(f));
     return module as Record<string, unknown>;
   };
   return Object.assign(load, {

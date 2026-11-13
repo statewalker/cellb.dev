@@ -309,6 +309,53 @@ export default { async fetch(req, env) {
     });
   });
 
+  describe("what loaded code may leave unresolved (it fails when it runs, as on workerd)", () => {
+    it("an optional or missing require() throws where it is called, and a catch handles it", async () => {
+      const runtime = await project(
+        withLoaded(
+          {
+            "main.js": {
+              js: `import { WorkerEntrypoint } from "cloudflare:workers";
+import lib from "./lib.cjs";
+export default class extends WorkerEntrypoint { info() { return lib; } }`,
+            },
+            "lib.cjs": {
+              cjs: `let optional = "absent";
+try { optional = require("some-optional-package"); } catch { }
+let sibling = "absent";
+try { sibling = require("./not-there.js"); } catch { }
+module.exports = { optional, sibling };`,
+            },
+          },
+          "return Response.json(await load(env).getEntrypoint().info());",
+        ),
+      );
+      expect(await json(runtime)).toEqual({ optional: "absent", sibling: "absent" });
+    });
+
+    it("a module nothing imports may import something unresolvable", async () => {
+      const runtime = await project(
+        withLoaded(
+          {
+            "main.js": {
+              js: `import { WorkerEntrypoint } from "cloudflare:workers";
+export default class extends WorkerEntrypoint {
+  ok() { return "ok"; }
+  async broken() { try { await import("./unused.js"); return "loaded"; } catch { return "failed when imported"; } }
+}`,
+            },
+            "unused.js": {
+              js: "import x from 'no-such-package'; import y from './no-such-file.js'; export default x + y;",
+            },
+          },
+          `const c = load(env).getEntrypoint();
+return Response.json([await c.ok(), await c.broken()]);`,
+        ),
+      );
+      expect(await json(runtime)).toEqual(["ok", "failed when imported"]);
+    });
+  });
+
   describe("abortIsolate() in a loaded Worker", () => {
     // workerd's worker-loader-test.js abortIsolateDynamic, as a project.
     it("ends the isolate: the call rejects with workerd's error, and the next get() loads it again", async () => {
@@ -361,6 +408,22 @@ return Response.json({ kind, result: await child.use() });`,
         ),
       );
       expect(await json(runtime)).toEqual({ kind: "function", result: "called later" });
+    });
+
+    it("on a loaded Worker's entrypoint: itself, still callable", async () => {
+      const runtime = await project(
+        withLoaded(
+          {
+            "main.js": {
+              js: "import { WorkerEntrypoint } from 'cloudflare:workers'; export default class extends WorkerEntrypoint { hi() { return 'hi'; } }",
+            },
+          },
+          `const entry = load(env).getEntrypoint();
+const copy = entry.dup();
+return Response.json({ same: copy === entry, hi: await copy.hi() });`,
+        ),
+      );
+      expect(await json(runtime)).toEqual({ same: true, hi: "hi" });
     });
 
     it("on a Durable Object stub: the stub itself", async () => {
@@ -470,6 +533,22 @@ return Response.json({ inIsolate: await load(env).getEntrypoint().post(), inProj
       expect(await json(runtime)).toEqual({ inIsolate: "streamed", inProject: "here too" });
     });
 
+    it("new Request(url, request) keeps the request's method, headers and streamed body", async () => {
+      const runtime = await project(
+        withLoaded(
+          { "main.js": { js: "export default {};" } },
+          `const original = new Request("https://a.test/", {
+  method: "PUT",
+  headers: { "x-a": "1" },
+  body: new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode("moved")); c.close(); } }),
+});
+const copy = new Request("https://b.test/", original);
+return Response.json({ method: copy.method, header: copy.headers.get("x-a"), body: await copy.text() });`,
+        ),
+      );
+      expect(await json(runtime)).toEqual({ method: "PUT", header: "1", body: "moved" });
+    });
+
     it("streams a body chunk by chunk, and releases one cancelled unread", async () => {
       const runtime = await project(
         withLoaded(
@@ -529,6 +608,7 @@ export default { async fetch() {
     missing,
     viaPromises: (await readdir("/bundle")).length === names.length,
     elsewhere: fs.existsSync("/definitely/not/here"),
+    probe: fs.statSync("/bundle/nope.wasm", { throwIfNoEntry: false }) === undefined,
   });
 } };`,
     };
@@ -551,6 +631,7 @@ export default { async fetch() {
         missing: "ENOENT",
         viaPromises: true,
         elsewhere: false,
+        probe: true,
       });
     });
 

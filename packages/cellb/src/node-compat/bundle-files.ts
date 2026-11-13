@@ -130,8 +130,16 @@ const sync = {
     if (name === "") throw fsError("EISDIR", "read", path);
     return decode(bytesOf(name, "open", path), options);
   },
-  statSync: (name: string, path: unknown) =>
-    name === "" ? stats("dir", 0) : stats("file", bytesOf(name, "stat", path).byteLength),
+  statSync: (name: string, path: unknown, options?: unknown) => {
+    if (name === "") return stats("dir", 0);
+    // `throwIfNoEntry: false`: a missing file is `undefined`, as libraries probing for one expect.
+    if (
+      !bundleFiles().has(name) &&
+      (options as { throwIfNoEntry?: boolean })?.throwIfNoEntry === false
+    )
+      return undefined;
+    return stats("file", bytesOf(name, "stat", path).byteLength);
+  },
   readdirSync: (name: string, path: unknown, options?: unknown) => {
     if (name !== "") {
       bytesOf(name, "scandir", path);

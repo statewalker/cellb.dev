@@ -310,6 +310,14 @@ class Bodies {
     this.#streams.set(++this.#last, stream);
     return this.#last;
   }
+  /** The last id handed out, for `releaseSince`. */
+  mark(): number {
+    return this.#last;
+  }
+  /** Releases the bodies added after `mark` (a message that could not be sent). */
+  releaseSince(mark: number): void {
+    for (let id = mark + 1; id <= this.#last; id++) this.release(id);
+  }
   release(id: number): void {
     const stream = this.#streams.get(id);
     this.#streams.delete(id);
@@ -322,12 +330,22 @@ class Bodies {
     this.#streams.delete(id);
     const encoder = new TextEncoder();
     serveDuplexOverPort(p, async function* () {
-      for await (const chunk of stream as unknown as AsyncIterable<unknown>)
-        yield typeof chunk === "string"
-          ? encoder.encode(chunk)
-          : ArrayBuffer.isView(chunk)
-            ? new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)
-            : new Uint8Array(chunk as ArrayBuffer);
+      // A reader, not `for await`: not every engine iterates a ReadableStream (Safari).
+      const reader = stream.getReader();
+      try {
+        for (;;) {
+          const { done, value: chunk } = await reader.read();
+          if (done) return;
+          yield typeof chunk === "string"
+            ? encoder.encode(chunk)
+            : ArrayBuffer.isView(chunk)
+              ? new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+              : new Uint8Array(chunk as ArrayBuffer);
+        }
+      } finally {
+        // The reader stopped early (the port was abandoned): the stream is cancelled.
+        void reader.cancel().catch(() => {});
+      }
     });
     return true;
   }
@@ -450,18 +468,25 @@ function callsOver(port: MessageTarget, handle: Handle, mux: PortMux, bodies: Bo
   let lastAnswer = 0;
   const holders = new Map<unknown, number>();
   let lastId = 0;
-  const encode = (v: unknown) =>
-    cloneable(
-      cross(
-        v,
-        (x) => {
-          values.set(++lastId, x);
-          holders.set(x, (holders.get(x) ?? 0) + 1);
-          return { [REF]: lastId };
-        },
-        (x) => toWire(x, bodies), // Requests, Responses, Headers, streams; the port copies the rest
-      ),
-    );
+  const encode = (v: unknown) => {
+    const mark = bodies.mark();
+    try {
+      return cloneable(
+        cross(
+          v,
+          (x) => {
+            values.set(++lastId, x);
+            holders.set(x, (holders.get(x) ?? 0) + 1);
+            return { [REF]: lastId };
+          },
+          (x) => toWire(x, bodies), // Requests, Responses, Headers, streams; the port copies the rest
+        ),
+      );
+    } catch (e) {
+      bodies.releaseSince(mark); // the message is not sent: nobody will read its bodies
+      throw e;
+    }
+  };
   const release = (id: number) => {
     const v = values.get(id);
     if (!values.delete(id)) return;

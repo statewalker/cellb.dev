@@ -53,6 +53,9 @@ const HostRequest = globalThis.Request;
 function streamingInit(init?: RequestInit): RequestInit | undefined {
   const body = init?.body as unknown;
   if (!body || (init as { duplex?: unknown }).duplex !== undefined) return init;
+  // A Request (or another object) as init keeps its prototype getters (`method`, `headers`) only
+  // as it is: a spread copies own properties alone.
+  if (Object.getPrototypeOf(init) !== Object.prototype) return init;
   const streamed =
     body instanceof ReadableStream ||
     (typeof body === "object" &&

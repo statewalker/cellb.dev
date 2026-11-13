@@ -114,7 +114,8 @@ function ruleModule(type: string, file: Buffer, path: string): string {
         // bundle never finishes evaluating). Chromium refuses a synchronous compile over 8 MB
         // only on a page's main thread; projects run in Dedicated Workers and on Node.
         `export default new WebAssembly.Module(bundleFile(${name}, bytes(${b64})));`
-      : `export default bundleFile(${name}, bytes(${b64})).buffer;`,
+      : // `/bundle` keeps its own copy: Worker code may change or transfer the exported buffer.
+        `const data = bytes(${b64}); bundleFile(${name}, data.slice()); export default data.buffer;`,
   ].join("\n");
 }
 
