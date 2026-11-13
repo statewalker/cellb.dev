@@ -37,8 +37,10 @@ import {
   type OutlineEntry,
   type PtBlock,
   renderProse,
+  type SearchSection,
   toPortableText,
 } from "./portable-text.js";
+import { buildSearchIndex, type SearchIndex } from "./search.js";
 
 export type { OutlineEntry } from "./portable-text.js";
 
@@ -77,6 +79,8 @@ export interface SiteModel {
   /** The home page's path (`<base>/`). */
   home: string;
   pages: { id: string; path: string; title: string }[];
+  /** The search index's URL, when the site has one (`search.json`). */
+  search?: string;
 }
 
 export interface PageModels {
@@ -86,6 +90,8 @@ export interface PageModels {
   pins: Record<string, string>;
   /** Every free variable of every cell: which built-ins (`Inputs`, `Plot`, `d3`…) the site uses. */
   inputs: string[];
+  /** The search index: every page's text by section. */
+  search: SearchIndex;
 }
 
 const RUNTIME_SPECIFIER = "npm:@observablehq/notebook-kit/runtime";
@@ -158,7 +164,10 @@ export async function buildPageModels(opts: {
   dom: DomEnv;
   siteTitle: string;
   base?: string;
+  /** Where the search index will be served (`SiteModel.search`), if it is. */
+  searchUrl?: string;
 }): Promise<PageModels & { failures: { notebook: string; error: string }[] }> {
+  const sectionsOf = new Map<string, SearchSection[]>();
   const allPins: Record<string, string> = {};
   const allInputs = new Set<string>();
   const base = (opts.base ?? "").replace(/\/$/, "");
@@ -208,11 +217,17 @@ export async function buildPageModels(opts: {
 
       const outline: OutlineEntry[] = [];
       const used = new Set<string>();
+      // Text above the first heading belongs to the page itself (no anchor).
+      const sections: SearchSection[] = [{ heading: "", anchor: "", text: "" }];
+      sectionsOf.set(id, sections);
       const blocks: PageBlock[] = [];
       const defines: string[] = [];
       for (const part of parts) {
         if (part.kind === "prose") {
-          blocks.push({ kind: "prose", html: renderProse(part, outline, used, exprErrors) });
+          blocks.push({
+            kind: "prose",
+            html: renderProse(part, outline, used, exprErrors, sections),
+          });
           for (const e of part.exprs) {
             const def = compiled.get(e.id);
             if (def && !def.error) defines.push(defineCall(def));
@@ -268,5 +283,9 @@ export async function buildPageModels(opts: {
     home: `${base}/`,
     pages: pages.map(({ id, path, title }) => ({ id, path, title })),
   };
-  return { site, pages, pins: allPins, inputs: [...allInputs].sort(), failures };
+  if (opts.searchUrl) site.search = opts.searchUrl;
+  const search = buildSearchIndex(
+    pages.map((p) => ({ path: p.path, title: p.title, sections: sectionsOf.get(p.id) ?? [] })),
+  );
+  return { site, pages, pins: allPins, inputs: [...allInputs].sort(), search, failures };
 }

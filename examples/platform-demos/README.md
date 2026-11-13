@@ -65,10 +65,13 @@ For each host, the platform is started on it, then for each demo:
     sentence reads "The answer is 42";
   - the themed page makes no request off the platform: notebook-kit's built-ins (`Inputs`, `htl`)
     come from the site's module server, not esm.sh;
+  - `/nb/demo/search.json` indexes the notebooks' sections. In Chromium, typing "answer" in the
+    themed page's search box offers the features notebook first, and its link leads there;
   - the themed site is exported (`POST /nb/demo/export`) with both pages, every module the pins
     name and the built-ins the cells use (`Inputs`, `Plot`, `d3`, `html`), served by a plain Node
     file server, and opened in Chromium: the root redirects to the home page, its navigation leads
-    to the plots, Plot draws 60 dots, and no request leaves the file server.
+    to the plots, Plot draws 60 dots, search finds the features notebook from `search.json` in the
+    export, and no request leaves the file server.
 
 ## Internals
 

@@ -363,21 +363,51 @@ export interface OutlineEntry {
   slug: string;
 }
 
+/** A page section for the search index: the text under one heading (`anchor` its id). */
+export interface SearchSection {
+  heading: string;
+  anchor: string;
+  text: string;
+}
+
 /**
  * Prose → HTML with markdown-it: headings get ids (collected into `outline`), each expression's
  * placeholder becomes the `<span id="cell-<id>">` its cell displays into, or the error of an
  * expression that does not compile. A placeholder inside a tag (an attribute value) shows its
  * source as text: a span cannot go there.
  */
+/**
+ * An inline token's words, for the search index: text and code, a line break as a space (so
+ * wrapped lines do not run together), an expression's placeholder as `expr`.
+ */
+function inlineText(children: { type: string; content: string }[] | null, expr: string): string {
+  return (children ?? [])
+    .map((c) =>
+      c.type === "text" || c.type === "code_inline"
+        ? c.content.replace(PLACEHOLDER, expr)
+        : c.type === "softbreak" || c.type === "hardbreak"
+          ? " "
+          : "",
+    )
+    .join("");
+}
+
 export function renderProse(
   part: Extract<NumberedPart, { kind: "prose" }>,
   outline: OutlineEntry[],
   used: Set<string>,
   errors: ReadonlyMap<number, string> = new Map(),
+  /** Collects the prose's text by section, for the search index; the last entry is the current one. */
+  sections?: SearchSection[],
 ): string {
   const sources = part.exprs.map((e) => e.source);
   const tokens = md.parse(part.markdown, {});
   for (const [i, t] of tokens.entries()) {
+    if (sections && t.type === "inline" && tokens[i - 1]?.type !== "heading_open") {
+      const words = inlineText(t.children, " ");
+      const current = sections.at(-1);
+      if (current && words.trim()) current.text += `${current.text ? " " : ""}${words.trim()}`;
+    }
     if (t.type !== "heading_open") continue;
     const raw = tokens[i + 1]?.content ?? "";
     const text = showExprs(raw, sources);
@@ -387,6 +417,10 @@ export function renderProse(
     used.add(slug);
     t.attrSet("id", slug);
     outline.push({ depth: Number(t.tag.slice(1)), text, slug });
+    const heading = inlineText(tokens[i + 1]?.children ?? null, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    sections?.push({ heading, anchor: slug, text: "" });
   }
   const html = md.renderer.render(tokens, md.options, {});
   return html.replace(/<[^>]*>|(\d+)/g, (match, n?: string) => {
