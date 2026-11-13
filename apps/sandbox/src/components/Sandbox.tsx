@@ -174,10 +174,6 @@ export default function Sandbox() {
 
   useEffect(() => {
     const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
-    const w = new Worker(new URL("../sandbox/runner.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    worker.current = w;
     // The studio worker owns the project's files and runs the studio Worker (Flue agents) on
     // CellB; the runner builds and runs the app, reading the files through a capability. A studio
     // worker whose script does not load (rare, under load) says nothing at all and loses what it
@@ -214,7 +210,7 @@ export default function Sandbox() {
       );
       studioRef.current = studio;
       const port = studio.portForRunner();
-      w.postMessage({ type: "studio-port", port } satisfies ToRunner, [port]);
+      worker.current?.postMessage({ type: "studio-port", port } satisfies ToRunner, [port]);
       const replace = (why: string) => {
         if (hello || stopped || sw !== me) return;
         me.terminate();
@@ -234,10 +230,6 @@ export default function Sandbox() {
     };
     startStudio(1);
 
-    // The ServiceWorker next to this page (integrations/sw-worker.mjs): its scope is the sandbox.
-    const unhost = hostSitesForWorker(w, {
-      serviceWorkerUrl: new URL(`${base}sw-worker.js`, location.href).href,
-    });
     // That ServiceWorker makes the page cross-origin isolated (Astro's compiler needs shared
     // memory), but only for pages it controls from their first request: the very first visit is
     // reloaded once through it, while no project is open yet.
@@ -252,9 +244,7 @@ export default function Sandbox() {
       if (navigator.serviceWorker.controller) reload();
       else navigator.serviceWorker.addEventListener("controllerchange", reload, { once: true });
     }
-    w.addEventListener("message", (e: MessageEvent<FromRunner>) => {
-      const m = e.data;
-      if (!m || typeof m !== "object" || !("type" in m)) return;
+    const onRunner = (m: FromRunner) => {
       if (m.type === "log") addLog(m.text, m.level);
       else if (m.type === "phase") {
         if (m.phase === "building") setStatus({ kind: "building" });
@@ -283,12 +273,53 @@ export default function Sandbox() {
         builds.current.get(m.id)?.reject(new Error(m.error));
         builds.current.delete(m.id);
       }
-    });
-    w.addEventListener("error", (e) => addLog(`runner: ${e.message}`, "error"));
+    };
+    // The runner, the same way as the studio worker: its first message (phase "idle") is its hello;
+    // one whose script did not load is replaced, re-hosted and given a port to the studio again.
+    let unhost = () => {};
+    const startRunner = (attempt: number) => {
+      const me = new Worker(new URL("../sandbox/runner.worker.ts", import.meta.url), {
+        type: "module",
+      });
+      worker.current = me;
+      let hello = false;
+      // The ServiceWorker next to this page (integrations/sw-worker.mjs): its scope is the sandbox.
+      const unhostMe = hostSitesForWorker(me, {
+        serviceWorkerUrl: new URL(`${base}sw-worker.js`, location.href).href,
+      });
+      unhost = unhostMe;
+      me.addEventListener("message", (e: MessageEvent<FromRunner>) => {
+        const m = e.data;
+        if (!m || typeof m !== "object" || !("type" in m)) return; // site-host traffic
+        hello = true;
+        onRunner(m);
+      });
+      const studio = studioRef.current;
+      if (studio) {
+        const port = studio.portForRunner();
+        me.postMessage({ type: "studio-port", port } satisfies ToRunner, [port]);
+      }
+      const replace = (why: string) => {
+        if (hello || stopped || worker.current !== me) return;
+        unhostMe();
+        me.terminate();
+        if (attempt >= 3) {
+          addLog(`the runner did not start (${why}): reload the page`, "error");
+          return;
+        }
+        addLog(`runner: ${why}; starting it again`, "error");
+        startRunner(attempt + 1);
+      };
+      me.addEventListener("error", (e) =>
+        hello ? addLog(`runner: ${e.message}`, "error") : replace(e.message || "it did not load"),
+      );
+      setTimeout(() => replace("no answer in 20 s"), 20_000);
+    };
+    startRunner(1);
     return () => {
       stopped = true;
       unhost();
-      w.terminate();
+      worker.current?.terminate();
       sw?.terminate();
     };
   }, [addLog]);

@@ -502,6 +502,12 @@ try {
     opfsConsole.push(`${m.type()}: ${m.text().slice(0, 300)}`);
     if (m.type() === "error") opfsErrors.push(m.text().slice(0, 500));
   });
+  opfsPage.on("requestfailed", (r) =>
+    opfsConsole.push(`request failed: ${r.url()} ${r.failure()?.errorText}`),
+  );
+  opfsPage.on("response", (r) => {
+    if (r.status() >= 400) opfsConsole.push(`response ${r.status()}: ${r.url()}`);
+  });
   opfsPage.on("worker", (w) =>
     w.on("console", (m) =>
       opfsConsole.push(`worker ${w.url().split("/").pop()}: ${m.text().slice(0, 300)}`),
