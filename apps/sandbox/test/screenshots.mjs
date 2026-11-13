@@ -17,6 +17,7 @@ const dist = new URL("../dist", import.meta.url).pathname;
 const TYPES = {
   html: "text/html",
   js: "text/javascript",
+  mjs: "text/javascript",
   css: "text/css",
   wasm: "application/wasm",
   svg: "image/svg+xml",

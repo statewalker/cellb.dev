@@ -42,6 +42,7 @@ const step = (t) => console.log(`• ${t}`);
 const TYPES = {
   html: "text/html",
   js: "text/javascript",
+  mjs: "text/javascript",
   css: "text/css",
   wasm: "application/wasm",
   svg: "image/svg+xml",
@@ -83,6 +84,17 @@ const fake = await startFakeOpenAi({
             },
           }
         : { text: `Script done: ${toolResults(req).at(-1).slice(0, 80)}` };
+    if (lastUserText(req).startsWith("WASMER"))
+      return done === 0
+        ? {
+            tool: "wasmer",
+            args: {
+              packages: ["wasmer/bash", "wasmer/coreutils"],
+              command: "bash",
+              args: ["-c", "ls > wasmer-listing.txt && wc -l < wasmer-listing.txt"],
+            },
+          }
+        : { text: `Wasmer done: ${toolResults(req).at(-1).replace(/\s+/g, " ").slice(0, 400)}` };
     if (lastUserText(req).startsWith("PYTHON"))
       return done === 0
         ? {
@@ -297,6 +309,46 @@ try {
   );
   if (pyDenied.ok) throw new Error("a read-only Python run wrote a file");
   await panel.getByLabel("Rights", { exact: true }).selectOption("yolo");
+
+  // The packages come from the Wasmer registry: where it cannot be reached, the step says so.
+  const registry = await fetch("https://registry.wasmer.io/graphql", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "{__typename}" }),
+  })
+    .then((r) => r.ok)
+    .catch(() => false);
+  if (!registry) step("wasmer: skipped (registry.wasmer.io is not reachable from here)");
+  else {
+    step(
+      "wasmer: a WASIX program (bash, coreutils) in a Wasmer sandbox; its writes go back through the capability",
+    );
+    await panel.getByLabel("Message to the agent").fill("WASMER: list the root");
+    await panel.getByRole("button", { name: "Send" }).click();
+    await panel.getByText(/^Wasmer done:/).waitFor({ timeout: 240_000 });
+    const wasmerReply = await panel
+      .getByText(/^Wasmer done:/)
+      .last()
+      .textContent();
+    for (let i = 0; ; i++) {
+      const g = await page.evaluate(() =>
+        window.cellbSandbox.call("read_file", { path: "wasmer-listing.txt" }),
+      );
+      if (g.ok && g.result.content.includes("AGENTS.md")) break;
+      if (i > 50) throw new Error(`wasmer's file: ${JSON.stringify(g)} (${wasmerReply})`);
+      await page.waitForTimeout(200);
+    }
+    await page.evaluate(() =>
+      window.cellbSandbox.call("delete_path", { path: "wasmer-listing.txt" }),
+    );
+    await panel.getByLabel("Rights", { exact: true }).selectOption("readonly");
+    await panel.getByLabel("Message to the agent").fill("WASMER: again, read-only");
+    await panel.getByRole("button", { name: "Send" }).click();
+    await panel
+      .getByText(/^Wasmer done:.*denied.*wasmer-listing\.txt/)
+      .waitFor({ timeout: 120_000 });
+    await panel.getByLabel("Rights", { exact: true }).selectOption("yolo");
+  }
 
   step("other agents' tools hold their own capability: read-only refuses their writes");
   await panel.getByLabel("Rights of other agents").selectOption("readonly");

@@ -194,6 +194,14 @@ wrote or deleted goes back through the capability, authorized again. A write the
 such as numpy or pandas are loaded from the code's imports. 120 s at most per run, after which
 the engine is replaced. A host without a Python engine (cellb on Node, workerd) has no such tool.
 
+**Wasmer**: the agent's `wasmer` tool runs command-line programs from the Wasmer registry (WASIX
+compiled to WebAssembly: `wasmer/bash`, `wasmer/coreutils`, `sqlite/sqlite`, `python/python`, …)
+in a Wasmer sandbox in the browser (`@wasmer/sdk`, in `src/sandbox/wasmer.worker.ts`), with no
+network. Like `python`, it works on a copy of the files the capability may read, and each change
+goes back through the capability (`studio/src/copy-in.ts`). The SDK is served unbundled from
+`wasmer-sdk/` next to the page (`scripts/build-studio.ts` copies it): its own worker imports its
+sibling files by URL. It needs the page's cross-origin isolation.
+
 **Budgets**: every run is metered against its session (the Agent tab's "Budget" fields: model
 turns and tokens per session, empty for unlimited). The Workspace cell reserves a turn before each
 model request and charges the tokens after it; a spent budget ends the run (`stopReason: "limit"`)

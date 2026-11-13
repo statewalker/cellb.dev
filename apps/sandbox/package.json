@@ -71,6 +71,7 @@
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",
     "@tailwindcss/vite": "^4.3.5",
+    "@wasmer/sdk": "0.19.1",
     "astro": "^7.4.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

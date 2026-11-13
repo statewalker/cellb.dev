@@ -175,7 +175,9 @@ no network and only a `files` RpcTarget over the (optionally narrowed) capabilit
 
 **Python [built]**: `python` runs Pyodide in a Worker of its own (a host seam: `cellbStudioHost.python`). It works on a copy of the files the capability may read; the changes are written back through the capability, each authorized, the refused ones reported as `denied`.
 
-**[next]**: approved tool bundles (flue-capfs-do's bundle checks and hashes), Wasmer (WASIX) sandboxes on the same copy-in / write-back scheme, and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
+**Wasmer [built]**: `wasmer` runs Wasmer registry commands (WASIX) in a Wasmer sandbox in a Worker, on the same copy-in / write-back scheme as `python` (`copy-in.ts`), without network.
+
+**[next]**: approved tool bundles (flue-capfs-do's bundle checks and hashes), and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
 
 ## 6. From the tab to the hosts
 

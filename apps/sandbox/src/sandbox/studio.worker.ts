@@ -24,51 +24,69 @@ const stores = new Map<string, FilesApi>();
 let hostCallId = 0;
 const hostCalls = new Map<number, (out: HostOut) => void>();
 
-// The Python engine (Pyodide), one per tab, started on the first `python` call. Runs go one at a
-// time: they share the engine's /workspace (a second run copying in other files would make the
-// first one's diff report everything else as deleted), and a model may call tools in parallel.
-const PYTHON_TIMEOUT_MS = 120_000; // the first run downloads Pyodide (~10 MB)
-let pythonEngine: Worker | undefined;
-let pythonQueue: Promise<unknown> = Promise.resolve();
-let pythonId = 0;
-const failed = (error: string) => ({ stdout: "", stderr: "", value: null, error, changes: [] });
-function python(req: { files: [string, Uint8Array][]; code: string; cwd?: string }) {
-  const run = pythonQueue.then(() => pythonRun(req));
-  pythonQueue = run.catch(() => {});
-  return run;
+// The engines agents run on a copy of the project: Python (Pyodide) and Wasmer (WASIX), each a
+// Worker of its own, started on first use. An engine's runs go one at a time: they share its
+// workspace (a second run copying in other files would make the first one's diff report
+// everything else as deleted), and a model may call tools in parallel. A run that does not end,
+// or an engine that fails, costs the engine: it is replaced.
+const ENGINE_TIMEOUT_MS = 150_000; // a first run downloads the engine (Pyodide ~10 MB, packages)
+const failed = (error: string) => ({
+  stdout: "",
+  stderr: "",
+  value: null,
+  exitCode: null,
+  error,
+  changes: [],
+});
+// The factory, not a URL: Vite bundles a worker only from `new Worker(new URL(…), …)` written out.
+function engine(start: () => Worker) {
+  let worker: Worker | undefined;
+  let queue: Promise<unknown> = Promise.resolve();
+  let nextId = 0;
+  const runOne = (req: object) => {
+    worker ??= start();
+    const w = worker;
+    const id = ++nextId;
+    return new Promise((resolve) => {
+      const done = (out: unknown, replace: boolean) => {
+        clearTimeout(timer);
+        w.removeEventListener("message", onMessage);
+        w.removeEventListener("error", onError);
+        if (replace) {
+          if (worker === w) worker = undefined;
+          w.terminate();
+        }
+        resolve(out);
+      };
+      const onMessage = (e: MessageEvent<{ id: number }>) => {
+        if (e.data?.id === id) done(e.data, false);
+      };
+      const onError = (e: ErrorEvent) => done(failed(`the engine failed: ${e.message}`), true);
+      const timer = setTimeout(
+        () => done(failed(`ETIMEDOUT: the run took over ${ENGINE_TIMEOUT_MS / 1000} s`), true),
+        ENGINE_TIMEOUT_MS,
+      );
+      w.addEventListener("message", onMessage);
+      w.addEventListener("error", onError);
+      w.postMessage({ id, ...req });
+    });
+  };
+  return (req: object) => {
+    const run = queue.then(() => runOne(req));
+    queue = run.catch(() => {});
+    return run;
+  };
 }
-function pythonRun(req: { files: [string, Uint8Array][]; code: string; cwd?: string }) {
-  pythonEngine ??= new Worker(new URL("./python.worker.ts", import.meta.url), { type: "module" });
-  const engine = pythonEngine;
-  const id = ++pythonId;
-  return new Promise((resolve) => {
-    const done = (out: unknown, replaceEngine: boolean) => {
-      clearTimeout(timer);
-      engine.removeEventListener("message", onMessage);
-      engine.removeEventListener("error", onError);
-      if (replaceEngine) {
-        if (pythonEngine === engine) pythonEngine = undefined;
-        engine.terminate();
-      }
-      resolve(out);
-    };
-    const onMessage = (e: MessageEvent<{ id: number }>) => {
-      if (e.data?.id === id) done(e.data, false);
-    };
-    const onError = (e: ErrorEvent) => done(failed(`the Python engine failed: ${e.message}`), true);
-    // A run that does not end (a loop, a hung download) costs the engine: it is replaced.
-    const timer = setTimeout(
-      () => done(failed(`ETIMEDOUT: Python ran over ${PYTHON_TIMEOUT_MS / 1000} s`), true),
-      PYTHON_TIMEOUT_MS,
-    );
-    engine.addEventListener("message", onMessage);
-    engine.addEventListener("error", onError);
-    engine.postMessage({ id, ...req });
-  });
-}
+const python = engine(
+  () => new Worker(new URL("./python.worker.ts", import.meta.url), { type: "module" }),
+);
+const wasmer = engine(
+  () => new Worker(new URL("./wasmer.worker.ts", import.meta.url), { type: "module" }),
+);
 
 (globalThis as { cellbStudioHost?: unknown }).cellbStudioHost = {
   python,
+  wasmer,
   store: (ws: string) => stores.get(ws),
   notify: (ws: string, path: string, kind: "write" | "delete" | "mkdir") =>
     post({ type: "changed", ws, path, kind }),
