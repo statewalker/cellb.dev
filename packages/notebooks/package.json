@@ -21,6 +21,7 @@
   "dependencies": {
     "@statewalker/cellb-platform-core": "workspace:*",
     "@statewalker/cellb-esm-cdn": "workspace:*",
+    "@statewalker/cellb-bundler": "workspace:*",
     "@statewalker/notebook-build": "catalog:",
     "@statewalker/notebook-site": "catalog:",
     "@statewalker/webrun-builder": "catalog:",
