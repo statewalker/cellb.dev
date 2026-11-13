@@ -25,8 +25,8 @@ import {
   hubRelayService,
   identityStore,
   membershipGater,
-  releaseReservation,
   peerIdOf,
+  releaseReservation,
   servePeer,
   signerOf,
   superviseRelay,
@@ -130,7 +130,8 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
     unwind.push(() => supervisor.stop());
     log(`hub: reserved on ${relayAddr}`);
 
-    const appHost = opts.host === false ? undefined : createAppHost({ dir: join(dir, "apps"), log });
+    const appHost =
+      opts.host === false ? undefined : createAppHost({ dir: join(dir, "apps"), log });
     if (appHost) {
       await appHost.restore();
       unwind.push(() => appHost.close());
@@ -211,8 +212,12 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
         if (!hub.members.get(member)) return false;
         hub.members.remove(member);
         hub.revocations.revoke(member);
-        releaseReservation((node.services as { relay: Parameters<typeof releaseReservation>[0] }).relay, member);
-        for (const c of node.getConnections()) if (c.remotePeer.toString() === member) void c.close().catch(() => {});
+        releaseReservation(
+          (node.services as { relay: Parameters<typeof releaseReservation>[0] }).relay,
+          member,
+        );
+        for (const c of node.getConnections())
+          if (c.remotePeer.toString() === member) void c.close().catch(() => {});
         return true;
       },
 

@@ -67,7 +67,9 @@ export function createAppHost(opts: {
     await mkdir(opts.dir, { recursive: true });
     for (const name of await readdir(opts.dir)) {
       try {
-        const meta = JSON.parse(await readFile(join(opts.dir, name, "app.json"), "utf8")) as HostedApp;
+        const meta = JSON.parse(
+          await readFile(join(opts.dir, name, "app.json"), "utf8"),
+        ) as HostedApp;
         await start(name, meta);
         log(`host: ${name} (${meta.release}) serving`);
       } catch (err) {
@@ -77,10 +79,14 @@ export function createAppHost(opts: {
   }
 
   async function deploy(name: string, files: Record<string, string>, by: string | null) {
-    if (!NAME.test(name)) throw new HttpError(400, "a name is lowercase letters, digits and dashes");
+    if (!NAME.test(name))
+      throw new HttpError(400, "a name is lowercase letters, digits and dashes");
     const entries = Object.entries(files);
     if (!entries.some(([p]) => p === "/wrangler.json" || p === "/wrangler.jsonc"))
-      throw new HttpError(400, "not a deployable folder: no wrangler.json (Ship → Build makes one)");
+      throw new HttpError(
+        400,
+        "not a deployable folder: no wrangler.json (Ship → Build makes one)",
+      );
     const release = `r${Date.now().toString(36)}`;
     const root = join(opts.dir, name, release);
     let bytes = 0;
@@ -93,7 +99,14 @@ export function createAppHost(opts: {
       await mkdir(dirname(join(root, rel)), { recursive: true });
       await writeFile(join(root, rel), data);
     }
-    const meta: HostedApp = { name, release, deployedAt: Date.now(), by, files: entries.length, bytes };
+    const meta: HostedApp = {
+      name,
+      release,
+      deployedAt: Date.now(),
+      by,
+      files: entries.length,
+      bytes,
+    };
     try {
       await start(name, meta);
     } catch (err) {
@@ -102,7 +115,9 @@ export function createAppHost(opts: {
     }
     await writeFile(join(opts.dir, name, "app.json"), `${JSON.stringify(meta, null, 2)}\n`);
     // Older releases go, the last few stay (a manual rollback is editing app.json).
-    const releases = (await readdir(join(opts.dir, name))).filter((d) => /^r[0-9a-z]+$/.test(d)).sort();
+    const releases = (await readdir(join(opts.dir, name)))
+      .filter((d) => /^r[0-9a-z]+$/.test(d))
+      .sort();
     for (const old of releases.slice(0, Math.max(0, releases.length - KEEP_RELEASES)))
       await rm(join(opts.dir, name, old), { recursive: true, force: true });
     log(`host: ${name} deployed (${release}, ${entries.length} files${by ? `, by ${by}` : ""})`);
@@ -131,7 +146,9 @@ export function createAppHost(opts: {
         if (!body.files) throw new HttpError(400, "expected { files: { path: base64 } }");
         const peer = lookupPeer(request);
         const by = typeof peer === "string" ? peer : null;
-        return Response.json(await serial(() => deploy(m[1], body.files as Record<string, string>, by)));
+        return Response.json(
+          await serial(() => deploy(m[1], body.files as Record<string, string>, by)),
+        );
       }
       if (m[1] && request.method === "DELETE")
         return (await serial(() => remove(m[1])))
@@ -153,7 +170,8 @@ export function createAppHost(opts: {
     if (!m[2]) return new Response(null, { status: 302, headers: { location: `${m[1]}/` } });
     // The app sees its own URL space, as on any host.
     const init: RequestInit = { method: request.method, headers: request.headers };
-    if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.arrayBuffer();
+    if (request.method !== "GET" && request.method !== "HEAD")
+      init.body = await request.arrayBuffer();
     try {
       return await app.project.fetch(new Request(`http://${m[1]}.app${m[2]}${url.search}`, init));
     } catch (err) {

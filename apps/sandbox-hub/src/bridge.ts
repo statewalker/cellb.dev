@@ -119,7 +119,10 @@ export async function startBridge(opts: {
           res.writeHead(302, { location: `/h/${hosted[1]}/` }).end();
           return;
         }
-        await reply(res, await toMesh(req, config.hubPeerId, `/apps/${hosted[1]}${hosted[2]}${url.search}`));
+        await reply(
+          res,
+          await toMesh(req, config.hubPeerId, `/apps/${hosted[1]}${hosted[2]}${url.search}`),
+        );
         return;
       }
       if (url.pathname === "/") {
@@ -135,7 +138,9 @@ export async function startBridge(opts: {
               (a) =>
                 `<li><a href="/s/${a.peerId}/app/">${a.title.replace(/[<&]/g, "")}</a> <code>${a.peerId}</code> — MCP: <code>/s/${a.peerId}/mcp</code></li>`,
             )
-            .join("")}</ul>${list.length ? "" : "<p>None yet.</p>"}<h2>Hosted by the hub</h2><ul>${apps
+            .join(
+              "",
+            )}</ul>${list.length ? "" : "<p>None yet.</p>"}<h2>Hosted by the hub</h2><ul>${apps
             .map((a) => `<li><a href="/h/${a.name}/">${a.name}</a> <code>${a.release}</code></li>`)
             .join("")}</ul>${apps.length ? "" : "<p>None yet.</p>"}`,
         );

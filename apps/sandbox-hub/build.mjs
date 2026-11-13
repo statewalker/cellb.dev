@@ -13,7 +13,9 @@ await build({
   // CellB (which runs the hosted apps) is installed next to the bundle, as node-datachannel is.
   external: ["node-datachannel", "@statewalker/cellb", "@statewalker/cellb/*"],
   // Some dependencies call require() on Node built-ins from ESM.
-  banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);' },
+  banner: {
+    js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);',
+  },
   logLevel: "warning",
 });
 console.log("dist/sandbox-hub.mjs, dist/bridge.mjs");

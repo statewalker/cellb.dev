@@ -112,7 +112,8 @@ export default {
   expect("publisher → deploy", await deploy(publisher, folder), 200);
   const hosted = await onHub(viewer, "/apps/counter/hello");
   expect("viewer → hosted app", hosted, 200);
-  if (!hosted.body.includes("hosted on the hub: /hello #1")) throw new Error(`hosted: ${hosted.body}`);
+  if (!hosted.body.includes("hosted on the hub: /hello #1"))
+    throw new Error(`hosted: ${hosted.body}`);
   expect("viewer → hosted app again", await onHub(viewer, "/apps/counter/"), 200);
   expect("viewer → list", await onHub(viewer, "/host/apps"), 200);
   expect("viewer → deploy", await deploy(viewer, folder), 403);
@@ -121,7 +122,9 @@ export default {
   const again = await onHub(editor, "/apps/counter/x");
   if (!again.body.includes("#3")) throw new Error(`after the redeploy: ${again.body}`);
   if (hub.apps().length !== 1) throw new Error(`apps: ${JSON.stringify(hub.apps())}`);
-  step("Ship to the hub: deployed, served on CellB to members, redeployed with its data; a viewer cannot deploy");
+  step(
+    "Ship to the hub: deployed, served on CellB to members, redeployed with its data; a viewer cannot deploy",
+  );
 
   const links = hub.members();
   if (links.length !== 3 || !links.every((m) => m.link === "direct"))

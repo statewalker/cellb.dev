@@ -24,7 +24,9 @@ mounts.provide("/mcp/edit", async () => Response.json({ ok: true }));
 const publisher = await join(process.argv[2], mounts);
 const editor = await join(process.argv[3]);
 const res = await editor.fetch(new Request(`http://local/peers/${publisher.peerId}/mcp/edit`));
-console.log(`publisher ${publisher.hubLink()}, editor ${editor.hubLink()}, editor → publisher: ${res.status}`);
+console.log(
+  `publisher ${publisher.hubLink()}, editor ${editor.hubLink()}, editor → publisher: ${res.status}`,
+);
 // Ship to the hub: a one-file Worker, deployed by the publisher, opened by the editor.
 const b64 = (t: string) => Buffer.from(t).toString("base64");
 const put = await publisher.fetch(
@@ -33,13 +35,22 @@ const put = await publisher.fetch(
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       files: {
-        "/wrangler.json": b64(JSON.stringify({ name: "hello", main: "worker.js", no_bundle: true, compatibility_date: "2026-02-24" })),
+        "/wrangler.json": b64(
+          JSON.stringify({
+            name: "hello",
+            main: "worker.js",
+            no_bundle: true,
+            compatibility_date: "2026-02-24",
+          }),
+        ),
         "/worker.js": b64('export default { fetch: () => new Response("hello from the hub") };'),
       },
     }),
   }),
 );
-const hosted = await editor.fetch(new Request(`http://local/peers/${publisher.hubPeerId}/apps/hello/`));
+const hosted = await editor.fetch(
+  new Request(`http://local/peers/${publisher.hubPeerId}/apps/hello/`),
+);
 const text = await hosted.text();
 console.log(`deploy: ${put.status}, hosted: ${hosted.status} ${text}`);
 await editor.stop();

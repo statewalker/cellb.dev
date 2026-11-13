@@ -112,14 +112,22 @@ try {
     console.log(`  link (a sandbox tab):  ${inv.link}`);
     console.log(`  blob (the bridge):     ${inv.blob}`);
   } else if (cmd === "members") {
-    const list = (await door("/members")) as unknown as { peerId: string; roles: string[]; link: string | null }[];
+    const list = (await door("/members")) as unknown as {
+      peerId: string;
+      roles: string[];
+      link: string | null;
+    }[];
     if (!list.length) console.log("No members yet.");
     for (const m of list)
-      console.log(`${m.peerId}  ${m.roles.join(",").padEnd(10)}  ${m.link ?? "offline"}${m.link === "relay" ? "  (others cannot reach it)" : ""}`);
+      console.log(
+        `${m.peerId}  ${m.roles.join(",").padEnd(10)}  ${m.link ?? "offline"}${m.link === "relay" ? "  (others cannot reach it)" : ""}`,
+      );
   } else if (cmd === "revoke") {
     if (!args[0]) throw new Error("revoke <peerId> (see: members)");
     await door(`/members/${encodeURIComponent(args[0])}`, undefined, "DELETE");
-    console.log(`revoked ${args[0]}: its tokens stop verifying; it needs a new invitation to come back`);
+    console.log(
+      `revoked ${args[0]}: its tokens stop verifying; it needs a new invitation to come back`,
+    );
   } else throw new Error(`unknown command ${cmd} (start, invite, members, revoke)`);
 } catch (err) {
   console.error(`sandbox-hub: ${(err as Error).message}`);
