@@ -48,17 +48,37 @@ const fetcher = (url: string) =>
 let envs:
   | Promise<{ client: VirtualTypeScriptEnvironment; server: VirtualTypeScriptEnvironment }>
   | undefined;
-let clientRoot = "/client";
+/** The project the environments hold, and where its two runtimes' files are. */
+let project = {
+  key: "",
+  clientRoot: undefined as string | undefined,
+  serverRoot: undefined as string | undefined,
+};
+const synced = new Set<string>();
+
+// The libraries are fetched once per lib set, for every project the tab opens.
+const libCache = new Map<string, Promise<Map<string, string>>>();
+const libs = (lib: string[]) => {
+  const key = lib.join(",");
+  let m = libCache.get(key);
+  if (!m) {
+    m = createDefaultMapFromCDN(
+      { ...base, lib },
+      VERSION,
+      false,
+      tsApi,
+      undefined,
+      fetcher as never,
+    );
+    m.catch(() => libCache.delete(key));
+    libCache.set(key, m);
+  }
+  return m;
+};
+let workersTypes: Promise<string> | undefined;
 
 async function environment(lib: string[], extra: Map<string, string>, options: ts.CompilerOptions) {
-  const fsMap = await createDefaultMapFromCDN(
-    { ...base, lib },
-    VERSION,
-    false,
-    tsApi,
-    undefined,
-    fetcher as never,
-  );
+  const fsMap = new Map(await libs(lib));
   for (const [p, t] of extra) fsMap.set(p, t);
   return createVirtualTypeScriptEnvironment(createSystem(fsMap), [], tsApi, {
     ...base,
@@ -69,9 +89,10 @@ async function environment(lib: string[], extra: Map<string, string>, options: t
 
 function start() {
   envs ??= (async () => {
-    const workers = await fetch(WORKERS_TYPES)
+    workersTypes ??= fetch(WORKERS_TYPES)
       .then((r) => (r.ok ? r.text() : ""))
       .catch(() => "");
+    const workers = await workersTypes;
     const [client, server] = await Promise.all([
       environment(["lib.es2022.d.ts", "lib.dom.d.ts", "lib.dom.iterable.d.ts"], new Map(), {}),
       environment(
@@ -88,18 +109,31 @@ function start() {
   return envs;
 }
 
+const under = (path: string, root?: string) =>
+  root !== undefined && (root === "/" || path === root || path.startsWith(`${root}/`));
+
+/**
+ * Which runtime a file belongs to: the server's folder (the Wrangler `main`'s) is the server's;
+ * a client folder ("/" for a site at the root) is the client's; a project without a server is
+ * all client; anything else is the server's.
+ */
 const envOf = async (path: string) => {
   const { client, server } = await start();
-  return path === clientRoot || path.startsWith(`${clientRoot}/`) ? client : server;
+  const { clientRoot, serverRoot } = project;
+  if (serverRoot && serverRoot !== "/" && under(path, serverRoot)) return server;
+  if (under(path, clientRoot) || !serverRoot) return client;
+  return server;
 };
 
 // Editors to tell when types arrive: their diagnostics were computed without them.
-const onTypes = new Set<() => void>();
+const onTypes = new Map<number, () => void>();
+let nextListener = 0;
+const ataSoon = new Map<string, ReturnType<typeof setTimeout>>();
 let typesQuiet: ReturnType<typeof setTimeout> | undefined;
 const typesArrived = () => {
   clearTimeout(typesQuiet);
   typesQuiet = setTimeout(() => {
-    for (const notify of onTypes) Promise.resolve(notify()).catch(() => onTypes.delete(notify));
+    for (const [id, notify] of onTypes) Promise.resolve(notify()).catch(() => onTypes.delete(id));
   }, 200);
 };
 
@@ -130,18 +164,43 @@ const api = {
   async initialize() {
     await start();
   },
-  /** The project's script files (and where its client is): what the service checks against. */
-  async syncProject(files: [string, string][], client?: string) {
-    if (client) clientRoot = client === "/" ? "/__none__" : client;
+  /**
+   * The project's script files and where its runtimes are: what the service checks against. A
+   * different project starts from fresh environments (the libraries are kept); a file gone since
+   * the last call is emptied.
+   */
+  async syncProject(
+    files: [string, string][],
+    where: { key: string; clientRoot?: string; serverRoot?: string },
+  ) {
+    if (where.key !== project.key) {
+      envs = undefined;
+      synced.clear();
+    }
+    project = { key: where.key, clientRoot: where.clientRoot, serverRoot: where.serverRoot };
+    const now = new Set<string>();
     for (const [path, code] of files) {
       if (!SCRIPT.test(path)) continue;
+      now.add(path);
       upsert(await envOf(path), path, code);
       ata(code);
     }
+    for (const path of synced) if (!now.has(path)) upsert(await envOf(path), path, " ");
+    synced.clear();
+    for (const p of now) synced.add(p);
   },
   async updateFile({ path, code }: { path: string; code: string }) {
     upsert(await envOf(path), path, code);
-    ata(code);
+    synced.add(path);
+    // Types for the imports, once typing pauses: not one registry lookup per keystroke.
+    clearTimeout(ataSoon.get(path));
+    ataSoon.set(
+      path,
+      setTimeout(() => {
+        ataSoon.delete(path);
+        ata(code);
+      }, 1500),
+    );
   },
   async getLints({
     path,
@@ -162,8 +221,14 @@ const api = {
     return getAutocompletion({ env: await envOf(path), path, context });
   },
   /** Called (through Comlink.proxy) whenever acquired types arrive: the editor lints again. */
-  onTypes(notify: () => void) {
-    onTypes.add(notify);
+  onTypes(notify: () => void): number {
+    const id = ++nextListener;
+    onTypes.set(id, notify);
+    return id;
+  },
+  /** An editor closed: no more calls to it. */
+  offTypes(id: number) {
+    onTypes.delete(id);
   },
   async getHover({ path, pos }: { path: string; pos: number }) {
     return getHover({ env: await envOf(path), path, pos });

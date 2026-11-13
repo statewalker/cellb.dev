@@ -37,6 +37,11 @@ export function wasmerTool(cap: Cap, host: StudioHost) {
     ) {
       if (!host.wasmer) throw new Error("ENOSYS: no Wasmer engine here");
       if (!params.packages.length) throw new Error("EINVAL: name at least one package");
+      // Registry names only ("namespace/name", optionally "@version"): never a URL, so the tool
+      // reaches the registry and nothing else.
+      for (const p of params.packages)
+        if (!/^[a-z0-9][\w.-]*\/[\w.-]+(@[\w.=^~<>*|-]+)?$/i.test(p))
+          throw new Error(`EINVAL: ${p} is not a registry package name such as wasmer/bash`);
       const root = rootOf(params.root);
       const files = await copyIn(cap, root);
       const out = await host.wasmer({

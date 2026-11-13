@@ -35,6 +35,13 @@ function check(msg: unknown): Message {
   const body = (msg as Record<string, { surfaceId?: unknown; components?: unknown }>)[kinds[0]];
   if (typeof body?.surfaceId !== "string" || !body.surfaceId)
     throw new Error(`${kinds[0]}: surfaceId is missing`);
+  if (kinds[0] === "updateDataModel") {
+    const path = (body as { path?: unknown }).path;
+    if (typeof path !== "string" || !path.startsWith("/"))
+      throw new Error("updateDataModel: path is a JSON pointer such as /items");
+    if (path.split("/").some((k) => k === "__proto__" || k === "prototype" || k === "constructor"))
+      throw new Error(`updateDataModel: ${path} names a reserved key`);
+  }
   if (kinds[0] === "updateComponents") {
     if (!Array.isArray(body.components))
       throw new Error("updateComponents: components is an array");

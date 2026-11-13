@@ -695,6 +695,16 @@ try {
   });
   if (a2Refused.result?.status !== 400 || !a2Refused.result.body.includes("not in the catalog"))
     throw new Error(`an unknown component: ${JSON.stringify(a2Refused)}`);
+  // A data path into an object's prototype is refused too (every client would apply it).
+  const a2Proto = await tool("http_request", {
+    path: "api/stream",
+    method: "POST",
+    body: JSON.stringify({
+      updateDataModel: { surfaceId: "main", path: "/__proto__/path", value: "/x" },
+    }),
+  });
+  if (a2Proto.result?.status !== 400 || !a2Proto.result.body.includes("reserved key"))
+    throw new Error(`a prototype path: ${JSON.stringify(a2Proto)}`);
   await a2Page.close();
 
   step(

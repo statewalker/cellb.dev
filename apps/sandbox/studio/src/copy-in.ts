@@ -35,7 +35,16 @@ export async function writeBack(cap: Cap, changes: [string, Uint8Array | null][]
   const written: string[] = [];
   const deleted: string[] = [];
   const denied: { path: string; error: string }[] = [];
+  // The same limits as the way in: a run cannot write more than it could have read.
+  let count = 0;
+  let bytes = 0;
   for (const [path, data] of changes) {
+    count++;
+    bytes += data?.length ?? 0;
+    if (count > MAX_FILES || bytes > MAX_BYTES) {
+      denied.push({ path, error: `EFBIG: over ${MAX_FILES} files or ${MAX_BYTES} bytes written` });
+      continue;
+    }
     try {
       if (data) {
         await cap.call("writeFileBuffer", path, data);

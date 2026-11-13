@@ -75,6 +75,17 @@ const SCRIPT = /\.(?:[cm]?[jt]sx?)$/i;
 // (yet: automatic type acquisition fetches them), an untyped module.
 const IGNORED = [2307, 7016];
 
+/** The open project, for the language service: its scripts, and where its two runtimes are. */
+export interface Project {
+  /** Changes when another project is open (the service starts afresh). */
+  key: string;
+  files(): [string, string][];
+  /** The client's folder ("/" for a site at the root), if any. */
+  clientRoot?: string;
+  /** The folder of the Wrangler `main`, if the project has a server. */
+  serverRoot?: string;
+}
+
 /** Types fetched for the imports have arrived: the open file is linted again. */
 const typesArrived = StateEffect.define<null>();
 
@@ -114,17 +125,19 @@ function languageService() {
 }
 
 /** Lint, completion, hover and go-on-typing sync for a script file, from the language service. */
-async function typescriptFor(
-  path: string,
-  project?: { files(): [string, string][]; clientRoot?: string },
-) {
+async function typescriptFor(path: string, project?: Project) {
   const [cm, lint, worker] = await Promise.all([
     import("@valtown/codemirror-ts"),
     import("@codemirror/lint"),
     languageService(),
   ]);
   // The other files first: imports and their types resolve against the project.
-  if (project) await worker.syncProject(project.files(), project.clientRoot);
+  if (project)
+    await worker.syncProject(project.files(), {
+      key: project.key,
+      clientRoot: project.clientRoot,
+      serverRoot: project.serverRoot,
+    });
   return {
     worker,
     extension: [
@@ -154,8 +167,8 @@ export function CodeEditor(props: {
   value: string;
   onChange(text: string): void;
   onSave(): void;
-  /** The project's script files and where its client is: types, errors and completion across files. */
-  project?: { files(): [string, string][]; clientRoot?: string };
+  /** The project's scripts and runtimes: types, errors and completion across files. */
+  project?: Project;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -170,6 +183,7 @@ export function CodeEditor(props: {
     const theme = new Compartment();
     const types = new Compartment();
     const completion = new Compartment();
+    let unlisten = () => {};
     const themeOf = async () =>
       isDark() ? (await import("@codemirror/theme-one-dark")).oneDark : [];
     const v = new EditorView({
@@ -235,11 +249,14 @@ export function CodeEditor(props: {
           v.dispatch({ effects: [types.reconfigure(extension), completion.reconfigure([])] });
           // Types fetched for the imports arrive later: lint again then.
           const Comlink = await import("comlink");
-          await worker.onTypes(
+          const listener = await worker.onTypes(
             Comlink.proxy(() => {
               if (alive) v.dispatch({ effects: typesArrived.of(null) });
             }),
           );
+          // Unregistered with the editor (a file switch, a project closed).
+          if (alive) unlisten = () => void worker.offTypes(listener);
+          else void worker.offTypes(listener);
         })
         .catch((err) => console.warn("the TypeScript language service:", err));
     const applyTheme = () =>
@@ -250,6 +267,7 @@ export function CodeEditor(props: {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     return () => {
       alive = false;
+      unlisten();
       observer.disconnect();
       v.destroy();
       view.current = null;

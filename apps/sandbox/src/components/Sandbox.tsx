@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentPanel } from "@/components/AgentPanel";
-import { CodeEditor } from "@/components/CodeEditor";
+import { CodeEditor, type Project } from "@/components/CodeEditor";
 import { FileTree } from "@/components/FileTree";
 import { HistoryPanel } from "@/components/HistoryPanel";
 import { PublishPanel } from "@/components/PublishPanel";
@@ -153,6 +153,8 @@ export default function Sandbox() {
   const studioRef = useRef<StudioConnection | null>(null);
   /** Settles once the current studio worker has said hello (see startStudio). */
   const studioReady = useRef<Promise<void>>(Promise.resolve());
+  /** Settles once a runner has said hello (see startRunner): work is sent to it after that only. */
+  const runnerReady = useRef<Promise<void>>(Promise.resolve());
   const toolsRef = useRef<ReturnType<typeof createTools> | null>(null);
   // The rights the IDE's tools give agents outside the page (window.cellbSandbox, WebMCP, MCP).
   const [outsideMode, setOutsideMode] = useState<AgentMode>("yolo");
@@ -226,7 +228,9 @@ export default function Sandbox() {
       me.addEventListener("error", (e) =>
         hello ? addLog(`studio: ${e.message}`, "error") : replace(e.message || "it did not load"),
       );
-      setTimeout(() => replace("no answer in 20 s"), 20_000);
+      // Long enough for a cold start on a slow network (the hello comes after the whole module
+      // graph has loaded); a refused script shows as an error event at once anyway.
+      setTimeout(() => replace("no answer in 45 s"), 45_000);
     };
     startStudio(1);
 
@@ -277,6 +281,10 @@ export default function Sandbox() {
     // The runner, the same way as the studio worker: its first message (phase "idle") is its hello;
     // one whose script did not load is replaced, re-hosted and given a port to the studio again.
     let unhost = () => {};
+    let runnerUp = () => {};
+    runnerReady.current = new Promise<void>((r) => {
+      runnerUp = r;
+    });
     const startRunner = (attempt: number) => {
       const me = new Worker(new URL("../sandbox/runner.worker.ts", import.meta.url), {
         type: "module",
@@ -292,6 +300,7 @@ export default function Sandbox() {
         const m = e.data;
         if (!m || typeof m !== "object" || !("type" in m)) return; // site-host traffic
         hello = true;
+        runnerUp();
         onRunner(m);
       });
       const studio = studioRef.current;
@@ -313,7 +322,9 @@ export default function Sandbox() {
       me.addEventListener("error", (e) =>
         hello ? addLog(`runner: ${e.message}`, "error") : replace(e.message || "it did not load"),
       );
-      setTimeout(() => replace("no answer in 20 s"), 20_000);
+      // Long enough for a cold start on a slow network (the hello comes after the whole module
+      // graph has loaded); a refused script shows as an error event at once anyway.
+      setTimeout(() => replace("no answer in 45 s"), 45_000);
     };
     startRunner(1);
     return () => {
@@ -336,7 +347,8 @@ export default function Sandbox() {
       statusRef.current = { kind: "building" };
       setStatus({ kind: "building" });
       addLog(`running ${l.name}: ${l.files.size} files (${describeSource(l.session.source)})`);
-      worker.current?.postMessage(msg);
+      // To a runner that has said hello: a message to one whose script did not load would be lost.
+      void runnerReady.current.then(() => worker.current?.postMessage(msg));
     },
     [addLog],
   );
@@ -958,13 +970,15 @@ export default function Sandbox() {
     const id = ++buildId.current;
     return new Promise<Build>((resolve, reject) => {
       builds.current.set(id, { resolve, reject });
-      worker.current?.postMessage({
-        type: "build",
-        id,
-        workspace: l.session.ws,
-        token: l.session.buildToken,
-        folderName: l.name,
-      } satisfies ToRunner);
+      void runnerReady.current.then(() =>
+        worker.current?.postMessage({
+          type: "build",
+          id,
+          workspace: l.session.ws,
+          token: l.session.buildToken,
+          folderName: l.name,
+        } satisfies ToRunner),
+      );
     });
   };
 
@@ -1259,7 +1273,16 @@ export default function Sandbox() {
                           .filter(([p]) => /\.(?:[cm]?[jt]sx?)$/i.test(p))
                           .map(([p, b]): [string, string] => [p, drafts.get(p) ?? decode(b)]);
                       },
-                      clientRoot: layout?.clientRoot,
+                      key: loaded.session.ws,
+                      // An Astro site's sources are pages and islands: the DOM's, like a client's.
+                      clientRoot: layout?.astro ? "/" : layout?.clientRoot,
+                      serverRoot:
+                        layout?.astro || !layout?.config?.main
+                          ? undefined
+                          : `/${layout.config.main.replace(/^\.?\/+/, "")}`.replace(
+                              /\/[^/]*$/,
+                              "",
+                            ) || "/",
                     }}
                     bytes={loaded.files.get(openFile) as Uint8Array}
                     draft={drafts.get(openFile)}
@@ -1504,7 +1527,7 @@ function FileEditor(props: {
   error?: string;
   onChange(text: string): void;
   onSave(): void;
-  project?: { files(): [string, string][]; clientRoot?: string };
+  project?: Project;
 }) {
   const text = textOf(props.path, props.bytes);
   const dirty = props.draft !== undefined;

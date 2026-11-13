@@ -15,11 +15,15 @@ const root = document.getElementById("root") as HTMLElement;
 const surfaces = new Map<string, Surface>();
 let last = 0;
 
+const RESERVED = new Set(["__proto__", "prototype", "constructor"]);
+
 function pointer(data: Record<string, unknown>, path: string, value?: unknown, write = false) {
   const parts = path.split("/").filter(Boolean);
+  // Data from the log never reaches an object's prototype (the server refuses such paths too).
+  if (parts.some((p) => RESERVED.has(p))) return undefined;
   let at: Record<string, unknown> = data;
   for (const p of parts.slice(0, -1)) {
-    if (typeof at[p] !== "object" || at[p] === null) {
+    if (!Object.hasOwn(at, p) || typeof at[p] !== "object" || at[p] === null) {
       if (!write) return undefined;
       at[p] = {};
     }
@@ -28,7 +32,7 @@ function pointer(data: Record<string, unknown>, path: string, value?: unknown, w
   const key = parts.at(-1);
   if (key === undefined) return write ? undefined : data;
   if (write) at[key] = value;
-  return at[key];
+  return Object.hasOwn(at, key) ? at[key] : undefined;
 }
 
 function apply(message: Record<string, Record<string, unknown>>) {
@@ -60,10 +64,15 @@ function draw() {
         const error = (text: string) =>
           Object.assign(document.createElement("p"), { className: "error", textContent: text });
         if (!c) return error(`missing component: ${cid}`);
+        // The path being drawn: a component inside itself is a cycle; one in two branches is not.
         if (seen.has(cid)) return error(`a cycle at ${cid}`);
         seen.add(cid);
-        const make = catalog[c.component];
-        return make ? make(c, ctx) : error(`not in the catalog: ${c.component}`);
+        try {
+          const make = catalog[c.component];
+          return make ? make(c, ctx) : error(`not in the catalog: ${c.component}`);
+        } finally {
+          seen.delete(cid);
+        }
       },
     };
     const section = document.createElement("div");

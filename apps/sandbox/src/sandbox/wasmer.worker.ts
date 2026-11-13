@@ -51,10 +51,18 @@ async function runOne(data: {
   cwd?: string;
 }) {
   const { id } = data;
-  sdk ??= import(/* @vite-ignore */ SDK);
-  wasmer ??= new (await sdk).Wasmer();
+  // A failed start is not kept: the next run tries again.
+  try {
+    sdk ??= import(/* @vite-ignore */ SDK);
+    wasmer ??= new (await sdk).Wasmer();
+  } catch (err) {
+    sdk = undefined;
+    wasmer = undefined;
+    throw err;
+  }
   // The SDK puts relative paths under /workspace.
-  const files: Record<string, Uint8Array> = {};
+  // No prototype: a project file named "__proto__" is a file like any other.
+  const files: Record<string, Uint8Array> = Object.create(null);
   for (const [path, bytes] of data.files) files[path.replace(/^\/+/, "")] = bytes;
   const sandbox = await wasmer.sandboxes.create({ packages: data.packages, files });
   try {
