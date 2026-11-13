@@ -1,0 +1,28 @@
+# The hub as a systemd service, from the bundled file (pnpm build → dist/), without Docker.
+#
+#   sudo mkdir -p /opt/sandbox-hub && sudo cp dist/*.mjs /opt/sandbox-hub/
+#   cd /opt/sandbox-hub && echo '{"type":"module"}' | sudo tee package.json && sudo npm install node-datachannel@0.33.6
+#   sudo useradd --system --home /var/lib/sandbox-hub --create-home sandbox-hub
+#   sudo cp deploy/sandbox-hub.service /etc/systemd/system/ && sudo systemctl enable --now sandbox-hub
+#   journalctl -u sandbox-hub                                        # the publisher link
+#   sudo -u sandbox-hub SANDBOX_HUB_DIR=/var/lib/sandbox-hub node /opt/sandbox-hub/sandbox-hub.mjs invite editor
+[Unit]
+Description=CellB sandbox mesh hub (HTTPeers)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=sandbox-hub
+Environment=SANDBOX_HUB_DIR=/var/lib/sandbox-hub
+Environment=SANDBOX_URL=https://cellb.httpeers.net/sandbox/app/
+ExecStart=/usr/bin/node /opt/sandbox-hub/sandbox-hub.mjs start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/sandbox-hub
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

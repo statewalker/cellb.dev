@@ -40,9 +40,20 @@ single-use publisher invitation. Open it, then open or start a project. To invit
 pnpm --filter @statewalker/cellb-sandbox-hub invite editor
 ```
 
+To check who is in the mesh and how each member reaches the hub, or to remove one:
+
 ```sh
 pnpm --filter @statewalker/cellb-sandbox-hub members
 ```
+
+```sh
+pnpm --filter @statewalker/cellb-sandbox-hub revoke <peerId>
+```
+
+`members` shows each member's link: `direct`, `relay` (others cannot reach it), or `offline`.
+`revoke` removes a member. Its tokens stop verifying at once (a published tab refuses it within
+about a second, in the test), its reservation on the hub is freed, and it needs a new
+invitation to come back.
 
 On the machine of whoever was invited (an agent's, a teammate's):
 
@@ -57,6 +68,48 @@ Later runs resume the membership without an invitation (`.sandbox-bridge/`).
 
 Settings: `SANDBOX_HUB_DIR`, `SANDBOX_URL`, `SANDBOX_HUB_RELAY_DOC` (the hub);
 `SANDBOX_BRIDGE_DIR`, `SANDBOX_BRIDGE_PORT` (the bridge).
+
+## Deploy
+
+The hub needs a machine that stays on: a home server, a VPS, or a laptop while it is in use. It
+needs:
+- outbound WebSockets to the relay;
+- UDP, for the members' WebRTC links;
+- a folder that persists. That folder is the mesh: a new key is a new, empty mesh, and every
+  member must join again.
+
+Set `SANDBOX_URL` to the sandbox the links should open (`https://cellb.httpeers.net/sandbox/app/`
+once the site is published).
+
+```sh
+pnpm --filter @statewalker/cellb-sandbox-hub build
+```
+
+This writes `dist/sandbox-hub.mjs` and `dist/bridge.mjs`: everything bundled except the native
+WebRTC module, `node-datachannel`. Then pick one of these:
+
+- **Docker**, with host networking:
+
+  ```sh
+  docker compose -f apps/sandbox-hub/deploy/compose.yml up -d
+  ```
+
+  ```sh
+  docker compose -f apps/sandbox-hub/deploy/compose.yml exec hub node /app/sandbox-hub.mjs invite editor
+  ```
+
+  The image (`Dockerfile`) is Node 22 slim with `node-datachannel`. It keeps the mesh in the
+  `/data` volume and runs as `node`. Where Docker Hub limits pulls, build with
+  `--build-arg BASE=mirror.gcr.io/library/node:22-slim`. Behind a TLS-intercepting proxy, add
+  `--secret id=ca,src=ca.pem`.
+- **systemd**: `deploy/sandbox-hub.service`. The steps are in its header: copy `dist/`, install
+  `node-datachannel`, add a system user, then enable the service.
+- **By hand**: `node dist/sandbox-hub.mjs start` in a folder where `node-datachannel` is
+  installed.
+
+`test/docker-hub.check.ts <publisher blob> <editor blob>` checks a hub that runs elsewhere. A
+publisher and an editor join it, and the editor calls the publisher. It passed against the image
+(direct links, and the membership and identity kept across a restart).
 
 ## How it works
 

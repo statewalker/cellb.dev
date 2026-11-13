@@ -417,6 +417,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.2
       tsx:
         specifier: ^4.20.6
         version: 4.23.15

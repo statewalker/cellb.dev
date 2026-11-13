@@ -25,6 +25,7 @@ import {
   hubRelayService,
   identityStore,
   membershipGater,
+  releaseReservation,
   peerIdOf,
   servePeer,
   signerOf,
@@ -57,8 +58,26 @@ export interface SandboxHub {
     roles: string[],
     ttlMs?: number,
   ): Promise<{ blob: string; join: JoinBlob; expiresAt: number }>;
-  members(): { peerId: string; roles: string[] }[];
+  /** Members, with how each reaches the hub now: "direct" (others can reach it), "relay" (they cannot), null (offline). */
+  members(): MemberInfo[];
+  /** Removes a member: its tokens stop verifying, its reservation is freed, a new invitation is needed. */
+  revoke(peerId: string): boolean;
   stop(): Promise<void>;
+}
+
+export interface MemberInfo {
+  peerId: string;
+  roles: string[];
+  link: "direct" | "relay" | null;
+}
+
+/** How a member reaches the hub, from the hub's open connections (httpeers' apps/hub member-link.ts). */
+export function linkOf(node: Pick<Libp2p, "getConnections">, peerId: string): MemberInfo["link"] {
+  const open = node
+    .getConnections()
+    .filter((c) => c.status === "open" && c.remotePeer.toString() === peerId);
+  if (open.length === 0) return null;
+  return open.some((c) => c.limits == null) ? "direct" : "relay";
 }
 
 export async function readRelayDoc(url: string): Promise<string[]> {
@@ -144,6 +163,22 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
     });
     unwind.push(() => peer.stop());
 
+    // A member that reaches the hub through the public relay only cannot be reached by others
+    // (no reservation on the hub): said once per member, since a published tab is then unreachable.
+    const warned = new Set<string>();
+    const watch = setInterval(() => {
+      for (const m of hub.members.list() as { peerId: string; roles: string[] }[]) {
+        const link = linkOf(node, m.peerId);
+        if (link === "relay" && !warned.has(m.peerId)) {
+          warned.add(m.peerId);
+          log(
+            `hub: ${m.peerId} (${m.roles.join(", ")}) reaches the hub through the relay only: other members cannot reach it. A WebRTC upgrade to this hub failed: check UDP and, in Docker, use host networking.`,
+          );
+        } else if (link === "direct") warned.delete(m.peerId);
+      }
+    }, 15_000);
+    unwind.push(() => clearInterval(watch));
+
     return {
       peerId,
       relayAddrs: [relayAddr, ...relayAddrs.filter((a) => a !== relayAddr)],
@@ -154,9 +189,20 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
         return { blob: encodeJoinBlob(join), join, expiresAt };
       },
       members: () =>
-        hub.members
-          .list()
-          .map((m: { peerId: string; roles: string[] }) => ({ peerId: m.peerId, roles: m.roles })),
+        hub.members.list().map((m: { peerId: string; roles: string[] }) => ({
+          peerId: m.peerId,
+          roles: m.roles,
+          link: linkOf(node, m.peerId),
+        })),
+      revoke(member) {
+        if (!hub.members.get(member)) return false;
+        hub.members.remove(member);
+        hub.revocations.revoke(member);
+        releaseReservation((node.services as { relay: Parameters<typeof releaseReservation>[0] }).relay, member);
+        for (const c of node.getConnections()) if (c.remotePeer.toString() === member) void c.close().catch(() => {});
+        return true;
+      },
+
       stop,
     };
   } catch (err) {

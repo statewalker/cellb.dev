@@ -2,7 +2,8 @@
 //
 //   pnpm start                       the hub: prints a link that makes a sandbox tab publish
 //   pnpm invite editor [agent …]     another invitation, from the running hub
-//   pnpm members                     who is in the mesh
+//   pnpm members                     who is in the mesh, and how each reaches the hub
+//   pnpm revoke <peerId>             removes a member (a new invitation is needed to come back)
 //
 // Settings (environment): SANDBOX_HUB_DIR (./.sandbox-hub), SANDBOX_URL (the sandbox the links
 // open, http://localhost:4321/), SANDBOX_HUB_RELAY_DOC (the public relay's document).
@@ -44,6 +45,11 @@ async function serve() {
         return send(200, { ...inv, link: linkOf(inv.blob) });
       }
       if (req.method === "GET" && req.url === "/members") return send(200, hub.members());
+      const revoke = req.url?.match(/^\/members\/([^/]+)$/);
+      if (req.method === "DELETE" && revoke) {
+        const done = hub.revoke(decodeURIComponent(revoke[1]));
+        return send(done ? 200 : 404, done ? { revoked: revoke[1] } : { error: "not a member" });
+      }
       send(404, { error: "not found" });
     } catch (err) {
       send(400, { error: String((err as Error).message ?? err) });
@@ -77,12 +83,12 @@ Invite people and agents to it:  pnpm invite viewer | agent | editor
   process.on("SIGTERM", stop);
 }
 
-async function door(path: string, body?: unknown) {
+async function door(path: string, body?: unknown, method?: string) {
   const info = await readHubFile(dir).catch(() => {
     throw new Error(`no running hub in ${dir} (start it with: pnpm start)`);
   });
   const res = await fetch(`http://127.0.0.1:${info.door.port}${path}`, {
-    method: body === undefined ? "GET" : "POST",
+    method: method ?? (body === undefined ? "GET" : "POST"),
     headers: { "x-sandbox-hub-secret": info.door.secret, "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -105,8 +111,16 @@ try {
     );
     console.log(`  link (a sandbox tab):  ${inv.link}`);
     console.log(`  blob (the bridge):     ${inv.blob}`);
-  } else if (cmd === "members") console.log(JSON.stringify(await door("/members"), null, 2));
-  else throw new Error(`unknown command ${cmd} (start, invite, members)`);
+  } else if (cmd === "members") {
+    const list = (await door("/members")) as unknown as { peerId: string; roles: string[]; link: string | null }[];
+    if (!list.length) console.log("No members yet.");
+    for (const m of list)
+      console.log(`${m.peerId}  ${m.roles.join(",").padEnd(10)}  ${m.link ?? "offline"}${m.link === "relay" ? "  (others cannot reach it)" : ""}`);
+  } else if (cmd === "revoke") {
+    if (!args[0]) throw new Error("revoke <peerId> (see: members)");
+    await door(`/members/${encodeURIComponent(args[0])}`, undefined, "DELETE");
+    console.log(`revoked ${args[0]}: its tokens stop verifying; it needs a new invitation to come back`);
+  } else throw new Error(`unknown command ${cmd} (start, invite, members, revoke)`);
 } catch (err) {
   console.error(`sandbox-hub: ${(err as Error).message}`);
   process.exit(1);

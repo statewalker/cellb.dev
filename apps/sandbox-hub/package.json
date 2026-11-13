@@ -10,7 +10,9 @@
     "invite": "tsx src/main.ts invite",
     "members": "tsx src/main.ts members",
     "bridge": "tsx src/bridge.ts",
-    "test": "tsx test/mesh.test.ts"
+    "test": "tsx test/mesh.test.ts",
+    "build": "node build.mjs",
+    "revoke": "tsx src/main.ts revoke"
   },
   "dependencies": {
     "@chainsafe/libp2p-noise": "^17.0.0",
@@ -31,6 +33,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "tsx": "^4.20.6"
+    "tsx": "^4.20.6",
+    "esbuild": "catalog:"
   }
 }

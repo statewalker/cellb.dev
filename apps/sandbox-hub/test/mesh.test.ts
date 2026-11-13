@@ -65,6 +65,26 @@ try {
   expect("editor → /mcp/read", await call(editor, "/mcp/read"), 200);
   expect("editor → /mcp/edit", await call(editor, "/mcp/edit"), 200);
   step("roles hold: a viewer is refused the MCP endpoints, an editor reaches both");
+  const links = hub.members();
+  if (links.length !== 3 || !links.every((m) => m.link === "direct"))
+    throw new Error(`members' links: ${JSON.stringify(links)}`);
+  step("the hub sees three members, each on a direct link");
+
+  // Revoked: out of the member list, its reservation freed, its calls refused once the publisher's
+  // revocation cache refreshes (or its link to the publisher drops).
+  if (!hub.revoke(viewer.peerId)) throw new Error("revoke: not a member");
+  if (hub.members().some((m) => m.peerId === viewer.peerId)) throw new Error("still a member");
+  let after = 200;
+  for (let i = 0; i < 90 && after === 200; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    after = await call(viewer, "/app/")
+      .then((r) => r.status)
+      .catch(() => 0);
+  }
+  if (after === 200) throw new Error("a revoked viewer still opens the app after 90 s");
+  step(`the viewer is revoked: the publisher refuses it (${after || "no connection"})`);
+  expect("editor → /mcp/edit, after the revoke", await call(editor, "/mcp/edit"), 200);
+
   // SOAK=<seconds>: the links settle (reservations restored on the direct link) and stay usable.
   const soak = Number(process.env.SOAK ?? 0);
   if (soak > 0) {
