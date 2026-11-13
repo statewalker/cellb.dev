@@ -39,11 +39,14 @@ host tab (browser/host.ts, emdash.html or index.html)
 - **Cleaning the package cache.** The host page's *Package cache* panel shows what the store
   holds and, once a build is over, cleans it (then rebuilds, unless *rebuild after* is unticked):
   *Remove unused packages* keeps only the packages some build's lock names (after an update of
-  EmDash or Astro, the old versions go); *Forget the locks* makes the next build resolve its
-  versions again from the registry ranges and record a new lock; *Clear the package cache*
-  removes every package, so the next build downloads them all. The same operations are the
-  store's routes (`GET …/admin/stats`, `POST …/admin/prune`, `POST …/admin/clear[?prefix=/locks/]`,
-  `DELETE …/files/<path>`), and `await __packageCache("prune")` in the page's console. Freed
+  EmDash or Astro, the old versions go); *Forget the locks* removes the locks and the version
+  index, so the next build resolves every version again from the registry and records a new
+  lock; *Clear the package cache* removes every package, so the next build downloads them all.
+  The same operations are the store's routes (`GET …/admin/stats`, `POST …/admin/prune`,
+  `POST …/admin/forget`, `POST …/admin/clear[?prefix=…]`, `DELETE …/files/<path>`), and
+  `await __packageCache("prune")` in the page's console. A build holds a lease on the store
+  (`…/admin/lease`, renewed every 15 s, lapsing after 60 s), and a clean-up is refused while one
+  is held, in this tab or another: the small app and EmDash share the store. Freed
   space is reused by later packages; the store's database file does not shrink.
 - **The project's own Worker entry.** When `wrangler.jsonc` names a `main` (EmDash's
   `src/worker.ts`, with `scheduled()` for its cron trigger and `PluginBridge`), it is the bundle's

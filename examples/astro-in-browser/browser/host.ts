@@ -75,14 +75,20 @@ function build(
   return new Promise((resolve, reject) => {
     worker.onmessage = (e) => {
       if (e.data.log) log(e.data.log);
-      else if (e.data.error) reject(new Error(e.data.error));
-      else if (e.data.code) {
+      else if (e.data.error) {
+        // The worker has stopped its downloads and given its lease back: nothing of it is left.
+        worker.terminate();
+        reject(new Error(e.data.error));
+      } else if (e.data.code) {
         log(`${e.data.routes} routes`);
         worker.terminate();
         resolve({ code: new TextDecoder().decode(e.data.code), clientAssets: e.data.clientAssets });
       }
     };
-    worker.onerror = (e) => reject(new Error(e.message));
+    worker.onerror = (e) => {
+      worker.terminate(); // its lease lapses within a minute
+      reject(new Error(e.message));
+    };
     worker.postMessage({
       sources: src,
       integrations: APP === "emdash",
@@ -172,20 +178,40 @@ async function start() {
 
 // --- The package cache: statistics and clean-up (the package store's /admin/* routes) ---
 
-type CacheStats = { files: number; packages: number; locks: number; size: number; stored: number };
-type CacheOp = "stats" | "prune" | "locks" | "clear";
+type CacheStats = {
+  files: number;
+  packages: number;
+  locks: number;
+  size: number;
+  stored: number;
+  /** Builds holding a lease on the store (this tab or another): a clean-up waits for them. */
+  builds: number;
+};
+type CacheOp = "stats" | "prune" | "forget" | "clear";
 const CACHE_ROUTES: Record<CacheOp, [string, string]> = {
   stats: ["GET", "admin/stats"],
   prune: ["POST", "admin/prune"], // the packs no build's lock names
-  locks: ["POST", "admin/clear?prefix=/locks/"], // the next build resolves its versions again
+  forget: ["POST", "admin/forget"], // the locks and the version index: versions resolved again
   clear: ["POST", "admin/clear"], // every package, the version index and the locks
 };
 
-/** Runs one operation on the package store: its statistics afterwards (and `removed`). */
+/**
+ * Runs one operation on the package store: its statistics afterwards (and `removed`). A
+ * clean-up while a build uses the store (409) throws the store's reason.
+ */
 async function packageCache(op: CacheOp): Promise<CacheStats & { removed?: number }> {
   const [method, path] = CACHE_ROUTES[op];
   const r = await fetch(`${STORE}/${path}`, { method });
-  if (!r.ok) throw new Error(`package store: ${method} ${path} → ${r.status}: ${await r.text()}`);
+  if (!r.ok) {
+    const text = await r.text();
+    let reason = text;
+    try {
+      reason = JSON.parse(text).error ?? text;
+    } catch {}
+    throw new Error(
+      r.status === 409 ? reason : `package store: ${method} ${path} → ${r.status}: ${reason}`,
+    );
+  }
   return r.json();
 }
 
@@ -202,7 +228,7 @@ async function showPackageCache(busy = true) {
   if (!out) return;
   try {
     const s = await packageCache("stats");
-    out.textContent = `${s.packages} packages, ${s.locks} lock${s.locks === 1 ? "" : "s"}: ${mb(s.size)} (${mb(s.stored)} stored)`;
+    out.textContent = `${s.packages} packages, ${s.locks} lock${s.locks === 1 ? "" : "s"}: ${mb(s.size)} (${mb(s.stored)} stored)${s.builds ? `; ${s.builds} build${s.builds === 1 ? "" : "s"} using it` : ""}`;
   } catch (e) {
     out.textContent = `unavailable (${(e as Error).message})`;
   }

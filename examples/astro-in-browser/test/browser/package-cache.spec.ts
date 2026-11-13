@@ -2,11 +2,20 @@ import { expect, type Page, test } from "@playwright/test";
 
 // The package cache's clean-up (the host page's "Package cache" panel, the package store's
 // /admin/* routes): the small app is built through the store, then its unused packages are
-// pruned, its locks forgotten and the store cleared; a rebuild after the clear downloads every
+// pruned (not while a build holds a lease, nor with an unreadable lock), its locks and version
+// index forgotten and the store cleared; a rebuild after the clear downloads every
 // package again and still serves the site.
 
-type Stats = { files: number; packages: number; locks: number; size: number; removed?: number };
-const cache = (host: Page, op: "stats" | "prune" | "locks" | "clear") =>
+type Stats = {
+  files: number;
+  packages: number;
+  locks: number;
+  size: number;
+  builds: number;
+  removed?: number;
+};
+const STORE = "/__cellb/projects/pkgstore";
+const cache = (host: Page, op: "stats" | "prune" | "forget" | "clear") =>
   host.evaluate(
     (op) =>
       (window as unknown as { __packageCache(op: string): Promise<Stats> }).__packageCache(op),
@@ -65,8 +74,31 @@ test("the package cache is pruned and cleared from the host page", async ({ cont
     ),
   ).toBe(404);
 
-  const unlocked = await cache(host, "locks");
-  expect(unlocked.removed).toBe(1);
+  // A build's lease (another tab's, here) holds every clean-up off until it is given back.
+  const lease = (method: string) =>
+    host.evaluate(
+      async ([store, method]) => (await fetch(`${store}/admin/lease?id=test`, { method })).status,
+      [STORE, method],
+    );
+  expect(await lease("POST")).toBe(200);
+  expect((await cache(host, "stats")).builds).toBe(1);
+  await expect(cache(host, "prune")).rejects.toThrow(/1 build is using the package store/);
+  await expect(cache(host, "clear")).rejects.toThrow(/using the package store/);
+  expect(await lease("DELETE")).toBe(200);
+
+  // A lock that cannot be read stops the prune: nothing is removed.
+  const putText = (path: string, text: string) =>
+    host.evaluate(
+      async ([url, text]) => (await fetch(url, { method: "PUT", body: text })).status,
+      [`${STORE}/files${path}`, text],
+    );
+  expect(await putText("/locks/broken.json", "[not json")).toBe(204);
+  await expect(cache(host, "prune")).rejects.toThrow(/cannot be read/);
+  expect((await cache(host, "stats")).packages).toBe(before.packages);
+
+  // Forget: the locks (the broken one too) and the version index.
+  const unlocked = await cache(host, "forget");
+  expect(unlocked.removed).toBe(3);
   expect(unlocked.locks).toBe(0);
   expect(unlocked.packages).toBe(before.packages);
 

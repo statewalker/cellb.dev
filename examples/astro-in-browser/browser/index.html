@@ -22,7 +22,7 @@
     <p><a href="/" target="_blank">Open the built site</a> · <button id="export" type="button">Export the site (ZIP)</button></p>
     <p id="cache" hidden>Package cache: <span id="cache-stats">…</span><br />
       <button type="button" data-cache="prune" title="Keeps the packages the last builds' locks name">Remove unused packages</button>
-      <button type="button" data-cache="locks" title="The next build resolves its versions again and records a new lock">Forget the locks</button>
+      <button type="button" data-cache="forget" title="The next build resolves every version again from the registry and records a new lock">Forget the locks</button>
       <button type="button" data-cache="clear" title="Every package is downloaded again by the next build">Clear the package cache</button>
       <label><input type="checkbox" id="cache-rebuild" checked /> rebuild after</label></p>
     <pre id="log"></pre>

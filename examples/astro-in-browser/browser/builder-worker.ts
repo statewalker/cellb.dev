@@ -87,9 +87,29 @@ async function readText(files: { read(p: string): AsyncIterable<Uint8Array> }, p
     : undefined;
 }
 
+/**
+ * A lease on the package store while this build reads and writes it, renewed every 15 s (the
+ * store lets it lapse after 60 s): the host pages' clean-up waits for it. `release()` gives it
+ * back.
+ */
+async function storeLease(store: string) {
+  const url = `${store}/admin/lease?id=${crypto.randomUUID()}`;
+  const take = () => fetch(url, { method: "POST" }).catch(() => undefined);
+  const r = await take();
+  if (!r?.ok)
+    throw new Error(`package store: could not take a lease (${r?.status ?? "no answer"})`);
+  const timer = setInterval(take, 15_000);
+  return async () => {
+    clearInterval(timer);
+    await fetch(url, { method: "DELETE" }).catch(() => undefined);
+  };
+}
+
 self.onmessage = async (
-  e: MessageEvent<{ sources: Record<string, Uint8Array>; integrations?: boolean }>,
+  e: MessageEvent<{ sources: Record<string, Uint8Array>; integrations?: boolean; store?: string }>,
 ) => {
+  // What a failed build must stop too: the download workers, the store's lease.
+  let cleanup = async () => {};
   try {
     const t0 = performance.now();
     // esbuild's wasm in a worker of its own: its memory grows during a bundle and is released
@@ -108,8 +128,13 @@ self.onmessage = async (
     let afterBuild = async () => {};
     if (e.data.store) {
       const app = e.data.integrations ? "emdash" : "app";
+      const release = await storeLease(e.data.store);
       const cache = httpFiles(e.data.store);
       const pool = downloadPool(DOWNLOADERS, e.data.store);
+      cleanup = async () => {
+        pool.close();
+        await release();
+      };
       const source = cachedSource(cache, npmRegistrySource() as never, undefined, (ref) =>
         pool.download(ref),
       );
@@ -138,7 +163,7 @@ self.onmessage = async (
         ]);
         await source.flush();
         log(`package store: ${pool.downloads} packages downloaded from the registry`);
-        pool.close();
+        await cleanup();
       };
     }
     let extra = {};
@@ -211,6 +236,7 @@ self.onmessage = async (
       { transfer: [code.buffer] },
     );
   } catch (err) {
+    await cleanup();
     postMessage({ error: (err as Error)?.stack ?? String(err) });
   }
 };

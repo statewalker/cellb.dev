@@ -12,10 +12,19 @@
 //
 // Clean-up (the host page's "Package cache" buttons):
 //
-//   GET  …/admin/stats              → { files, packages, locks, size, stored } (JSON; bytes)
-//   POST …/admin/clear[?prefix=/p]  every file (or those under the prefix)  → { removed, … }
+//   GET  …/admin/stats              → { files, packages, locks, size, stored, builds } (JSON)
 //   POST …/admin/prune              the packs no lock (/locks/*.json) names, and index.json's
 //                                   entries that resolve to them             → { removed, … }
+//   POST …/admin/forget             the locks and index.json: the next build resolves every
+//                                   version again                            → { removed, … }
+//   POST …/admin/clear[?prefix=/p]  every file (or those under the prefix)  → { removed, … }
+//   POST / DELETE …/admin/lease?id= a build takes (and renews, within LEASE_MS) / gives back
+//                                   a lease while it reads and writes the store
+//
+// A clean-up is refused (409) while a lease is held: a build in this tab or another (the small
+// app and EmDash share the store) reads packs that no lock names yet. Prune decides and
+// removes in one synchronous transaction, and gives up (409) if anything was written since it
+// read the locks.
 //
 // Freed pages are reused by the next writes; the database file itself does not shrink.
 //
@@ -25,6 +34,11 @@
 const { DurableObject } = globalThis.__cellsWorkersModule;
 
 const BLOCK = 256 * 1024;
+/** A build's lease lasts this long unless renewed (builder-worker.ts renews it every 15 s). */
+const LEASE_MS = 60_000;
+
+/** A clean-up that cannot run now: answered as 409 with the reason. */
+class Busy extends Error {}
 
 /** Bytes through a CompressionStream or DecompressionStream ("deflate-raw"). */
 async function through(stream, bytes) {
@@ -53,6 +67,12 @@ export class PackageStore extends DurableObject {
     this.sql.exec(
       "CREATE TABLE IF NOT EXISTS zblocks (path TEXT NOT NULL, idx INTEGER NOT NULL, z INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY (path, idx))",
     );
+    // `writes`: a counter of the writes (prune checks that none landed while it decided);
+    // `leases`: the builds using the store, until when.
+    this.sql.exec("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL)");
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS leases (id TEXT PRIMARY KEY, until INTEGER NOT NULL)",
+    );
   }
 
   async fetch(request) {
@@ -64,8 +84,10 @@ export class PackageStore extends DurableObject {
     const path = decodeURIComponent(url.pathname.slice(at + "/files".length));
     if (request.method === "PUT")
       return this.put(path, new Uint8Array(await request.arrayBuffer()));
-    if (request.method === "DELETE")
+    if (request.method === "DELETE") {
+      if (this.builds()) return new Response("a build is using the store", { status: 409 });
       return new Response(null, { status: this.remove([path]) ? 204 : 404 });
+    }
     const row = this.sql.exec("SELECT size FROM files WHERE path = ?", path).toArray()[0];
     if (!row) return new Response(null, { status: 404 });
     const size = Number(row.size);
@@ -85,26 +107,59 @@ export class PackageStore extends DurableObject {
   }
 
   async put(path, bytes) {
-    // Compressed before the transaction (it is synchronous): the blocks, then one commit.
+    const blocks = await this.encode(bytes);
+    this.ctx.storage.transactionSync(() => this.store(path, bytes.length, blocks));
+    return new Response(null, { status: 204 });
+  }
+
+  /** The blocks of a file, compressed (before a transaction: it is synchronous). */
+  async encode(bytes) {
     const blocks = [];
     for (let i = 0; i < bytes.length || i === 0; i += BLOCK) {
       const raw = bytes.subarray(i, i + BLOCK);
       const z = raw.length > 64 ? await deflate(raw) : raw;
       blocks.push(z.length < raw.length * 0.9 ? [1, z] : [0, raw]);
     }
-    this.ctx.storage.transactionSync(() => {
-      this.sql.exec("DELETE FROM zblocks WHERE path = ?", path);
-      for (const [idx, [z, data]] of blocks.entries())
-        this.sql.exec(
-          "INSERT INTO zblocks (path, idx, z, data) VALUES (?, ?, ?, ?)",
-          path,
-          idx,
-          z,
-          data,
-        );
-      this.sql.exec("INSERT OR REPLACE INTO files (path, size) VALUES (?, ?)", path, bytes.length);
-    });
-    return new Response(null, { status: 204 });
+    return blocks;
+  }
+
+  /** Writes a file's encoded blocks (inside a transaction). */
+  store(path, size, blocks) {
+    this.sql.exec("DELETE FROM zblocks WHERE path = ?", path);
+    for (const [idx, [z, data]] of blocks.entries())
+      this.sql.exec(
+        "INSERT INTO zblocks (path, idx, z, data) VALUES (?, ?, ?, ?)",
+        path,
+        idx,
+        z,
+        data,
+      );
+    this.sql.exec("INSERT OR REPLACE INTO files (path, size) VALUES (?, ?)", path, size);
+    this.wrote();
+  }
+
+  wrote() {
+    this.sql.exec(
+      "INSERT INTO meta (k, v) VALUES ('writes', 1) ON CONFLICT (k) DO UPDATE SET v = v + 1",
+    );
+  }
+
+  writes() {
+    return Number(this.sql.exec("SELECT v FROM meta WHERE k = 'writes'").toArray()[0]?.v ?? 0);
+  }
+
+  /** The builds holding a lease now (expired leases are dropped). */
+  builds() {
+    this.sql.exec("DELETE FROM leases WHERE until <= ?", Date.now());
+    return Number(this.sql.exec("SELECT count(*) AS n FROM leases").toArray()[0].n);
+  }
+
+  idle() {
+    const n = this.builds();
+    if (n)
+      throw new Busy(
+        `${n} build${n === 1 ? " is" : "s are"} using the package store (this tab or another): try again when ${n === 1 ? "it is" : "they are"} over`,
+      );
   }
 
   /** The clean-up and statistics routes (see the header). */
@@ -115,16 +170,43 @@ export class PackageStore extends DurableObject {
         headers: { "content-type": "application/json" },
       });
     if (op === "stats" && request.method === "GET") return json(this.stats());
-    if (request.method !== "POST") return json({ error: `${request.method} ${op}` }, 405);
-    if (op === "clear") {
-      const prefix = url.searchParams.get("prefix") ?? "";
-      const paths = this.sql
-        .exec("SELECT path FROM files WHERE substr(path, 1, length(?1)) = ?1", prefix)
-        .toArray()
-        .map((r) => String(r.path));
-      return json({ removed: this.remove(paths), ...this.stats() });
+    if (op === "lease") {
+      const id = url.searchParams.get("id");
+      if (!id) return json({ error: "lease: no id" }, 400);
+      if (request.method === "DELETE") this.sql.exec("DELETE FROM leases WHERE id = ?", id);
+      else if (request.method === "POST")
+        this.sql.exec(
+          "INSERT OR REPLACE INTO leases (id, until) VALUES (?, ?)",
+          id,
+          Date.now() + LEASE_MS,
+        );
+      else return json({ error: `${request.method} lease` }, 405);
+      return json({ builds: this.builds() });
     }
-    if (op === "prune") return json(await this.prune());
+    if (request.method !== "POST") return json({ error: `${request.method} ${op}` }, 405);
+    try {
+      if (op === "clear") {
+        this.idle();
+        const prefix = url.searchParams.get("prefix") ?? "";
+        const paths = this.sql
+          .exec("SELECT path FROM files WHERE substr(path, 1, length(?1)) = ?1", prefix)
+          .toArray()
+          .map((r) => String(r.path));
+        return json({ removed: this.remove(paths), ...this.stats() });
+      }
+      if (op === "forget") {
+        this.idle();
+        const paths = this.sql
+          .exec("SELECT path FROM files WHERE path LIKE '/locks/%' OR path = '/index.json'")
+          .toArray()
+          .map((r) => String(r.path));
+        return json({ removed: this.remove(paths), ...this.stats() });
+      }
+      if (op === "prune") return json(await this.prune());
+    } catch (err) {
+      if (err instanceof Busy) return json({ error: err.message }, 409);
+      throw err;
+    }
     return json({ error: `unknown operation ${op}` }, 404);
   }
 
@@ -144,6 +226,7 @@ export class PackageStore extends DurableObject {
       locks: count("WHERE path LIKE '/locks/%'"),
       size,
       stored,
+      builds: this.builds(),
     };
   }
 
@@ -151,45 +234,62 @@ export class PackageStore extends DurableObject {
   remove(paths) {
     let n = 0;
     this.ctx.storage.transactionSync(() => {
-      for (const path of paths) {
-        this.sql.exec("DELETE FROM zblocks WHERE path = ?", path);
-        n += this.sql.exec("DELETE FROM files WHERE path = ?", path).rowsWritten > 0 ? 1 : 0;
-      }
+      n = this.removeIn(paths);
     });
     return n;
   }
 
+  /** Removes these files (inside a transaction): how many existed. */
+  removeIn(paths) {
+    let n = 0;
+    for (const path of paths) {
+      this.sql.exec("DELETE FROM zblocks WHERE path = ?", path);
+      n += this.sql.exec("DELETE FROM files WHERE path = ?", path).rowsWritten > 0 ? 1 : 0;
+    }
+    if (n) this.wrote();
+    return n;
+  }
+
+  /** A JSON file: undefined when it does not exist; throws when it cannot be parsed. */
   async readJson(path) {
     const row = this.sql.exec("SELECT size FROM files WHERE path = ?", path).toArray()[0];
     if (!row) return undefined;
+    const text = new TextDecoder().decode(await this.slice(path, 0, Number(row.size)));
     try {
-      return JSON.parse(new TextDecoder().decode(await this.slice(path, 0, Number(row.size))));
-    } catch {
-      return undefined;
+      return JSON.parse(text);
+    } catch (err) {
+      throw new Busy(
+        `${path} cannot be read (${err.message}): forget the locks or clear the store`,
+      );
     }
   }
 
   /**
    * Keeps the packs that some build's lock names (each lock: the `name@version` list of a
    * build), removes every other one, and drops index.json's ranges that resolve to a removed
-   * version. With no lock at all, nothing is removed (`clear` empties the store).
+   * version. With no lock at all, nothing is removed (`clear` empties the store); a lock that
+   * cannot be read stops it. The locks and the index are read first (inflating them awaits);
+   * the decision and the removal then run in one synchronous transaction, which gives up if a
+   * lease was taken or anything was written in between.
    */
   async prune() {
+    this.idle();
+    const before = this.writes();
     const locks = this.sql
       .exec("SELECT path FROM files WHERE path LIKE '/locks/%'")
       .toArray()
       .map((r) => String(r.path));
     if (!locks.length) return { removed: 0, kept: 0, reason: "no lock", ...this.stats() };
     const keep = new Set();
-    for (const lock of locks) for (const nv of (await this.readJson(lock)) ?? []) keep.add(nv);
-    const packs = this.sql
-      .exec("SELECT path FROM files WHERE path LIKE '/pkgs/%.pack'")
-      .toArray()
-      .map((r) => String(r.path));
-    const nameVersion = (path) => path.slice("/pkgs/".length, -".pack".length);
-    const removed = packs.filter((p) => !keep.has(nameVersion(p)));
+    for (const lock of locks) {
+      const list = await this.readJson(lock);
+      if (!Array.isArray(list)) throw new Busy(`${lock} is not a list of packages`);
+      for (const nv of list) keep.add(String(nv));
+    }
     const index = await this.readJson("/index.json");
-    if (index) {
+    let indexBytes;
+    let indexBlocks;
+    if (index && typeof index === "object") {
       const left = {};
       for (const [key, version] of Object.entries(index)) {
         // `name@range`: the name's own "@" (a scope) is its first character.
@@ -197,13 +297,26 @@ export class PackageStore extends DurableObject {
         const name = at > 0 ? key.slice(0, at) : key;
         if (keep.has(`${name}@${version}`)) left[key] = version;
       }
-      await this.put("/index.json", new TextEncoder().encode(JSON.stringify(left)));
+      indexBytes = new TextEncoder().encode(JSON.stringify(left));
+      indexBlocks = await this.encode(indexBytes);
     }
-    return {
-      removed: this.remove(removed),
-      kept: packs.length - removed.length,
-      ...this.stats(),
-    };
+    const nameVersion = (path) => path.slice("/pkgs/".length, -".pack".length);
+    let removed = 0;
+    let kept = 0;
+    this.ctx.storage.transactionSync(() => {
+      this.idle();
+      if (this.writes() !== before)
+        throw new Busy("the package store was written while pruning: try again");
+      const packs = this.sql
+        .exec("SELECT path FROM files WHERE path LIKE '/pkgs/%.pack'")
+        .toArray()
+        .map((r) => String(r.path));
+      const gone = packs.filter((p) => !keep.has(nameVersion(p)));
+      kept = packs.length - gone.length;
+      removed = this.removeIn(gone);
+      if (indexBlocks) this.store("/index.json", indexBytes.length, indexBlocks);
+    });
+    return { removed, kept, ...this.stats() };
   }
 
   /** Bytes [start, end) of a file: only the blocks the range covers are read. */
