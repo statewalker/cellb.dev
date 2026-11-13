@@ -21,6 +21,7 @@ export const WORKERS_MODULE_NAMES = [
   "WorkerEntrypoint",
   "WorkflowEntrypoint",
   "RpcTarget",
+  "abortIsolate",
   "env",
   "exports",
   "waitUntil",
@@ -78,7 +79,7 @@ export function putLoadedModule(url: string, m: WorkerCode["modules"][string]): 
   const wrapped = typeof m === "object" && !("js" in m) && !("esModule" in m);
   return fetch(url, {
     method: "PUT",
-    body: moduleText(m),
+    body: moduleText(m, url.slice(url.lastIndexOf("/") + 1)),
     headers: wrapped ? { [ESM_HEADER]: "1" } : {},
   });
 }

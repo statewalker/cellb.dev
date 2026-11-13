@@ -2,11 +2,13 @@
  * The isolate side: loads the Worker code in THIS realm and serves fetch/RPC for the host.
  * `importCode` is realm specific (data: URL of a bundle on Node, a site URL in browsers).
  */
+import { registerWasmModules } from "../bindings/worker-loader.js";
 import { ctxExports, entrypointStub } from "../core/handles.js";
 import type { DurableObjectId } from "../core/id.js";
 import { runInDurableObject } from "../core/namespace.js";
 import { type CellRuntime, createCellRuntime, type WorkerModule } from "../core/runtime.js";
 import type { Lease, LeaseHandle, OpenCellSql } from "../ports.js";
+import { ABORT_ISOLATE } from "../project/cloudflare-workers.js";
 import { realmWorkerScope } from "../project/worker-scope.js";
 import { CfWebSocket } from "../ws/server.js";
 import { type FetchTarget, isolatePort, type PortLike } from "./protocol.js";
@@ -159,6 +161,7 @@ export function serveIsolate(
             "This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world.",
           );
         }) as typeof fetch;
+      if (m.wasm) registerWasmModules(m.wasm); // compiled by the host (Node: wasmModulesOf)
       scope.bind({ env, exports }); // read while the module is evaluated
       module = await importCode(m, sink);
       exports = ctxExports(module, env);
@@ -198,6 +201,13 @@ export function serveIsolate(
     throw new Error(`unknown isolate message ${m.type}`);
   };
   const { call, outbound } = isolatePort(port, handle, fetchTarget);
+  // `abortIsolate()`: the host ends this isolate. The caller sees workerd's error: the call that
+  // aborted rejects with it, as do the host's calls in flight (the host closes the port with it).
+  (globalThis as Record<symbol, unknown>)[ABORT_ISOLATE] = (reason: unknown): never => {
+    const reference = crypto.randomUUID().replace(/-/g, "").slice(0, 24);
+    void call({ type: "abort", reason: String(reason ?? ""), reference }).catch(() => {});
+    throw new Error(`internal error; reference = ${reference}`);
+  };
 }
 
 const safe = (args: unknown[]) =>

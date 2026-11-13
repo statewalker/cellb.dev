@@ -11,6 +11,16 @@ import { realmWorkerScope } from "../project/worker-scope.js";
 import * as workersGlobals from "../project/workers-globals-module.js";
 import { serveIsolate } from "./isolate.js";
 import type { PortLike } from "./protocol.js";
+import { makeGlobalsWritable } from "./writable-globals.js";
+
+// The channel to the host, from this worker's own methods, taken before the loaded code runs:
+// Worker code may define a global `postMessage` (Kitesurf's window emulation does), and a port
+// that looked `self.postMessage` up on each send would then post into it.
+const hostChannel: PortLike = {
+  postMessage: self.postMessage.bind(self) as PortLike["postMessage"],
+  addEventListener: self.addEventListener.bind(self) as PortLike["addEventListener"],
+  removeEventListener: self.removeEventListener.bind(self) as PortLike["removeEventListener"],
+};
 
 (globalThis as Record<string, unknown>).__cellsWorkersModule = workersModule;
 // The loaded Worker's own `env` and `exports` (serveIsolate binds the realm's scope to them).
@@ -28,6 +38,10 @@ workersHostRegistry({
   Response: workersGlobals.CellsResponse,
 });
 
+// workerd lets Worker code assign its globals (Kitesurf's DOM shim sets `navigator` and
+// `location`); this realm's getter-only ones become writable (writable-globals.ts).
+makeGlobalsWritable();
+
 // This worker is the loaded Worker's realm: its globals are the Workers ones (as on Node,
 // src/isolate/node-entry.ts). Loaded code reads them as free names (partyserver builds its
 // `new WebSocketPair()` and its 101 `Response` that way).
@@ -42,7 +56,7 @@ Object.assign(globalThis, {
 // The global console is left alone (the dev server's client logs here too): loaded modules
 // get a console of their own that reports to the host.
 serveIsolate(
-  self as unknown as PortLike,
+  hostChannel,
   async (load: any, logs) => {
     const own = Object.assign(Object.create(console), {
       log: (...a: unknown[]) => logs("log", a),
