@@ -15,7 +15,7 @@
     "@opencode-ai/sdk": "0.0.0-dev-18697"
   },
   "devDependencies": {
-    "@statewalker/cellb": "~0.8.5",
+    "@statewalker/cellb": "~0.8.8",
     "@statewalker/fake-openai": "workspace:*",
     "@statewalker/webrun-files-mem": "^0.10.3",
     "@types/node": "catalog:",
