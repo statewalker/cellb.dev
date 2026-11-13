@@ -86,15 +86,20 @@ const progressEl = document.getElementById("progress") as HTMLProgressElement | 
 const phaseEl = document.getElementById("phase");
 let percent = 0;
 let phase = "Starting";
+/** Packages downloaded so far: shown beside the stage (downloads go on during the bundles). */
+let downloaded = 0;
 const startedAt = performance.now();
 const elapsed = () => `${Math.round((performance.now() - startedAt) / 1000)} s`;
 function showProgress() {
   if (progressEl) progressEl.value = percent;
-  if (phaseEl) phaseEl.textContent = `${phase} · ${percent}% · ${elapsed()}`;
+  const packages = downloaded ? ` · ${downloaded} packages downloaded` : "";
+  if (phaseEl) phaseEl.textContent = `${phase}${packages} · ${percent}% · ${elapsed()}`;
 }
 function advance(line: string) {
   const downloads = /^downloading packages: (\d+)/.exec(line);
-  if (downloads) phase = `Fetching packages (${downloads[1]} downloaded)`;
+  if (downloads) downloaded = Number(downloads[1]);
+  const total = /^package store: (\d+) packages downloaded/.exec(line);
+  if (total) downloaded = Number(total[1]);
   for (const [re, at, next] of STAGES)
     if (re.test(line) && at >= percent) {
       percent = at;
