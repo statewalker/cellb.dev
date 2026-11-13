@@ -493,6 +493,9 @@ importers:
       '@portabletext/to-html':
         specifier: ^6.0.0
         version: 6.0.0
+      '@statewalker/cellb-bundler':
+        specifier: workspace:*
+        version: link:../bundler
       '@statewalker/cellb-esm-cdn':
         specifier: workspace:*
         version: link:../esm-cdn

@@ -142,9 +142,48 @@ async function readText(files: FilesApi, path: string): Promise<string> {
   return new TextDecoder().decode(bytes);
 }
 
-/** The page path of a notebook id under `base`: `index` is the base itself. */
+/**
+ * The page path of a notebook id under `base`: `index` is the base itself, `guide/index` is
+ * `<base>/guide/` (a directory: a relative link or FileAttachment resolves inside it).
+ */
 const pagePath = (base: string, id: string) =>
-  id === "index" ? `${base}/` : `${base}/${id.replace(/\/index$/, "")}`;
+  id === "index" ? `${base}/` : `${base}/${id.replace(/(^|\/)index$/, "$1")}`;
+
+/** `to` relative to the directory `fromDir` (both absolute, `/`-separated). */
+function relative(fromDir: string, to: string): string {
+  const from = fromDir.split("/").filter(Boolean);
+  const target = to.split("/").filter(Boolean);
+  let i = 0;
+  while (i < from.length && i < target.length - 1 && from[i] === target[i]) i++;
+  return [...from.slice(i).map(() => ".."), ...target.slice(i)].join("/");
+}
+
+/**
+ * The `registerFile` calls of a notebook's page: each data file a cell names by its path relative
+ * to the notebook (`FileAttachment("data/x.csv")`), registered at its absolute URL.
+ */
+function registrations(
+  notebook: string,
+  dataFiles: readonly string[],
+  base: string,
+  parts: ReturnType<typeof numberCells>["parts"],
+): string[] {
+  if (!dataFiles.length) return [];
+  const code = parts
+    .map((p) => (p.kind === "cell" ? p.cell.source : p.exprs.map((e) => e.source).join("\n")))
+    .join("\n");
+  const dir = notebook.slice(0, notebook.lastIndexOf("/") + 1);
+  const out: string[] = [];
+  for (const path of dataFiles) {
+    const name = relative(dir, path);
+    if (!code.includes(`"${name}"`) && !code.includes(`'${name}'`) && !code.includes(`\`${name}\``))
+      continue;
+    out.push(
+      `registerFile(${JSON.stringify(name)}, {"path":${JSON.stringify(`${base}${path}`)}});`,
+    );
+  }
+  return out;
+}
 
 /** A notebook's document: Markdown directly, a Notebook Kit document through notebook-build's parser. */
 function documentOf(file: string, text: string, dom: DomEnv): NotebookDocument {
@@ -166,6 +205,12 @@ export async function buildPageModels(opts: {
   base?: string;
   /** Where the search index will be served (`SiteModel.search`), if it is. */
   searchUrl?: string;
+  /**
+   * The site's data files (`/data/x.csv`: attachments, data loaders' outputs), served at
+   * `<base><path>`. A page registers those its cells name (`registerFile`), so `FileAttachment`
+   * finds them wherever the page is served from (`/t/x` or `/t/x/`).
+   */
+  dataFiles?: readonly string[];
 }): Promise<PageModels & { failures: { notebook: string; error: string }[] }> {
   const sectionsOf = new Map<string, SearchSection[]>();
   const allPins: Record<string, string> = {};
@@ -257,8 +302,10 @@ export async function buildPageModels(opts: {
         }
       }
       const content = toPortableText(parts);
+      const files = registrations(file, opts.dataFiles ?? [], base, parts);
+      const imports = files.length ? "define, registerFile" : "define";
       // A literal `</script` would end the inline script early; `<\/script` is the same string.
-      const script = [`import {define} from "${runtimeUrl}";`, ...defines]
+      const script = [`import {${imports}} from "${runtimeUrl}";`, ...files, ...defines]
         .join("\n")
         .replace(/<\/script/gi, "<\\/script");
       pages.push({

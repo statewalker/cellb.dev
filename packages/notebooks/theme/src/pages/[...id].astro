@@ -6,8 +6,10 @@
 import { getLiveEntry } from "astro:content";
 import Notebook from "../layouts/Notebook.astro";
 
+// `/t/guide/` is the notebook `guide/index`, unless a notebook `guide` exists.
 const id = Astro.params.id || "index";
-const { entry } = await getLiveEntry("notebooks", id);
+let { entry } = await getLiveEntry("notebooks", id);
+if (!entry && id !== "index") ({ entry } = await getLiveEntry("notebooks", `${id}/index`));
 if (!entry) return new Response("Not found", { status: 404 });
 const { entry: siteEntry } = await getLiveEntry("site", "site");
 const page = entry.data;
