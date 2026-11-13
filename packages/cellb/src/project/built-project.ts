@@ -79,6 +79,13 @@ export interface LoadedProject {
   unsupported: string[];
   /** A request to the project, as its Worker (and assets) answer it. */
   fetch(req: Request): Promise<Response>;
+  /**
+   * In a browser (an OPFS pool): the cells' databases as `[file name, bytes]`, named as
+   * `nodeSqliteOpener(dir)` names them, so that a data directory on Node (`loadProject(dir,
+   * { data })`) starts where this browser's cells are. CellB's own databases (`__cellb_*`) are
+   * included; R2 objects are not. Empty with a bucket (it holds the cells); not defined on Node.
+   */
+  exportCells?(): Promise<[string, Uint8Array][]>;
   close(): Promise<void>;
 }
 

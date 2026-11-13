@@ -66,7 +66,9 @@ const LOADER = /^(.+\.([A-Za-z0-9]+))\.(js|mjs|ts)$/;
 /** The file a loader produces (`/data/sales.csv` for `/data/sales.csv.js`), if `path` is one. */
 export function loaderTarget(path: string): string | undefined {
   const m = LOADER.exec(path);
-  return m?.[1] && DATA_EXTENSIONS.has((m[2] ?? "").toLowerCase()) ? m[1] : undefined;
+  const ext = (m?.[2] ?? "").toLowerCase();
+  // `.sql`: a database's script (`warehouse.sql.js` → `warehouse.sql`), never served.
+  return m?.[1] && (DATA_EXTENSIONS.has(ext) || ext === "sql") ? m[1] : undefined;
 }
 
 /** What a site serves of its sources besides loader outputs: data, media, documents, fonts. */
@@ -96,6 +98,17 @@ export function isDataPath(path: string): boolean {
   if (!path.startsWith("/") || segments.some((s) => s === "" || s.startsWith("."))) return false;
   const ext = /\.([A-Za-z0-9]+)$/.exec(path)?.[1]?.toLowerCase();
   return ext !== undefined && SERVED_EXTENSIONS.has(ext);
+}
+
+/**
+ * What `runLoaders` runs a loader for: a data path, or a database's script (`warehouse.sql`,
+ * from `warehouse.sql.js`), which is stored with the data but never served.
+ */
+export function isLoaderOutput(path: string): boolean {
+  if (isDataPath(path)) return true;
+  const segments = path.split("/").slice(1);
+  if (!path.startsWith("/") || segments.some((s) => s === "" || s.startsWith("."))) return false;
+  return /\.sql$/i.test(path);
 }
 
 /** A source file served as it is: a data path that is not a loader (loaders produce data). */

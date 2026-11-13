@@ -66,6 +66,8 @@ export async function notebooksDemo(host: string, base: string, t: Tools) {
       modelFailures: { notebook: string; error: string }[];
       loaders: { output: string; cached: boolean; bytes: number }[];
       loaderFailures: { loader: string; error: string }[];
+      sql: { page: string; database: string; file: string }[];
+      sqlFailures: { notebook: string; cell: number; error: string }[];
     };
     assert(
       res.pages.includes("/plots.html") && res.pages.includes("/index.html"),
@@ -77,6 +79,18 @@ export async function notebooksDemo(host: string, base: string, t: Tools) {
       `loader failures ${JSON.stringify(res.loaderFailures)}`,
     );
     assert(res.failures.length === 0, `failures ${JSON.stringify(res.failures)}`);
+    // The SQL cell: run on warehouse.sql in its own object, its result precomputed for the page.
+    assert(res.sqlFailures.length === 0, `SQL failures ${JSON.stringify(res.sqlFailures)}`);
+    const query = res.sql.find((q) => q.page === "/nb/demo/t/features");
+    assert(query?.database === "warehouse", `SQL ${JSON.stringify(res.sql)}`);
+    const cache = (await (await fetch(`${site}/t/.observable/cache/${query.file}`)).json()) as {
+      rows: { region: string; total: number }[];
+    };
+    assert(
+      cache.rows.map((r) => `${r.region} ${r.total}`).join(", ") === "East 300, West 200",
+      `precomputed rows ${JSON.stringify(cache.rows)}`,
+    );
+    assert((await fetch(`${site}/warehouse.sql`)).status === 404, "the database script is served");
     assert(res.models === 3, `${res.models} page models`);
     assert(res.modelFailures.length === 0, `model failures ${JSON.stringify(res.modelFailures)}`);
     // The data loader: built, run, its output served beside the pages; its source is not.
@@ -269,8 +283,14 @@ async function themedDemo(host: string, site: string, t: Tools) {
         null,
         { timeout: 30000 },
       );
+      // the precomputed SQL cell's rows, fetched from .observable/cache/
+      await page.waitForFunction(
+        () => document.body.textContent?.includes("East 300, West 200"),
+        null,
+        { timeout: 30000 },
+      );
       assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
-      return `"${sentence?.trim().slice(0, 60)}…"; the loader's data: 10 numbers, summing to 55; no page error`;
+      return `"${sentence?.trim().slice(0, 60)}…"; the loader's data: 10 numbers, summing to 55; precomputed SQL: East 300, West 200; no page error`;
     } finally {
       await b.close();
     }
@@ -371,6 +391,13 @@ async function exportDemo(host: string, site: string, t: Tools) {
         "/nb/demo/t/numbers.json",
       ])
         assert(files.has(p), `${p} missing from the export`);
+      // the precomputed SQL result, beside the features page (both ways a server may serve it)
+      const sqlFiles = [...files.keys()].filter((p) => p.includes("/.observable/cache/"));
+      for (const dir of ["/nb/demo/t/.observable/", "/nb/demo/t/features/.observable/"])
+        assert(
+          sqlFiles.some((p) => p.startsWith(dir)),
+          `no precomputed SQL under ${dir}: ${sqlFiles.join(", ")}`,
+        );
       const models = (await (await fetch(`${site}/models.json`)).json()) as {
         pins: Record<string, string>;
       };
@@ -425,6 +452,11 @@ async function exportDemo(host: string, site: string, t: Tools) {
         await page.goto(`${files.url}/nb/demo/t/features/`);
         await page.waitForFunction(
           () => document.body.textContent?.includes("10 numbers, summing to 55"),
+          null,
+          { timeout: 30000 },
+        );
+        await page.waitForFunction(
+          () => document.body.textContent?.includes("East 300, West 200"),
           null,
           { timeout: 30000 },
         );

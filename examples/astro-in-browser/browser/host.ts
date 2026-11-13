@@ -3,7 +3,7 @@
 import { joinProjectShards } from "@statewalker/cellb/tabs";
 import { pkgstoreConfig } from "../src/pkgstore/config.ts";
 import pkgstoreSource from "../src/pkgstore/worker.js?raw";
-import { type AppName, loadBuild, type SavedBuild, saveBuild } from "./builds.ts";
+import { type AppName, loadBuild, type SavedBuild, saveBuild, savedBuildMeta } from "./builds.ts";
 import { crawlSite, zip } from "./export-site.ts";
 import { nextPath } from "./next-path.ts";
 
@@ -130,6 +130,36 @@ async function serviceWorker(): Promise<ServiceWorker> {
 
 const APP = (document.body.dataset.app ?? "app") as AppName;
 
+/**
+ * The bundle stages move the progress bar by the modules loaded so far, against what the last
+ * build of this app loaded (its saved build's `modules`), or else about what a build of it
+ * loads.
+ */
+const BUNDLES: Record<string, { from: number; to: number; label: string }> = {
+  server: { from: 38, to: 74, label: "Bundling the server" },
+  client: { from: 74, to: 86, label: "Bundling the client" },
+};
+/** Measured (EmDash 1.5: 3195 and 7051; the small app's client bundles load none). */
+const EXPECTED_MODULES: Record<AppName, { server: number; client: number }> = {
+  app: { server: 300, client: 0 },
+  emdash: { server: 3200, client: 7050 },
+};
+let expectedModules = EXPECTED_MODULES[APP];
+void savedBuildMeta(APP).then((m) => {
+  if (m?.modules?.server) expectedModules = m.modules;
+});
+function bundleProgress(stage: string, modules: number) {
+  const b = BUNDLES[stage];
+  const expected = expectedModules[stage as "server" | "client"];
+  if (!b || !expected) return;
+  // Short of the stage's end: the count is an estimate, and the stage ends with its log line.
+  const at = Math.round(b.from + (b.to - b.from) * Math.min(0.97, modules / expected));
+  if (at < percent) return;
+  percent = at;
+  phase = `${b.label} (${modules} modules)`;
+  showProgress();
+}
+
 async function sources(): Promise<Record<string, Uint8Array>> {
   const base = `${import.meta.env.BASE_URL}${APP}-src/`;
   const list: string[] = await (await fetch(`${base}list.json`)).json();
@@ -143,13 +173,17 @@ async function sources(): Promise<Record<string, Uint8Array>> {
   return out;
 }
 
-function build(
-  src: Record<string, Uint8Array>,
-): Promise<{ code: string; clientAssets: Map<string, Uint8Array>; routes: number }> {
+function build(src: Record<string, Uint8Array>): Promise<{
+  code: string;
+  clientAssets: Map<string, Uint8Array>;
+  routes: number;
+  modules?: { server: number; client: number };
+}> {
   const worker = new Worker(new URL("./builder-worker.ts", import.meta.url), { type: "module" });
   return new Promise((resolve, reject) => {
     worker.onmessage = (e) => {
       if (e.data.log) log(e.data.log);
+      else if (e.data.progress) bundleProgress(e.data.progress.stage, e.data.progress.modules);
       else if (e.data.error) {
         // The worker has stopped its downloads and given its lease back: nothing of it is left.
         worker.terminate();
@@ -161,6 +195,7 @@ function build(
           code: new TextDecoder().decode(e.data.code),
           clientAssets: e.data.clientAssets,
           routes: e.data.routes,
+          modules: e.data.modules,
         });
       }
     };
@@ -230,6 +265,7 @@ async function start() {
         clientAssets,
         buildMs,
         routes: built.routes,
+        modules: built.modules,
       });
       log(
         `build saved (${(meta.codeBytes / 1e6).toFixed(2)} MB, ${meta.assets.length} assets): the next visit runs it`,

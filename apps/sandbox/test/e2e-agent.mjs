@@ -14,7 +14,7 @@
 // CHROME=/path/to/chrome node test/e2e-agent.mjs
 
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -411,6 +411,42 @@ try {
   if (apiRes?.status !== 200 || !apiRes.body.includes(NEW_TITLE))
     throw new Error(`node: api → ${JSON.stringify(apiRes)}`);
   await writeFile(join(dir, "ok"), "");
+
+  step(
+    "Ship with the preview's data: the Durable Object's state travels in .cellb-data/; cellb on Node starts from it",
+  );
+  await page.getByLabel("Include the preview's data", { exact: true }).check();
+  await page.getByRole("button", { name: "Build", exact: true }).click();
+  const dataRow = page
+    .getByTestId("build-files")
+    .locator("li")
+    .filter({ hasText: /^\.cellb-data\/.+\.sqlite$/ });
+  await dataRow.first().waitFor({ state: "attached", timeout: 120_000 }); // in a closed <details>
+  const [dataZip] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Download build .zip" }).click(),
+  ]);
+  const dataDir = await mkdtemp(join(tmpdir(), "sandbox-build-data-"));
+  await dataZip.saveAs(join(dataDir, "build.zip"));
+  execFileSync("unzip", ["-q", join(dataDir, "build.zip"), "-d", dataDir]);
+  const dataFolder = join(
+    dataDir,
+    (await readdir(dataDir)).find((n) => n.endsWith("-deploy")),
+  );
+  const dataOut = execFileSync(
+    join(root, "node_modules/.bin/tsx"),
+    [join(root, "test/run-build.ts"), dataFolder, "/api/surfaces/main"],
+    { cwd: root, encoding: "utf8", timeout: 120_000 },
+  );
+  const [withData] = dataOut
+    .trim()
+    .split("\n")
+    .filter((l) => l.startsWith("{"))
+    .map((l) => JSON.parse(l));
+  // The script PUT this spec into the preview's Durable Object; the code's own is NEW_TITLE.
+  if (withData?.status !== 200 || !withData.body.includes("Piloted by a script"))
+    throw new Error(`node with the preview's data: ${JSON.stringify(withData)}`);
+  await page.getByLabel("Include the preview's data", { exact: true }).uncheck();
 
   step(
     "history: the checkpoint before the agent run restores the project; the history pushed to a git server, a commit pulled, a branch made",

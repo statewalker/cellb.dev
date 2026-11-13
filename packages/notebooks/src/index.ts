@@ -13,6 +13,11 @@
  *   GET  /nb/<site>/search.json       the search index of the last build (search.ts)
  *   GET  /nb/<site>/[t/]<path>        a data file: a source file, or a data loader's output
  *
+ * SQL cells on a named database (` ```sql database=warehouse `) are precomputed with each build:
+ * the database is `warehouse.sql` (a source, or a data loader's output) run in an object of its own
+ * (`queryDatabase`, an RPC method: no route reaches it; one object per script version), and each result is written where
+ * notebook-kit's page fetches it, `.observable/cache/<name>.json` beside the page.
+ *
  * Data loaders (`data/x.csv.js` → `data/x.csv`, data-loaders.ts) run with each build: each is
  * bundled by the platform's bundler as a small Worker and run once in a Worker Loader isolate. Its
  * output is kept until the loader's build changes; a loader's source is never served.
@@ -43,6 +48,7 @@ import {
   type NotebookFailure,
   newNotebookBuild,
 } from "@statewalker/notebook-build";
+import { precomputeQueries } from "@statewalker/notebook-db";
 import { newNotebookSite } from "@statewalker/notebook-site";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { newModuleServer, npmRegistrySource } from "@statewalker/webrun-modules";
@@ -51,12 +57,14 @@ import { builtinClosure, type LocalBuiltinsServer, withLocalBuiltins } from "./b
 import {
   contentType,
   isDataPath,
+  isLoaderOutput,
   isServedSource,
   loaderProject,
   loaderTarget,
   withLoaderOutputs,
 } from "./data-loaders.js";
-import { buildPageModels, type PageModels } from "./page-models.js";
+import { buildPageModels, type PageModels, type SqlQuery } from "./page-models.js";
+import { refusedSql } from "./sql-guard.js";
 
 export type { OutlineEntry, PageBlock, PageModel, PageModels, SiteModel } from "./page-models.js";
 
@@ -117,9 +125,15 @@ function stubOf(ns: DurableObjectNamespace, name: string) {
   return ns.getByName ? ns.getByName(name) : ns.get(ns.idFromName(name));
 }
 
+/** A precomputed SQL result's file name in a request path, at any depth (`…/.observable/cache/x.json`). */
+const SQL_CACHE = /\/\.observable\/cache\/([\w.-]+\.json)$/;
+
 export function handleNotebooks(request: Request, env: PlatformEnv): Promise<Response> {
   const [, , site] = new URL(request.url).pathname.split("/");
   if (!site) return Promise.resolve(text("site expected: /nb/<site>/…\n", 400));
+  // `~` names a site's database objects (`<site>~db~<name>`): never a site of its own.
+  // (The segment is as sent: `%7E` names another object, not `~`.)
+  if (site.includes("~")) return Promise.resolve(text(`bad site name: ${site}\n`, 400));
   return stubOf(env.NOTEBOOKS, site).fetch(request);
 }
 
@@ -132,6 +146,8 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
   meta: SqlFilesApi;
   /** The data loaders' outputs, at the paths they produce. */
   data: SqlFilesApi;
+  /** Precomputed SQL results, `/.observable/cache/<name>.json` (served at any page's depth). */
+  sqlCache: SqlFilesApi;
   #server?: LocalBuiltinsServer;
   #building?: Promise<unknown>;
 
@@ -143,6 +159,158 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     this.modules = new SqlFilesApi(ctx.storage.sql, "nbmod");
     this.meta = new SqlFilesApi(ctx.storage.sql, "nbmeta");
     this.data = new SqlFilesApi(ctx.storage.sql, "nbdata");
+    this.sqlCache = new SqlFilesApi(ctx.storage.sql, "nbsqlc");
+  }
+
+  /**
+   * In a database object (`<site>~db~<name>~<script hash>`, never a site: `handleNotebooks` refuses
+   * `~`): the script runs once, in one transaction, then the queries run with their parameters
+   * bound, in a transaction rolled back, so a query that changes data changes it for no later build.
+   * An RPC method, so no HTTP request reaches it. A new script is a new object, so a result depends
+   * on the script alone (no reset, which a host's SQL authorizer may refuse).
+   */
+  async queryDatabase(
+    script: string,
+    queries: { strings: string[]; params: unknown[] }[],
+  ): Promise<{ rows?: Record<string, unknown>[]; error?: string }[]> {
+    const storage = this.ctx.storage;
+    const sql = storage.sql;
+    const all = (error: string) => queries.map(() => ({ error }));
+    if (!storage.transactionSync) return all("this host's SQL storage has no transactionSync");
+    const refused = refusedSql(script);
+    if (refused) return all(`the database script uses ${refused.toUpperCase()}, which is refused`);
+    sql.exec("CREATE TABLE IF NOT EXISTS nb_db_script (loaded INTEGER)");
+    if (!sql.exec("SELECT loaded FROM nb_db_script").toArray().length) {
+      try {
+        // One transaction: a failed script leaves nothing half loaded.
+        storage.transactionSync(() => {
+          if (script.trim()) sql.exec(script);
+          sql.exec("INSERT INTO nb_db_script VALUES (1)");
+        });
+      } catch (e) {
+        return all(`the database script failed: ${String((e as Error)?.message ?? e)}`);
+      }
+    }
+    const answers: { rows?: Record<string, unknown>[]; error?: string }[] = [];
+    const rollback = new Error("rollback");
+    try {
+      storage.transactionSync(() => {
+        for (const q of queries) {
+          const text = q.strings.join("?");
+          const word = refusedSql(text);
+          if (word) {
+            answers.push({ error: `the query uses ${word.toUpperCase()}, which is refused` });
+            continue;
+          }
+          try {
+            const rows = sql.exec(text, ...(q.params as never[])).toArray();
+            const blob = rows.flatMap((r) =>
+              Object.entries(r).filter(([, v]) => v instanceof ArrayBuffer),
+            )[0];
+            answers.push(
+              blob
+                ? { error: `column "${blob[0]}" is a BLOB, which JSON cannot hold: cast it in SQL` }
+                : { rows },
+            );
+          } catch (e) {
+            answers.push({ error: String((e as Error)?.message ?? e) });
+          }
+        }
+        throw rollback;
+      });
+    } catch (e) {
+      if (e !== rollback) throw e;
+    }
+    return answers;
+  }
+
+  /**
+   * Every precomputable SQL cell run on its database, its result written for the pages
+   * (`/.observable/cache/<name>.json`, notebook-db's paths and format). Which file each page
+   * fetches is kept in `/sql.json`, for the export.
+   */
+  async precomputeSql(site: string, queries: SqlQuery[]) {
+    const results: { page: string; cell: number; database: string; file: string }[] = [];
+    const failures: { notebook: string; cell: number; error: string }[] = [];
+    await this.sqlCache.remove("/");
+    const byDatabase = new Map<string, SqlQuery[]>();
+    for (const q of queries) {
+      if (!q.strings) {
+        failures.push({
+          notebook: q.notebook,
+          cell: q.cell,
+          error: q.error ?? "not precomputable",
+        });
+        continue;
+      }
+      byDatabase.set(q.database, [...(byDatabase.get(q.database) ?? []), q]);
+    }
+    for (const [database, list] of byDatabase) {
+      const scriptPath = `/${database}.sql`;
+      const store = !/^[\w-]+$/.test(database)
+        ? undefined
+        : (await this.data.exists(scriptPath))
+          ? this.data
+          : (await this.sources.exists(scriptPath))
+            ? this.sources
+            : undefined;
+      if (!store) {
+        for (const q of list)
+          failures.push({
+            notebook: q.notebook,
+            cell: q.cell,
+            error: `no database "${database}": add ${database}.sql (a SQL script) or a loader of it`,
+          });
+        continue;
+      }
+      const script = new TextDecoder().decode(await readAll(store, scriptPath));
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(script));
+      const hash = [...new Uint8Array(digest)]
+        .slice(0, 8)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      const db = stubOf(this.env.NOTEBOOKS, `${site}~db~${database}~${hash}`) as unknown as {
+        queryDatabase: NotebookSite["queryDatabase"];
+      };
+      // A database that fails (its object throws, a limit) fails its cells, not the build.
+      try {
+        const answers = await db.queryDatabase(
+          script,
+          list.map((q) => ({ strings: q.strings as string[], params: [] })),
+        );
+        const key = (strings: readonly string[]) => JSON.stringify(strings);
+        const rowsOf = new Map<string, Record<string, unknown>[]>();
+        const ok: SqlQuery[] = [];
+        list.forEach((q, i) => {
+          const a = answers[i];
+          if (a?.rows) {
+            rowsOf.set(key(q.strings as string[]), a.rows);
+            ok.push(q);
+          } else
+            failures.push({ notebook: q.notebook, cell: q.cell, error: a?.error ?? "no answer" });
+        });
+        const client = {
+          sql: async (strings: TemplateStringsArray) => rowsOf.get(key([...strings])) ?? [],
+          query: async () => [],
+          close: async () => {},
+        };
+        // Written at the root: the same name serves every page, at any depth (`SQL_CACHE`).
+        const written = await precomputeQueries(
+          ok.map((q) => ({ notebook: "/", database, strings: q.strings as string[], params: [] })),
+          new Map([[database, client as never]]),
+          this.sqlCache,
+        );
+        ok.forEach((q, i) => {
+          const file = (written[i] ?? "").replace(/^.*\//, "");
+          results.push({ page: q.page, cell: q.cell, database, file });
+        });
+      } catch (e) {
+        const error = `database "${database}": ${String((e as Error)?.message ?? e)}`;
+        for (const q of list) failures.push({ notebook: q.notebook, cell: q.cell, error });
+      }
+    }
+    await this.#writeJson("/sql.json", results);
+    return { sql: results, sqlFailures: failures };
   }
 
   /**
@@ -161,7 +329,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     const owners = new Map<string, string>();
     for (const path of this.sources.filePaths("/")) {
       const output = loaderTarget(path);
-      if (!output || !isDataPath(output)) continue;
+      if (!output || !isLoaderOutput(output)) continue;
       const owner = owners.get(output);
       if (owner) {
         failures.push({ loader: path, error: `${owner} already produces ${output}` });
@@ -245,7 +413,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
 
   /** Every data file's path (`dataFile`). */
   dataPaths(): string[] {
-    const paths = new Set(this.data.filePaths("/"));
+    const paths = new Set(this.data.filePaths("/").filter(isDataPath));
     for (const p of this.sources.filePaths("/")) if (isServedSource(p)) paths.add(p);
     return [...paths].sort();
   }
@@ -289,7 +457,8 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     };
     await this.#writeJson("/models.json", stored);
     await this.#writeJson("/search.json", models.search);
-    return { models: models.pages.length, modelFailures: models.failures };
+    const sql = await this.precomputeSql(site, models.queries);
+    return { models: models.pages.length, modelFailures: models.failures, ...sql };
   }
 
   /** A page of the theme: its build in a Worker Loader isolate, the page models in its env. */
@@ -472,6 +641,17 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       const file = out.has(target) ? undefined : await this.dataFile(p);
       if (file) out.set(target, new Uint8Array(await file.arrayBuffer()));
     }
+    // Precomputed SQL results, beside each page that fetches them: `<dir>/` for `/t/a/b`, and
+    // `/t/a/b/` too, where a static server serves `b/index.html`.
+    const sqlFiles = (await this.#readJson<{ page: string; file: string }[]>("/sql.json")) ?? [];
+    for (const { page, file } of sqlFiles) {
+      const path = `/.observable/cache/${file}`;
+      if (!(await this.sqlCache.exists(path))) continue;
+      const bytes = await readAll(this.sqlCache, path);
+      const dirs = new Set([page.slice(0, page.lastIndexOf("/") + 1)]);
+      if (!page.endsWith("/")) dirs.add(`${page}/`);
+      for (const dir of dirs) out.set(`${dir.slice(1)}.observable/cache/${file}`, bytes);
+    }
     // The search index: the theme fetches it from JavaScript, so no crawl finds it.
     const search = await this.#readJson<unknown>("/search.json");
     if (search)
@@ -578,6 +758,16 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     const url = new URL(request.url);
     const [, , site, area, ...rest] = url.pathname.split("/");
     const prefix = `/nb/${site}`;
+    // A precomputed SQL result, fetched relative to whichever page runs the cell.
+    const cached = SQL_CACHE.exec(url.pathname)?.[1];
+    if (cached && request.method === "GET") {
+      const path = `/.observable/cache/${cached}`;
+      return (await this.sqlCache.exists(path))
+        ? new Response((await readAll(this.sqlCache, path)) as BodyInit, {
+            headers: { "content-type": "application/json" },
+          })
+        : text(`no precomputed result ${cached}: build first\n`, 404);
+    }
     if (area === "files" && request.method === "PUT") {
       await this.sources.write(`/${rest.map(decodeURIComponent).join("/")}`, [
         new Uint8Array(await request.arrayBuffer()),
