@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: notebooks with `${…}` in SQL cells, as plain strings
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,11 +9,13 @@ import { describe, expect, it } from "vitest";
 import {
   contentType,
   isDataPath,
+  isLoaderOutput,
   isServedSource,
   loaderProject,
   loaderTarget,
 } from "../src/data-loaders.js";
 import { buildPageModels } from "../src/page-models.js";
+import { refusedSql } from "../src/sql-guard.js";
 
 describe("loaderTarget", () => {
   it("names the data file a loader produces", () => {
@@ -175,5 +178,104 @@ describe("page paths", () => {
       ["index", "/t/"],
       ["guide/index", "/t/guide/"],
     ]);
+  });
+});
+
+describe("SQL cells", () => {
+  it("lists the cells on named databases, and which interpolate", async () => {
+    const md = [
+      "# Q",
+      "",
+      "```sql database=warehouse output=sales",
+      "SELECT region FROM sales",
+      "```",
+      "",
+      "```sql database=warehouse",
+      "SELECT * FROM sales WHERE region = ${region}",
+      "```",
+      "",
+      "```sql database=var:db",
+      "SELECT 1",
+      "```",
+      "",
+      "```sql",
+      "SELECT 2",
+      "```",
+      "",
+      "```sql database=warehouse run=false",
+      "SELECT 3",
+      "```",
+    ].join("\n");
+    const models = await buildPageModels({
+      notebooks: new MemFilesApi({ initialFiles: { "/guide/q.md": md } }),
+      moduleServer,
+      dom: { document, parser: new DOMParser() } as never,
+      siteTitle: "S",
+      base: "/t",
+    });
+    expect(models.queries.map((q) => [q.page, q.database, q.strings, q.error])).toEqual([
+      ["/t/guide/q", "warehouse", ["SELECT region FROM sales"], undefined],
+      [
+        "/t/guide/q",
+        "warehouse",
+        undefined,
+        "the query interpolates a value known only in the page: not precomputed",
+      ],
+    ]);
+  });
+
+  it("hashes the strings the page's template passes, escapes cooked", async () => {
+    const cell = (sql: string) => `\`\`\`sql database=w\n${sql}\n\`\`\``;
+    const md = ["# Q", cell("SELECT 'a\\nb', '`', '$\\{x}'"), cell("SELECT 'C:\\users'")].join(
+      "\n\n",
+    );
+    const models = await buildPageModels({
+      notebooks: new MemFilesApi({ initialFiles: { "/q.md": md } }),
+      moduleServer,
+      dom: { document, parser: new DOMParser() } as never,
+      siteTitle: "S",
+    });
+    const [escapes, invalid] = models.queries;
+    // the source holds a backslash and an n; the page's template cooks them into a newline
+    expect(escapes?.source).toBe("SELECT 'a\\nb', '`', '$\\{x}'");
+    expect(escapes?.strings).toEqual(["SELECT 'a\nb', '`', '${x}'"]);
+    expect(invalid?.strings).toBeUndefined();
+    expect(invalid?.error).toContain("invalid escape");
+  });
+});
+
+describe("database scripts made by loaders", () => {
+  it("a loader's .sql output is a loader output (run), though never a served data path", () => {
+    expect(loaderTarget("/warehouse.sql.js")).toBe("/warehouse.sql");
+    expect(isLoaderOutput("/warehouse.sql")).toBe(true);
+    expect(isDataPath("/warehouse.sql")).toBe(false);
+    expect(isLoaderOutput("/data/sales.csv")).toBe(true);
+    expect(isLoaderOutput("/.hidden/w.sql")).toBe(false);
+    expect(isLoaderOutput("/a//w.sql")).toBe(false);
+    expect(isLoaderOutput("/lib/x.js")).toBe(false);
+  });
+});
+
+describe("refusedSql", () => {
+  it("refuses host access and engine changes, as before", () => {
+    expect(refusedSql("ATTACH ':memory:' AS m")).toBe("attach");
+    expect(refusedSql("SELECT 1; PRAGMA writable_schema=1")).toBe("pragma");
+    expect(refusedSql("SELECT load_extension('x')")).toBe("load_extension");
+  });
+
+  it("refuses a transaction statement anywhere in the text, which would commit past the rollback", () => {
+    expect(refusedSql("SELECT 1; COMMIT; DELETE FROM t")).toBe("commit");
+    expect(refusedSql("BEGIN; CREATE TABLE t (a)")).toBe("begin");
+    expect(refusedSql("SELECT 1;\n  -- note\n  /* x */ end")).toBe("end");
+    expect(refusedSql("select 1; savepoint s; release s")).toBe("savepoint");
+    expect(refusedSql("SELECT 1;ROLLBACK")).toBe("rollback");
+  });
+
+  it("allows the same words where they are not a statement", () => {
+    expect(refusedSql("SELECT CASE WHEN a > 1 THEN 'x' ELSE 'y' END AS k FROM t")).toBeUndefined();
+    expect(
+      refusedSql("CREATE TABLE t (region TEXT, total INTEGER); INSERT INTO t VALUES ('East', 300)"),
+    ).toBeUndefined();
+    expect(refusedSql("SELECT begin_at, end_at FROM events")).toBeUndefined();
   });
 });

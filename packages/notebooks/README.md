@@ -19,7 +19,7 @@ The demo notebooks are in
 |---|---|
 | `PUT /nb/<site>/files/<path>` | writes a notebook (`.md`, Notebook Kit `.html`) or a data file |
 | `POST /nb/<site>/import` | replaces the sources: a ZIP, or JSON `{ files: { path: text } }` |
-| `POST /nb/<site>/build` | runs the data loaders, builds the pages (incrementally) and the page models → `{ changed, failures, pages, ms, models, modelFailures, loaders, loaderFailures }` |
+| `POST /nb/<site>/build` | runs the data loaders, builds the pages (incrementally) and the page models → `{ changed, failures, pages, ms, models, modelFailures, loaders, loaderFailures, sql, sqlFailures }` |
 | `GET /nb/<site>/<page>.html` | a built page; its cells run in the browser |
 | `GET /nb/<site>/_m/…` | the npm modules the pages import |
 | `GET /nb/<site>/models.json` | the page models of the last build: `{ version, site, pages }` |
@@ -27,7 +27,8 @@ The demo notebooks are in
 | `GET /nb/<site>/t/<page>` | a page rendered by the theme from the page models (`t/` is the home page) |
 | `POST /nb/<site>/export` | the themed site as static files, a ZIP (`x-export-pages`, `x-export-modules`) |
 | `GET /nb/<site>/search.json` | the search index of the last build: one entry per page section |
-| `GET /nb/<site>/[t/]<path>` | a data file: a source file that is not a notebook, or a data loader's output |
+| `GET /nb/<site>/[t/]<path>` | a data file: a source file with a data, media or font extension, or a data loader's output |
+| `GET /nb/<site>/…/.observable/cache/<name>.json` | a precomputed SQL result, at any page's depth |
 
 ## How it works
 
@@ -148,6 +149,40 @@ Themed pages register the data files their cells name (`registerFile`, notebook-
 their absolute URLs. So `FileAttachment` resolves the same from `/t/guide/plots` as from
 `/t/guide/plots/`, which a static server may redirect to.
 
+### Precomputed SQL
+
+A SQL cell on a named database fetches its result precomputed, as notebook-kit's page expects
+(`.observable/cache/<name>.json`, relative to the page):
+
+````md
+```sql database=warehouse output=sales
+SELECT region, SUM(amount) AS total FROM sales GROUP BY region
+```
+````
+
+- **The database is a SQL script**: `warehouse.sql` in the sources, or a data loader's output
+  (`warehouse.sql.js`, which may fetch the data). It is never served.
+- **Run in an object of its own.** The script loads a `NotebookSite` object named
+  `<site>~db~<name>~<script hash>` (Durable Object SQLite, the same on every host), once, in one
+  transaction. A new script is a new object. The object is reached through an RPC method
+  (`queryDatabase`), so no request reaches it, and `handleNotebooks` refuses `~` in a site name.
+- **Every build runs the queries** of the themed pages' `sql` cells and writes the results with
+  `@statewalker/notebook-db` (`precomputeQueries`: notebook-kit's hashes, `{ rows, schema }`).
+  The strings hashed are those the page's tagged template passes, read from the compiled cell
+  (escapes cooked: `\t` is a tab), not the cell's source.
+- **Queries change nothing**: they run in a transaction that is rolled back. The script and the
+  queries may not use `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA` or `load_extension`, nor a
+  transaction statement (`BEGIN`, `COMMIT`, `END`, `ROLLBACK`, `SAVEPOINT`, `RELEASE`): one
+  among their statements would end that transaction early (so a `sqlite3 .dump` needs its
+  `BEGIN TRANSACTION;`, `COMMIT;` and `PRAGMA` lines removed). A BLOB column is
+  reported (JSON cannot hold it: cast it in SQL), and a database whose object fails fails its
+  cells, not the build.
+- **Served at any depth**: one file per query, served for `…/.observable/cache/<name>.json` under
+  any page. The export writes it beside each page that runs it (`t/x/…` and `t/x/…/` both).
+- **Not precomputed**, so live: `database=var:x`, `database=file:x` and a cell without `database`.
+  A query that interpolates a page value (`${…}`) or holds an invalid escape (`C:\users`) is
+  reported in `sqlFailures`, as are a missing database and a failed query.
+
 ### Static export
 
 `POST /nb/<site>/export` returns the themed site as a ZIP that any static file server serves:
@@ -160,6 +195,7 @@ their absolute URLs. So `FileAttachment` resolves the same from `/t/guide/plots`
 - the search index, `nb/<site>/search.json`, which the theme fetches from JavaScript;
 - the data files (attachments and data loaders' outputs) at `nb/<site>/t/<path>`, which cells
   fetch from JavaScript;
+- the precomputed SQL results, beside the pages that fetch them;
 - a root `index.html` that redirects to `/nb/<site>/t/`.
 
 Paths stay as served (`/nb/<site>/t/…`, `/nb/<site>/_m/…`), so no page is rewritten. One kind of
