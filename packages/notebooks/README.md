@@ -171,7 +171,10 @@ SELECT region, SUM(amount) AS total FROM sales GROUP BY region
   The strings hashed are those the page's tagged template passes, read from the compiled cell
   (escapes cooked: `\t` is a tab), not the cell's source.
 - **Queries change nothing**: they run in a transaction that is rolled back. The script and the
-  queries may not use `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA` or `load_extension`. A BLOB column is
+  queries may not use `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA` or `load_extension`, nor a
+  transaction statement (`BEGIN`, `COMMIT`, `END`, `ROLLBACK`, `SAVEPOINT`, `RELEASE`): one
+  among their statements would end that transaction early (so a `sqlite3 .dump` needs its
+  `BEGIN TRANSACTION;`, `COMMIT;` and `PRAGMA` lines removed). A BLOB column is
   reported (JSON cannot hold it: cast it in SQL), and a database whose object fails fails its
   cells, not the build.
 - **Served at any depth**: one file per query, served for `…/.observable/cache/<name>.json` under

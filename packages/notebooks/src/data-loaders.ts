@@ -100,6 +100,17 @@ export function isDataPath(path: string): boolean {
   return ext !== undefined && SERVED_EXTENSIONS.has(ext);
 }
 
+/**
+ * What `runLoaders` runs a loader for: a data path, or a database's script (`warehouse.sql`,
+ * from `warehouse.sql.js`), which is stored with the data but never served.
+ */
+export function isLoaderOutput(path: string): boolean {
+  if (isDataPath(path)) return true;
+  const segments = path.split("/").slice(1);
+  if (!path.startsWith("/") || segments.some((s) => s === "" || s.startsWith("."))) return false;
+  return /\.sql$/i.test(path);
+}
+
 /** A source file served as it is: a data path that is not a loader (loaders produce data). */
 export const isServedSource = (path: string) => isDataPath(path) && !loaderTarget(path);
 

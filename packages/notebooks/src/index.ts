@@ -57,12 +57,14 @@ import { builtinClosure, type LocalBuiltinsServer, withLocalBuiltins } from "./b
 import {
   contentType,
   isDataPath,
+  isLoaderOutput,
   isServedSource,
   loaderProject,
   loaderTarget,
   withLoaderOutputs,
 } from "./data-loaders.js";
 import { buildPageModels, type PageModels, type SqlQuery } from "./page-models.js";
+import { refusedSql } from "./sql-guard.js";
 
 export type { OutlineEntry, PageBlock, PageModel, PageModels, SiteModel } from "./page-models.js";
 
@@ -123,14 +125,6 @@ function stubOf(ns: DurableObjectNamespace, name: string) {
   return ns.getByName ? ns.getByName(name) : ns.get(ns.idFromName(name));
 }
 
-/**
- * What a site's database script or query may not do: reach a file of the host (`ATTACH`,
- * `VACUUM INTO`), change the engine (`PRAGMA`), or load code (`load_extension`). A host's own SQL
- * authorizer may refuse these too; not every host's does. A word in a string literal is refused
- * as well: rename it.
- */
-const REFUSED_SQL = /\b(attach|detach|vacuum|pragma|load_extension)\b/i;
-
 /** A precomputed SQL result's file name in a request path, at any depth (`…/.observable/cache/x.json`). */
 const SQL_CACHE = /\/\.observable\/cache\/([\w.-]+\.json)$/;
 
@@ -183,7 +177,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     const sql = storage.sql;
     const all = (error: string) => queries.map(() => ({ error }));
     if (!storage.transactionSync) return all("this host's SQL storage has no transactionSync");
-    const refused = REFUSED_SQL.exec(script)?.[1];
+    const refused = refusedSql(script);
     if (refused) return all(`the database script uses ${refused.toUpperCase()}, which is refused`);
     sql.exec("CREATE TABLE IF NOT EXISTS nb_db_script (loaded INTEGER)");
     if (!sql.exec("SELECT loaded FROM nb_db_script").toArray().length) {
@@ -203,7 +197,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       storage.transactionSync(() => {
         for (const q of queries) {
           const text = q.strings.join("?");
-          const word = REFUSED_SQL.exec(text)?.[1];
+          const word = refusedSql(text);
           if (word) {
             answers.push({ error: `the query uses ${word.toUpperCase()}, which is refused` });
             continue;
@@ -335,7 +329,7 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     const owners = new Map<string, string>();
     for (const path of this.sources.filePaths("/")) {
       const output = loaderTarget(path);
-      if (!output || !isDataPath(output)) continue;
+      if (!output || !isLoaderOutput(output)) continue;
       const owner = owners.get(output);
       if (owner) {
         failures.push({ loader: path, error: `${owner} already produces ${output}` });

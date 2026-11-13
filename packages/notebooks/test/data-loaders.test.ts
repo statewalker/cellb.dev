@@ -9,11 +9,13 @@ import { describe, expect, it } from "vitest";
 import {
   contentType,
   isDataPath,
+  isLoaderOutput,
   isServedSource,
   loaderProject,
   loaderTarget,
 } from "../src/data-loaders.js";
 import { buildPageModels } from "../src/page-models.js";
+import { refusedSql } from "../src/sql-guard.js";
 
 describe("loaderTarget", () => {
   it("names the data file a loader produces", () => {
@@ -239,5 +241,41 @@ describe("SQL cells", () => {
     expect(escapes?.strings).toEqual(["SELECT 'a\nb', '`', '${x}'"]);
     expect(invalid?.strings).toBeUndefined();
     expect(invalid?.error).toContain("invalid escape");
+  });
+});
+
+describe("database scripts made by loaders", () => {
+  it("a loader's .sql output is a loader output (run), though never a served data path", () => {
+    expect(loaderTarget("/warehouse.sql.js")).toBe("/warehouse.sql");
+    expect(isLoaderOutput("/warehouse.sql")).toBe(true);
+    expect(isDataPath("/warehouse.sql")).toBe(false);
+    expect(isLoaderOutput("/data/sales.csv")).toBe(true);
+    expect(isLoaderOutput("/.hidden/w.sql")).toBe(false);
+    expect(isLoaderOutput("/a//w.sql")).toBe(false);
+    expect(isLoaderOutput("/lib/x.js")).toBe(false);
+  });
+});
+
+describe("refusedSql", () => {
+  it("refuses host access and engine changes, as before", () => {
+    expect(refusedSql("ATTACH ':memory:' AS m")).toBe("attach");
+    expect(refusedSql("SELECT 1; PRAGMA writable_schema=1")).toBe("pragma");
+    expect(refusedSql("SELECT load_extension('x')")).toBe("load_extension");
+  });
+
+  it("refuses a transaction statement anywhere in the text, which would commit past the rollback", () => {
+    expect(refusedSql("SELECT 1; COMMIT; DELETE FROM t")).toBe("commit");
+    expect(refusedSql("BEGIN; CREATE TABLE t (a)")).toBe("begin");
+    expect(refusedSql("SELECT 1;\n  -- note\n  /* x */ end")).toBe("end");
+    expect(refusedSql("select 1; savepoint s; release s")).toBe("savepoint");
+    expect(refusedSql("SELECT 1;ROLLBACK")).toBe("rollback");
+  });
+
+  it("allows the same words where they are not a statement", () => {
+    expect(refusedSql("SELECT CASE WHEN a > 1 THEN 'x' ELSE 'y' END AS k FROM t")).toBeUndefined();
+    expect(
+      refusedSql("CREATE TABLE t (region TEXT, total INTEGER); INSERT INTO t VALUES ('East', 300)"),
+    ).toBeUndefined();
+    expect(refusedSql("SELECT begin_at, end_at FROM events")).toBeUndefined();
   });
 });
