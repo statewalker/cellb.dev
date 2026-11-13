@@ -296,19 +296,25 @@ try {
   await page.keyboard.press("ControlOrMeta+Home");
   try {
     // Hono's types arrive from npm (automatic type acquisition): then only the planted error stays.
-    const errorsShown = page.locator(".cm-lintRange-error");
-    for (let i = 0; i < 180 && (await errorsShown.count()) !== 1; i++)
+    // The lint panel lists every problem in the file, drawn or not.
+    const problems = page.locator(".cm-panel-lint li");
+    const listed = async () => (await problems.allInnerTexts()).map((t) => t.trim());
+    let found = [];
+    for (let i = 0; i < 180; i++) {
+      // The panel's keys come with the language service: opened once it has loaded.
+      if (!(await page.locator(".cm-panel-lint").count())) {
+        await page.locator('[data-testid="code-editor"] .cm-content').click();
+        await page.keyboard.press("ControlOrMeta+Shift+M");
+      }
+      found = await listed();
+      if (found.length === 1 && found[0].includes("not assignable to type 'number'")) break;
       await page.waitForTimeout(500);
-    if ((await errorsShown.count()) !== 1)
+    }
+    if (found.length !== 1 || !found[0].includes("not assignable to type 'number'"))
       throw new Error(
-        `type errors shown: ${await errorsShown.count()} (expected the planted one); the service: ${tsLog.join(" | ")}`,
+        `problems listed: ${JSON.stringify(found)} (expected the planted one); the service: ${tsLog.join(" | ")}`,
       );
-    await errorsShown.first().hover();
-    await page
-      .locator(".cm-tooltip")
-      .getByText("not assignable to type 'number'")
-      .first()
-      .waitFor({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
     // Completion, on a line of its own at the top.
     await editorText(`Response.js\n${saved}`);
     await page.keyboard.press("ControlOrMeta+Home");

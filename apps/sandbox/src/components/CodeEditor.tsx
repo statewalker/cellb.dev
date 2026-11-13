@@ -149,6 +149,8 @@ async function typescriptFor(path: string, project?: Project) {
         needsRefresh: (u) => u.transactions.some((t) => t.effects.some((e) => e.is(typesArrived))),
       }),
       lint.lintGutter(),
+      // Ctrl/Cmd+Shift+M: the list of the file's problems; F8: the next one.
+      keymap.of(lint.lintKeymap),
       autocompletion({ override: [cm.tsAutocompleteWorker()] }),
       cm.tsHoverWorker(),
     ] as Extension,
