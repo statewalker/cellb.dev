@@ -17,7 +17,7 @@ export function PublishPanel(props: {
   state: PublishState;
   /** The project's name, and its deployable folder (Ship → Build). */
   name: string;
-  build(): Promise<{ files: Map<string, Uint8Array> }>;
+  build(opts?: { withData?: boolean }): Promise<{ files: Map<string, Uint8Array> }>;
   /** Public: the hub's gateway serves the app (and its deploys) to non-members; never the tools. */
   isPublic: boolean;
   onPublic(on: boolean): void;
@@ -28,6 +28,7 @@ export function PublishPanel(props: {
   const [busy, setBusy] = useState(false);
   const [hosted, setHosted] = useState<HostedApp[]>();
   const [deploying, setDeploying] = useState(false);
+  const [withData, setWithData] = useState(false);
   const live = state.phase === "live";
   const act = (label: string, fn: () => Promise<void>) => async () => {
     setBusy(true);
@@ -153,6 +154,17 @@ export function PublishPanel(props: {
             </code>
             , its Durable Objects' data kept from one deploy to the next.
           </p>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              className="accent-primary"
+              aria-label="Deploy with the preview's data"
+              checked={withData}
+              onChange={(e) => setWithData(e.target.checked)}
+            />
+            With the preview's data: the hosted app's Durable Objects start from it (what it held on
+            the hub is replaced)
+          </label>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
@@ -161,9 +173,10 @@ export function PublishPanel(props: {
               onClick={act("deploy", async () => {
                 setDeploying(true);
                 try {
-                  const build = await props.build();
+                  const build = await props.build({ withData });
                   const app = await publisher.deploy(props.name, build.files, {
                     public: props.isPublic,
+                    replaceData: withData,
                   });
                   props.log(
                     `mesh: ${app.name} deployed to the hub (${app.release}, ${app.files} files)`,

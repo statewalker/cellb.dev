@@ -43,7 +43,7 @@ export interface Publisher {
   deploy(
     name: string,
     files: Map<string, Uint8Array>,
-    opts?: { public?: boolean },
+    opts?: { public?: boolean; replaceData?: boolean },
   ): Promise<HostedApp>;
   /** What the hub hosts. */
   apps(): Promise<HostedApp[]>;
@@ -158,7 +158,11 @@ export function createPublisher(opts: {
       return (await onHub(`/host/apps/${hostName(name)}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ files: body, public: o.public === true }),
+        body: JSON.stringify({
+          files: body,
+          public: o.public === true,
+          replaceData: o.replaceData === true,
+        }),
       })) as unknown as HostedApp;
     },
     apps: async () => (await onHub("/host/apps")) as unknown as HostedApp[],

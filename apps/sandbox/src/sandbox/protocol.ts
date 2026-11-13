@@ -9,7 +9,15 @@ export type ToRunner =
   | { type: "run"; workspace: string; token: string; folderName: string }
   | { type: "stop" }
   /** A deployable folder of the project: a no_bundle Worker with the client as its assets. */
-  | { type: "build"; id: number; workspace: string; token: string; folderName: string };
+  | {
+      type: "build";
+      id: number;
+      workspace: string;
+      token: string;
+      folderName: string;
+      /** The preview's Durable Object data in the folder too (`.cellb-data/`). */
+      withData?: boolean;
+    };
 
 export type FromRunner =
   | { type: "phase"; phase: "idle" | "building" | "stopped" }

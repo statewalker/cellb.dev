@@ -335,6 +335,16 @@ The repository wires this topology in its sharded demo (`e2e-browser/pages/shard
 ServiceWorker and the shard worker). The package provides `CellRouter`, `createShardWorker`, `serviceWorkerConnector` and
 `createWebSocketClass`.
 
+
+#### Exporting the cells: `exportCells()`
+
+A project loaded with an OPFS pool (no bucket) has `exportCells()` on its `LoadedProject`: each
+cell's database as `[file name, bytes]`, read from the pool. The names are the ones
+`nodeSqliteOpener(dir)` gives the same cells, so the files placed in a data directory make
+`loadProject(dir, { data })` on Node start where the browser's cells are. With a bucket it
+returns nothing: the bucket already holds the cells. Call it between events; a database is read
+as of its last commit.
+
 ## A fleet bucket on S3
 
 With `bucket`, a browser node keeps its cells in the same bucket as celld nodes, in celld's layout,

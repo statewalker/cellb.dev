@@ -255,7 +255,12 @@ async function snapshot(workspace: string, token: string): Promise<[string, Uint
  * The deployable folder: the server bundled by buildProject (a no_bundle Worker), the client
  * exported from a site made of the same sources (so no running app is needed).
  */
-async function build(id: number, entries: [string, Uint8Array][], folderName: string) {
+async function build(
+  id: number,
+  entries: [string, Uint8Array][],
+  folderName: string,
+  withData = false,
+) {
   const t0 = performance.now();
   const all = new Map(entries);
   const layout = describeProject(all, folderName);
@@ -301,6 +306,17 @@ async function build(id: number, entries: [string, Uint8Array][], folderName: st
     client = new Map([...(client ?? []), ...nb]);
   }
   const out = assembleDeploy({ name: layout.name, server, client });
+  // The preview's Durable Object data: the cells' databases, named as CellB on Node names them in
+  // its data directory, which the folder's serve.mjs (and the hub) use: they start from it.
+  if (withData) {
+    const cells = (await current.project?.exportCells?.()) ?? [];
+    for (const [name, bytes] of cells) out.set(`/.cellb-data/${name}`, bytes);
+    log(
+      cells.length
+        ? `build: the preview's data, ${cells.length} database(s), in .cellb-data/`
+        : "build: no preview data to include (run the app first)",
+    );
+  }
   const summary = `deployable build of ${layout.name}: ${out.size} files (${since(t0)})`;
   log(summary);
   post({ type: "built", id, files: [...out], summary });
@@ -327,7 +343,9 @@ scope.addEventListener("message", (e: MessageEvent<ToRunner>) => {
       });
   } else if (msg.type === "build") {
     queue = queue
-      .then(async () => build(msg.id, await snapshot(msg.workspace, msg.token), msg.folderName))
+      .then(async () =>
+        build(msg.id, await snapshot(msg.workspace, msg.token), msg.folderName, msg.withData),
+      )
       .catch((err) => {
         const text = String((err as Error)?.message ?? err);
         log(`build: ${text}`, "error");

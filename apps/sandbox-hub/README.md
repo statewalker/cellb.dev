@@ -86,6 +86,10 @@ folder (the same one as Ship → Build) and uploads it to the hub (`PUT /host/ap
 - **Releases.** Each deploy is a new release folder, and the last three are kept under
   `.sandbox-hub/apps/<name>/`. The app's Durable Objects keep their data across releases.
 - **A release that does not load** is refused (422), and the previous one goes on serving.
+- **Data from the preview.** A deploy made with "With the preview's data" (Publish section)
+  carries the preview's Durable Object databases in `.cellb-data/`. They seed the app's data on
+  its first deploy. With `replaceData`, which that box sets, they replace what the app holds on
+  the hub. Without the box, the hub's data stays.
 - **Restarts.** A restarted hub serves its apps again.
 
 The same folder still runs on Cloudflare (`wrangler deploy`) and celld. The hub is just one more

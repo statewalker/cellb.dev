@@ -2,7 +2,9 @@
 // process and served to the mesh's members. The same folder runs on Cloudflare (wrangler deploy),
 // celld and CellB anywhere: here it is CellB, and the mesh is the network.
 //
-//   PUT    /host/apps/<name>   { files: { "/worker.js": base64, … }, public? }  deploy (publisher, admin)
+//   PUT    /host/apps/<name>   { files: { "/worker.js": base64, … }, public?, replaceData? }  deploy
+//          (deployer, admin; files under /.cellb-data/ seed the app's data on its first deploy, or
+//          replace it with replaceData)
 //   DELETE /host/apps/<name>                                          take down (publisher, admin)
 //   GET    /host/apps                                                 what is hosted (viewer and up)
 //   *      /apps/<name>/…                                             the app itself (viewer and up)
@@ -10,7 +12,7 @@
 // Each deploy is a new release folder; the app's Durable Objects keep their data across releases
 // (<dir>/<name>/data). A release that does not load leaves the previous one serving.
 
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 import type { FetchHandler } from "@statewalker/httpeers-core";
 import { lookupPeer } from "@statewalker/httpeers-core";
@@ -94,6 +96,7 @@ export function createAppHost(opts: {
     files: Record<string, string>,
     by: string | null,
     isPublic = false,
+    replaceData = false,
   ) {
     mayChange(name, by);
     if (!NAME.test(name))
@@ -132,6 +135,26 @@ export function createAppHost(opts: {
       bytes,
       public: isPublic,
     };
+    // The preview's data (Ship with "the preview's data": .cellb-data/ in the folder) seeds the
+    // app's data on its first deploy, or replaces it when asked; otherwise the hub's data stays.
+    const dataDir = join(opts.dir, name, "data");
+    const seed = entries.some(([p]) => p.startsWith("/.cellb-data/"));
+    const hasData = await readdir(dataDir)
+      .then((names) => names.some((n) => n.endsWith(".sqlite")))
+      .catch(() => false);
+    if (seed && (replaceData || !hasData)) {
+      // The running release holds those files open: it stops first.
+      const running = apps.get(name);
+      if (running) {
+        apps.delete(name);
+        await running.project.close().catch(() => {});
+      }
+      await rm(dataDir, { recursive: true, force: true });
+      await mkdir(dataDir, { recursive: true });
+      for (const f of await readdir(join(root, ".cellb-data")))
+        if (f.endsWith(".sqlite")) await copyFile(join(root, ".cellb-data", f), join(dataDir, f));
+      log(`host: ${name}'s data ${hasData ? "replaced" : "seeded"} from the deploy`);
+    }
     try {
       await start(name, meta);
     } catch (err) {
@@ -171,12 +194,19 @@ export function createAppHost(opts: {
         const body = JSON.parse(await readLimited(request, Math.ceil(MAX_BYTES * 1.4))) as {
           files?: Record<string, string>;
           public?: boolean;
+          replaceData?: boolean;
         };
         if (!body.files) throw new HttpError(400, "expected { files: { path: base64 } }");
         const by = peerOf(request);
         return Response.json(
           await serial(() =>
-            deploy(m[1], body.files as Record<string, string>, by, body.public === true),
+            deploy(
+              m[1],
+              body.files as Record<string, string>,
+              by,
+              body.public === true,
+              body.replaceData === true,
+            ),
           ),
         );
       }

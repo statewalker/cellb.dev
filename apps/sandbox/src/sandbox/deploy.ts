@@ -45,8 +45,9 @@ npm install @statewalker/cellb esbuild
 node serve.mjs            # http://localhost:8787, cells' data in .cellb-data/
 \`\`\`
 
-Durable Objects keep their state in each host's storage: the data of the sandbox's preview
-stays in the browser (OPFS).
+Durable Objects keep their state in each host's storage. A build made with "Include the
+preview's data" carries the preview's Durable Object databases in \`.cellb-data/\`: cellb on
+Node (serve.mjs) starts from them. Cloudflare and celld do not read them.
 `;
 }
 

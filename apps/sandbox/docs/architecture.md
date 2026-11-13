@@ -208,9 +208,15 @@ through a small CORS proxy, which can itself be a cellb Worker, or peer-to-peer 
 `.github/workflows/deploy.yml` (`npx wrangler@4 deploy`, secrets `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_ACCOUNT_ID`). Sources stay on `main`.
 
-**celld / cellb-node**: the same folder (`celld dev .`, `node serve.mjs`); Durable Object state
-does not travel by default. **[next]**: move a cell's state with the code — cellb stores cells in
-celld's format, so "promote" = upload the OPFS cell files to the celld bucket.
+**celld / cellb-node**: the same folder (`celld dev .`, `node serve.mjs`).
+
+**The preview's data [built]**: Ship's "Include the preview's data", and the Publish section's
+"With the preview's data", put the Durable Objects' databases in the folder's `.cellb-data/`.
+They come from CellB's `exportCells()` (new): each cell's database read from the runner's OPFS
+pool, named as CellB on Node names it in a data directory. `serve.mjs` and the hub start from
+them; the hub seeds an app's data on its first deploy, or replaces it with `replaceData`.
+Cloudflare has no import for Durable Object data, and celld keeps cells as LTX in its bucket.
+**[next]**: write the cells as LTX into a celld bucket (`celldBucket`) for celld.
 
 ## 7. CellB over HTTPeers [built]
 
@@ -313,7 +319,7 @@ Observable-style notebooks — Markdown with fenced reactive `js` cells, `npm:` 
 | Phase | Content |
 |---|---|
 | 1 (this change) | Flue agents in Durable Objects on CellB with a Biscuit-capability file system (studio Worker), IDE tools for other agents (window/WebMCP/MCP), console capture, deployable build, GitHub snapshot push/pull, CI deploy workflow, agent-ui template, AGENTS.md |
-| 2 | per-module server compile (`siteCompiler`) for fast reruns (the TypeScript language service in the editor is built) |
+| 2 | the TypeScript language service in the editor is built; a per-module server compile (`siteCompiler`) was measured and not taken, since reruns already take ~250 ms (README, Limits) |
 | 3 | HTTPeers: publish the app and the MCP mount; Biscuit permission modes; desktop-agent bridge; promote cell state to celld |
 | 4 | json-render/A2UI templates; agent screenshots of the preview as a tool (the Astro project type, the Python tool and isolated script runs are built) |
 

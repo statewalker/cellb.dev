@@ -964,7 +964,7 @@ export default function Sandbox() {
   }, [getTools]);
 
   /** A deployable folder of the project (runner: buildProject + the exported client). */
-  const buildDeploy = (): Promise<Build> => {
+  const buildDeploy = (opts: { withData?: boolean } = {}): Promise<Build> => {
     const l = loadedRef.current;
     if (!l) return Promise.reject(new Error("no project is open"));
     const id = ++buildId.current;
@@ -977,6 +977,7 @@ export default function Sandbox() {
           workspace: l.session.ws,
           token: l.session.buildToken,
           folderName: l.name,
+          withData: opts.withData,
         } satisfies ToRunner),
       );
     });
