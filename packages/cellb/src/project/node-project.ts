@@ -237,7 +237,7 @@ export async function bundleWorker(
 export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
   const outbound = outboundFetch(code);
   const modules: Record<string, string> = {};
-  for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
+  for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m, name);
   // `env` and `exports` of the loaded code's `cloudflare:workers` are its own (WorkerCode.env).
   const env = code.env ?? {};
   const scope = workerScope(env);
@@ -349,7 +349,7 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
       isolateEntry ??= buildIsolateEntry();
       await isolateEntry;
       const modules: Record<string, string> = {};
-      for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
+      for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m, name);
       const out = await build({
         entryPoints: [`memory:${code.mainModule}`],
         write: false,

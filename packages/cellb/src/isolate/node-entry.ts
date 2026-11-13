@@ -15,6 +15,16 @@ import type { PortLike } from "./protocol.js";
 // lives on, as in a browser Dedicated Worker and workerd; Node would end the thread.
 process.on("uncaughtException", (e) => console.error("Uncaught", e));
 
+// workerd lets Worker code assign `navigator` (Kitesurf's DOM shim does); this realm's own is a
+// getter only (Node's global, a Dedicated Worker's WorkerGlobalScope). The isolate is the loaded
+// Worker's realm, so the global becomes a plain writable property with the same value.
+Object.defineProperty(globalThis, "navigator", {
+  value: globalThis.navigator,
+  writable: true,
+  configurable: true,
+  enumerable: true,
+});
+
 // This thread is the loaded Worker's realm: its globals are the Workers ones, as in a browser
 // isolate (src/isolate/isolate-worker.ts). A `Response` that takes `{ status: 101, webSocket }`
 // and a `WebSocketPair` are what a Worker that accepts WebSockets needs.

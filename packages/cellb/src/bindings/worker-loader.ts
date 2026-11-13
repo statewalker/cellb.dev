@@ -6,6 +6,7 @@ import {
   entrypointStub,
   ISOLATED,
   type IsolatedClass,
+  ON_ABORT,
   pipeTo,
   REFUSE,
   rpcPromise,
@@ -23,7 +24,14 @@ export interface WorkerCode {
   modules: Record<
     string,
     | string
-    | { js?: string; esModule?: string; text?: string; json?: unknown; wasm?: BufferSource }
+    | {
+        js?: string;
+        esModule?: string;
+        cjs?: string;
+        text?: string;
+        json?: unknown;
+        wasm?: BufferSource;
+      }
     | { data: BufferSource }
   >;
   env?: Record<string, unknown>;
@@ -50,11 +58,13 @@ export interface TailEvent {
 
 /**
  * One `WorkerCode.modules` entry as ES module source; text and JSON become a default export,
- * wasm bytes a compiled `WebAssembly.Module`.
+ * wasm bytes a compiled `WebAssembly.Module`, and a CommonJS module's `module.exports` the
+ * default export. `name` names a CommonJS module in stack traces.
  */
-export function moduleText(entry: WorkerCode["modules"][string]): string {
+export function moduleText(entry: WorkerCode["modules"][string], name = "module.cjs"): string {
   if (typeof entry === "string") return entry;
   const m = entry as Exclude<typeof entry, { data: BufferSource }>; // workerLoader refuses data
+  if (typeof m.cjs === "string") return commonJsModule(m.cjs, name);
   if (m.wasm) {
     const bytes = ArrayBuffer.isView(m.wasm)
       ? new Uint8Array(m.wasm.buffer, m.wasm.byteOffset, m.wasm.byteLength)
@@ -64,6 +74,22 @@ export function moduleText(entry: WorkerCode["modules"][string]): string {
     return `export default new WebAssembly.Module(Uint8Array.from(atob("${btoa(bin)}"), (c) => c.charCodeAt(0)));`;
   }
   return m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`;
+}
+
+/**
+ * A CommonJS module as an ES module. As on workerd, its code is not strict mode unless it says
+ * so (an ES module's own code always is, so it runs through `Function`), `this` is
+ * `module.exports`, and importing it gives `module.exports` as the default export. `require` is
+ * the realm's own, where it has one.
+ */
+function commonJsModule(source: string, name: string): string {
+  const body = JSON.stringify(`${source}\n//# sourceURL=${name.replace(/\s/g, "%20")}`);
+  return [
+    "const module = { exports: {} };",
+    `new Function("module", "exports", "require", "__filename", "__dirname", ${body})`,
+    `  .call(module.exports, module, module.exports, typeof require === "function" ? require : undefined, ${JSON.stringify(name)}, "/");`,
+    "export default module.exports;",
+  ].join("\n");
 }
 
 /**
@@ -136,6 +162,15 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             const sink: LogSink = (level, message) =>
               logs.push({ level, message, timestamp: Date.now() });
             const module = await load(id, code, sink);
+            // Its isolate ended (`abortIsolate()`): the next get() of this id loads it again.
+            (
+              (module as Record<symbol, unknown>)[ON_ABORT] as
+                | ((forget: () => void) => void)
+                | undefined
+            )?.(() => {
+              if (cache.get(id) === p) cache.delete(id);
+              if (own === p) own = undefined;
+            });
             const env = code.env ?? {};
             return { module, env, exports: ctxExports(module, env), code, logs };
           })();

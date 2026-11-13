@@ -4,7 +4,7 @@ import {
   outboundFetch,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
-import { ISOLATED, type IsolatedClass } from "../core/handles.js";
+import { ISOLATED, type IsolatedClass, ON_ABORT } from "../core/handles.js";
 import type { CellStorage } from "../ports.js";
 import { hostPort, type PortLike } from "./protocol.js";
 
@@ -37,9 +37,21 @@ export function isolatedModuleLoader(opts: {
       terminate: () => isolate.terminate(),
     };
     isolates.add(running);
-    const { call, fetch } = await hostPort(
+    const onAbort: (() => void)[] = [];
+    // The loaded code called `abortIsolate()`: calls in flight and later ones reject with
+    // workerd's error, the isolate ends, and the loader forgets this module.
+    const abort = (m: { reason: string; reference: string }) => {
+      if (!isolates.delete(running)) return;
+      console.error(`cellb: loaded Worker "${id}" aborted its isolate: ${m.reason}`);
+      void close(new Error(`internal error; reference = ${m.reference}`)).finally(() =>
+        isolate.terminate(),
+      );
+      for (const f of onAbort.splice(0)) f();
+    };
+    const { call, fetch, close } = await hostPort(
       isolate.port,
       async (m) => {
+        if (m.type === "abort") return abort(m);
         if (m.type === "durable") {
           const st = opts.storage?.() ?? {};
           if (m.op === "load") return st.backup?.load?.(m.cellKey);
@@ -104,6 +116,7 @@ export function isolatedModuleLoader(opts: {
       attach: (cellKey, epoch, idName) =>
         call({ type: "object", op: "attach", className, cellKey, epoch, idName }),
     });
+    module[ON_ABORT] = (f: () => void) => onAbort.push(f);
     return module as Record<string, unknown>;
   };
   return Object.assign(load, {

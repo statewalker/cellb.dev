@@ -10,7 +10,7 @@ import { rewriteModuleSpecifiers } from "./module-specifiers.js";
 import { workerScope } from "./worker-scope.js";
 
 const WORKERS_CLASSES =
-  "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget; export default m;";
+  "const m = globalThis.__cellsWorkersModule; export const DurableObject = m.DurableObject, WorkerEntrypoint = m.WorkerEntrypoint, WorkflowEntrypoint = m.WorkflowEntrypoint, RpcTarget = m.RpcTarget, abortIsolate = m.abortIsolate; export default m;";
 
 /**
  * `cloudflare:workers` for a project's own bundle: the classes, and the project's `env` and
@@ -80,7 +80,7 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
     const source = (name: string) => {
       const m = code.modules[name];
       if (m === undefined) throw new Error(`Worker Loader: module "${name}" not found`);
-      return moduleText(m);
+      return moduleText(m, name);
     };
     const urlOf = (name: string): string => {
       const known = urls.get(name);

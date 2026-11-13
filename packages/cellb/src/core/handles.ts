@@ -19,6 +19,11 @@ export interface ClassHandle {
 
 /** Key of the isolate's class factory on a module facade (see getDurableObjectClass). */
 export const ISOLATED = Symbol.for("cellb.isolated-classes");
+/**
+ * On a loaded Worker's module whose isolate can end (`abortIsolate`): registers what to do when
+ * it does (the Worker Loader forgets the module, so the next `get()` loads the code again).
+ */
+export const ON_ABORT = Symbol.for("cellb.on-abort");
 
 /** A Durable Object class that runs in an isolate: its instances and storage live there. */
 export interface IsolatedClass {
@@ -52,15 +57,37 @@ export const REFUSE = Symbol.for("cellb.refuse");
 /** Answered by a `ctx.exports.X({ props })` stub or class handle: `{ name, props }` (storable). */
 export const EXPORT = Symbol.for("cellb.export");
 
+// The realm's own classes (Worker code may see subclasses of them as its globals).
+const NativeRequest = globalThis.Request;
+const NativeResponse = globalThis.Response;
+const NativeHeaders = globalThis.Headers;
+const NativeReadableStream = globalThis.ReadableStream;
+
+/**
+ * A copy of `v` for a call in one realm, as workerd's RPC makes it: a Request, Response or
+ * ReadableStream is passed itself (its body moves with it), Headers are copied, and anything
+ * else is structured-cloned.
+ */
+export function copyInRealm(v: unknown): unknown {
+  if (v instanceof NativeHeaders) return new Headers(v);
+  if (
+    v instanceof NativeRequest ||
+    v instanceof NativeResponse ||
+    v instanceof NativeReadableStream
+  )
+    return v;
+  return structuredClone(v);
+}
+
 /**
  * What crosses a stub, as in workerd: functions, `RpcTarget`s, stubs and class handles by
  * reference (`ref` says what stands for one on the far side; in one realm, the value itself),
- * arrays and plain objects walked, anything else structured-cloned (`copy`).
+ * arrays and plain objects walked, anything else copied (`copy`; in one realm, `copyInRealm`).
  */
 export function cross<T>(
   v: T,
   ref: (v: object) => unknown = (x) => x,
-  copy: (v: unknown) => unknown = structuredClone,
+  copy: (v: unknown) => unknown = copyInRealm,
 ): T {
   if (v === undefined || v === null || (typeof v !== "object" && typeof v !== "function"))
     return copy(v) as T;
@@ -170,12 +197,14 @@ export function asyncStub(
   call: (method: string, args: unknown[]) => unknown,
   fetch: (req: Request) => Promise<Response>,
 ): Record<string, any> {
-  return new Proxy(
+  const stub: Record<string, any> = new Proxy(
     {},
     {
       get(_t, prop) {
         if (prop === STUB) return true;
         if (prop === "then" || typeof prop === "symbol") return undefined;
+        // workerd's `stub.dup()`: in one realm, a stub holds nothing to release, so it is itself.
+        if (prop === "dup") return () => stub;
         if (prop === "fetch")
           return (input: RequestInfo | URL, init?: RequestInit) => {
             const req = new Request(input as RequestInfo, init);
@@ -193,6 +222,7 @@ export function asyncStub(
       },
     },
   );
+  return stub;
 }
 
 /**
@@ -240,6 +270,27 @@ export function entrypointStub(
         : instance.fetch(req, env, objectCtx());
     },
   );
+}
+
+/** An event handler of a Worker's default export: `fetch(request, env, ctx)` and the like. */
+export type DefaultHandler = (arg: unknown, env: unknown, ctx: object) => unknown;
+
+/**
+ * The default export's handler for one event (`fetch`, `scheduled`, `queue`), or `undefined`.
+ * An object's method is called with `(arg, env, ctx)`. A class (`export default class extends
+ * WorkerEntrypoint`) gets a fresh instance per event, built with `(ctx, env)` (`ctx.props` empty),
+ * and its method is called with the event's argument alone, as on workerd.
+ */
+export function defaultHandler(def: unknown, name: string): DefaultHandler | undefined {
+  if (typeof def === "function") {
+    if (typeof def.prototype?.[name] !== "function") return undefined;
+    const Entry = def as new (ctx: object, env: unknown) => Record<string, (a: unknown) => unknown>;
+    return (arg, env, ctx) =>
+      new Entry({ ...ctx, props: (ctx as { props?: unknown }).props ?? {} }, env)[name](arg);
+  }
+  const method = (def as Record<string, unknown> | null | undefined)?.[name];
+  if (typeof method !== "function") return undefined;
+  return (arg, env, ctx) => method.call(def, arg, env, ctx);
 }
 
 /** workerd's refusal of `ctx.exports.<Entrypoint>` passed on without `({ props })`. */

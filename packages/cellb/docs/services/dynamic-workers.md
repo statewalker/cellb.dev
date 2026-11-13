@@ -88,13 +88,25 @@ does not protect.
 
 ## What a loaded Worker can do
 
-- Modules can be source code (`js`), `text`, `json` or `wasm` bytes.
+- Modules can be source code (`js`), CommonJS (`cjs`), `text`, `json` or `wasm` bytes. A CommonJS
+  module runs as on workerd: not in strict mode unless it says so, with `this` as `module.exports`,
+  and an import of it gives `module.exports` as the default export.
 - `globalOutbound: null` makes its global `fetch()` throw; a Fetcher as `globalOutbound` receives
   its fetches instead.
 - Its `ctx.exports` holds its own `WorkerEntrypoint` classes; `getEntrypoint(name, { props })`
   passes `props` to `ctx.props`.
 - Functions, `RpcTarget`s and stubs pass by reference into and out of it (in `env`, `props`,
-  arguments and results), as on workerd. celld refuses them.
+  arguments and results), as on workerd. celld refuses them. `stub.dup()` gives another stub of
+  the same value, released on its own.
+- `Request`, `Response`, `Headers` and `ReadableStream` values cross in arguments and results, as
+  on workerd. A body streams across when the receiver reads it, over a port of its own; one the
+  receiver cancels, or drops and is collected, is cancelled on the side that sent it.
+- `abortIsolate(reason)` of `cloudflare:workers` ends its isolate, as on workerd: the call rejects
+  with `internal error; reference = …`, so do the calls in flight, and the next `get()` of the
+  same id loads the code again. In a loaded Worker that runs in the project's realm (a browser
+  without `isolateScript`), there is no isolate to end, and the call only throws.
+- Its realm's `navigator` is writable, as on workerd, and `Uint8Array` has `toBase64`,
+  `fromBase64`, `toHex` and `fromHex` where the engine lacks them (Node 22).
 - A call's result is an RpcPromise: `stub.a().b()` sends `b` before `a()` settles.
 - Its Durable Object classes run inside its realm as facets ([Durable Object
   facets](durable-object-facets.md)).
@@ -117,9 +129,10 @@ projects, and workerd's own Worker Loader tests (`wd-worker-loader`), on Node an
   use up the isolate's multiplexed ports (4,096 at most by default, which
   `globalThis.__cellbMaxPorts` overrides). When the runtime closes, the isolate's sockets are closed with
   code 1001 before the isolate ends. [Benchmarks](../../bench/README.md) has the numbers.
-- **Some of workerd's Worker Loader features are missing**: `WorkerCode.compatibilityFlags`,
-  `abortIsolateDynamic*`, the props of `getDurableObjectClass(name, { props })`, and
-  `inheritGlobalOutbound` ([Gaps](../gaps.md)).
+- **Some of workerd's Worker Loader features are missing**: `WorkerCode.compatibilityFlags`, the
+  props of `getDurableObjectClass(name, { props })`, and `inheritGlobalOutbound`
+  ([Gaps](../gaps.md)). `WorkerCode.limits` (CPU time, subrequests) is ignored: limits per object
+  are out of scope.
 - **Stubs do not cross to another node.** Arguments to an object owned by another tab, worker or
   peer are V8-serialized, and a function, `RpcTarget` or stub among them is refused with
   `DataCloneError: Functions, RpcTargets and stubs cannot be sent to another node: …`.

@@ -28,6 +28,16 @@ workersHostRegistry({
   Response: workersGlobals.CellsResponse,
 });
 
+// workerd lets Worker code assign `navigator` (Kitesurf's DOM shim does); this realm's own is a
+// getter only (Node's global, a Dedicated Worker's WorkerGlobalScope). The isolate is the loaded
+// Worker's realm, so the global becomes a plain writable property with the same value.
+Object.defineProperty(globalThis, "navigator", {
+  value: globalThis.navigator,
+  writable: true,
+  configurable: true,
+  enumerable: true,
+});
+
 // This worker is the loaded Worker's realm: its globals are the Workers ones (as on Node,
 // src/isolate/node-entry.ts). Loaded code reads them as free names (partyserver builds its
 // `new WebSocketPair()` and its 101 `Response` that way).

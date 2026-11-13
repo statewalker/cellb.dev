@@ -92,8 +92,11 @@ function ruleModule(type: string, file: Buffer): string {
   return [
     'import { bytes } from "cellb-rule:decode";',
     type === "CompiledWasm"
-      ? // asynchronous: no engine limit on the size of a synchronous compile (Chromium's main thread)
-        `export default await WebAssembly.compile(bytes(${b64}));`
+      ? // Synchronous, as workerd imports a wasm module. A top-level await here would make every
+        // importer async, and esbuild's async module inits deadlock on circular imports (the
+        // bundle never finishes evaluating). Chromium refuses a synchronous compile over 8 MB
+        // only on a page's main thread; projects run in Dedicated Workers and on Node.
+        `export default new WebAssembly.Module(bytes(${b64}));`
       : `export default bytes(${b64}).buffer;`,
   ].join("\n");
 }
