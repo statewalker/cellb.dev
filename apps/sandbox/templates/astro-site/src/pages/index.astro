@@ -1,0 +1,20 @@
+---
+import { env } from "cloudflare:workers";
+import Counter from "../components/Counter.tsx";
+
+const stub = env.VISITS.get(env.VISITS.idFromName("site"));
+const visits = await stub.hit("/");
+const posts = ["hello", "durable-objects", "islands"];
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Astro on CellB</title>
+  </head>
+  <body>
+    <h1>Astro on CellB</h1>
+    <p id="visits">visits: {visits}</p>
+    <ul>{posts.map((p) => <li><a href={`posts/${p}`}>{p}</a></li>)}</ul>
+    <Counter client:load start={0} />
+  </body>
+</html>

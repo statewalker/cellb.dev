@@ -37,3 +37,8 @@ catalog:
   tsx: ^4.23.15
   urlpattern-polyfill: ^10.1.0
   wrangler: ^4.160.0
+
+overrides:
+  "@earendil-works/pi-agent-core": ~1.4.0
+  "@modelcontextprotocol/client@<2.2.0": ^2.2.0
+  "undici@<7.29.1": ^7.30.0

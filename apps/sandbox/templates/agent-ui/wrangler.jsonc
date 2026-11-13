@@ -1,0 +1,11 @@
+{
+  // A UI an agent pilots: the server keeps a JSON spec of the screen in a Durable Object, the
+  // client renders it with a fixed catalog of components and sends the actions back.
+  "name": "agent-ui",
+  "main": "server/index.ts",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": {
+    "bindings": [{ "name": "SURFACES", "class_name": "Surface" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Surface"] }]
+}

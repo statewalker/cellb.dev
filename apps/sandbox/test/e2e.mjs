@@ -131,6 +131,8 @@ try {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(APP);
+  // The first visit reloads once through the ServiceWorker, which makes the page cross-origin isolated.
+  await page.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
 
   const status = page.getByTestId("status");
   const frame = page.frameLocator('iframe[title="The running app"]');
@@ -317,7 +319,14 @@ try {
     window.showDirectoryPicker = async () => dir;
   }, picked);
   await page.getByRole("button", { name: "Open folder" }).click();
-  await frame.getByRole("heading", { name: "My tasks" }).waitFor({ timeout: 60_000 });
+  try {
+    await frame.getByRole("heading", { name: "My tasks" }).waitFor({ timeout: 60_000 });
+  } catch (err) {
+    await page.getByRole("tab", { name: "Log" }).click();
+    await showLog();
+    console.log("page errors:", errors);
+    throw err;
+  }
   step("the folder runs");
 
   await page.evaluate(async () => {
