@@ -442,6 +442,9 @@ try {
     "a project in the browser's own storage (OPFS): opened, run, and written through a capability",
   );
   const opfsPage = await context.newPage();
+  const opfsErrors = [];
+  opfsPage.on("pageerror", (e) => opfsErrors.push(e.message));
+  opfsPage.on("console", (m) => m.type() === "error" && opfsErrors.push(m.text().slice(0, 500)));
   await opfsPage.goto(APP);
   await opfsPage.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
   await opfsPage.evaluate(async () => {
@@ -454,10 +457,27 @@ try {
   });
   await opfsPage.getByLabel("Browser storage folder").fill("projects/e2e-opfs");
   await opfsPage.getByRole("button", { name: "Open from browser storage" }).click();
-  await opfsPage
-    .frameLocator('iframe[title="The running app"]')
-    .getByRole("heading", { name: "Kept by the browser" })
-    .waitFor({ timeout: 60_000 });
+  try {
+    await opfsPage
+      .frameLocator('iframe[title="The running app"]')
+      .getByRole("heading", { name: "Kept by the browser" })
+      .waitFor({ timeout: 60_000 });
+  } catch (err) {
+    console.log("opfs page errors:", opfsErrors.join(" | ").slice(0, 3000));
+    console.log(
+      "opfs page:",
+      (await opfsPage.evaluate(() => document.body.innerText)).slice(0, 1500),
+    );
+    await opfsPage
+      .getByRole("tab", { name: "Log" })
+      .click()
+      .catch(() => {});
+    console.log(
+      "opfs log:",
+      await opfsPage.evaluate(() => document.querySelector('[data-testid="log"]')?.textContent),
+    );
+    throw err;
+  }
   const wrote = await opfsPage.evaluate(async () => {
     const r = await window.cellbSandbox.call("write_file", {
       path: "notes.md",
