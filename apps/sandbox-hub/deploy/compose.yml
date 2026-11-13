@@ -1,0 +1,22 @@
+# The hub on a server or a home machine. HOST networking: members link to the hub over WebRTC
+# (UDP), which Docker's bridge network can break.
+#
+#   docker compose -f deploy/compose.yml up -d
+#   docker compose -f deploy/compose.yml logs hub        # the publisher link, READY <peerId>
+#   docker compose -f deploy/compose.yml exec hub node /app/sandbox-hub.mjs invite editor
+#   docker compose -f deploy/compose.yml exec hub node /app/sandbox-hub.mjs members
+services:
+  hub:
+    image: cellb-sandbox-hub
+    build: ..
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # The sandbox the invitation links open.
+      SANDBOX_URL: ${SANDBOX_URL:-https://cellb.httpeers.net/sandbox/app/}
+      # The public gateway (public apps for non-members), behind your TLS proxy or tunnel. Empty: none.
+      SANDBOX_HUB_GATEWAY_PORT: ${SANDBOX_HUB_GATEWAY_PORT:-}
+    volumes:
+      - hub-data:/data
+volumes:
+  hub-data:
