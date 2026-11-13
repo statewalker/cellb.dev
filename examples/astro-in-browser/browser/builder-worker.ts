@@ -18,6 +18,29 @@ import { cachedSource, prefetch } from "../src/builder/package-cache.ts";
 import { loadAstroCompiler } from "./compiler.ts";
 
 const log = (line: string) => postMessage({ log: line });
+/**
+ * The modules each bundle stage has loaded so far, for the page's progress bar: at most one
+ * message every 400 ms (EmDash's server bundle loads ~3000), and the last count of a stage.
+ */
+function progressReporter() {
+  let last = 0;
+  let scheduled = false;
+  let latest: { stage: string; modules: number } | undefined;
+  const send = () => {
+    scheduled = false;
+    last = performance.now();
+    if (latest) postMessage({ progress: latest });
+  };
+  return (stage: string, modules: number) => {
+    if (latest && latest.stage !== stage) send(); // the previous stage's final count
+    latest = { stage, modules };
+    if (performance.now() - last >= 400) send();
+    else if (!scheduled) {
+      scheduled = true;
+      setTimeout(send, 400);
+    }
+  };
+}
 const DOWNLOADERS = 1; // each holds one unpacked package while it packs it
 
 /** `n` download workers; a request goes to the least busy one. */
@@ -215,6 +238,7 @@ self.onmessage = async (
     }
     const built = await buildAstroApp({
       esbuild,
+      progress: progressReporter(),
       release: async () => {
         await esbuild.stop();
         await esbuild.initialize({ wasmURL, worker: true });
@@ -234,7 +258,12 @@ self.onmessage = async (
     // worker's own copy is still alive.
     const code = new TextEncoder().encode(built.code);
     postMessage(
-      { code, routes: built.routes.length, clientAssets: built.clientAssets },
+      {
+        code,
+        routes: built.routes.length,
+        clientAssets: built.clientAssets,
+        modules: built.modules,
+      },
       { transfer: [code.buffer] },
     );
   } catch (err) {
