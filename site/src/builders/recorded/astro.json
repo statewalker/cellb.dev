@@ -1,6 +1,6 @@
 {
   "kind": "astro",
-  "recordedAt": "2026-11-12",
+  "recordedAt": "2026-11-13",
   "host": "the platform on CellB in Node (packages/platform, dist/platform/cellb)",
   "steps": [
     {
@@ -18,18 +18,18 @@
           "content-type": "application/json; charset=utf-8",
           "access-control-allow-origin": "*"
         },
-        "body": "{\n  \"id\": \"e327ae7605df9591aefc\",\n  \"status\": \"done\",\n  \"tier\": \"object\",\n  \"spec\": {\n    \"sourcemap\": false\n  },\n  \"stats\": {\n    \"inputFiles\": 6,\n    \"inputBytes\": 1120432,\n    \"packages\": [],\n    \"workerBytes\": 1110811,\n    \"ms\": 404,\n    \"warnings\": 0,\n    \"astro\": {\n      \"routes\": 3,\n      \"ms\": 4681\n    }\n  },\n  \"log\": [\n    \"inputs: 11 files, 0.0 MB → tier object\",\n    \"an Astro project: building it from its sources\",\n    \"preloading astro for build-time code\",\n    \"build-time file system: 1326 files; running astro.config and its integrations\",\n    \"astro.config.mjs bundled: 0.00 MB\",\n    \"integration @astrojs/react: config:setup done\",\n    \"integrations: 0 routes, 0 middleware, 1 renderers, plugins none\",\n    \"3 routes: /api/time, /posts/[slug], /\",\n    \"scanned 10 components; bundling the server\",\n    \"bundling the client (islands, renderers' client entrypoints, component scripts)\",\n    \"astro built in 3970 ms: 0.89 MB, 3 routes\",\n    \"bundling server/entry.mjs (worker, 6 files, 1.1 MB)\",\n    \"built worker.js: 1.11 MB, 0 packages, 404 ms\"\n  ],\n  \"outputs\": {\n    \"folder\": \"http://localhost:8787/b/e327ae7605df9591aefc/\",\n    \"zip\": \"http://localhost:8787/b/e327ae7605df9591aefc/project.zip\",\n    \"loader\": \"http://localhost:8787/b/e327ae7605df9591aefc/loader.json\",\n    \"files\": [\n      \"http://localhost:8787/b/e327ae7605df9591aefc/assets/_astro/client.51bf856912.js\",\n      \"http://localhost:8787/b/e327ae7605df9591aefc/assets/_astro/empty.b878c11a77.js\",\n      \"http://localhost:8787/b/e327ae7605df9591aefc/assets/_astro/i0.f40c74298b.js\",\n      \"http://localhost:8787/b/e327ae7605df9591aefc/assets/_astro/r0.a58e9e9c87.js\",\n      \"http://localhost:8787/b/e327ae7605df9591aefc/worker.js\",\n      \"http://localhost:8787/b/e327ae7605df9591aefc/wrangler.json\"\n    ]\n  }\n}",
+        "body": "{\n  \"id\": \"b1fa429f3dd86bcbc197\",\n  \"status\": \"done\",\n  \"tier\": \"object\",\n  \"spec\": {\n    \"sourcemap\": false\n  },\n  \"stats\": {\n    \"inputFiles\": 6,\n    \"inputBytes\": 1120432,\n    \"packages\": [],\n    \"workerBytes\": 1110811,\n    \"ms\": 309,\n    \"warnings\": 0,\n    \"astro\": {\n      \"routes\": 3,\n      \"ms\": 4202\n    }\n  },\n  \"log\": [\n    \"inputs: 11 files, 0.0 MB → tier object\",\n    \"an Astro project: building it from its sources\",\n    \"preloading astro for build-time code\",\n    \"build-time file system: 1326 files; running astro.config and its integrations\",\n    \"astro.config.mjs bundled: 0.00 MB\",\n    \"integration @astrojs/react: config:setup done\",\n    \"integrations: 0 routes, 0 middleware, 1 renderers, plugins none\",\n    \"3 routes: /api/time, /posts/[slug], /\",\n    \"scanned 10 components; bundling the server\",\n    \"bundling the client (islands, renderers' client entrypoints, component scripts)\",\n    \"astro built in 3518 ms: 0.89 MB, 3 routes\",\n    \"bundling server/entry.mjs (worker, 6 files, 1.1 MB)\",\n    \"built worker.js: 1.11 MB, 0 packages, 309 ms\"\n  ],\n  \"outputs\": {\n    \"folder\": \"http://localhost:8787/b/b1fa429f3dd86bcbc197/\",\n    \"zip\": \"http://localhost:8787/b/b1fa429f3dd86bcbc197/project.zip\",\n    \"loader\": \"http://localhost:8787/b/b1fa429f3dd86bcbc197/loader.json\",\n    \"files\": [\n      \"http://localhost:8787/b/b1fa429f3dd86bcbc197/assets/_astro/client.51bf856912.js\",\n      \"http://localhost:8787/b/b1fa429f3dd86bcbc197/assets/_astro/empty.b878c11a77.js\",\n      \"http://localhost:8787/b/b1fa429f3dd86bcbc197/assets/_astro/i0.f40c74298b.js\",\n      \"http://localhost:8787/b/b1fa429f3dd86bcbc197/assets/_astro/r0.a58e9e9c87.js\",\n      \"http://localhost:8787/b/b1fa429f3dd86bcbc197/worker.js\",\n      \"http://localhost:8787/b/b1fa429f3dd86bcbc197/wrangler.json\"\n    ]\n  }\n}",
         "bodyLang": "json",
         "bytes": 1799,
-        "ms": 5455
+        "ms": 4824
       }
     },
     {
       "title": "The output: a Worker and its client assets",
-      "curl": "curl http://localhost:8787/b/e327ae7605df9591aefc/",
+      "curl": "curl http://localhost:8787/b/b1fa429f3dd86bcbc197/",
       "request": {
         "method": "GET",
-        "url": "http://localhost:8787/b/e327ae7605df9591aefc/"
+        "url": "http://localhost:8787/b/b1fa429f3dd86bcbc197/"
       },
       "response": {
         "status": 200,
@@ -40,16 +40,16 @@
         "body": "[\n  \"/assets/_astro/client.51bf856912.js\",\n  \"/assets/_astro/empty.b878c11a77.js\",\n  \"/assets/_astro/i0.f40c74298b.js\",\n  \"/assets/_astro/r0.a58e9e9c87.js\",\n  \"/worker.js\",\n  \"/wrangler.json\"\n]",
         "bodyLang": "json",
         "bytes": 193,
-        "ms": 3
+        "ms": 6
       }
     },
     {
       "title": "wrangler.json",
       "note": "The project's Durable Object, plus what Astro's Cloudflare adapter adds: the assets binding and a SESSION KV namespace (with a stable id, which celld requires).",
-      "curl": "curl http://localhost:8787/b/e327ae7605df9591aefc/wrangler.json",
+      "curl": "curl http://localhost:8787/b/b1fa429f3dd86bcbc197/wrangler.json",
       "request": {
         "method": "GET",
-        "url": "http://localhost:8787/b/e327ae7605df9591aefc/wrangler.json"
+        "url": "http://localhost:8787/b/b1fa429f3dd86bcbc197/wrangler.json"
       },
       "response": {
         "status": 200,
@@ -61,7 +61,7 @@
         "body": "{\n  \"name\": \"webrun-demo-astro\",\n  \"compatibility_date\": \"2026-02-24\",\n  \"compatibility_flags\": [\n    \"nodejs_compat\"\n  ],\n  \"durable_objects\": {\n    \"bindings\": [\n      {\n        \"name\": \"VISITS\",\n        \"class_name\": \"Visits\"\n      }\n    ]\n  },\n  \"migrations\": [\n    {\n      \"tag\": \"v1\",\n      \"new_sqlite_classes\": [\n        \"Visits\"\n      ]\n    }\n  ],\n  \"kv_namespaces\": [\n    {\n      \"binding\": \"SESSION\",\n      \"id\": \"webrun-demo-astro-session\"\n    }\n  ],\n  \"main\": \"worker.js\",\n  \"assets\": {\n    \"binding\": \"ASSETS\",\n    \"directory\": \"assets\"\n  },\n  \"no_bundle\": true\n}",
         "bodyLang": "json",
         "bytes": 578,
-        "ms": 2
+        "ms": 3
       }
     },
     {
@@ -80,7 +80,7 @@
         "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Astro on the webrun platform</title>\n</head>\n<body>\n<h1>Astro on the webrun platform</h1>\n<p id=\"visits\">visits: 2</p>\n<ul>\n<li>\n<a href=\"/posts/hello\">hello</a>\n</li>\n<li>\n<a href=\"/posts/durable-objects\">durable-objects</a>\n</li>\n<li>\n<a href=\"/posts/islands\">islands</a>\n</li>\n</ul>\n<style>astro-island,astro-slot,astro-static-slot{display:contents}</style>\n<script>(function(){let e=async e=>{await(await e())()};(self.Astro||(self.Astro={})).load=e,window.dispatchEvent(new Event(`astro:load`))})…\n<script>(function(){function e(t){\"@babel/helpers - typeof\";return e=typeof Symbol==`function`&&typeof Symbol.iterator==`symbol`?function(e)…\n<astro-island uid=\"1RynAB\" prefix=\"r1\" component-url=\"/_astro/i0.f40c74298b.js\" component-export=\"default\" renderer-url=\"/_astro/r0.a58e9e9c…\n<button type=\"button\" id=\"island\">island clicks: <!-- -->0</button>\n<!--astro:end-->\n</astro-island>\n</body>\n</html>",
         "bodyLang": "html",
         "bytes": 5921,
-        "ms": 11
+        "ms": 10
       }
     },
     {
@@ -98,7 +98,7 @@
         "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>islands</title>\n</head>\n<body>\n<h1 id=\"post\">Post: islands</h1>\n<a href=\"/\">home</a>\n</body>\n</html>",
         "bodyLang": "html",
         "bytes": 160,
-        "ms": 6
+        "ms": 5
       }
     },
     {
@@ -113,10 +113,10 @@
         "headers": {
           "content-type": "application/json"
         },
-        "body": "{\n  \"now\": \"2026-11-12T07:25:08.703Z\",\n  \"ok\": true\n}",
+        "body": "{\n  \"now\": \"2026-11-13T09:55:52.297Z\",\n  \"ok\": true\n}",
         "bodyLang": "json",
         "bytes": 44,
-        "ms": 5
+        "ms": 3
       }
     }
   ],
@@ -135,7 +135,7 @@
     }
   ],
   "facts": {
-    "buildId": "e327ae7605df9591aefc",
-    "buildMs": 5455
+    "buildId": "b1fa429f3dd86bcbc197",
+    "buildMs": 4824
   }
 }

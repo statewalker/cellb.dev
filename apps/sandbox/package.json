@@ -15,7 +15,7 @@
     "e2e": "node test/e2e.mjs"
   },
   "dependencies": {
-    "@astrojs/react": "^7.1.7",
+    "@astrojs/react": "^7.1.8",
     "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-css": "^6.3.1",
@@ -43,7 +43,7 @@
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",
     "@tailwindcss/vite": "^4.3.5",
-    "astro": "^7.4.10",
+    "astro": "^7.4.11",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "esbuild-wasm": "catalog:",
