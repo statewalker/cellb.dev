@@ -1,5 +1,8 @@
 import type { Clock, SyncSqlDriver } from "../ports.js";
 
+/** The longest delay setTimeout takes (2^31 - 1 ms, about 24.8 days). */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
 export interface AlarmEntry {
   cellKey: string;
   className: string;
@@ -78,15 +81,24 @@ export class AlarmScheduler {
     this.#arm({ ...entry, at });
   }
 
+  /**
+   * A timer waits at most `MAX_TIMER_MS`: Node's setTimeout fires a longer delay after 1 ms,
+   * which woke an alarm set weeks ahead every millisecond. Further-off alarms wait in steps
+   * and fire once, when due.
+   */
   #arm(e: AlarmEntry): void {
     this.#clear(e.cellKey);
     const delay = Math.max(0, e.at - this.#clock.now());
     this.#timers.set(
       e.cellKey,
-      this.#clock.setTimeout(() => {
-        this.#timers.delete(e.cellKey);
-        void this.#fire(e);
-      }, delay),
+      this.#clock.setTimeout(
+        () => {
+          this.#timers.delete(e.cellKey);
+          if (this.#clock.now() < e.at) this.#arm(e);
+          else void this.#fire(e);
+        },
+        Math.min(delay, MAX_TIMER_MS),
+      ),
     );
   }
 
