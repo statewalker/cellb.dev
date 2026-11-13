@@ -102,6 +102,7 @@ const wasmer = engine(
 const POOL_PREFIX = "cellb-sandbox-studio-t";
 
 async function sweepPools() {
+  console.info("[studio] sweeping the pools of tabs gone");
   try {
     const root = (await navigator.storage.getDirectory()) as FileSystemDirectoryHandle & {
       keys(): AsyncIterable<string>;
@@ -124,9 +125,16 @@ function openStudio(): Promise<LoadedProject> {
   // opened: so each tab has a pool of its own, and pools of tabs gone are swept first (a pool a
   // live tab holds cannot be removed, and is left alone).
   studio ??= sweepPools()
-    .then(() =>
-      loadProject(new URL(url), { data: `${POOL_PREFIX}${crypto.randomUUID().slice(0, 8)}` }),
-    )
+    .then(() => {
+      console.info("[studio] pools swept; starting the studio's cells");
+      return loadProject(new URL(url), {
+        data: `${POOL_PREFIX}${crypto.randomUUID().slice(0, 8)}`,
+      });
+    })
+    .then((project) => {
+      console.info("[studio] started");
+      return project;
+    })
     .catch((err) => {
       studio = undefined;
       throw err;

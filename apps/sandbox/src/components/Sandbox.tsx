@@ -362,8 +362,23 @@ export default function Sandbox() {
     if (!studio) throw new Error("the studio is not ready");
     const before = loadedRef.current?.session;
     setOpenError(undefined);
-    const s = await openProjectSession(studio, name, source);
-    const { files, dirs, signature } = await readProject(s);
+    // A step that never ends (a studio that cannot start its storage) is an error, not a page
+    // that silently stays where it was.
+    const step = <T,>(what: string, p: Promise<T>) => {
+      console.info(`[open] ${name}: ${what}`);
+      return Promise.race([
+        p,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`${what} did not finish in 60 s`)), 60_000),
+        ),
+      ]);
+    };
+    const s = await step(
+      "mounting the source, minting its tokens",
+      openProjectSession(studio, name, source),
+    );
+    const { files, dirs, signature } = await step("reading the project", readProject(s));
+    console.info(`[open] ${name}: ${files.size} files`);
     if (before) studio.unmount(before.ws);
     load({ name, files, dirs, session: s, handle, signature });
   }

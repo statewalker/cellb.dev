@@ -496,7 +496,17 @@ try {
   const opfsPage = await context.newPage();
   const opfsErrors = [];
   opfsPage.on("pageerror", (e) => opfsErrors.push(e.message));
-  opfsPage.on("console", (m) => m.type() === "error" && opfsErrors.push(m.text().slice(0, 500)));
+  // Everything the page and its workers say, for the diagnosis if the project does not open.
+  const opfsConsole = [];
+  opfsPage.on("console", (m) => {
+    opfsConsole.push(`${m.type()}: ${m.text().slice(0, 300)}`);
+    if (m.type() === "error") opfsErrors.push(m.text().slice(0, 500));
+  });
+  opfsPage.on("worker", (w) =>
+    w.on("console", (m) =>
+      opfsConsole.push(`worker ${w.url().split("/").pop()}: ${m.text().slice(0, 300)}`),
+    ),
+  );
   await opfsPage.goto(APP);
   await opfsPage.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
   await opfsPage.evaluate(async () => {
@@ -516,6 +526,7 @@ try {
       .waitFor({ timeout: 60_000 });
   } catch (err) {
     console.log("opfs page errors:", opfsErrors.join(" | ").slice(0, 3000));
+    console.log("opfs console:\n", opfsConsole.slice(-60).join("\n"));
     console.log(
       "opfs page:",
       (await opfsPage.evaluate(() => document.body.innerText)).slice(0, 1500),
