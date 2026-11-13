@@ -9,6 +9,8 @@
 //   4. A bridge with a viewer's invitation opens the app and is refused the MCP endpoint.
 //   5. Ship to the hub: the tab deploys its build; the hub runs it on CellB and the viewer's bridge
 //      opens it (/h/<name>/), its page and its Durable Object's API.
+//   6. The public gateway (in the hub's process): nothing until the tab turns Public on; then its
+//      app and a public deploy, for anyone, and never the MCP tools.
 //
 // CHROME=/path/to/chrome node test/e2e-mesh.mjs
 
@@ -89,9 +91,11 @@ async function oneShot(args, env) {
 let browser;
 try {
   const hubDir = await mkdtemp(join(tmpdir(), "sandbox-hub-"));
+  const GATEWAY = `http://127.0.0.1:${PORT + 10}/`;
   const hubEnv = {
     SANDBOX_HUB_DIR: hubDir,
     SANDBOX_URL: APP,
+    SANDBOX_HUB_GATEWAY_PORT: String(PORT + 10),
     ...(process.env.RELAY_DOC ? { SANDBOX_HUB_RELAY_DOC: process.env.RELAY_DOC } : {}),
   };
   const hub = await run(["src/main.ts", "start"], hubEnv, /READY (\S+)/);
@@ -252,6 +256,48 @@ try {
     throw new Error("the bridge does not list the hosted app");
   step(
     "Ship to the hub: the tab deployed its build; the hub runs it on CellB; a viewer opens its page and API",
+  );
+
+  // The public gateway: anyone, no invitation. Nothing is public yet.
+  const gw = (path, init) => fetch(`${GATEWAY}${path}`, init);
+  if ((await gw(`s/${peerId}/app/`)).status !== 404)
+    throw new Error("the gateway serves a tab that is not public");
+  if ((await gw("h/tasks/")).status !== 404)
+    throw new Error("the gateway serves a deploy that is not public");
+  await page.getByLabel("Public", { exact: true }).check();
+  let pubApp = 0;
+  for (let i = 0; i < 90 && pubApp !== 200; i++) {
+    pubApp = (await gw(`s/${peerId}/app/`)).status;
+    if (pubApp !== 200) await new Promise((r) => setTimeout(r, 1000));
+  }
+  if (pubApp !== 200) throw new Error(`the public tab through the gateway: ${pubApp}`);
+  const json = { "content-type": "application/json" };
+  const pubApi = await gw(`s/${peerId}/app/api/lists/demo/tasks`);
+  const pubMcp = await gw(`s/${peerId}/mcp`, {
+    method: "POST",
+    headers: json,
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+  });
+  const pubMcp2 = await gw("mcp", { method: "POST", headers: json, body: "{}" });
+  if (pubApi.status !== 200 || pubMcp.status !== 404 || pubMcp2.status !== 404)
+    throw new Error(`public: api ${pubApi.status}, mcp ${pubMcp.status}/${pubMcp2.status}`);
+  await page.getByRole("button", { name: "Deploy to the hub" }).click();
+  await page
+    .getByTestId("hosted-apps")
+    .getByText(/public/)
+    .waitFor({ timeout: 180_000 });
+  const pubHosted = await gw("h/tasks/");
+  if (pubHosted.status !== 200)
+    throw new Error(`the public deploy through the gateway: ${pubHosted.status}`);
+  const gwHome = await (await gw("")).text();
+  if (
+    !gwHome.includes(`/s/${peerId}/app/`) ||
+    !gwHome.includes("/h/tasks/") ||
+    gwHome.includes("MCP")
+  )
+    throw new Error(`the gateway's page: ${gwHome.slice(0, 400)}`);
+  step(
+    "the public gateway: nothing until Public is on; then the tab's app and the public deploy for anyone, never MCP",
   );
 
   if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);

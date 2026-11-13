@@ -6,11 +6,15 @@
 //   pnpm revoke <peerId>             removes a member (a new invitation is needed to come back)
 //
 // Settings (environment): SANDBOX_HUB_DIR (./.sandbox-hub), SANDBOX_URL (the sandbox the links
-// open, http://localhost:4321/), SANDBOX_HUB_RELAY_DOC (the public relay's document).
+// open, http://localhost:4321/), SANDBOX_HUB_RELAY_DOC (the public relay's document),
+// SANDBOX_HUB_GATEWAY_PORT (the public gateway in this process: public apps for non-members).
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { existsSync } from "node:fs";
 import { createServer } from "node:http";
+import { join } from "node:path";
 import { MESH_ROLES } from "../../sandbox/src/sandbox/mesh/rules.ts";
+import { startBridge } from "./bridge.ts";
 import { readHubFile, startHub, writeHubFile } from "./hub.ts";
 
 const dir = process.env.SANDBOX_HUB_DIR || ".sandbox-hub";
@@ -64,6 +68,20 @@ async function serve() {
     sandboxUrl,
   });
 
+  // The public gateway, in this process: a member with a viewer's role, serving what was made public.
+  let gateway: Awaited<ReturnType<typeof startBridge>> | undefined;
+  const gatewayPort = process.env.SANDBOX_HUB_GATEWAY_PORT;
+  if (gatewayPort) {
+    const gwDir = join(dir, "gateway");
+    const resume = existsSync(join(gwDir, "mesh.json"));
+    gateway = await startBridge({
+      dir: gwDir,
+      port: Number(gatewayPort),
+      public: true,
+      ...(resume ? {} : { invitation: (await hub.invite(["viewer"], 10 * 60_000)).blob }),
+    });
+  }
+
   const publisher = await hub.invite(["publisher"]);
   console.log(`
 The sandbox mesh's hub is up: ${hub.peerId}
@@ -71,11 +89,12 @@ The sandbox mesh's hub is up: ${hub.peerId}
 Open this link to publish a sandbox tab in the mesh (single use, 24 h):
   ${linkOf(publisher.blob)}
 
-Invite people and agents to it:  pnpm invite viewer | agent | editor
+Invite people and agents to it:  pnpm invite viewer | agent | editor${gateway ? `\nPublic gateway (public apps, for anyone): port ${gateway.port}` : ""}
 `);
   console.log(`READY ${hub.peerId}`);
   const stop = async () => {
     door.close();
+    await gateway?.stop().catch(() => {});
     await hub.stop();
     process.exit(0);
   };

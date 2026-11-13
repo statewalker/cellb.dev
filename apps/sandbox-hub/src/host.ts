@@ -2,7 +2,7 @@
 // process and served to the mesh's members. The same folder runs on Cloudflare (wrangler deploy),
 // celld and CellB anywhere: here it is CellB, and the mesh is the network.
 //
-//   PUT    /host/apps/<name>   { files: { "/worker.js": base64, … } }  deploy (publisher, admin)
+//   PUT    /host/apps/<name>   { files: { "/worker.js": base64, … }, public? }  deploy (publisher, admin)
 //   DELETE /host/apps/<name>                                          take down (publisher, admin)
 //   GET    /host/apps                                                 what is hosted (viewer and up)
 //   *      /apps/<name>/…                                             the app itself (viewer and up)
@@ -26,6 +26,8 @@ export interface HostedApp {
   by: string | null;
   files: number;
   bytes: number;
+  /** Served by the public gateway too, to people who are not members. */
+  public?: boolean;
 }
 
 const NAME = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -78,7 +80,12 @@ export function createAppHost(opts: {
     }
   }
 
-  async function deploy(name: string, files: Record<string, string>, by: string | null) {
+  async function deploy(
+    name: string,
+    files: Record<string, string>,
+    by: string | null,
+    isPublic = false,
+  ) {
     if (!NAME.test(name))
       throw new HttpError(400, "a name is lowercase letters, digits and dashes");
     const entries = Object.entries(files);
@@ -106,6 +113,7 @@ export function createAppHost(opts: {
       by,
       files: entries.length,
       bytes,
+      public: isPublic,
     };
     try {
       await start(name, meta);
@@ -142,12 +150,14 @@ export function createAppHost(opts: {
       if (!m[1] && request.method === "GET")
         return Response.json([...apps.values()].map((a) => a.meta));
       if (m[1] && request.method === "PUT") {
-        const body = (await request.json()) as { files?: Record<string, string> };
+        const body = (await request.json()) as { files?: Record<string, string>; public?: boolean };
         if (!body.files) throw new HttpError(400, "expected { files: { path: base64 } }");
         const peer = lookupPeer(request);
         const by = typeof peer === "string" ? peer : null;
         return Response.json(
-          await serial(() => deploy(m[1], body.files as Record<string, string>, by)),
+          await serial(() =>
+            deploy(m[1], body.files as Record<string, string>, by, body.public === true),
+          ),
         );
       }
       if (m[1] && request.method === "DELETE")

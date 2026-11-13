@@ -18,6 +18,9 @@ export function PublishPanel(props: {
   /** The project's name, and its deployable folder (Ship → Build). */
   name: string;
   build(): Promise<{ files: Map<string, Uint8Array> }>;
+  /** Public: the hub's gateway serves the app (and its deploys) to non-members; never the tools. */
+  isPublic: boolean;
+  onPublic(on: boolean): void;
   log(text: string, level?: "info" | "error"): void;
 }) {
   const { publisher, state } = props;
@@ -129,6 +132,17 @@ export function PublishPanel(props: {
           </Button>
         )}
       </div>
+      <label className="flex items-center gap-2 text-xs">
+        <input
+          type="checkbox"
+          className="accent-primary"
+          aria-label="Public"
+          checked={props.isPublic}
+          onChange={(e) => props.onPublic(e.target.checked)}
+        />
+        Public: the hub's gateway (if it runs one) serves this app, and what you deploy, to anyone
+        who has its address. The tools stay for members.
+      </label>
       {live && (
         <div className="grid gap-2 rounded-md border px-3 py-2" data-testid="hub-host">
           <p className="text-muted-foreground text-xs">
@@ -148,7 +162,9 @@ export function PublishPanel(props: {
                 setDeploying(true);
                 try {
                   const build = await props.build();
-                  const app = await publisher.deploy(props.name, build.files);
+                  const app = await publisher.deploy(props.name, build.files, {
+                    public: props.isPublic,
+                  });
                   props.log(
                     `mesh: ${app.name} deployed to the hub (${app.release}, ${app.files} files)`,
                   );
@@ -175,6 +191,7 @@ export function PublishPanel(props: {
               {hosted.map((a) => (
                 <li key={a.name}>
                   <code className="font-mono">{a.name}</code> {a.release}, {a.files} files,{" "}
+                  {a.public ? "public, " : ""}
                   {new Date(a.deployedAt).toLocaleString()}
                 </li>
               ))}

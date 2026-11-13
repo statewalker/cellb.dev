@@ -251,10 +251,17 @@ running app and the tool surface already are fetch handlers, so publishing is a 
 
 Tested on the public relay: `apps/sandbox-hub test` (Node members, deploys), and `e2e:mesh` (the hub
 process, a tab that publishes from the link, an editor's bridge reading and writing through MCP,
-a viewer's bridge refused MCP, the tab's deploy to the hub opened by the viewer).
+a viewer's bridge refused MCP, the tab's deploy to the hub opened by the viewer, the public gateway serving only what is public).
 
-**[next]**: an anonymous public gateway (today every viewer is a mesh member), and a
-`*.p.httpeers.net` session page for viewers without the bridge.
+- **The public gateway** (`SANDBOX_HUB_GATEWAY_PORT`) shows apps to people who are not
+  members. It is the bridge in public mode: a member with a viewer's role, on every interface. It
+  serves only what was made public: a tab advertising `public-app` (its **Public** box), and
+  deploys made with `public: true`. It never serves MCP, and it drops visitors' cookies and
+  credentials. TLS, rate limits and exposure belong to the proxy or tunnel in front of it.
+
+**[next]**: a `*.p.httpeers.net` session page for members who browse the mesh without the
+bridge, and an origin per app on the gateway (subdomains), so that apps do not share cookies and
+storage.
 
 ## 8. The client side: UIs agents can pilot
 

@@ -770,6 +770,15 @@ export default function Sandbox() {
   // Publishing in an HTTPeers mesh (Ship tab): the tab serves the running app and the IDE's tools,
   // read-only and read-write, each on a capability of its own; the mesh's rules say who reaches
   // which. A `?join=` link (from sandbox-hub) joins at once; a tab that published before resumes.
+  const [publicApp, setPublicApp] = useState(() => {
+    try {
+      return localStorage.getItem("cellb-sandbox-public") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const publicRef = useRef(publicApp);
+  publicRef.current = publicApp;
   const [publishState, setPublishState] = useState<PublishState>({
     phase: "idle",
     controls: { join: true, disconnect: false, reconnect: false, reset: false },
@@ -786,6 +795,7 @@ export default function Sandbox() {
       mcpRead: createMcpHandler(toolsOf("read"), { readOnly: true }),
       mcpEdit: createMcpHandler(toolsOf("edit")),
       title: () => loadedRef.current?.name ?? "CellB sandbox",
+      isPublic: () => publicRef.current,
       onChange: (s) => {
         setPublishState(s);
         try {
@@ -1194,6 +1204,13 @@ export default function Sandbox() {
                     state={publishState}
                     name={layout?.name ?? loaded.name}
                     build={buildDeploy}
+                    isPublic={publicApp}
+                    onPublic={(on) => {
+                      setPublicApp(on);
+                      try {
+                        localStorage.setItem("cellb-sandbox-public", on ? "1" : "0");
+                      } catch {}
+                    }}
                     log={addLog}
                   />
                 </div>

@@ -71,7 +71,7 @@ and `/mcp` (the first sandbox's MCP endpoint: `/mcp/edit` for an editor, `/mcp/r
 A desktop agent's MCP configuration is then `{ "type": "http", "url": "http://127.0.0.1:8790/mcp" }`.
 Later runs resume the membership without an invitation (`.sandbox-bridge/`).
 
-Settings: `SANDBOX_HUB_DIR`, `SANDBOX_URL`, `SANDBOX_HUB_RELAY_DOC` (the hub);
+Settings: `SANDBOX_HUB_DIR`, `SANDBOX_URL`, `SANDBOX_HUB_RELAY_DOC`, `SANDBOX_HUB_GATEWAY_PORT` (the hub);
 `SANDBOX_BRIDGE_DIR`, `SANDBOX_BRIDGE_PORT` (the bridge).
 
 ## Ship to the hub
@@ -88,6 +88,28 @@ folder (the same one as Ship → Build) and uploads it to the hub (`PUT /host/ap
 
 The same folder still runs on Cloudflare (`wrangler deploy`) and celld. The hub is just one more
 host for it, reached over the mesh.
+
+## The public gateway
+
+To show an app to people who are not members, start the hub with a gateway:
+
+```sh
+SANDBOX_HUB_GATEWAY_PORT=8080 pnpm --filter @statewalker/cellb-sandbox-hub start
+```
+
+`pnpm gateway '<viewer invitation>'` runs one in a process of its own instead.
+
+- **What it is.** A mesh member with a viewer's role. It listens on every interface and answers
+  any Host.
+- **What it serves.** Only what was made public:
+  - a tab's app while the tab's **Public** box is on, at `/s/<peer>/app/`;
+  - apps deployed while that box was on, at `/h/<name>/`.
+- **What it never serves.** The MCP tools. `/` lists the public apps.
+- **Requests.** Visitors' cookies and `Authorization` headers are not passed to the apps, since
+  one origin serves them all.
+- **Reaching it from the internet** is up to you: a reverse proxy with TLS (Caddy, nginx) on the
+  hub's machine, or a tunnel (`cloudflared`, `tailscale funnel`). It has no TLS, rate limits or
+  accounts of its own: put those in the proxy.
 
 ## Deploy
 

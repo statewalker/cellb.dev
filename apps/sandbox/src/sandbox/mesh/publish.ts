@@ -40,7 +40,11 @@ export interface Publisher {
   resetIdentity(): Promise<void>;
   state(): PublishState;
   /** Ships a deployable folder (Ship → Build) to the hub, which runs it on CellB at /apps/<name>/. */
-  deploy(name: string, files: Map<string, Uint8Array>): Promise<HostedApp>;
+  deploy(
+    name: string,
+    files: Map<string, Uint8Array>,
+    opts?: { public?: boolean },
+  ): Promise<HostedApp>;
   /** What the hub hosts. */
   apps(): Promise<HostedApp[]>;
 }
@@ -52,6 +56,7 @@ export interface HostedApp {
   by: string | null;
   files: number;
   bytes: number;
+  public?: boolean;
 }
 
 /** "My Tasks!" → "my-tasks": the name an app is hosted under. */
@@ -76,6 +81,8 @@ export function createPublisher(opts: {
   mcpRead: FetchHandler;
   mcpEdit: FetchHandler;
   title: () => string;
+  /** Whether the app is public: the hub's gateway serves it to non-members (never the tools). */
+  isPublic?: () => boolean;
   onChange: (s: PublishState) => void;
   /** Relaxes libp2p's dial gater for loopback/private addresses (a hub on this machine, tests). */
   dev?: boolean;
@@ -107,7 +114,10 @@ export function createPublisher(opts: {
       mounts,
       rules: rules as RuleSet,
       search,
-      advertisements: () => [{ id: SANDBOX_ADVERT, kind: "app", title: opts.title() }],
+      // Read on every heartbeat: Public on or off reaches the mesh within one.
+      advertisements: () => [
+        { id: SANDBOX_ADVERT, kind: opts.isPublic?.() ? "public-app" : "app", title: opts.title() },
+      ],
       // A node, no edge: this page serves the mesh and calls nobody through its own fetch().
       platform: { createNode: node.createNode, watchWake: (w) => watchPageWake(w) },
       // The mesh is the one an invitation names, or the one this tab joined before: never a
@@ -142,13 +152,13 @@ export function createPublisher(opts: {
     reconnect: async () => session?.reconnect(),
     resetIdentity: async () => session?.resetIdentity(),
     state: () => current,
-    async deploy(name, files) {
+    async deploy(name, files, o = {}) {
       const body: Record<string, string> = {};
       for (const [path, bytes] of files) body[path] = base64(bytes);
       return (await onHub(`/host/apps/${hostName(name)}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ files: body }),
+        body: JSON.stringify({ files: body, public: o.public === true }),
       })) as unknown as HostedApp;
     },
     apps: async () => (await onHub("/host/apps")) as unknown as HostedApp[],
