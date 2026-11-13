@@ -1,0 +1,11 @@
+{
+  // A2UI-style surfaces an agent streams: the server keeps the message log in a Durable Object,
+  // the client applies the messages as they come and renders them with a fixed catalog.
+  "name": "a2ui-stream",
+  "main": "server/index.ts",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": {
+    "bindings": [{ "name": "STREAMS", "class_name": "SurfaceStream" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SurfaceStream"] }]
+}

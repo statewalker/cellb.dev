@@ -64,6 +64,7 @@ async function sampleFolder() {
 const TYPES = {
   html: "text/html",
   js: "text/javascript",
+  mjs: "text/javascript",
   css: "text/css",
   wasm: "application/wasm",
   svg: "image/svg+xml",
@@ -128,6 +129,29 @@ try {
     args: HTTPS ? ["--ignore-certificate-errors"] : [],
   });
   const page = await browser.newPage({ ignoreHTTPSErrors: HTTPS });
+  // What the language service says, for the diagnosis if it does not answer.
+  const tsLog = [];
+  page.on(
+    "console",
+    (m) => /TypeScript|\[ts\]/.test(m.text()) && tsLog.push(m.text().slice(0, 300)),
+  );
+  page.on(
+    "worker",
+    (w) =>
+      w.url().includes("ts.worker") &&
+      w.on("console", (m) => tsLog.push(`worker: ${m.text().slice(0, 300)}`)),
+  );
+  page.on("response", (r) => {
+    if (/worker/.test(r.url()) && r.status() >= 300)
+      tsLog.push(`response ${r.status()}: ${r.url()}`);
+  });
+  page.on("request", (r) => /ts\.worker/.test(r.url()) && tsLog.push(`request: ${r.url()}`));
+  page.on(
+    "requestfailed",
+    (r) =>
+      /jsdelivr|typescript|worker/.test(r.url()) &&
+      tsLog.push(`failed: ${r.url()} ${r.failure()?.errorText}`),
+  );
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(APP);
@@ -258,6 +282,58 @@ try {
   const edited = JSON.parse(await fetchApp("api/hello"));
   if (edited.hello !== "edited in the sandbox")
     throw new Error(`api/hello: ${JSON.stringify(edited)}`);
+
+  step(
+    "the TypeScript language service: a type error is underlined, completion knows the Workers types",
+  );
+  await row("server/index.ts").click();
+  await page.locator(".cm-content .cm-line").first().waitFor();
+  // What the file holds now (the edit saved by the step before).
+  const saved = serverText.replace('hello: "from the server"', 'hello: "edited in the sandbox"');
+  // A type error, and an expression to complete, at the end of the file (not saved).
+  // At the top of the file: CodeMirror draws the lines in view only.
+  await editorText(`const wrong: number = "text";\n${saved}`);
+  await page.keyboard.press("ControlOrMeta+Home");
+  try {
+    // Hono's types arrive from npm (automatic type acquisition): then only the planted error stays.
+    // The lint panel lists every problem in the file, drawn or not.
+    const problems = page.locator(".cm-panel-lint li");
+    const listed = async () => (await problems.allInnerTexts()).map((t) => t.trim());
+    let found = [];
+    for (let i = 0; i < 180; i++) {
+      // The panel's keys come with the language service: opened once it has loaded.
+      if (!(await page.locator(".cm-panel-lint").count())) {
+        await page.locator('[data-testid="code-editor"] .cm-content').click();
+        await page.keyboard.press("ControlOrMeta+Shift+M");
+      }
+      found = await listed();
+      if (found.length === 1 && found[0].includes("not assignable to type 'number'")) break;
+      await page.waitForTimeout(500);
+    }
+    if (found.length !== 1 || !found[0].includes("not assignable to type 'number'"))
+      throw new Error(
+        `problems listed: ${JSON.stringify(found)} (expected the planted one); the service: ${tsLog.join(" | ")}`,
+      );
+    await page.keyboard.press("Escape");
+    // Completion, on a line of its own at the top.
+    await editorText(`Response.js\n${saved}`);
+    await page.keyboard.press("ControlOrMeta+Home");
+    await page.keyboard.press("End");
+    await page.keyboard.press("Control+Space");
+    await page
+      .locator(".cm-tooltip-autocomplete")
+      .getByText("json")
+      .first()
+      .waitFor({ timeout: 30_000 });
+  } catch (err) {
+    console.log("editor:", (await page.locator(".cm-content").innerText()).slice(-200));
+    throw err;
+  }
+  await page.keyboard.press("Escape");
+  await editorText(saved);
+  await tree
+    .getByRole("button", { name: /^File server\/index\.ts, .*unsaved$/ })
+    .waitFor({ state: "detached", timeout: 10_000 });
 
   step("add, move (path field, drag) and delete files and folders");
   await tree.getByRole("button", { name: "New file" }).click();

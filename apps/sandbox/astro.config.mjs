@@ -15,7 +15,14 @@ export default defineConfig({
   integrations: [react(), swWorker()],
   vite: {
     plugins: [tailwindcss()],
-    resolve: { alias: { "@": new URL("./src", import.meta.url).pathname } },
+    resolve: {
+      alias: [
+        { find: "@", replacement: new URL("./src", import.meta.url).pathname },
+        // The editor's language service needs TypeScript's JavaScript API: TypeScript 6, the last
+        // compiler written in JavaScript (7 is native). Libraries importing "typescript" get it.
+        { find: /^typescript$/, replacement: "typescript-js" },
+      ],
+    },
     // The runner worker starts CellB: SQLite WASM finds its .wasm next to its own module, so it is
     // not pre-bundled; the worker is an ES module (it starts nested workers).
     optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm", "esbuild-wasm"] },

@@ -44,6 +44,13 @@ export const TEMPLATES: Template[] = [
     files: () => filesUnder(others, "../../templates/agent-ui"),
   },
   {
+    id: "a2ui-stream",
+    title: "A2UI stream: a screen an agent builds message by message",
+    description:
+      "A2UI-style messages (createSurface, updateComponents, updateDataModel) appended to a log in a Durable Object; every client applies them as they come, from a fixed catalog, and sends actions back.",
+    files: () => filesUnder(others, "../../templates/a2ui-stream"),
+  },
+  {
     id: "notebook-dashboard",
     title: "Notebook dashboard: a Durable Object and a notebook over it",
     description:
