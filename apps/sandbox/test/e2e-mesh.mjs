@@ -236,6 +236,10 @@ try {
     );
     throw err;
   }
+  if (process.env.SHOT_DEPLOY) {
+    await page.getByTestId("hub-host").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: process.env.SHOT_DEPLOY });
+  }
   const hostedPage = await fetch(`${V}h/tasks/`);
   const hostedHtml = await hostedPage.text();
   if (hostedPage.status !== 200 || !/<html|<!doctype/i.test(hostedHtml))
