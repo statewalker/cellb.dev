@@ -643,6 +643,61 @@ try {
   await nbPage.close();
 
   step(
+    "a2ui-stream: an agent builds a screen message by message; a click comes back as an action; a component outside the catalog is refused",
+  );
+  const a2Page = await context.newPage();
+  a2Page.on("pageerror", (e) => errors.push(`a2ui page: ${e.message}`));
+  await a2Page.goto(APP);
+  await a2Page.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
+  await a2Page.getByRole("button", { name: /^Template: A2UI stream/ }).click();
+  const a2 = a2Page.frameLocator('iframe[title="The running app"]');
+  await a2
+    .getByRole("heading", { name: "A surface an agent streams" })
+    .waitFor({ timeout: 90_000 });
+  await a2.getByRole("button", { name: "+1" }).click();
+  const tool = (name, args) =>
+    a2Page.evaluate(([n, a]) => window.cellbSandbox.call(n, a), [name, args]);
+  let acted;
+  for (let i = 0; i < 40; i++) {
+    acted = await tool("http_request", { path: "api/actions" });
+    if (acted.ok && acted.result.body.includes('"name":"click"')) break;
+    await a2Page.waitForTimeout(250);
+  }
+  if (!acted?.result?.body.includes('"clicks":0'))
+    throw new Error(`the click: ${JSON.stringify(acted)}`);
+  const jsonl = [
+    { updateDataModel: { surfaceId: "main", path: "/clicks", value: 41 } },
+    { createSurface: { surfaceId: "report" } },
+    {
+      updateComponents: {
+        surfaceId: "report",
+        components: [
+          { id: "root", component: "Card", title: "Report", children: ["rows"] },
+          { id: "rows", component: "List", items: { path: "/rows" } },
+        ],
+      },
+    },
+    { updateDataModel: { surfaceId: "report", path: "/rows", value: ["alpha", "beta"] } },
+  ]
+    .map((m) => JSON.stringify(m))
+    .join("\n");
+  const posted = await tool("http_request", { path: "api/stream", method: "POST", body: jsonl });
+  if (!posted.ok || posted.result.status !== 200)
+    throw new Error(`stream: ${JSON.stringify(posted)}`);
+  await a2.getByText("41", { exact: true }).waitFor({ timeout: 10_000 });
+  await a2.getByRole("listitem").filter({ hasText: "beta" }).waitFor({ timeout: 10_000 });
+  const a2Refused = await tool("http_request", {
+    path: "api/stream",
+    method: "POST",
+    body: JSON.stringify({
+      updateComponents: { surfaceId: "main", components: [{ id: "x", component: "Script" }] },
+    }),
+  });
+  if (a2Refused.result?.status !== 400 || !a2Refused.result.body.includes("not in the catalog"))
+    throw new Error(`an unknown component: ${JSON.stringify(a2Refused)}`);
+  await a2Page.close();
+
+  step(
     "Astro: a site built from its sources in the tab (compiler-rs), run on CellB, its island hydrated; its deployable build run by cellb on Node",
   );
   const astroPage = await context.newPage();

@@ -55,7 +55,8 @@ its instructions.
 client. "Try the sample" runs it; "Download the sample" gives it as a ZIP to open as a folder.
 `templates/notebook-dashboard` is a Durable Object with a notebook as its dashboard.
 `templates/agent-ui` is a screen an agent pilots: a JSON spec (json-render / A2UI shape) kept in
-a Durable Object, rendered from a fixed catalog of components.
+a Durable Object, rendered from a fixed catalog of components. `templates/a2ui-stream` is the streamed form: A2UI-style
+messages appended to a log in a Durable Object, which every client applies as they come.
 
 **Astro sites**: a folder with an `astro.config.*` is an Astro site (`templates/astro-site`:
 `.astro` pages, an API route, a React island, a Durable Object). The runner builds it from its

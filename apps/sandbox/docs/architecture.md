@@ -280,8 +280,12 @@ Two complementary forms:
 The spec shape is deliberately the one of **json-render** (vercel-labs; used by
 `@statewalker/render.view.react`, React/shadcn catalogs) and close to **A2UI** v0.9
 (`createSurface` / `updateComponents` / `updateDataModel`; a build-free DOM renderer exists in
-`statewalker-sandbox/apps/httpeers-shell-protos/lib`). **[next]**: a `@json-render/react`
-template, and A2UI message streams for incremental updates.
+`statewalker-sandbox/apps/httpeers-shell-protos/lib`). The `a2ui-stream` template **[built]**
+streams them. The agent appends A2UI-style messages (`createSurface`, `updateComponents`,
+`updateDataModel`, `deleteSurface`) to a log in a Durable Object, as one message, an array or
+JSON Lines, checked against the catalog all or nothing. Every client follows the log and applies
+the new messages in order, so a screen is built and changed step by step. Actions come back as
+their own log. **[next]**: a `@json-render/react` template.
 
 **Astro** is the layout/pages layer **[built]**: a folder with an `astro.config.*` builds in the
 runner with `@statewalker/cellb-astro-builder` (config and integrations evaluated, compiler-rs as
