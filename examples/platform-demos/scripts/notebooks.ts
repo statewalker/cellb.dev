@@ -86,10 +86,13 @@ export async function notebooksDemo(host: string, base: string, t: Tools) {
     );
     const numbers = (await (await fetch(`${site}/numbers.json`)).json()) as number[];
     assert(numbers.join() === "1,2,3,4,5,6,7,8,9,10", `numbers.json: ${numbers}`);
-    assert(
-      (await fetch(`${site}/numbers.json.js`)).status === 404,
-      "the loader's source is served",
-    );
+    for (const p of [
+      "numbers.json.js",
+      "numbers.json.js/%2E",
+      "t/numbers.json.js/%2E",
+      "t/features.md/%2E",
+    ])
+      assert((await fetch(`${site}/${p}`)).status === 404, `a source is served at ${p}`);
     const again = (await (await fetch(`${site}/build`, { method: "POST" })).json()) as typeof res;
     assert(
       again.loaders.find((l) => l.output === "/numbers.json")?.cached === true,

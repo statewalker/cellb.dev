@@ -5,7 +5,13 @@ import { pathToFileURL } from "node:url";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { DOMParser, parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
-import { contentType, loaderProject, loaderTarget } from "../src/data-loaders.js";
+import {
+  contentType,
+  isDataPath,
+  isServedSource,
+  loaderProject,
+  loaderTarget,
+} from "../src/data-loaders.js";
 import { buildPageModels } from "../src/page-models.js";
 
 describe("loaderTarget", () => {
@@ -27,6 +33,33 @@ describe("loaderTarget", () => {
     expect(contentType("/a.csv")).toBe("text/csv; charset=utf-8");
     expect(contentType("/a.JSON")).toBe("application/json");
     expect(contentType("/a.unknown")).toBe("application/octet-stream");
+  });
+});
+
+describe("isDataPath", () => {
+  it("serves data, media and fonts by plain paths", () => {
+    expect(isDataPath("/numbers.json")).toBe(true);
+    expect(isDataPath("/data/photo.PNG")).toBe(true);
+    expect(isServedSource("/data/sales.csv")).toBe(true);
+  });
+
+  it("never reaches a loader's or notebook's source, a dot-file or a code file", () => {
+    for (const p of [
+      "/numbers.json.js/.",
+      "/numbers.json.js/x/..",
+      "/x/../numbers.json.js",
+      "/features.md/.",
+      "/.env",
+      "/.git/config",
+      "/a//b.csv",
+      "/config.secret.js",
+      "/features.md",
+      "/plots",
+      "numbers.json",
+    ])
+      expect([p, isDataPath(p)]).toEqual([p, false]);
+    // a loader produces data; its own source is not served
+    expect(isServedSource("/numbers.json.js")).toBe(false);
   });
 });
 
@@ -102,6 +135,27 @@ describe("data files in pages", () => {
     expect(plots?.script).not.toContain("unused");
     const home = models.pages.find((p) => p.id === "index");
     expect(home?.script).not.toContain("registerFile");
+  });
+
+  it("registers a file named `./`-relative or from the site's root", async () => {
+    const notebooks = new MemFilesApi({
+      initialFiles: {
+        "/guide/p.md":
+          '# P\n\n```js\nconst a = FileAttachment("./data/x.csv");\n```\n\n' +
+          '```js\nconst b = FileAttachment("/numbers.json");\n```\n',
+      },
+    });
+    const models = await buildPageModels({
+      notebooks,
+      moduleServer,
+      dom: { document, parser: new DOMParser() } as never,
+      siteTitle: "S",
+      base: "/t",
+      dataFiles: ["/numbers.json", "/guide/data/x.csv"],
+    });
+    const script = models.pages[0]?.script ?? "";
+    expect(script).toContain('registerFile("./data/x.csv", {"path":"/t/guide/data/x.csv"});');
+    expect(script).toContain('registerFile("/numbers.json", {"path":"/t/numbers.json"});');
   });
 });
 

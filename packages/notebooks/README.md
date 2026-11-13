@@ -130,12 +130,17 @@ export default async () => (await fetch("https://example.com/quakes.json")).json
   project (`src/data-loaders.ts`). Its npm imports come from the package store. The Worker runs
   once in a Worker Loader isolate, and its `fetch` answers with the data. A loader may use `fetch`.
 - **Kept until it changes.** The output is stored in the object (`nbdata`) with the loader's build
-  id, a hash of its sources. A rebuild with the same loader reuses the output (`cached: true`). A
-  failed loader keeps its last output and is reported in `loaderFailures`.
+  id, a hash of its sources. A rebuild with the same loader reuses the output (`cached: true`), so a
+  loader that reads an API is not run again until its source changes, unless the build is
+  `POST /nb/<site>/build?loaders=refresh`. A failed loader, or one with no answer in 60 s, keeps its
+  last output and is reported in `loaderFailures`, as is a second loader of the same output. Each
+  run gets a fresh isolate.
 - **Loaders run first**, so a notebook's `FileAttachment("data/sales.csv")` finds the output, as it
   finds any attachment.
 - **Served beside the notebooks**, at `/nb/<site>/data/sales.csv` and `/nb/<site>/t/data/sales.csv`.
-  A loader's source is never served, since it can hold an API key.
+  A loader's source is never served, since it can hold an API key. Of the sources, only files with
+  a data, media or font extension are served (and exported), and never through a dot-file or a
+  `.`/`..` segment.
 - **Output types are data:** `csv`, `tsv`, `json`, `ndjson`, `txt`, `xml`, `yaml`, `parquet`,
   `arrow`, `sqlite`, `xlsx`, `zip`, images and a few more. `lib/d3.min.js` is not a loader.
 

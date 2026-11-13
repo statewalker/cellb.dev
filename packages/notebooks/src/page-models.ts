@@ -174,13 +174,17 @@ function registrations(
     .join("\n");
   const dir = notebook.slice(0, notebook.lastIndexOf("/") + 1);
   const out: string[] = [];
+  const named = (name: string) =>
+    code.includes(`"${name}"`) || code.includes(`'${name}'`) || code.includes(`\`${name}\``);
   for (const path of dataFiles) {
-    const name = relative(dir, path);
-    if (!code.includes(`"${name}"`) && !code.includes(`'${name}'`) && !code.includes(`\`${name}\``))
-      continue;
-    out.push(
-      `registerFile(${JSON.stringify(name)}, {"path":${JSON.stringify(`${base}${path}`)}});`,
-    );
+    const rel = relative(dir, path);
+    // As written in the notebook: relative, `./`-relative, or from the site's root (`/data/x.csv`,
+    // which the page's own URL would resolve against the origin, not the site).
+    for (const name of [rel, ...(rel.startsWith(".") ? [] : [`./${rel}`]), path])
+      if (named(name))
+        out.push(
+          `registerFile(${JSON.stringify(name)}, {"path":${JSON.stringify(`${base}${path}`)}});`,
+        );
   }
   return out;
 }

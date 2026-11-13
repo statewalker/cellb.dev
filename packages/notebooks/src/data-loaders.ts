@@ -69,6 +69,38 @@ export function loaderTarget(path: string): string | undefined {
   return m?.[1] && DATA_EXTENSIONS.has((m[2] ?? "").toLowerCase()) ? m[1] : undefined;
 }
 
+/** What a site serves of its sources besides loader outputs: data, media, documents, fonts. */
+const SERVED_EXTENSIONS = new Set([
+  ...DATA_EXTENSIONS,
+  "avif",
+  "ico",
+  "mp3",
+  "mp4",
+  "ogg",
+  "otf",
+  "pdf",
+  "ttf",
+  "wav",
+  "webm",
+  "woff",
+  "woff2",
+]);
+
+/**
+ * Whether `path` may be served as a data file: every segment a plain name (no empty, `.`, `..`
+ * or dot-file segment, so `/x.json.js/.` or `/.env` never reach the store, which would normalize
+ * them), and a data, media or font extension (so no code, no notebook source, no secrets file).
+ */
+export function isDataPath(path: string): boolean {
+  const segments = path.split("/").slice(1);
+  if (!path.startsWith("/") || segments.some((s) => s === "" || s.startsWith("."))) return false;
+  const ext = /\.([A-Za-z0-9]+)$/.exec(path)?.[1]?.toLowerCase();
+  return ext !== undefined && SERVED_EXTENSIONS.has(ext);
+}
+
+/** A source file served as it is: a data path that is not a loader (loaders produce data). */
+export const isServedSource = (path: string) => isDataPath(path) && !loaderTarget(path);
+
 /** Whether a source file is a notebook (a page), not data. */
 export const isNotebook = (path: string) => /\.(md|html)$/.test(path);
 
