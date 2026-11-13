@@ -83,6 +83,7 @@ export default defineConfig(({ command }) => ({
       "index.html",
       "emdash.html",
       "start.html",
+      "start.ts",
       "cells-lab.html",
       "host.ts",
       "shard-worker.ts",

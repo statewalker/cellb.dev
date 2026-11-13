@@ -82,13 +82,23 @@ The static build is what https://cellb-astro.httpeers.net serves: the chooser,
 the ServiceWorker is one file, `/cellb-sw.js` (`browser/vite.sw.config.ts`). Both apps run at the
 origin's root, so building one replaces the other.
 
-- **`/` is the built site** while a tab runs it; the chooser stays at `/__cellb/start.html`, and
+- **Saved builds.** Each app's last build (the Worker bundle and its client assets) is saved in
+  the origin's private file system (`browser/builds.ts`: `cellb-builds/<app>/` in OPFS) and stays
+  until the app is built again. Opening a host page runs its saved build in seconds, without
+  compiling; *Rebuild* (`?rebuild`) compiles the sources again and replaces it. A saved build of
+  another `BUILD_FORMAT` (a host that changed) is not used. Each app's data (its Durable Objects
+  on the LTX storage) stays too, across launches and rebuilds.
+- **The chooser**, `/__cellb/start.html`, lists both apps with their saved builds: *Launch* runs
+  the saved build (or compiles it when there is none), *Rebuild* compiles it again. One app runs
+  at a time at `/`: launching the other replaces it, in the same tab.
+- **`/` is the running app** while a tab runs it; the chooser stays at `/__cellb/start.html`, and
   each host page links to it (*Choose another app*). A first visit to `/` (no ServiceWorker yet)
-  forwards to the chooser.
-- **When no tab runs the site**, the ServiceWorker sends a visit to any of its paths to the
-  chooser, with the path as `?next=`. The chooser says which app was built last in this browser;
-  the host page picked from it links to that path once the site runs. (Before, such a visit went
-  to the small app's host page, which rebuilt the small app even after EmDash was built.)
+  forwards to the chooser. When no tab runs the app, the ServiceWorker sends a visit to any of
+  its paths to the chooser with the path as `?next=` (only a path of this origin is passed on:
+  `browser/next-path.ts`), and the host page picked from it links to that path once it runs.
+- **Progress.** While an app is built, the host page shows its stage, a progress bar (stages
+  read from the build's log, weighted as a cold EmDash build) and the time spent, above the
+  build's log; cold builds also log every 10 downloaded packages.
 
 `?memory` on the page keeps packages in memory; `?pools` puts the site's cells in CellB's OPFS
 pools instead of the LTX storage. Network access to registry.npmjs.org is needed.
@@ -98,7 +108,7 @@ pools instead of the LTX storage. Network access to registry.npmjs.org is needed
 | `build-in-browser.spec.ts` | the small app is built in the tab (in about 5 s) and served by CellB |
 | `emdash-in-browser.spec.ts` | EmDash is built in the tab through the package store (about 320 downloads cold, then none after a reload), run on the LTX storage and seeded; its pages and hydrated admin render, and it is exported as a ZIP and served from disk. `EMDASH_STORE=0` keeps packages in memory, and `EMDASH_HEAP=1` reports the memory of every realm. The spec fails on skipped component scripts, unsupported configuration and LTX store failures |
 | `emdash-admin-in-browser.spec.ts` | on the build made in the tab, runs EmDash's setup wizard, creates a passkey account and publishes a post with a featured image in R2; reads the post back after a reload of the host tab (a new build); checks that a second host tab takes the shard over when the first closes |
-| `start-page.spec.ts` | the chooser: reachable while a tab runs the site, and where a visit lands once no tab runs it, with the path asked for passed on to the host page |
+| `start-page.spec.ts` | saved builds and the chooser: the first launch compiles (with its progress) and saves the build; the chooser lists it, stays reachable while the site runs and is where a visit lands once no tab runs it; *Launch* runs the saved build without compiling and links to the path asked for; a reload runs it too; *Rebuild* compiles again. Only a path of this origin is passed on as `?next=` |
 | `package-cache.spec.ts` | the package cache's clean-up: the small app built through the store, a stray pack pruned, the lock forgotten, the store cleared, and a rebuild that downloads every package again |
 | `pkgstore-probe.spec.ts` | the package store alone, then under concurrent 5–20 MB PUTs, ranged GETs and compaction, with an integrity pass (`PKGSTORE_PACKS=80 PKGSTORE_CONCURRENCY=8` goes past the context's storage, and then only PUTs may fail) |
 | `cells-lab`, `*-probe` | a lab of the storage choices for shards, and probes (see each file's header). The labs of CellB's storage internals (`ltx-lab`, `sqlite-lab`) are in `packages/cellb/e2e-browser/probes` |

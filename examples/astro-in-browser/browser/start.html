@@ -7,7 +7,13 @@
     <style>
       body { font: 15px/1.5 system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
       .note { padding: .6rem 1rem; border-radius: 6px; background: #8882; }
-      li { margin: .35rem 0; }
+      table { border-collapse: collapse; margin: 1rem 0; width: 100%; }
+      th, td { text-align: left; padding: .5rem .75rem .5rem 0; border-bottom: 1px solid #8884; vertical-align: top; }
+      th { font-weight: 600; }
+      .actions a { margin-right: .75rem; white-space: nowrap; }
+      .actions .launch { font-weight: 600; }
+      tr[data-last] th::after { content: " · launched last"; font-weight: 400; color: #2a7; }
+      @media (max-width: 36rem) { th, td { display: block; border: 0; padding: .15rem 0; } tr { display: block; border-bottom: 1px solid #8884; padding: .5rem 0; } }
     </style>
   </head>
   <body>
@@ -17,39 +23,34 @@
       that finds no tab running the site lands here, with the path it asked for as ?next=.
     -->
     <h1>Astro, built in the browser, on CellB</h1>
-    <p>Each page reads an app's sources, builds them in this tab (esbuild and Astro's compiler as
-      WebAssembly, packages from the npm registry) and runs the result on CellB, served from the tab
-      at this origin's root. One app at a time: building the other replaces it.</p>
+    <p>Each app is compiled in this tab (esbuild and Astro's compiler as WebAssembly, packages
+      from the npm registry), runs on CellB and is served from the tab at this origin's root. Its
+      build is saved in this browser: launching it again runs the saved build without compiling,
+      until it is rebuilt. One app runs at a time: launching the other one replaces it, and each
+      app keeps its own data.</p>
     <p class="note" id="next" hidden></p>
-    <p class="note" id="last" hidden></p>
-    <ul>
-      <li><a data-app="app" href="/__cellb/">A small Astro app</a> (a few seconds)</li>
-      <li><a data-app="emdash" href="/__cellb/emdash.html">EmDash</a>, the Astro CMS (about two
-        minutes the first time, a few hundred packages; about one minute after that)</li>
-    </ul>
-    <p>This page stays at <a href="/__cellb/start.html">/__cellb/start.html</a>: while a tab runs a
-      site, the origin's root (<code>/</code>) is that site.</p>
-    <script type="module">
-      const NAMES = { app: "the small Astro app", emdash: "EmDash" };
-      const next = new URLSearchParams(location.search).get("next");
-      // The path asked for travels on to the host page, which links to it once the site runs.
-      if (next?.startsWith("/") && !next.startsWith("//")) {
-        for (const a of document.querySelectorAll("a[data-app]"))
-          a.setAttribute("href", `${a.getAttribute("href")}?${new URLSearchParams({ next })}`);
-        const el = document.getElementById("next");
-        el.hidden = false;
-        el.textContent = `No tab is running a site for ${next}: build one below, and the page links to it once it runs.`;
-      }
-      let last;
-      try {
-        last = JSON.parse(localStorage.getItem("cellb:last-build") ?? "null");
-      } catch {}
-      if (last && NAMES[last.app]) {
-        const el = document.getElementById("last");
-        el.hidden = false;
-        el.textContent = `Built last in this browser: ${NAMES[last.app]} (${new Date(last.at).toLocaleString()}). Its data stays in this browser; building it again keeps it.`;
-        document.querySelector(`a[data-app="${last.app}"]`)?.after(" ← built last");
-      }
-    </script>
+    <table id="apps">
+      <tbody>
+        <tr data-app="app">
+          <th>A small Astro app</th>
+          <td class="state">…</td>
+          <td class="actions">
+            <a class="launch" href="/__cellb/">Launch</a>
+            <a class="rebuild" href="/__cellb/?rebuild">Rebuild</a>
+          </td>
+        </tr>
+        <tr data-app="emdash">
+          <th>EmDash, the Astro CMS</th>
+          <td class="state">…</td>
+          <td class="actions">
+            <a class="launch" href="/__cellb/emdash.html">Launch</a>
+            <a class="rebuild" href="/__cellb/emdash.html?rebuild">Rebuild</a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p>This page stays at <a href="/__cellb/start.html">/__cellb/start.html</a>: while a tab runs an
+      app, the origin's root (<code>/</code>) is that app.</p>
+    <script type="module" src="./start.ts"></script>
   </body>
 </html>

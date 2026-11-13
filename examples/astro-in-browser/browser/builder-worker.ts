@@ -32,6 +32,7 @@ function downloadPool(n: number, store: string) {
   >();
   for (const x of workers) x.w.onmessage = (e) => waiting.get(e.data.id)?.(e.data);
   let next = 0;
+  let done = 0; // downloads finished, logged every 10 (the page's progress)
   return {
     /** Packages fetched from the registry (not found in the store). */
     downloads: 0,
@@ -44,6 +45,7 @@ function downloadPool(n: number, store: string) {
         waiting.set(id, (r) => {
           waiting.delete(id);
           x.busy--;
+          if (!r.error && ++done % 10 === 0) log(`downloading packages: ${done}`);
           if (r.error) reject(new Error(r.error));
           else resolve({ name: r.name as string, version: r.version as string });
         });
