@@ -1,7 +1,7 @@
 # The hub as a systemd service, from the bundled file (pnpm build → dist/), without Docker.
 #
 #   sudo mkdir -p /opt/sandbox-hub && sudo cp dist/*.mjs /opt/sandbox-hub/
-#   cd /opt/sandbox-hub && echo '{"type":"module"}' | sudo tee package.json && sudo npm install node-datachannel@0.33.6
+#   cd /opt/sandbox-hub && echo '{"type":"module"}' | sudo tee package.json && sudo npm install node-datachannel@0.33.6 @statewalker/cellb@0.8.8 esbuild@0.28.2
 #   sudo useradd --system --home /var/lib/sandbox-hub --create-home sandbox-hub
 #   sudo cp deploy/sandbox-hub.service /etc/systemd/system/ && sudo systemctl enable --now sandbox-hub
 #   journalctl -u sandbox-hub                                        # the publisher link

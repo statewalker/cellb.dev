@@ -10,6 +10,8 @@ over [HTTPeers](https://github.com/statewalker/httpeers):
 - **the hub** (`pnpm start`) holds the mesh's identity (`.sandbox-hub/hub.key`: a new key is a
   new, empty mesh). It holds a reservation on a public relay, by default `relay.httpeers.net`,
   so members anywhere can reach it, and it mints invitations with roles;
+- **the host**: tabs deploy their builds to the hub (Publish → Deploy to the hub). The hub runs
+  them on CellB in its own Node process and serves them to the mesh at `/apps/<name>/`;
 - **the bridge** (`pnpm bridge <invitation>`) is a mesh member on your computer. It serves a
   published sandbox at `127.0.0.1:8790`: the running app for a browser, and the MCP endpoint
   for a desktop agent.
@@ -24,8 +26,11 @@ read by both sides):
 | `viewer` | `/app/…`: the running app |
 | `agent` | + `/mcp/read`: the IDE's tools, read-only |
 | `editor` | + `/mcp/edit`: the tools that change the project |
-| `admin` | + the hub's admin endpoints |
-| `publisher` | a sandbox tab that serves |
+| `admin` | + the hub's admin endpoints, deploys |
+| `publisher` | a sandbox tab that serves, and deploys its builds to the hub |
+
+Viewers and up also open the apps the hub hosts (`/apps/<name>/…`), and `GET /host/apps` lists
+them.
 
 ## How to use
 
@@ -69,6 +74,21 @@ Later runs resume the membership without an invitation (`.sandbox-bridge/`).
 Settings: `SANDBOX_HUB_DIR`, `SANDBOX_URL`, `SANDBOX_HUB_RELAY_DOC` (the hub);
 `SANDBOX_BRIDGE_DIR`, `SANDBOX_BRIDGE_PORT` (the bridge).
 
+## Ship to the hub
+
+When a tab is published, the Publish section has **Deploy to the hub**. It makes the deployable
+folder (the same one as Ship → Build) and uploads it to the hub (`PUT /host/apps/<name>`):
+
+- **The hub runs it on CellB**, with `loadProject` from `@statewalker/cellb/node`. It serves it at
+  `/apps/<name>/…`. The bridge serves it at `127.0.0.1:8790/h/<name>/`.
+- **Releases.** Each deploy is a new release folder, and the last three are kept under
+  `.sandbox-hub/apps/<name>/`. The app's Durable Objects keep their data across releases.
+- **A release that does not load** is refused (422), and the previous one goes on serving.
+- **Restarts.** A restarted hub serves its apps again.
+
+The same folder still runs on Cloudflare (`wrangler deploy`) and celld. The hub is just one more
+host for it, reached over the mesh.
+
 ## Deploy
 
 The hub needs a machine that stays on: a home server, a VPS, or a laptop while it is in use. It
@@ -86,7 +106,7 @@ pnpm --filter @statewalker/cellb-sandbox-hub build
 ```
 
 This writes `dist/sandbox-hub.mjs` and `dist/bridge.mjs`: everything bundled except the native
-WebRTC module, `node-datachannel`. Then pick one of these:
+WebRTC module, `node-datachannel`, and `@statewalker/cellb` (with `esbuild`), which runs the hosted apps. Then pick one of these:
 
 - **Docker**, with host networking:
 
@@ -104,12 +124,13 @@ WebRTC module, `node-datachannel`. Then pick one of these:
   `--secret id=ca,src=ca.pem`.
 - **systemd**: `deploy/sandbox-hub.service`. The steps are in its header: copy `dist/`, install
   `node-datachannel`, add a system user, then enable the service.
-- **By hand**: `node dist/sandbox-hub.mjs start` in a folder where `node-datachannel` is
-  installed.
+- **By hand**: `node dist/sandbox-hub.mjs start` in a folder where `node-datachannel` and
+  `@statewalker/cellb` and `esbuild` are installed.
 
 `test/docker-hub.check.ts <publisher blob> <editor blob>` checks a hub that runs elsewhere. A
-publisher and an editor join it, and the editor calls the publisher. It passed against the image
-(direct links, and the membership and identity kept across a restart).
+publisher and an editor join it, the editor calls the publisher, and the publisher deploys a
+one-file Worker that the editor opens. It passed against the image: direct links, and the
+membership, identity and hosted apps kept across a restart.
 
 ## How it works
 

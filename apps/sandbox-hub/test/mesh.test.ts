@@ -65,6 +65,64 @@ try {
   expect("editor → /mcp/read", await call(editor, "/mcp/read"), 200);
   expect("editor → /mcp/edit", await call(editor, "/mcp/edit"), 200);
   step("roles hold: a viewer is refused the MCP endpoints, an editor reaches both");
+  // Ship to the hub: the publisher deploys a folder (a no_bundle Worker with a Durable Object); the
+  // hub runs it on CellB and serves it at /apps/<name>/ to viewers; a viewer cannot deploy.
+  const b64 = (t: string) => Buffer.from(t).toString("base64");
+  const folder = {
+    "/wrangler.json": b64(
+      JSON.stringify({
+        name: "counter",
+        main: "worker.js",
+        no_bundle: true,
+        compatibility_date: "2026-02-24",
+        durable_objects: { bindings: [{ name: "COUNTER", class_name: "Counter" }] },
+        migrations: [{ tag: "v1", new_sqlite_classes: ["Counter"] }],
+      }),
+    ),
+    "/worker.js": b64(`import { DurableObject } from "cloudflare:workers";
+export class Counter extends DurableObject {
+  async hit() {
+    const n = ((await this.ctx.storage.get("n")) ?? 0) + 1;
+    await this.ctx.storage.put("n", n);
+    return n;
+  }
+}
+export default {
+  async fetch(request, env) {
+    const n = await env.COUNTER.get(env.COUNTER.idFromName("one")).hit();
+    return new Response(\`hosted on the hub: \${new URL(request.url).pathname} #\${n}\`);
+  },
+};
+`),
+  };
+  const deploy = async (who: typeof viewer, files: Record<string, string>) => {
+    const res = await who.fetch(
+      new Request(`http://local/peers/${hub.peerId}/host/apps/counter`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ files }),
+      }),
+    );
+    return { status: res.status, body: await res.text() };
+  };
+  const onHub = async (who: typeof viewer, path: string) => {
+    const res = await who.fetch(new Request(`http://local/peers/${hub.peerId}${path}`));
+    return { status: res.status, body: await res.text() };
+  };
+  expect("publisher → deploy", await deploy(publisher, folder), 200);
+  const hosted = await onHub(viewer, "/apps/counter/hello");
+  expect("viewer → hosted app", hosted, 200);
+  if (!hosted.body.includes("hosted on the hub: /hello #1")) throw new Error(`hosted: ${hosted.body}`);
+  expect("viewer → hosted app again", await onHub(viewer, "/apps/counter/"), 200);
+  expect("viewer → list", await onHub(viewer, "/host/apps"), 200);
+  expect("viewer → deploy", await deploy(viewer, folder), 403);
+  // A new release keeps the Durable Object's data.
+  expect("publisher → redeploy", await deploy(publisher, folder), 200);
+  const again = await onHub(editor, "/apps/counter/x");
+  if (!again.body.includes("#3")) throw new Error(`after the redeploy: ${again.body}`);
+  if (hub.apps().length !== 1) throw new Error(`apps: ${JSON.stringify(hub.apps())}`);
+  step("Ship to the hub: deployed, served on CellB to members, redeployed with its data; a viewer cannot deploy");
+
   const links = hub.members();
   if (links.length !== 3 || !links.every((m) => m.link === "direct"))
     throw new Error(`members' links: ${JSON.stringify(links)}`);

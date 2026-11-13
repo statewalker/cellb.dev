@@ -341,6 +341,8 @@ pnpm --filter @statewalker/cellb-sandbox-hub bridge '<blob>'
 ```
 
 The bridge serves `http://127.0.0.1:8790/mcp`, which a desktop agent can use as its MCP server.
+Once published, **Deploy to the hub** ships the project's deployable build to the hub, which runs
+it on CellB in Node and serves it to the mesh (the bridge: `/h/<name>/`).
 `pnpm e2e:mesh` tests all of it on the public relay.
 
 ## Limits, and where it goes next

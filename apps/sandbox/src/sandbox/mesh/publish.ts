@@ -39,6 +39,34 @@ export interface Publisher {
   reconnect(): Promise<void>;
   resetIdentity(): Promise<void>;
   state(): PublishState;
+  /** Ships a deployable folder (Ship → Build) to the hub, which runs it on CellB at /apps/<name>/. */
+  deploy(name: string, files: Map<string, Uint8Array>): Promise<HostedApp>;
+  /** What the hub hosts. */
+  apps(): Promise<HostedApp[]>;
+}
+
+export interface HostedApp {
+  name: string;
+  release: string;
+  deployedAt: number;
+  by: string | null;
+  files: number;
+  bytes: number;
+}
+
+/** "My Tasks!" → "my-tasks": the name an app is hosted under. */
+export const hostName = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 63) || "app";
+
+function base64(bytes: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
 }
 
 let rules: RuleSet | undefined;
@@ -63,6 +91,16 @@ export function createPublisher(opts: {
     controls: { join: true, disconnect: false, reconnect: false, reset: false },
   };
   let session: ReturnType<typeof createSession> | undefined;
+  let handle: { fetch: FetchHandler; hubPeerId: string } | null = null;
+  const onHub = async (path: string, init?: RequestInit) => {
+    if (!handle) throw new Error("not published: join the mesh first");
+    const res = await handle.fetch(
+      new Request(`http://local/peers/${handle.hubPeerId}${path}`, init),
+    );
+    const value = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) throw new Error(value.error ?? `the hub answered ${res.status}`);
+    return value;
+  };
   const make = (search: string) =>
     createSession({
       key: "peers",
@@ -78,6 +116,7 @@ export function createPublisher(opts: {
       reload: () => {},
       onChange: (s) => {
         const phase = s.phase as { kind: string; message?: string; peerState?: string };
+        handle = phase.kind === "live" ? s.handle : null;
         current = {
           phase: phase.peerState ? `${phase.kind}: ${phase.peerState}` : phase.kind,
           peerId: s.handle?.peerId ?? s.identity ?? undefined,
@@ -103,6 +142,16 @@ export function createPublisher(opts: {
     reconnect: async () => session?.reconnect(),
     resetIdentity: async () => session?.resetIdentity(),
     state: () => current,
+    async deploy(name, files) {
+      const body: Record<string, string> = {};
+      for (const [path, bytes] of files) body[path] = base64(bytes);
+      return (await onHub(`/host/apps/${hostName(name)}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ files: body }),
+      })) as unknown as HostedApp;
+    },
+    apps: async () => (await onHub("/host/apps")) as unknown as HostedApp[],
   };
 }
 

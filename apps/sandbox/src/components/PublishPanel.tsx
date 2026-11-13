@@ -1,7 +1,12 @@
-import { Radio, Unplug } from "lucide-react";
+import { Radio, Server, Unplug } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { Publisher, PublishState } from "@/sandbox/mesh/publish";
+import {
+  type HostedApp,
+  hostName,
+  type Publisher,
+  type PublishState,
+} from "@/sandbox/mesh/publish";
 
 /**
  * Publishing this tab in an HTTPeers mesh: its hub (apps/sandbox-hub) gives invitations, and the
@@ -10,11 +15,16 @@ import type { Publisher, PublishState } from "@/sandbox/mesh/publish";
 export function PublishPanel(props: {
   publisher: Publisher;
   state: PublishState;
+  /** The project's name, and its deployable folder (Ship → Build). */
+  name: string;
+  build(): Promise<{ files: Map<string, Uint8Array> }>;
   log(text: string, level?: "info" | "error"): void;
 }) {
   const { publisher, state } = props;
   const [invitation, setInvitation] = useState("");
   const [busy, setBusy] = useState(false);
+  const [hosted, setHosted] = useState<HostedApp[]>();
+  const [deploying, setDeploying] = useState(false);
   const live = state.phase === "live";
   const act = (label: string, fn: () => Promise<void>) => async () => {
     setBusy(true);
@@ -119,6 +129,59 @@ export function PublishPanel(props: {
           </Button>
         )}
       </div>
+      {live && (
+        <div className="grid gap-2 rounded-md border px-3 py-2" data-testid="hub-host">
+          <p className="text-muted-foreground text-xs">
+            Deploy to the hub: the deployable build runs on CellB in the hub's Node process, served
+            to the mesh's viewers at{" "}
+            <code className="font-mono">
+              /peers/{state.hubPeerId?.slice(0, 12)}…/apps/{hostName(props.name)}/
+            </code>
+            , its Durable Objects' data kept from one deploy to the next.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || deploying}
+              onClick={act("deploy", async () => {
+                setDeploying(true);
+                try {
+                  const build = await props.build();
+                  const app = await publisher.deploy(props.name, build.files);
+                  props.log(
+                    `mesh: ${app.name} deployed to the hub (${app.release}, ${app.files} files)`,
+                  );
+                  setHosted(await publisher.apps());
+                } finally {
+                  setDeploying(false);
+                }
+              })}
+            >
+              <Server /> {deploying ? "Building and deploying…" : "Deploy to the hub"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={act("list", async () => setHosted(await publisher.apps()))}
+            >
+              What it hosts
+            </Button>
+          </div>
+          {hosted && (
+            <ul className="text-xs" data-testid="hosted-apps">
+              {hosted.length === 0 && <li className="text-muted-foreground">Nothing yet.</li>}
+              {hosted.map((a) => (
+                <li key={a.name}>
+                  <code className="font-mono">{a.name}</code> {a.release}, {a.files} files,{" "}
+                  {new Date(a.deployedAt).toLocaleString()}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       {live && state.peerId && (
         <p className="text-muted-foreground text-xs" data-testid="publish-reach">
           Members reach it at <code className="font-mono">/peers/{state.peerId}/app/</code>. On a

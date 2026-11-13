@@ -12,11 +12,12 @@
 ARG BASE=node:22-slim
 FROM ${BASE}
 WORKDIR /app
-# The native WebRTC module (prebuilt for linux-x64 and arm64) is the only dependency not bundled.
+# Not bundled: the native WebRTC module (prebuilt for linux-x64 and arm64) and CellB, which runs
+# the apps tabs deploy to the hub (keep its version the workspace's, packages/cellb).
 # Behind a TLS-intercepting proxy: --secret id=ca,src=/path/to/ca.pem (optional, not kept in the image).
 RUN --mount=type=secret,id=ca,required=false \
     if [ -f /run/secrets/ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/ca; fi; \
-    npm init -y >/dev/null && npm install --omit=dev node-datachannel@0.33.6 && npm cache clean --force
+    npm init -y >/dev/null && npm install --omit=dev node-datachannel@0.33.6 @statewalker/cellb@0.8.8 esbuild@0.28.2 && npm cache clean --force
 COPY dist/sandbox-hub.mjs dist/bridge.mjs ./
 RUN printf '{"type":"module","private":true}\n' > package.json && mkdir -p /data && chown node:node /data
 ENV SANDBOX_HUB_DIR=/data NODE_ENV=production

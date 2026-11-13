@@ -241,12 +241,20 @@ running app and the tool surface already are fetch handlers, so publishing is a 
   agents lacked. It is a Node member serving `127.0.0.1` only, with a Host check against DNS
   rebinding: the published sandboxes, their apps, and `/mcp` (edit for an editor, read otherwise).
 
-Tested on the public relay: `apps/sandbox-hub test` (Node members), and `e2e:mesh` (the hub
-process, a tab that publishes from the link, an editor's bridge reading and writing through MCP,
-a viewer's bridge refused MCP).
+- **Ship to the hub.** A published tab uploads its deployable folder to the hub
+  (`PUT /host/apps/<name>`, capability `sandbox:host.deploy`: publisher, admin). The hub runs it
+  on CellB in Node (`loadProject`), in release folders whose Durable Object data carries over, and
+  serves it to viewers at `/apps/<name>/`. This is the original brief's last step: develop in the
+  tab, then run in an isomorphic environment (CellB, here over HTTPeers; the same folder on celld
+  and Cloudflare). The hub ships as one bundled file, a Docker image (host networking) and a
+  systemd unit.
 
-**[next]**: an anonymous public gateway (today every viewer is a mesh member), a `*.p.httpeers.net`
-session page for viewers without the bridge, and revoking a member from the hub's CLI.
+Tested on the public relay: `apps/sandbox-hub test` (Node members, deploys), and `e2e:mesh` (the hub
+process, a tab that publishes from the link, an editor's bridge reading and writing through MCP,
+a viewer's bridge refused MCP, the tab's deploy to the hub opened by the viewer).
+
+**[next]**: an anonymous public gateway (today every viewer is a mesh member), and a
+`*.p.httpeers.net` session page for viewers without the bridge.
 
 ## 8. The client side: UIs agents can pilot
 

@@ -41,7 +41,7 @@ celld dev .
 ## cellb on Node (the runtime the sandbox uses, outside the browser)
 
 \`\`\`sh
-npm install @statewalker/cellb
+npm install @statewalker/cellb esbuild
 node serve.mjs            # http://localhost:8787, cells' data in .cellb-data/
 \`\`\`
 
@@ -51,7 +51,7 @@ stays in the browser (OPFS).
 }
 
 /** cellb on Node, as a plain HTTP server over the folder (assets, Worker, Durable Objects). */
-export const NODE_SERVER = `// node serve.mjs [port]: this folder on cellb, in Node (npm install @statewalker/cellb).
+export const NODE_SERVER = `// node serve.mjs [port]: this folder on cellb, in Node (npm install @statewalker/cellb esbuild).
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { loadProject } from "@statewalker/cellb/node";

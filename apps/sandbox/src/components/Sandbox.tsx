@@ -1189,7 +1189,13 @@ export default function Sandbox() {
                   log={addLog}
                 />
                 <div className="mx-auto max-w-3xl border-t p-4 text-sm">
-                  <PublishPanel publisher={publisher} state={publishState} log={addLog} />
+                  <PublishPanel
+                    publisher={publisher}
+                    state={publishState}
+                    name={layout?.name ?? loaded.name}
+                    build={buildDeploy}
+                    log={addLog}
+                  />
                 </div>
               </TabsContent>
               <TabsContent value="log" className="min-h-0 overflow-auto">

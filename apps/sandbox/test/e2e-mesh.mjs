@@ -7,6 +7,8 @@
 //      localhost: the published sandbox is listed, its app answers, its MCP endpoint reads and
 //      writes the project (the write shows in the tab).
 //   4. A bridge with a viewer's invitation opens the app and is refused the MCP endpoint.
+//   5. Ship to the hub: the tab deploys its build; the hub runs it on CellB and the viewer's bridge
+//      opens it (/h/<name>/), its page and its Durable Object's API.
 //
 // CHROME=/path/to/chrome node test/e2e-mesh.mjs
 
@@ -221,6 +223,32 @@ try {
   if (vApp.status !== 200 || vMcp.status !== 403)
     throw new Error(`a viewer: app ${vApp.status}, MCP ${vMcp.status}`);
   step("a viewer's bridge opens the app and is refused the MCP endpoint (403)");
+
+  await page.getByRole("button", { name: "Deploy to the hub" }).click();
+  try {
+    await page.getByTestId("hosted-apps").getByText("tasks").waitFor({ timeout: 180_000 });
+  } catch (err) {
+    await page.getByRole("tab", { name: "Log" }).click();
+    console.log(
+      await page.evaluate(() =>
+        document.querySelector('[data-testid="log"]')?.textContent?.slice(-3000),
+      ),
+    );
+    throw err;
+  }
+  const hostedPage = await fetch(`${V}h/tasks/`);
+  const hostedHtml = await hostedPage.text();
+  if (hostedPage.status !== 200 || !/<html|<!doctype/i.test(hostedHtml))
+    throw new Error(`the hosted app: ${hostedPage.status} ${hostedHtml.slice(0, 200)}`);
+  const hostedApi = await fetch(`${V}h/tasks/api/lists/demo/tasks`);
+  if (hostedApi.status !== 200)
+    throw new Error(`the hosted API: ${hostedApi.status} ${await hostedApi.text()}`);
+  const listing = await (await fetch(V)).text();
+  if (!listing.includes('href="/h/tasks/"'))
+    throw new Error("the bridge does not list the hosted app");
+  step(
+    "Ship to the hub: the tab deployed its build; the hub runs it on CellB; a viewer opens its page and API",
+  );
 
   if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
   console.log("e2e-mesh: all good");

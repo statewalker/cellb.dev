@@ -5,6 +5,7 @@
 //   /s/<peer>/app/…         a sandbox's running app, for a browser          (viewer and up)
 //   /s/<peer>/mcp           its MCP endpoint, for a desktop agent: /mcp/edit for an editor,
 //                           /mcp/read otherwise                              (agent and up)
+//   /h/<name>/…             an app the hub hosts (deployed from a tab: Publish → Deploy to the hub)
 //   /mcp                    the same, for the first published sandbox (an agent's config:
 //                           { "type": "http", "url": "http://127.0.0.1:8790/mcp" })
 //
@@ -112,8 +113,21 @@ export async function startBridge(opts: {
       }
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
       const m = url.pathname.match(/^\/s\/([^/]+)(\/.*)?$/);
+      const hosted = url.pathname.match(/^\/h\/([^/]+)(\/.*)?$/);
+      if (hosted) {
+        if (!hosted[2]) {
+          res.writeHead(302, { location: `/h/${hosted[1]}/` }).end();
+          return;
+        }
+        await reply(res, await toMesh(req, config.hubPeerId, `/apps/${hosted[1]}${hosted[2]}${url.search}`));
+        return;
+      }
       if (url.pathname === "/") {
         const list = sandboxes();
+        const apps = (await member
+          .fetch(new Request(`http://local/peers/${config.hubPeerId}/host/apps`))
+          .then((r) => (r.ok ? r.json() : []))
+          .catch(() => [])) as { name: string; release: string }[];
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         res.end(
           `<!doctype html><meta charset="utf-8"><title>Published sandboxes</title><h1>Published sandboxes</h1><ul>${list
@@ -121,7 +135,9 @@ export async function startBridge(opts: {
               (a) =>
                 `<li><a href="/s/${a.peerId}/app/">${a.title.replace(/[<&]/g, "")}</a> <code>${a.peerId}</code> — MCP: <code>/s/${a.peerId}/mcp</code></li>`,
             )
-            .join("")}</ul>${list.length ? "" : "<p>None yet.</p>"}`,
+            .join("")}</ul>${list.length ? "" : "<p>None yet.</p>"}<h2>Hosted by the hub</h2><ul>${apps
+            .map((a) => `<li><a href="/h/${a.name}/">${a.name}</a> <code>${a.release}</code></li>`)
+            .join("")}</ul>${apps.length ? "" : "<p>None yet.</p>"}`,
         );
       } else if (url.pathname === "/mcp") {
         const first = sandboxes()[0];

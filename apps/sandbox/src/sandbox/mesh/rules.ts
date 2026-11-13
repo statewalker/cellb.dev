@@ -3,10 +3,11 @@
 // (whose mounts are guarded by `withAccess` with these rules). Policy names capabilities, never
 // roles; `std:` is the mesh protocol's, `sandbox:` the sandbox's.
 //
-//   viewer  opens the running app        /app/…
-//   agent   + reads the project (MCP)    /mcp/read
-//   editor  + changes it (MCP)           /mcp/edit
-//   admin   + the hub's admin endpoints
+//   viewer     opens the running app        /app/… (a tab), /apps/<name>/… (hosted by the hub)
+//   agent      + reads the project (MCP)    /mcp/read
+//   editor     + changes it (MCP)           /mcp/edit
+//   admin      + the hub's admin endpoints, deploys
+//   publisher  a tab that serves, and deploys its builds to the hub   /host/apps/<name>
 //
 // Roles are given by the hub, in the invitation: `sandbox-hub invite editor`.
 
@@ -23,8 +24,11 @@ export const MESH_RULES = {
     'role("viewer") <- role("agent");',
     'role("agent")  <- role("editor");',
     'role("editor") <- role("admin");',
-    // A publishing sandbox: a member that serves, and reads the mesh to find its peers.
+    // A publishing sandbox: a member that serves, and ships its builds to the hub.
     'role("member") <- role("publisher");',
+    'capability("sandbox:app")         <- role("publisher");',
+    'capability("sandbox:host.deploy") <- role("publisher");',
+    'capability("sandbox:host.deploy") <- role("admin");',
   ],
   policies: [
     'allow if capability("std:mesh.read"), resource("/.well-known")' +
@@ -35,6 +39,11 @@ export const MESH_RULES = {
       ' or capability("sandbox:app"), resource($r), $r.starts_with("/app/");',
     'allow if capability("sandbox:mcp.read"), resource("/mcp/read");',
     'allow if capability("sandbox:mcp.edit"), resource("/mcp/edit");',
+    // The hub as a host: hosted apps (any method: they have their own APIs), what is hosted, deploys.
+    'allow if capability("sandbox:app"), resource($r), $r.starts_with("/apps/")' +
+      ' or capability("sandbox:app"), resource("/apps");',
+    'allow if capability("sandbox:app"), operation("GET"), resource("/host/apps");',
+    'allow if capability("sandbox:host.deploy"), resource($r), $r.starts_with("/host/apps/");',
   ],
 };
 

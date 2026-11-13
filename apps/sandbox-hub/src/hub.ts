@@ -35,6 +35,7 @@ import {
 import { fileBytesStore } from "@statewalker/httpeers-libp2p/node";
 import { encodeJoinBlob, type JoinBlob } from "@statewalker/httpeers-member";
 import { MESH_RULES } from "../../sandbox/src/sandbox/mesh/rules.ts";
+import { createAppHost, type HostedApp } from "./host.ts";
 
 export const PUBLIC_RELAY_DOC = "https://relay.httpeers.net/.well-known/httpeers-relay.json";
 const TOKEN_TTL_MS = 15 * 60_000;
@@ -47,6 +48,8 @@ export interface HubOptions {
   /** Or the relay addresses themselves (tests). */
   relayAddrs?: string[];
   log?: (line: string) => void;
+  /** Runs the builds tabs ship to it (default true). */
+  host?: boolean;
 }
 
 export interface SandboxHub {
@@ -62,6 +65,8 @@ export interface SandboxHub {
   members(): MemberInfo[];
   /** Removes a member: its tokens stop verifying, its reservation is freed, a new invitation is needed. */
   revoke(peerId: string): boolean;
+  /** What the hub hosts (empty when hosting is off). */
+  apps(): HostedApp[];
   stop(): Promise<void>;
 }
 
@@ -125,6 +130,12 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
     unwind.push(() => supervisor.stop());
     log(`hub: reserved on ${relayAddr}`);
 
+    const appHost = opts.host === false ? undefined : createAppHost({ dir: join(dir, "apps"), log });
+    if (appHost) {
+      await appHost.restore();
+      unwind.push(() => appHost.close());
+    }
+
     const signer = signerOf(privateKey);
     const now = createMonotonicClock();
     const hub = await createHub({
@@ -134,6 +145,7 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
       storage: fileStorage(join(dir, "state", "hub")),
       sweepIntervalMs: 5_000,
       maxTokenTtlMs: TOKEN_TTL_MS,
+      ...(appHost ? { extraMounts: appHost.mounts } : {}),
       mintToken: async (sub, roles, options) =>
         mintToken({
           signer,
@@ -194,6 +206,7 @@ export async function startHub(opts: HubOptions): Promise<SandboxHub> {
           roles: m.roles,
           link: linkOf(node, m.peerId),
         })),
+      apps: () => appHost?.list() ?? [],
       revoke(member) {
         if (!hub.members.get(member)) return false;
         hub.members.remove(member);

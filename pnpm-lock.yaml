@@ -392,6 +392,9 @@ importers:
       '@libp2p/websockets':
         specifier: ^10.1.21
         version: 10.1.25
+      '@statewalker/cellb':
+        specifier: workspace:*
+        version: link:../../packages/cellb
       '@statewalker/httpeers-access':
         specifier: ^0.1.4
         version: 0.1.4
