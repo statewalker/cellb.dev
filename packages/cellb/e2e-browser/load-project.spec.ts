@@ -77,6 +77,21 @@ test("Worker Loader code runs in the package's own isolate worker", async ({ pag
   expect(JSON.parse(r.out[0][0].body)).toEqual(golden[0].body);
 });
 
+test("a loaded Worker that replaces postMessage and location keeps answering from its isolate", async ({
+  page,
+}) => {
+  const url = await build("isolate-globals", "e2e-browser/projects/isolate-globals");
+  const r = await load(page, url, [["/"]]);
+  expect(r.out[0][0].status).toBe(200);
+  expect(JSON.parse(r.out[0][0].body)).toEqual({
+    taken: "taken",
+    pings: [
+      { n: 1, href: "https://example.test/" },
+      { n: 2, href: "https://example.test/" },
+    ],
+  });
+});
+
 // A project's sources in a FilesApi (#72), compiled in the browser: `bundle` (webrun-bundler on
 // esbuild-wasm, one ES module) and `site` (modules served by the page's ServiceWorker).
 

@@ -110,7 +110,8 @@ does not protect.
   time. On Node this holds also for an `import()` in code built with `Function`, through the
   isolate thread's module hooks (Node 22.15 and later); in a browser such an `import()` resolves
   against the isolate worker's URL instead.
-- Its realm's `navigator` is writable, as on workerd, and `Uint8Array` has `toBase64`,
+- Its realm's globals are its own to replace: `postMessage` (the isolate keeps its own channel to
+  the host), and getter-only ones such as `navigator` and `location` are writable, as on workerd, and `Uint8Array` has `toBase64`,
   `fromBase64`, `toHex` and `fromHex` where the engine lacks them (Node 22).
 - A call's result is an RpcPromise: `stub.a().b()` sends `b` before `a()` settles.
 - Its Durable Object classes run inside its realm as facets ([Durable Object
