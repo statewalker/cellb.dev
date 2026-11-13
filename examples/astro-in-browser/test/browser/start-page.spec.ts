@@ -30,7 +30,10 @@ test("apps are saved, launched from the chooser and rebuilt on request", async (
   const first = await ready(host);
   expect(first).toContain("build saved");
   await expect(host.locator("#progress")).toHaveJSProperty("value", 100);
-  await expect(host.locator("#phase")).toContainText(/^Running · 100% · \d+ s$/);
+  // A cold build: the packages downloaded stay beside the stage, not in its place.
+  await expect(host.locator("#phase")).toHaveText(
+    /^Running · \d+ packages downloaded · 100% · \d+ s$/,
+  );
   await expect(host.getByRole("link", { name: "Choose another app" })).toHaveAttribute(
     "href",
     "/__cellb/start.html",
