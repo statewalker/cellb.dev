@@ -92,6 +92,21 @@ test("a loaded Worker that replaces postMessage and location keeps answering fro
   });
 });
 
+test("an import() in code a loaded Worker builds with Function resolves against its modules", async ({
+  page,
+}) => {
+  const url = await build("function-import", "e2e-browser/projects/function-import");
+  const r = await load(page, url, [["/"]]);
+  expect(r.out[0][0].status).toBe(200);
+  expect(JSON.parse(r.out[0][0].body)).toEqual({
+    byUrl: "index+dep",
+    named: 42,
+    relative: "one",
+    plain: "one",
+    isFunction: true,
+  });
+});
+
 // A project's sources in a FilesApi (#72), compiled in the browser: `bundle` (webrun-bundler on
 // esbuild-wasm, one ES module) and `site` (modules served by the page's ServiceWorker).
 

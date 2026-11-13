@@ -365,14 +365,19 @@ describe.skipIf(!CELLD)(
         expect(got).toEqual([{ body: "a-from-celld", attempts: 1 }]);
         // and the other way: sent on cellb (delayed), delivered by celld
         let sent = "";
-        for (let i = 0; i < 40 && !sent.includes("sent"); i++)
+        let sentAt = 0;
+        for (let i = 0; i < 40 && !sent.includes("sent"); i++) {
+          sentAt = Date.now();
           sent = await (
             await runtime.fetch(new Request("http://w/send?body=b-from-cellb&delay=4"))
           ).text();
+        }
         await runtime.close();
         // b is due before celld starts: celld waking a message cellb left NOT yet due
         // is the intermittent case of the handoff test below, not what this test is about.
-        await new Promise((r) => setTimeout(r, 3_500));
+        // Its 4 s delay runs from the send, so wait from then (with a margin), not from the close:
+        // a fast close used to start celld before b was due.
+        await new Promise((r) => setTimeout(r, Math.max(0, sentAt + 4_000 + 1_000 - Date.now())));
         celld = await celldDev(dir);
         try {
           let log: any;

@@ -13,11 +13,12 @@ import { Worker as NodeWorker } from "node:worker_threads";
 import { build } from "esbuild";
 import { applyD1Migrations } from "../bindings/d1-migrations.js";
 import {
+  analyzeModule,
   exportNamesByModule,
   IMPORT_FROM,
+  type ModuleExports,
   prefixModule,
   RESOLVE_MODULE_NAME_SOURCE,
-  routeDynamicImports,
 } from "../bindings/module-registry.js";
 import {
   compileWasmModules,
@@ -95,15 +96,19 @@ function loadedModuleTexts(code: WorkerCode): {
   const names = new Set(Object.keys(code.modules));
   for (const [name, m] of Object.entries(code.modules)) texts[name] = moduleText(m, name, names);
   const modules: Record<string, string> = {};
+  const exports = new Map<string, ModuleExports>();
   for (const [name, text] of Object.entries(texts)) {
-    const routed = routeDynamicImports(text, name);
+    // One parse per module: the import() calls to route, and the exports the registry lists.
+    const analysis = analyzeModule(text, name);
+    exports.set(name, analysis?.exports ?? { names: [], stars: [] });
+    const routed = analysis?.routed;
     let prelude =
       routed === undefined ? "" : `import { importFrom as ${IMPORT_FROM} } from "cellb:modules"; `;
     // The main module evaluates the registry, so it is there before any code runs.
     if (name === code.mainModule && !prelude) prelude = 'import "cellb:modules"; ';
     modules[name] = prelude ? prefixModule(routed ?? text, prelude) : text;
   }
-  return { modules, registry: registrySource(texts, code.mainModule) };
+  return { modules, registry: registrySource(Object.keys(texts), exports, code.mainModule) };
 }
 
 /**
@@ -125,9 +130,12 @@ function missingModule(spec: string, importer: string) {
  * also publishes itself as `globalThis.__cellbLoadedModules`, where an isolate thread's module
  * hooks find it (node-entry.ts: `import()` from code built with `Function`).
  */
-function registrySource(texts: Record<string, string>, main: string): string {
+function registrySource(
+  names: string[],
+  exports: Map<string, ModuleExports>,
+  main: string,
+): string {
   const q = JSON.stringify;
-  const names = Object.keys(texts);
   return [
     `const names = new Set(${q(names)});`,
     `const resolve = ${RESOLVE_MODULE_NAME_SOURCE};`,
@@ -136,7 +144,7 @@ function registrySource(texts: Record<string, string>, main: string): string {
     "  const name = resolve(String(spec), importer, names);",
     "  return name === undefined ? import(spec) : table[name]();",
     "};",
-    `globalThis.__cellbLoadedModules = { main: ${q(main)}, names, exportNames: ${q(exportNamesByModule(texts))}, load: (name) => table[name]() };`,
+    `globalThis.__cellbLoadedModules = { main: ${q(main)}, names, exportNames: ${q(exportNamesByModule(exports))}, load: (name) => table[name]() };`,
   ].join("\n");
 }
 

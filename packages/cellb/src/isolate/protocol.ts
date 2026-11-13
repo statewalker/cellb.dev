@@ -431,12 +431,25 @@ function fromWire(v: any, mux: PortMux, release: (id: number) => void): unknown 
     case "stream":
       return body(v.body);
     case "response": {
-      if (NULL_BODY.includes(v.status) && v.body !== null) release(v.body);
-      const res = new Response(NULL_BODY.includes(v.status) ? null : body(v.body), {
-        status: v.status,
+      // `Response.error()` (status 0) is rebuilt as one.
+      if (v.status === 0) {
+        if (v.body !== null) release(v.body);
+        return NativeResponse.error();
+      }
+      // The constructor takes statuses 200-599 only: another one (a 1xx) comes back as a response
+      // with no body that still reports its status.
+      const constructible = v.status >= 200 && v.status <= 599;
+      const noBody = !constructible || NULL_BODY.includes(v.status);
+      if (noBody && v.body !== null) release(v.body);
+      const res = new Response(noBody ? null : body(v.body), {
+        status: constructible ? v.status : 200,
         statusText: v.statusText,
         headers: v.headers,
       });
+      if (!constructible) {
+        Object.defineProperty(res, "status", { value: v.status, enumerable: true });
+        Object.defineProperty(res, "ok", { value: false, enumerable: true });
+      }
       if (v.url) Object.defineProperty(res, "url", { value: v.url, enumerable: true });
       return res;
     }

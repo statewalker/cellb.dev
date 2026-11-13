@@ -9,6 +9,7 @@ import * as workersModule from "../project/cloudflare-workers.js";
 import { workersHostRegistry } from "../project/site-loader.js";
 import { realmWorkerScope } from "../project/worker-scope.js";
 import * as workersGlobals from "../project/workers-globals-module.js";
+import { routeFunctionImports } from "./function-imports.js";
 import { serveIsolate } from "./isolate.js";
 import type { PortLike } from "./protocol.js";
 import { makeGlobalsWritable } from "./writable-globals.js";
@@ -42,6 +43,10 @@ workersHostRegistry({
 // `location`); this realm's getter-only ones become writable (writable-globals.ts).
 makeGlobalsWritable();
 
+// An `import()` in code the loaded Worker builds with `Function` resolves against its modules
+// (function-imports.ts; the loader binds the resolution once the code is loaded).
+routeFunctionImports();
+
 // This worker is the loaded Worker's realm: its globals are the Workers ones (as on Node,
 // src/isolate/node-entry.ts). Loaded code reads them as free names (partyserver builds its
 // `new WebSocketPair()` and its 101 `Response` that way).
@@ -72,7 +77,7 @@ serveIsolate(
       g.__cellsLoadedConsoles[load.consoleId] = own;
       return (await import(/* @vite-ignore */ load.url)) as Record<string, unknown>;
     }
-    return browserModuleLoader(PROJECT_WORKERS_MODULE_SHIM)(
+    return browserModuleLoader(PROJECT_WORKERS_MODULE_SHIM, { functionImports: true })(
       "isolate",
       { mainModule: load.mainModule, modules: load.modules },
       (level, args) => logs(level, args),

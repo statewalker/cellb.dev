@@ -107,9 +107,12 @@ does not protect.
   without `isolateScript`), there is no isolate to end, and the call only throws.
 - `import()` resolves against its own modules, as on workerd: a specifier is a module's whole name
   (which may be a URL) or a path relative to the importing module, and may be computed at run
-  time. On Node this holds also for an `import()` in code built with `Function`, through the
-  isolate thread's module hooks (Node 22.15 and later); in a browser such an `import()` resolves
-  against the isolate worker's URL instead.
+  time. This holds also for an `import()` in code built with `Function` (or `AsyncFunction` and
+  the generator constructors): on Node through the isolate thread's module hooks (Node 22.15 and
+  later), in a browser isolate through its function constructors, which route such an `import()`
+  to the loaded Worker's modules. A loaded Worker in the project's own realm (a browser without
+  `isolateScript`) resolves such an `import()` against the realm's URL, and code `eval` builds is
+  not routed anywhere.
 - Its realm's globals are its own to replace: `postMessage` (the isolate keeps its own channel to
   the host), and getter-only ones such as `navigator` and `location` are writable, as on workerd, and `Uint8Array` has `toBase64`,
   `fromBase64`, `toHex` and `fromHex` where the engine lacks them (Node 22).

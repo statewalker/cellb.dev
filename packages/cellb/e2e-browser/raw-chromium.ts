@@ -87,7 +87,9 @@ export async function rawChromium() {
       ws.close();
       proc.kill();
       await new Promise((r) => proc.once("exit", r));
-      rmSync(profile, { recursive: true, force: true });
+      // Chromium's helper processes can still write to the profile just after the main one exits
+      // (ENOTEMPTY): rmSync retries for that.
+      rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     },
   };
 }
