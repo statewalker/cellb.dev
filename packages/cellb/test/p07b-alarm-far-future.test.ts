@@ -80,4 +80,19 @@ describe("P07b alarms further ahead than a timer can wait", () => {
     expect(Math.max(...clock.delays)).toBeLessThanOrEqual(MAX_TIMER_MS);
     stop();
   });
+
+  it("a monthly cron trigger (occurrences 28 to 31 days apart) runs once a month", async () => {
+    const clock = new NodeLikeClock(Date.parse("2026-01-15T00:00:00Z"));
+    const ran: number[] = [];
+    const stop = startCronTriggers(
+      ["0 0 1 * *"],
+      (controller) => void ran.push((controller as { scheduledTime: number }).scheduledTime),
+      clock,
+    );
+    await clock.advance(Date.parse("2026-04-15T00:00:00Z") - clock.now());
+    expect(ran).toEqual(
+      ["2026-02-01", "2026-03-01", "2026-04-01"].map((d) => Date.parse(`${d}T00:00:00Z`)),
+    );
+    stop();
+  });
 });
