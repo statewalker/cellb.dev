@@ -700,6 +700,9 @@ importers:
       '@statewalker/notebook-build':
         specifier: 'catalog:'
         version: 0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      '@statewalker/notebook-db':
+        specifier: ^0.1.1
+        version: 0.1.1(@statewalker/db-api@0.1.4)(@statewalker/webrun-files@0.10.4)
       '@statewalker/notebook-site':
         specifier: 'catalog:'
         version: 0.1.2(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4))
@@ -715,6 +718,9 @@ importers:
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
         version: 0.3.6
+      acorn:
+        specifier: ^8.19.0
+        version: 8.19.0
       linkedom:
         specifier: 'catalog:'
         version: 0.18.15
@@ -2772,6 +2778,9 @@ packages:
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
 
+  '@statewalker/db-api@0.1.4':
+    resolution: {integrity: sha512-XqyQRE1CvJ8Ijv99u0eW8l/syARfuzhL3BGIFYC1375/KlvDJx+o4D4LNnMqCh97ScU/hERQaaJ0MeXYAngmvA==}
+
   '@statewalker/httpeers-access@0.1.4':
     resolution: {integrity: sha512-7Gdp5ZfRwLEJftYtAkV3rEPyyAIAHEIjE2K0YmDRwthkBdt4ori62bMpng34zG2GtuZj6bHF5QX6R6vygfjccw==}
 
@@ -2833,6 +2842,12 @@ packages:
       '@statewalker/webrun-builder': ^0.3.1
       '@statewalker/webrun-files': ^0.10.0
       '@statewalker/webrun-modules': ^0.2.1 || ^0.3.0
+
+  '@statewalker/notebook-db@0.1.1':
+    resolution: {integrity: sha512-qraRAamTLxKLuJWNclu6TaDy0spUkR8bVj+8E8x1hJopByeJ3bm7Uq3D1fCenpxxYQNqaRaBCgKrt9iOOybcTQ==}
+    peerDependencies:
+      '@statewalker/db-api': ^0.1.1
+      '@statewalker/webrun-files': ^0.10.0
 
   '@statewalker/notebook-site@0.1.2':
     resolution: {integrity: sha512-fPX2kvu3U2i+Z7AhWAcpsWLj2A4X9h+HbbZU/V4A9uYnJe8wWeEII8jvZ0jigE/NDXepwGPw7pku2+oZuX5nDQ==}
@@ -8216,6 +8231,8 @@ snapshots:
 
   '@stablelib/base64@1.0.1': {}
 
+  '@statewalker/db-api@0.1.4': {}
+
   '@statewalker/httpeers-access@0.1.4':
     dependencies:
       '@statewalker/httpeers-core': 0.1.3
@@ -8344,6 +8361,11 @@ snapshots:
       - tsx
       - utf-8-validate
       - yaml
+
+  '@statewalker/notebook-db@0.1.1(@statewalker/db-api@0.1.4)(@statewalker/webrun-files@0.10.4)':
+    dependencies:
+      '@statewalker/db-api': 0.1.4
+      '@statewalker/webrun-files': 0.10.4
 
   '@statewalker/notebook-site@0.1.2(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4))':
     dependencies:

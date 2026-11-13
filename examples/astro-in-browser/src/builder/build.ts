@@ -68,6 +68,35 @@ export interface AstroBuildOptions {
   main?: string;
   /** Astro session driver config (`{ driver, options }`), for the manifest. */
   session?: { driver: string; options?: Record<string, unknown> };
+  /**
+   * Called as each module of a bundle is loaded, with the modules loaded so far in that stage
+   * (the server bundle, then the client bundles together): a progress bar for the two longest
+   * stages, whose counts (`modules` of the result) the next build can expect.
+   */
+  progress?: (stage: BundleStage, modules: number) => void;
+}
+
+export type BundleStage = "server" | "client";
+
+/**
+ * Counts the modules esbuild loads (first among the plugins, it sees every load, in every
+ * namespace; it answers none, so the plugins after it load them).
+ */
+function progressPlugin(
+  stage: BundleStage,
+  count: { n: number },
+  report?: AstroBuildOptions["progress"],
+) {
+  return {
+    name: `astro-in-browser-progress-${stage}`,
+    setup(b: { onLoad(o: { filter: RegExp }, cb: () => undefined): void }) {
+      if (report)
+        b.onLoad({ filter: /.*/ }, () => {
+          report(stage, ++count.n);
+          return undefined;
+        });
+    },
+  };
 }
 
 export interface AstroBuildResult {
@@ -80,6 +109,8 @@ export interface AstroBuildResult {
   clientAssets: ClientAssets;
   /** Files the bundle read, by id: what a rebuild depends on. */
   inputs: string[];
+  /** Modules loaded by each bundle stage (counted with `progress` only). */
+  modules: Record<BundleStage, number>;
   ms: number;
 }
 
@@ -221,7 +252,8 @@ export const routeStyles = (c) => (g.styles[c] ?? []).map((content) => ({ type: 
 export const entryModules = g.entryModules;
 export const inlinedScripts = g.inlinedScripts;`;
   let pageStyles: Record<string, string[]> = {};
-  let client: ClientBuild = { entryModules: {}, inlinedScripts: [] };
+  const serverModules = { n: 0 };
+  let client: ClientBuild = { entryModules: {}, inlinedScripts: [], modules: 0 };
 
   // The client directives' scripts, from wherever this project's astro ships them (astro 7.4.9
   // moved them to @astrojs/runtime).
@@ -285,6 +317,7 @@ export const inlinedScripts = g.inlinedScripts;`;
         minifySyntax: true,
         keepNames: true,
         plugins: [
+          progressPlugin("server", serverModules, opts.progress),
           pathsPlugin({
             root,
             packages: opts.packages,
@@ -353,6 +386,7 @@ export const inlinedScripts = g.inlinedScripts;`;
     components,
     clientAssets,
     inputs: Object.keys(result.metafile?.inputs ?? {}),
+    modules: { server: serverModules.n, client: clientBuilt.modules },
     ms: Date.now() - started,
   };
 }
@@ -407,6 +441,8 @@ async function* walkFiles(files: FilesApi, dir: string): AsyncGenerator<string> 
 interface ClientBuild {
   entryModules: Record<string, string>;
   inlinedScripts: [string, string][];
+  /** Modules the client bundles loaded (counted with `progress` only). */
+  modules: number;
 }
 
 /**
@@ -450,7 +486,8 @@ async function buildClient(
     mounts: Map<string, Mount>;
   },
 ): Promise<ClientBuild> {
-  const out: ClientBuild = { entryModules: {}, inlinedScripts: [] };
+  const out: ClientBuild = { entryModules: {}, inlinedScripts: [], modules: 0 };
+  const clientModules = { n: 0 };
   const islands = [...new Set([...o.components.values()].flatMap((c) => c.islands ?? []))];
   const rendererEntries = [
     ...new Set(o.renderers.map((r) => r.clientEntrypoint).filter(Boolean)),
@@ -489,6 +526,7 @@ async function buildClient(
       esbuildOptions: {
         minify: true,
         plugins: [
+          progressPlugin("client", clientModules, o.progress),
           pathsPlugin({
             root: o.root,
             packages: o.packages,
@@ -557,6 +595,7 @@ async function buildClient(
         );
       }
     }
+  out.modules = clientModules.n;
   return out;
 }
 

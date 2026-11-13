@@ -1,4 +1,4 @@
-import { requireNodeSqlite } from "../adapters/node-sqlite-module.js";
+import { nodeSqliteBytes, requireNodeSqlite } from "../adapters/node-sqlite-module.js";
 import type { ObjectAttributes, ObjectStore } from "./object-store.js";
 import { PreconditionFailedError } from "./object-store.js";
 
@@ -54,7 +54,7 @@ export function sqliteObjectStore(file: string): ObjectStore & { close(): void }
         );
         db.prepare(
           "INSERT OR REPLACE INTO objects (key, body, etag, modified_ms, attributes) VALUES (?, ?, ?, ?, ?)",
-        ).run(key, body, next_etag, Date.now(), toAttributes(attrs));
+        ).run(key, nodeSqliteBytes(body), next_etag, Date.now(), toAttributes(attrs));
         db.exec("COMMIT");
         return String(next_etag);
       } catch (e) {

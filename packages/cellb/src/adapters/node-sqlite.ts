@@ -18,7 +18,7 @@ import type { DatabaseSync as DatabaseSyncT } from "node:sqlite";
 
 import { splitSqlStatements } from "../core/sql-split.js";
 import type { OpenCellSql, SqlResult, SyncSqlDriver } from "../ports.js";
-import { requireNodeSqlite } from "./node-sqlite-module.js";
+import { nodeSqliteBytes, requireNodeSqlite } from "./node-sqlite-module.js";
 
 const { DatabaseSync } = requireNodeSqlite();
 
@@ -306,7 +306,7 @@ export class NodeSqliteDriver implements SyncSqlDriver {
 }
 
 function toSqlite(v: unknown): unknown {
-  if (v instanceof ArrayBuffer) return new Uint8Array(v);
+  if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return nodeSqliteBytes(v);
   if (typeof v === "boolean") return v ? 1 : 0;
   return v === undefined ? null : v;
 }

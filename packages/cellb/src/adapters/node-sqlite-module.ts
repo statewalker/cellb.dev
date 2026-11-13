@@ -25,3 +25,16 @@ export function requireNodeSqlite(): typeof import("node:sqlite") {
     process.emitWarning = emitWarning;
   }
 }
+
+/** A zero-length view over a real buffer: node:sqlite binds it as an empty BLOB. */
+const EMPTY_BLOB = new Uint8Array(1).subarray(0, 0);
+
+/**
+ * Bytes as node:sqlite binds them. Node 22 binds a view whose buffer has no backing store (the
+ * buffer of `new ArrayBuffer(0)` or of a `Uint8Array` made from one) as NULL, not as an empty
+ * BLOB: zero-length bytes are bound as EMPTY_BLOB instead. An ArrayBuffer becomes a view.
+ */
+export function nodeSqliteBytes(v: ArrayBuffer | ArrayBufferView): Uint8Array {
+  if (v.byteLength === 0) return EMPTY_BLOB;
+  return v instanceof ArrayBuffer ? new Uint8Array(v) : (v as Uint8Array);
+}

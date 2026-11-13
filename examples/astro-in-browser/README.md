@@ -96,9 +96,12 @@ origin's root, so building one replaces the other.
   forwards to the chooser. When no tab runs the app, the ServiceWorker sends a visit to any of
   its paths to the chooser with the path as `?next=` (only a path of this origin is passed on:
   `browser/next-path.ts`), and the host page picked from it links to that path once it runs.
-- **Progress.** While an app is built, the host page shows its stage, a progress bar (stages
-  read from the build's log, weighted as a cold EmDash build) and the time spent, above the
-  build's log; cold builds also log every 10 downloaded packages.
+- **Progress.** While an app is built, the host page shows its stage, a progress bar and the
+  time spent, above the build's log. The stages are read from the build's log, weighted as a
+  cold EmDash build; within the two bundle stages, the longest, the bar moves by the modules
+  esbuild has loaded so far (a plugin first in the chain counts them) against what the app's
+  last build loaded (saved with the build), or a measured default. Cold builds also count the
+  packages downloaded.
 
 `?memory` on the page keeps packages in memory; `?pools` puts the site's cells in CellB's OPFS
 pools instead of the LTX storage. Network access to registry.npmjs.org is needed.

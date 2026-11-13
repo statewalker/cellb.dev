@@ -26,6 +26,8 @@ export interface BuildMeta {
   buildMs: number;
   routes: number;
   codeBytes: number;
+  /** Modules each bundle stage loaded: what the next build's progress bar expects. */
+  modules?: { server: number; client: number };
   /** [path, offset, length] in assets.bin. */
   assets: [string, number, number][];
 }
@@ -90,6 +92,7 @@ export async function saveBuild(
     clientAssets: Map<string, Uint8Array>;
     buildMs: number;
     routes: number;
+    modules?: { server: number; client: number };
   },
 ): Promise<BuildMeta> {
   const dir = await appDir(app, true);
@@ -112,6 +115,7 @@ export async function saveBuild(
     buildMs: b.buildMs,
     routes: b.routes,
     codeBytes: code.length,
+    modules: b.modules,
     assets,
   };
   await writeFile(dir, "meta.json", [JSON.stringify(meta)]);
