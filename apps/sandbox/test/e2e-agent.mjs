@@ -42,6 +42,7 @@ const step = (t) => console.log(`• ${t}`);
 const TYPES = {
   html: "text/html",
   js: "text/javascript",
+  mjs: "text/javascript",
   css: "text/css",
   wasm: "application/wasm",
   svg: "image/svg+xml",
@@ -83,6 +84,17 @@ const fake = await startFakeOpenAi({
             },
           }
         : { text: `Script done: ${toolResults(req).at(-1).slice(0, 80)}` };
+    if (lastUserText(req).startsWith("WASMER"))
+      return done === 0
+        ? {
+            tool: "wasmer",
+            args: {
+              packages: ["wasmer/bash", "wasmer/coreutils"],
+              command: "bash",
+              args: ["-c", "ls > wasmer-listing.txt && wc -l < wasmer-listing.txt"],
+            },
+          }
+        : { text: `Wasmer done: ${toolResults(req).at(-1).replace(/\s+/g, " ").slice(0, 400)}` };
     if (lastUserText(req).startsWith("PYTHON"))
       return done === 0
         ? {
@@ -298,6 +310,46 @@ try {
   if (pyDenied.ok) throw new Error("a read-only Python run wrote a file");
   await panel.getByLabel("Rights", { exact: true }).selectOption("yolo");
 
+  // The packages come from the Wasmer registry: where it cannot be reached, the step says so.
+  const registry = await fetch("https://registry.wasmer.io/graphql", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "{__typename}" }),
+  })
+    .then((r) => r.ok)
+    .catch(() => false);
+  if (!registry) step("wasmer: skipped (registry.wasmer.io is not reachable from here)");
+  else {
+    step(
+      "wasmer: a WASIX program (bash, coreutils) in a Wasmer sandbox; its writes go back through the capability",
+    );
+    await panel.getByLabel("Message to the agent").fill("WASMER: list the root");
+    await panel.getByRole("button", { name: "Send" }).click();
+    await panel.getByText(/^Wasmer done:/).waitFor({ timeout: 240_000 });
+    const wasmerReply = await panel
+      .getByText(/^Wasmer done:/)
+      .last()
+      .textContent();
+    for (let i = 0; ; i++) {
+      const g = await page.evaluate(() =>
+        window.cellbSandbox.call("read_file", { path: "wasmer-listing.txt" }),
+      );
+      if (g.ok && g.result.content.includes("AGENTS.md")) break;
+      if (i > 50) throw new Error(`wasmer's file: ${JSON.stringify(g)} (${wasmerReply})`);
+      await page.waitForTimeout(200);
+    }
+    await page.evaluate(() =>
+      window.cellbSandbox.call("delete_path", { path: "wasmer-listing.txt" }),
+    );
+    await panel.getByLabel("Rights", { exact: true }).selectOption("readonly");
+    await panel.getByLabel("Message to the agent").fill("WASMER: again, read-only");
+    await panel.getByRole("button", { name: "Send" }).click();
+    await panel
+      .getByText(/^Wasmer done:.*denied.*wasmer-listing\.txt/)
+      .waitFor({ timeout: 120_000 });
+    await panel.getByLabel("Rights", { exact: true }).selectOption("yolo");
+  }
+
   step("other agents' tools hold their own capability: read-only refuses their writes");
   await panel.getByLabel("Rights of other agents").selectOption("readonly");
   const refused = await page.evaluate(() =>
@@ -444,7 +496,23 @@ try {
   const opfsPage = await context.newPage();
   const opfsErrors = [];
   opfsPage.on("pageerror", (e) => opfsErrors.push(e.message));
-  opfsPage.on("console", (m) => m.type() === "error" && opfsErrors.push(m.text().slice(0, 500)));
+  // Everything the page and its workers say, for the diagnosis if the project does not open.
+  const opfsConsole = [];
+  opfsPage.on("console", (m) => {
+    opfsConsole.push(`${m.type()}: ${m.text().slice(0, 300)}`);
+    if (m.type() === "error") opfsErrors.push(m.text().slice(0, 500));
+  });
+  opfsPage.on("requestfailed", (r) =>
+    opfsConsole.push(`request failed: ${r.url()} ${r.failure()?.errorText}`),
+  );
+  opfsPage.on("response", (r) => {
+    if (r.status() >= 400) opfsConsole.push(`response ${r.status()}: ${r.url()}`);
+  });
+  opfsPage.on("worker", (w) =>
+    w.on("console", (m) =>
+      opfsConsole.push(`worker ${w.url().split("/").pop()}: ${m.text().slice(0, 300)}`),
+    ),
+  );
   await opfsPage.goto(APP);
   await opfsPage.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
   await opfsPage.evaluate(async () => {
@@ -464,6 +532,7 @@ try {
       .waitFor({ timeout: 60_000 });
   } catch (err) {
     console.log("opfs page errors:", opfsErrors.join(" | ").slice(0, 3000));
+    console.log("opfs console:\n", opfsConsole.slice(-60).join("\n"));
     console.log(
       "opfs page:",
       (await opfsPage.evaluate(() => document.body.innerText)).slice(0, 1500),
@@ -572,6 +641,71 @@ try {
   if (nbApi?.status !== 200 || !nbApi.body.includes('"kind"'))
     throw new Error(`node: api → ${JSON.stringify(nbApi).slice(0, 300)}`);
   await nbPage.close();
+
+  step(
+    "a2ui-stream: an agent builds a screen message by message; a click comes back as an action; a component outside the catalog is refused",
+  );
+  const a2Page = await context.newPage();
+  a2Page.on("pageerror", (e) => errors.push(`a2ui page: ${e.message}`));
+  await a2Page.goto(APP);
+  await a2Page.waitForFunction(() => crossOriginIsolated, null, { timeout: 30_000 });
+  await a2Page.getByRole("button", { name: /^Template: A2UI stream/ }).click();
+  const a2 = a2Page.frameLocator('iframe[title="The running app"]');
+  await a2
+    .getByRole("heading", { name: "A surface an agent streams" })
+    .waitFor({ timeout: 90_000 });
+  await a2.getByRole("button", { name: "+1" }).click();
+  const tool = (name, args) =>
+    a2Page.evaluate(([n, a]) => window.cellbSandbox.call(n, a), [name, args]);
+  let acted;
+  for (let i = 0; i < 40; i++) {
+    acted = await tool("http_request", { path: "api/actions" });
+    if (acted.ok && acted.result.body.includes('"name":"click"')) break;
+    await a2Page.waitForTimeout(250);
+  }
+  if (!acted?.result?.body.includes('"clicks":0'))
+    throw new Error(`the click: ${JSON.stringify(acted)}`);
+  const jsonl = [
+    { updateDataModel: { surfaceId: "main", path: "/clicks", value: 41 } },
+    { createSurface: { surfaceId: "report" } },
+    {
+      updateComponents: {
+        surfaceId: "report",
+        components: [
+          { id: "root", component: "Card", title: "Report", children: ["rows"] },
+          { id: "rows", component: "List", items: { path: "/rows" } },
+        ],
+      },
+    },
+    { updateDataModel: { surfaceId: "report", path: "/rows", value: ["alpha", "beta"] } },
+  ]
+    .map((m) => JSON.stringify(m))
+    .join("\n");
+  const posted = await tool("http_request", { path: "api/stream", method: "POST", body: jsonl });
+  if (!posted.ok || posted.result.status !== 200)
+    throw new Error(`stream: ${JSON.stringify(posted)}`);
+  await a2.getByText("41", { exact: true }).waitFor({ timeout: 10_000 });
+  await a2.getByRole("listitem").filter({ hasText: "beta" }).waitFor({ timeout: 10_000 });
+  const a2Refused = await tool("http_request", {
+    path: "api/stream",
+    method: "POST",
+    body: JSON.stringify({
+      updateComponents: { surfaceId: "main", components: [{ id: "x", component: "Script" }] },
+    }),
+  });
+  if (a2Refused.result?.status !== 400 || !a2Refused.result.body.includes("not in the catalog"))
+    throw new Error(`an unknown component: ${JSON.stringify(a2Refused)}`);
+  // A data path into an object's prototype is refused too (every client would apply it).
+  const a2Proto = await tool("http_request", {
+    path: "api/stream",
+    method: "POST",
+    body: JSON.stringify({
+      updateDataModel: { surfaceId: "main", path: "/__proto__/path", value: "/x" },
+    }),
+  });
+  if (a2Proto.result?.status !== 400 || !a2Proto.result.body.includes("reserved key"))
+    throw new Error(`a prototype path: ${JSON.stringify(a2Proto)}`);
+  await a2Page.close();
 
   step(
     "Astro: a site built from its sources in the tab (compiler-rs), run on CellB, its island hydrated; its deployable build run by cellb on Node",

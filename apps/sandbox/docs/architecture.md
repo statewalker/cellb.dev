@@ -175,7 +175,9 @@ no network and only a `files` RpcTarget over the (optionally narrowed) capabilit
 
 **Python [built]**: `python` runs Pyodide in a Worker of its own (a host seam: `cellbStudioHost.python`). It works on a copy of the files the capability may read; the changes are written back through the capability, each authorized, the refused ones reported as `denied`.
 
-**[next]**: approved tool bundles (flue-capfs-do's bundle checks and hashes), Wasmer (WASIX) sandboxes on the same copy-in / write-back scheme, and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
+**Wasmer [built]**: `wasmer` runs Wasmer registry commands (WASIX) in a Wasmer sandbox in a Worker, on the same copy-in / write-back scheme as `python` (`copy-in.ts`), without network.
+
+**[next]**: approved tool bundles (flue-capfs-do's bundle checks and hashes), and for remote agents the same tokens checked by `withAccess` on an HTTPeers mount.
 
 ## 6. From the tab to the hosts
 
@@ -278,8 +280,12 @@ Two complementary forms:
 The spec shape is deliberately the one of **json-render** (vercel-labs; used by
 `@statewalker/render.view.react`, React/shadcn catalogs) and close to **A2UI** v0.9
 (`createSurface` / `updateComponents` / `updateDataModel`; a build-free DOM renderer exists in
-`statewalker-sandbox/apps/httpeers-shell-protos/lib`). **[next]**: a `@json-render/react`
-template, and A2UI message streams for incremental updates.
+`statewalker-sandbox/apps/httpeers-shell-protos/lib`). The `a2ui-stream` template **[built]**
+streams them. The agent appends A2UI-style messages (`createSurface`, `updateComponents`,
+`updateDataModel`, `deleteSurface`) to a log in a Durable Object, as one message, an array or
+JSON Lines, checked against the catalog all or nothing. Every client follows the log and applies
+the new messages in order, so a screen is built and changed step by step. Actions come back as
+their own log. **[next]**: a `@json-render/react` template.
 
 **Astro** is the layout/pages layer **[built]**: a folder with an `astro.config.*` builds in the
 runner with `@statewalker/cellb-astro-builder` (config and integrations evaluated, compiler-rs as
@@ -307,7 +313,7 @@ Observable-style notebooks — Markdown with fenced reactive `js` cells, `npm:` 
 | Phase | Content |
 |---|---|
 | 1 (this change) | Flue agents in Durable Objects on CellB with a Biscuit-capability file system (studio Worker), IDE tools for other agents (window/WebMCP/MCP), console capture, deployable build, GitHub snapshot push/pull, CI deploy workflow, agent-ui template, AGENTS.md |
-| 2 | per-module server compile (`siteCompiler`) for fast reruns; TypeScript language service in the editor |
+| 2 | per-module server compile (`siteCompiler`) for fast reruns (the TypeScript language service in the editor is built) |
 | 3 | HTTPeers: publish the app and the MCP mount; Biscuit permission modes; desktop-agent bridge; promote cell state to celld |
 | 4 | json-render/A2UI templates; agent screenshots of the preview as a tool (the Astro project type, the Python tool and isolated script runs are built) |
 

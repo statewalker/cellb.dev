@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentPanel } from "@/components/AgentPanel";
-import { CodeEditor } from "@/components/CodeEditor";
+import { CodeEditor, type Project } from "@/components/CodeEditor";
 import { FileTree } from "@/components/FileTree";
 import { HistoryPanel } from "@/components/HistoryPanel";
 import { PublishPanel } from "@/components/PublishPanel";
@@ -151,6 +151,10 @@ export default function Sandbox() {
   const [openError, setOpenError] = useState<string>();
   // The studio worker (the project's files, the capabilities, the Flue agents).
   const studioRef = useRef<StudioConnection | null>(null);
+  /** Settles once the current studio worker has said hello (see startStudio). */
+  const studioReady = useRef<Promise<void>>(Promise.resolve());
+  /** Settles once a runner has said hello (see startRunner): work is sent to it after that only. */
+  const runnerReady = useRef<Promise<void>>(Promise.resolve());
   const toolsRef = useRef<ReturnType<typeof createTools> | null>(null);
   // The rights the IDE's tools give agents outside the page (window.cellbSandbox, WebMCP, MCP).
   const [outsideMode, setOutsideMode] = useState<AgentMode>("yolo");
@@ -173,37 +177,63 @@ export default function Sandbox() {
   useEffect(() => {
     const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
     // The studio worker owns the project's files and runs the studio Worker (Flue agents) on
-    // CellB; the runner builds and runs the app, reading the files through a capability.
-    const sw = new Worker(new URL("../sandbox/studio.worker.ts", import.meta.url), {
-      type: "module",
+    // CellB; the runner builds and runs the app, reading the files through a capability. A studio
+    // worker whose script does not load (rare, under load) says nothing at all and loses what it
+    // is sent: so it must say hello, and one that does not, in 20 s or with an error, is replaced.
+    let sw: Worker | undefined;
+    let stopped = false;
+    // One promise for the page: the first hello of any attempt settles it.
+    let ready = () => {};
+    studioReady.current = new Promise<void>((r) => {
+      ready = r;
     });
-    const studio = connectStudio(
-      sw,
-      new URL(`${base}studio/`, location.href).href,
-      (m: FromStudio) => {
-        if (m.type === "changed") checkSoon.current();
-        else if (m.type === "log") addLog(m.text, m.level);
-        else if (m.type === "host-call") {
-          // The studio's agent wants the app run, its log or a request: the page's tools act.
-          void callTool(toolsRef.current ?? [], m.tool, m.args).then((out) =>
-            sw.postMessage({ type: "host-reply", id: m.id, out } satisfies ToStudio),
-          );
+    const startStudio = (attempt: number) => {
+      const me = new Worker(new URL("../sandbox/studio.worker.ts", import.meta.url), {
+        type: "module",
+      });
+      sw = me;
+      let hello = false;
+      const studio = connectStudio(
+        me,
+        new URL(`${base}studio/`, location.href).href,
+        (m: FromStudio) => {
+          if (m.type === "hello") {
+            hello = true;
+            ready();
+          } else if (m.type === "changed") checkSoon.current();
+          else if (m.type === "log") addLog(m.text, m.level);
+          else if (m.type === "host-call") {
+            // The studio's agent wants the app run, its log or a request: the page's tools act.
+            void callTool(toolsRef.current ?? [], m.tool, m.args).then((out) =>
+              me.postMessage({ type: "host-reply", id: m.id, out } satisfies ToStudio),
+            );
+          }
+        },
+      );
+      studioRef.current = studio;
+      const port = studio.portForRunner();
+      worker.current?.postMessage({ type: "studio-port", port } satisfies ToRunner, [port]);
+      const replace = (why: string) => {
+        if (hello || stopped || sw !== me) return;
+        me.terminate();
+        if (attempt >= 3) {
+          const message = `the studio worker did not start (${why}): reload the page`;
+          addLog(message, "error");
+          setOpenError(message);
+          return;
         }
-      },
-    );
-    studioRef.current = studio;
-    sw.addEventListener("error", (e) => addLog(`studio: ${e.message}`, "error"));
+        addLog(`studio: ${why}; starting it again`, "error");
+        startStudio(attempt + 1);
+      };
+      me.addEventListener("error", (e) =>
+        hello ? addLog(`studio: ${e.message}`, "error") : replace(e.message || "it did not load"),
+      );
+      // Long enough for a cold start on a slow network (the hello comes after the whole module
+      // graph has loaded); a refused script shows as an error event at once anyway.
+      setTimeout(() => replace("no answer in 45 s"), 45_000);
+    };
+    startStudio(1);
 
-    const w = new Worker(new URL("../sandbox/runner.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    worker.current = w;
-    const port = studio.portForRunner();
-    w.postMessage({ type: "studio-port", port } satisfies ToRunner, [port]);
-    // The ServiceWorker next to this page (integrations/sw-worker.mjs): its scope is the sandbox.
-    const unhost = hostSitesForWorker(w, {
-      serviceWorkerUrl: new URL(`${base}sw-worker.js`, location.href).href,
-    });
     // That ServiceWorker makes the page cross-origin isolated (Astro's compiler needs shared
     // memory), but only for pages it controls from their first request: the very first visit is
     // reloaded once through it, while no project is open yet.
@@ -218,9 +248,7 @@ export default function Sandbox() {
       if (navigator.serviceWorker.controller) reload();
       else navigator.serviceWorker.addEventListener("controllerchange", reload, { once: true });
     }
-    w.addEventListener("message", (e: MessageEvent<FromRunner>) => {
-      const m = e.data;
-      if (!m || typeof m !== "object" || !("type" in m)) return;
+    const onRunner = (m: FromRunner) => {
       if (m.type === "log") addLog(m.text, m.level);
       else if (m.type === "phase") {
         if (m.phase === "building") setStatus({ kind: "building" });
@@ -249,12 +277,61 @@ export default function Sandbox() {
         builds.current.get(m.id)?.reject(new Error(m.error));
         builds.current.delete(m.id);
       }
+    };
+    // The runner, the same way as the studio worker: its first message (phase "idle") is its hello;
+    // one whose script did not load is replaced, re-hosted and given a port to the studio again.
+    let unhost = () => {};
+    let runnerUp = () => {};
+    runnerReady.current = new Promise<void>((r) => {
+      runnerUp = r;
     });
-    w.addEventListener("error", (e) => addLog(`runner: ${e.message}`, "error"));
+    const startRunner = (attempt: number) => {
+      const me = new Worker(new URL("../sandbox/runner.worker.ts", import.meta.url), {
+        type: "module",
+      });
+      worker.current = me;
+      let hello = false;
+      // The ServiceWorker next to this page (integrations/sw-worker.mjs): its scope is the sandbox.
+      const unhostMe = hostSitesForWorker(me, {
+        serviceWorkerUrl: new URL(`${base}sw-worker.js`, location.href).href,
+      });
+      unhost = unhostMe;
+      me.addEventListener("message", (e: MessageEvent<FromRunner>) => {
+        const m = e.data;
+        if (!m || typeof m !== "object" || !("type" in m)) return; // site-host traffic
+        hello = true;
+        runnerUp();
+        onRunner(m);
+      });
+      const studio = studioRef.current;
+      if (studio) {
+        const port = studio.portForRunner();
+        me.postMessage({ type: "studio-port", port } satisfies ToRunner, [port]);
+      }
+      const replace = (why: string) => {
+        if (hello || stopped || worker.current !== me) return;
+        unhostMe();
+        me.terminate();
+        if (attempt >= 3) {
+          addLog(`the runner did not start (${why}): reload the page`, "error");
+          return;
+        }
+        addLog(`runner: ${why}; starting it again`, "error");
+        startRunner(attempt + 1);
+      };
+      me.addEventListener("error", (e) =>
+        hello ? addLog(`runner: ${e.message}`, "error") : replace(e.message || "it did not load"),
+      );
+      // Long enough for a cold start on a slow network (the hello comes after the whole module
+      // graph has loaded); a refused script shows as an error event at once anyway.
+      setTimeout(() => replace("no answer in 45 s"), 45_000);
+    };
+    startRunner(1);
     return () => {
+      stopped = true;
       unhost();
-      w.terminate();
-      sw.terminate();
+      worker.current?.terminate();
+      sw?.terminate();
     };
   }, [addLog]);
 
@@ -270,7 +347,8 @@ export default function Sandbox() {
       statusRef.current = { kind: "building" };
       setStatus({ kind: "building" });
       addLog(`running ${l.name}: ${l.files.size} files (${describeSource(l.session.source)})`);
-      worker.current?.postMessage(msg);
+      // To a runner that has said hello: a message to one whose script did not load would be lost.
+      void runnerReady.current.then(() => worker.current?.postMessage(msg));
     },
     [addLog],
   );
@@ -358,12 +436,28 @@ export default function Sandbox() {
 
   /** Opens a project: its files mounted in the studio worker, read through the owner token. */
   async function openProject(name: string, source: SourceSpec, handle?: FileSystemDirectoryHandle) {
-    const studio = studioRef.current;
-    if (!studio) throw new Error("the studio is not ready");
     const before = loadedRef.current?.session;
     setOpenError(undefined);
-    const s = await openProjectSession(studio, name, source);
-    const { files, dirs, signature } = await readProject(s);
+    // A step that never ends (a studio that cannot start its storage) is an error, not a page
+    // that silently stays where it was.
+    const step = <T,>(what: string, p: Promise<T>) => {
+      console.info(`[open] ${name}: ${what}`);
+      return Promise.race([
+        p,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`${what} did not finish in 60 s`)), 60_000),
+        ),
+      ]);
+    };
+    await step("waiting for the studio worker", studioReady.current);
+    const studio = studioRef.current;
+    if (!studio) throw new Error("the studio is not ready");
+    const s = await step(
+      "mounting the source, minting its tokens",
+      openProjectSession(studio, name, source),
+    );
+    const { files, dirs, signature } = await step("reading the project", readProject(s));
+    console.info(`[open] ${name}: ${files.size} files`);
     if (before) studio.unmount(before.ws);
     load({ name, files, dirs, session: s, handle, signature });
   }
@@ -876,13 +970,15 @@ export default function Sandbox() {
     const id = ++buildId.current;
     return new Promise<Build>((resolve, reject) => {
       builds.current.set(id, { resolve, reject });
-      worker.current?.postMessage({
-        type: "build",
-        id,
-        workspace: l.session.ws,
-        token: l.session.buildToken,
-        folderName: l.name,
-      } satisfies ToRunner);
+      void runnerReady.current.then(() =>
+        worker.current?.postMessage({
+          type: "build",
+          id,
+          workspace: l.session.ws,
+          token: l.session.buildToken,
+          folderName: l.name,
+        } satisfies ToRunner),
+      );
     });
   };
 
@@ -1168,6 +1264,26 @@ export default function Sandbox() {
                 {openFile && loaded.files.has(openFile) ? (
                   <FileEditor
                     path={openFile}
+                    project={{
+                      // The project's scripts, with the unsaved edits: what the language service checks against.
+                      files: () => {
+                        const l = loadedRef.current;
+                        if (!l) return [];
+                        return [...l.files]
+                          .filter(([p]) => /\.(?:[cm]?[jt]sx?)$/i.test(p))
+                          .map(([p, b]): [string, string] => [p, drafts.get(p) ?? decode(b)]);
+                      },
+                      key: loaded.session.ws,
+                      // An Astro site's sources are pages and islands: the DOM's, like a client's.
+                      clientRoot: layout?.astro ? "/" : layout?.clientRoot,
+                      serverRoot:
+                        layout?.astro || !layout?.config?.main
+                          ? undefined
+                          : `/${layout.config.main.replace(/^\.?\/+/, "")}`.replace(
+                              /\/[^/]*$/,
+                              "",
+                            ) || "/",
+                    }}
                     bytes={loaded.files.get(openFile) as Uint8Array}
                     draft={drafts.get(openFile)}
                     where={describeSource(loaded.session.source)}
@@ -1411,6 +1527,7 @@ function FileEditor(props: {
   error?: string;
   onChange(text: string): void;
   onSave(): void;
+  project?: Project;
 }) {
   const text = textOf(props.path, props.bytes);
   const dirty = props.draft !== undefined;
@@ -1449,6 +1566,7 @@ function FileEditor(props: {
               value={props.draft ?? text}
               onChange={props.onChange}
               onSave={props.onSave}
+              project={props.project}
             />
           </div>
         ) : (

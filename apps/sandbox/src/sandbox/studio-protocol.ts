@@ -16,6 +16,8 @@ export type ToStudio =
   | { type: "host-reply"; id: number; out: HostOut };
 
 export type FromStudio =
+  /** The worker's module has loaded: it answers from now on. */
+  | { type: "hello" }
   | { type: "mounted"; id: number; error?: string }
   /** A write through a capability changed something (the page refreshes its view). */
   | { type: "changed"; ws: string; path: string; kind: "write" | "delete" | "mkdir" }
