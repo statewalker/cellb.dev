@@ -123,6 +123,14 @@ function stubOf(ns: DurableObjectNamespace, name: string) {
   return ns.getByName ? ns.getByName(name) : ns.get(ns.idFromName(name));
 }
 
+/**
+ * What a site's database script or query may not do: reach a file of the host (`ATTACH`,
+ * `VACUUM INTO`), change the engine (`PRAGMA`), or load code (`load_extension`). A host's own SQL
+ * authorizer may refuse these too; not every host's does. A word in a string literal is refused
+ * as well: rename it.
+ */
+const REFUSED_SQL = /\b(attach|detach|vacuum|pragma|load_extension)\b/i;
+
 /** A precomputed SQL result's file name in a request path, at any depth (`…/.observable/cache/x.json`). */
 const SQL_CACHE = /\/\.observable\/cache\/([\w.-]+\.json)$/;
 
@@ -130,7 +138,8 @@ export function handleNotebooks(request: Request, env: PlatformEnv): Promise<Res
   const [, , site] = new URL(request.url).pathname.split("/");
   if (!site) return Promise.resolve(text("site expected: /nb/<site>/…\n", 400));
   // `~` names a site's database objects (`<site>~db~<name>`): never a site of its own.
-  if (!/^[\w.-]+$/.test(site)) return Promise.resolve(text(`bad site name: ${site}\n`, 400));
+  // (The segment is as sent: `%7E` names another object, not `~`.)
+  if (site.includes("~")) return Promise.resolve(text(`bad site name: ${site}\n`, 400));
   return stubOf(env.NOTEBOOKS, site).fetch(request);
 }
 
@@ -161,38 +170,64 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
 
   /**
    * In a database object (`<site>~db~<name>~<script hash>`, never a site: `handleNotebooks` refuses
-   * `~`): the script runs once, in one transaction, then each query runs with its parameters
-   * bound. An RPC method, so no HTTP request reaches it. A new script is a new object, so a result
-   * depends on the script alone (no reset, which a host's SQL authorizer may refuse).
+   * `~`): the script runs once, in one transaction, then the queries run with their parameters
+   * bound, in a transaction rolled back, so a query that changes data changes it for no later build.
+   * An RPC method, so no HTTP request reaches it. A new script is a new object, so a result depends
+   * on the script alone (no reset, which a host's SQL authorizer may refuse).
    */
   async queryDatabase(
     script: string,
     queries: { strings: string[]; params: unknown[] }[],
   ): Promise<{ rows?: Record<string, unknown>[]; error?: string }[]> {
-    const sql = this.ctx.storage.sql;
+    const storage = this.ctx.storage;
+    const sql = storage.sql;
+    const all = (error: string) => queries.map(() => ({ error }));
+    if (!storage.transactionSync) return all("this host's SQL storage has no transactionSync");
+    const refused = REFUSED_SQL.exec(script)?.[1];
+    if (refused) return all(`the database script uses ${refused.toUpperCase()}, which is refused`);
     sql.exec("CREATE TABLE IF NOT EXISTS nb_db_script (loaded INTEGER)");
     if (!sql.exec("SELECT loaded FROM nb_db_script").toArray().length) {
       try {
-        const load = () => {
+        // One transaction: a failed script leaves nothing half loaded.
+        storage.transactionSync(() => {
           if (script.trim()) sql.exec(script);
           sql.exec("INSERT INTO nb_db_script VALUES (1)");
-        };
-        // One transaction where the host has it: a failed script leaves nothing half loaded.
-        const storage = this.ctx.storage;
-        if (storage.transactionSync) storage.transactionSync(load);
-        else load();
+        });
       } catch (e) {
-        const error = `the database script failed: ${String((e as Error)?.message ?? e)}`;
-        return queries.map(() => ({ error }));
+        return all(`the database script failed: ${String((e as Error)?.message ?? e)}`);
       }
     }
-    return queries.map((q) => {
-      try {
-        return { rows: sql.exec(q.strings.join("?"), ...(q.params as never[])).toArray() };
-      } catch (e) {
-        return { error: String((e as Error)?.message ?? e) };
-      }
-    });
+    const answers: { rows?: Record<string, unknown>[]; error?: string }[] = [];
+    const rollback = new Error("rollback");
+    try {
+      storage.transactionSync(() => {
+        for (const q of queries) {
+          const text = q.strings.join("?");
+          const word = REFUSED_SQL.exec(text)?.[1];
+          if (word) {
+            answers.push({ error: `the query uses ${word.toUpperCase()}, which is refused` });
+            continue;
+          }
+          try {
+            const rows = sql.exec(text, ...(q.params as never[])).toArray();
+            const blob = rows.flatMap((r) =>
+              Object.entries(r).filter(([, v]) => v instanceof ArrayBuffer),
+            )[0];
+            answers.push(
+              blob
+                ? { error: `column "${blob[0]}" is a BLOB, which JSON cannot hold: cast it in SQL` }
+                : { rows },
+            );
+          } catch (e) {
+            answers.push({ error: String((e as Error)?.message ?? e) });
+          }
+        }
+        throw rollback;
+      });
+    } catch (e) {
+      if (e !== rollback) throw e;
+    }
+    return answers;
   }
 
   /**
@@ -206,11 +241,11 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     await this.sqlCache.remove("/");
     const byDatabase = new Map<string, SqlQuery[]>();
     for (const q of queries) {
-      if (q.interpolated) {
+      if (!q.strings) {
         failures.push({
           notebook: q.notebook,
           cell: q.cell,
-          error: "the query interpolates a value known only in the page: not precomputed",
+          error: q.error ?? "not precomputable",
         });
         continue;
       }
@@ -243,35 +278,42 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
       const db = stubOf(this.env.NOTEBOOKS, `${site}~db~${database}~${hash}`) as unknown as {
         queryDatabase: NotebookSite["queryDatabase"];
       };
-      const answers = await db.queryDatabase(
-        script,
-        list.map((q) => ({ strings: [q.source], params: [] })),
-      );
-      const rowsOf = new Map<string, Record<string, unknown>[]>();
-      const ok: SqlQuery[] = [];
-      list.forEach((q, i) => {
-        const a = answers[i];
-        if (a?.rows) {
-          rowsOf.set(q.source, a.rows);
-          ok.push(q);
-        } else
-          failures.push({ notebook: q.notebook, cell: q.cell, error: a?.error ?? "no answer" });
-      });
-      const client = {
-        sql: async (strings: TemplateStringsArray) => rowsOf.get(strings[0] ?? "") ?? [],
-        query: async () => [],
-        close: async () => {},
-      };
-      // Written at the root: the same name serves every page, at any depth (`SQL_CACHE`).
-      const written = await precomputeQueries(
-        ok.map((q) => ({ notebook: "/", database, strings: [q.source], params: [] })),
-        new Map([[database, client as never]]),
-        this.sqlCache,
-      );
-      ok.forEach((q, i) => {
-        const file = (written[i] ?? "").replace(/^.*\//, "");
-        results.push({ page: q.page, cell: q.cell, database, file });
-      });
+      // A database that fails (its object throws, a limit) fails its cells, not the build.
+      try {
+        const answers = await db.queryDatabase(
+          script,
+          list.map((q) => ({ strings: q.strings as string[], params: [] })),
+        );
+        const key = (strings: readonly string[]) => JSON.stringify(strings);
+        const rowsOf = new Map<string, Record<string, unknown>[]>();
+        const ok: SqlQuery[] = [];
+        list.forEach((q, i) => {
+          const a = answers[i];
+          if (a?.rows) {
+            rowsOf.set(key(q.strings as string[]), a.rows);
+            ok.push(q);
+          } else
+            failures.push({ notebook: q.notebook, cell: q.cell, error: a?.error ?? "no answer" });
+        });
+        const client = {
+          sql: async (strings: TemplateStringsArray) => rowsOf.get(key([...strings])) ?? [],
+          query: async () => [],
+          close: async () => {},
+        };
+        // Written at the root: the same name serves every page, at any depth (`SQL_CACHE`).
+        const written = await precomputeQueries(
+          ok.map((q) => ({ notebook: "/", database, strings: q.strings as string[], params: [] })),
+          new Map([[database, client as never]]),
+          this.sqlCache,
+        );
+        ok.forEach((q, i) => {
+          const file = (written[i] ?? "").replace(/^.*\//, "");
+          results.push({ page: q.page, cell: q.cell, database, file });
+        });
+      } catch (e) {
+        const error = `database "${database}": ${String((e as Error)?.message ?? e)}`;
+        for (const q of list) failures.push({ notebook: q.notebook, cell: q.cell, error });
+      }
     }
     await this.#writeJson("/sql.json", results);
     return { sql: results, sqlFailures: failures };

@@ -32,6 +32,7 @@
     "@statewalker/webrun-files": "catalog:",
     "@statewalker/webrun-files-mem": "catalog:",
     "@statewalker/webrun-modules": "catalog:",
+    "acorn": "^8.19.0",
     "linkedom": "catalog:",
     "markdown-it": "^15.0.3",
     "urlpattern-polyfill": "catalog:"

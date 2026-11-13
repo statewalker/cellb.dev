@@ -168,11 +168,17 @@ SELECT region, SUM(amount) AS total FROM sales GROUP BY region
   (`queryDatabase`), so no request reaches it, and `handleNotebooks` refuses `~` in a site name.
 - **Every build runs the queries** of the themed pages' `sql` cells and writes the results with
   `@statewalker/notebook-db` (`precomputeQueries`: notebook-kit's hashes, `{ rows, schema }`).
+  The strings hashed are those the page's tagged template passes, read from the compiled cell
+  (escapes cooked: `\t` is a tab), not the cell's source.
+- **Queries change nothing**: they run in a transaction that is rolled back. The script and the
+  queries may not use `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA` or `load_extension`. A BLOB column is
+  reported (JSON cannot hold it: cast it in SQL), and a database whose object fails fails its
+  cells, not the build.
 - **Served at any depth**: one file per query, served for `…/.observable/cache/<name>.json` under
   any page. The export writes it beside each page that runs it (`t/x/…` and `t/x/…/` both).
 - **Not precomputed**, so live: `database=var:x`, `database=file:x` and a cell without `database`.
-  A query that interpolates a page value (`${…}`) is reported in `sqlFailures`, as are a missing
-  database and a failed query.
+  A query that interpolates a page value (`${…}`) or holds an invalid escape (`C:\users`) is
+  reported in `sqlFailures`, as are a missing database and a failed query.
 
 ### Static export
 

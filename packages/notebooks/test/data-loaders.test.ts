@@ -211,9 +211,33 @@ describe("SQL cells", () => {
       siteTitle: "S",
       base: "/t",
     });
-    expect(models.queries.map((q) => [q.page, q.database, q.source, q.interpolated])).toEqual([
-      ["/t/guide/q", "warehouse", "SELECT region FROM sales", false],
-      ["/t/guide/q", "warehouse", "SELECT * FROM sales WHERE region = ${region}", true],
+    expect(models.queries.map((q) => [q.page, q.database, q.strings, q.error])).toEqual([
+      ["/t/guide/q", "warehouse", ["SELECT region FROM sales"], undefined],
+      [
+        "/t/guide/q",
+        "warehouse",
+        undefined,
+        "the query interpolates a value known only in the page: not precomputed",
+      ],
     ]);
+  });
+
+  it("hashes the strings the page's template passes, escapes cooked", async () => {
+    const cell = (sql: string) => `\`\`\`sql database=w\n${sql}\n\`\`\``;
+    const md = ["# Q", cell("SELECT 'a\\nb', '`', '$\\{x}'"), cell("SELECT 'C:\\users'")].join(
+      "\n\n",
+    );
+    const models = await buildPageModels({
+      notebooks: new MemFilesApi({ initialFiles: { "/q.md": md } }),
+      moduleServer,
+      dom: { document, parser: new DOMParser() } as never,
+      siteTitle: "S",
+    });
+    const [escapes, invalid] = models.queries;
+    // the source holds a backslash and an n; the page's template cooks them into a newline
+    expect(escapes?.source).toBe("SELECT 'a\\nb', '`', '$\\{x}'");
+    expect(escapes?.strings).toEqual(["SELECT 'a\nb', '`', '${x}'"]);
+    expect(invalid?.strings).toBeUndefined();
+    expect(invalid?.error).toContain("invalid escape");
   });
 });

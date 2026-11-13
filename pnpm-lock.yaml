@@ -697,6 +697,9 @@ importers:
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
         version: 0.3.6
+      acorn:
+        specifier: ^8.19.0
+        version: 8.19.0
       linkedom:
         specifier: 'catalog:'
         version: 0.18.15

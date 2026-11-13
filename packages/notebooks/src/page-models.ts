@@ -27,6 +27,7 @@ import {
   transpileNotebook,
 } from "@statewalker/notebook-build";
 import type { FilesApi } from "@statewalker/webrun-files";
+import { parse } from "acorn";
 import {
   CODE_MODES,
   type CodeCell,
@@ -85,8 +86,9 @@ export interface SiteModel {
 
 /**
  * A `sql` cell on a named database (` ```sql database=warehouse `): notebook-kit's page fetches its
- * result precomputed (`.observable/cache/…`), so the build runs it. `interpolated`: the query
- * holds a `${…}`, a value known only in the page, so it cannot be precomputed.
+ * result precomputed (`.observable/cache/…`), so the build runs it. `strings` are what the page's
+ * tagged template passes, as hashed for the file's name (`sqlStrings`); `error` says why a cell
+ * cannot be precomputed (a `${…}`, a value known only in the page; an invalid escape).
  */
 export interface SqlQuery {
   page: string;
@@ -94,7 +96,48 @@ export interface SqlQuery {
   cell: number;
   database: string;
   source: string;
-  interpolated: boolean;
+  strings?: string[];
+  error?: string;
+}
+
+/**
+ * The strings a compiled `sql` cell's tagged template (``DatabaseClient(…).sql`…` ``) passes in the
+ * page: its quasis cooked, as the browser cooks them (`\n` is a newline; `$\{` is `${`). The
+ * cache file's name hashes these, not the cell's source. A template with an expression has a
+ * value known only in the page; one whose cooked string is undefined (`\u00`) fetches no file.
+ */
+export function sqlStrings(body: string): { strings?: string[]; error?: string } {
+  let found:
+    | { quasis: { value: { cooked?: string | null } }[]; expressions: unknown[] }
+    | undefined;
+  const visit = (node: unknown): void => {
+    if (found || !node || typeof node !== "object") return;
+    const n = node as Record<string, unknown>;
+    if (n.type === "TaggedTemplateExpression") {
+      const tag = n.tag as { type?: string; property?: { name?: string } };
+      if (tag.type === "MemberExpression" && tag.property?.name === "sql") {
+        found = n.quasi as typeof found;
+        return;
+      }
+    }
+    for (const v of Object.values(n)) {
+      if (Array.isArray(v)) for (const x of v) visit(x);
+      else if (v && typeof v === "object" && typeof (v as { type?: unknown }).type === "string")
+        visit(v);
+    }
+  };
+  try {
+    visit(parse(body, { ecmaVersion: "latest", sourceType: "module" }));
+  } catch (e) {
+    return { error: `the compiled cell does not parse: ${String((e as Error)?.message ?? e)}` };
+  }
+  if (!found) return { error: "no sql`…` template in the compiled cell" };
+  if (found.expressions.length)
+    return { error: "the query interpolates a value known only in the page: not precomputed" };
+  const strings = found.quasis.map((q) => q.value.cooked);
+  if (strings.some((x) => typeof x !== "string"))
+    return { error: "the query holds an invalid escape (a backslash): no file can match it" };
+  return { strings: strings as string[] };
 }
 
 export interface PageModels {
@@ -321,7 +364,7 @@ export async function buildPageModels(opts: {
             cell: id,
             database,
             source: cell.source,
-            interpolated: cell.source.includes("${"),
+            ...sqlStrings(compiled.get(id)?.body ?? ""),
           });
         const shown = cell.attrs.echo === true || notRun.has(id);
         const view = {
