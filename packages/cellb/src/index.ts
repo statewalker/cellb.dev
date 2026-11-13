@@ -72,3 +72,8 @@ export {
   type WebSocketConnector,
 } from "./ws/client.js";
 export { CellsResponse, takeClientPort, WebSocketPair } from "./ws/server.js";
+/**
+ * A WebSocket upgrade request a browser can make: `new Request()` there drops `Upgrade` and
+ * `Sec-WebSocket-*`, so an embedder that hands a project a socket from a page sets them with this.
+ */
+export { withUpgrade } from "./ws/upgrade.js";

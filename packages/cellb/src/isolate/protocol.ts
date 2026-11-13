@@ -75,24 +75,27 @@ export async function hostPort(
   port: PortLike,
   handle: Handle,
   outbound?: (req: Request) => Promise<Response>,
-): Promise<{ call: Call; fetch: Fetch }> {
+): Promise<{ call: Call; fetch: Fetch; close(reason: unknown): Promise<void> }> {
+  const bodies = new Bodies();
   const mux = multiplexPort(messageTarget(port), {
     codec: structuredCodec,
     side: "initiator",
     maxPorts: maxPorts(),
     onPort(p, meta) {
-      const m = meta as { kind?: string; url: string } | undefined;
+      const m = meta as { kind?: string; url: string; id: number } | undefined;
+      if (m?.kind === "body") return bodies.serve(p, m.id);
       if (m?.kind !== "outbound" || !outbound) return false;
       serveFetch(p, m.url, outbound);
       return true;
     },
   });
-  const call = callsOver(await mux.openPort({ kind: "calls" }), handle);
+  const call = callsOver(await mux.openPort({ kind: "calls" }), handle, mux, bodies);
   const fetch: Fetch = (target, req) =>
     isUpgrade(req)
       ? upgradeOver(mux, { kind: "upgrade", target }, req)
       : fetchOver(mux, { kind: "fetch", target }, req);
-  return { call, fetch };
+  // Closing the multiplexer rejects every call in flight, and every later one, with `reason`.
+  return { call, fetch, close: (reason) => mux.close(reason) };
 }
 
 /**
@@ -106,12 +109,14 @@ export function isolatePort(
   fetch: Fetch,
 ): { call: Call; outbound: (req: Request) => Promise<Response> } {
   let calls: Call | undefined;
-  const mux = multiplexPort(messageTarget(port), {
+  const bodies = new Bodies();
+  const mux: PortMux = multiplexPort(messageTarget(port), {
     codec: structuredCodec,
     side: "responder",
     maxPorts: maxPorts(),
     onPort(p, meta) {
-      const m = meta as { kind?: string; target: FetchTarget; url: string } | undefined;
+      const m = meta as { kind?: string; target: FetchTarget; url: string; id: number } | undefined;
+      if (m?.kind === "body") return bodies.serve(p, m.id);
       if (m?.kind === "fetch") {
         serveFetch(p, m.url, (r) => fetch(m.target, r));
         return true;
@@ -121,7 +126,7 @@ export function isolatePort(
         return true;
       }
       if (m?.kind !== "calls" || calls) return false;
-      calls = callsOver(p, handle);
+      calls = callsOver(p, handle, mux, bodies);
       return true;
     },
   });
@@ -283,6 +288,170 @@ function serveUpgrade(
   })();
 }
 
+/** Marks a Request, Response, Headers or ReadableStream in a message: `{ [WIRE]: kind, … }`. */
+const WIRE = "\u0000cellb.wire";
+
+// The realm's own classes, before the isolate entry replaces the globals with its subclasses
+// (CellsRequest, CellsResponse): instances of either are instances of these.
+const NativeRequest = globalThis.Request;
+const NativeResponse = globalThis.Response;
+const NativeHeaders = globalThis.Headers;
+const NativeReadableStream = globalThis.ReadableStream;
+
+/**
+ * The bodies one side has sent and the other has not read yet, by id. The reader opens a port
+ * `{ kind: "body", id }` on the multiplexer when it first pulls, and the body streams over it,
+ * as a fetch's body does; a reader that drops the body unread sends `release {body}` instead.
+ */
+class Bodies {
+  #last = 0;
+  #streams = new Map<number, ReadableStream>();
+  add(stream: ReadableStream): number {
+    this.#streams.set(++this.#last, stream);
+    return this.#last;
+  }
+  /** The last id handed out, for `releaseSince`. */
+  mark(): number {
+    return this.#last;
+  }
+  /** Releases the bodies added after `mark` (a message that could not be sent). */
+  releaseSince(mark: number): void {
+    for (let id = mark + 1; id <= this.#last; id++) this.release(id);
+  }
+  release(id: number): void {
+    const stream = this.#streams.get(id);
+    this.#streams.delete(id);
+    void stream?.cancel().catch(() => {});
+  }
+  /** Serves body `id` on port `p`; false (the port is refused) if there is no such body. */
+  serve(p: MessageTarget, id: number): boolean {
+    const stream = this.#streams.get(id);
+    if (!stream) return false;
+    this.#streams.delete(id);
+    const encoder = new TextEncoder();
+    serveDuplexOverPort(p, async function* () {
+      // A reader, not `for await`: not every engine iterates a ReadableStream (Safari).
+      const reader = stream.getReader();
+      try {
+        for (;;) {
+          const { done, value: chunk } = await reader.read();
+          if (done) return;
+          yield typeof chunk === "string"
+            ? encoder.encode(chunk)
+            : ArrayBuffer.isView(chunk)
+              ? new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+              : new Uint8Array(chunk as ArrayBuffer);
+        }
+      } finally {
+        // The reader stopped early (the port was abandoned): the stream is cancelled.
+        void reader.cancel().catch(() => {});
+      }
+    });
+    return true;
+  }
+}
+
+/**
+ * A Request, Response, Headers or ReadableStream as a message can carry it (workerd's RPC passes
+ * them; a port cannot clone them): its head copied, its body registered in `bodies` to stream
+ * when read. Anything else is returned as it is.
+ */
+function toWire(v: unknown, bodies: Bodies): unknown {
+  if (v instanceof NativeHeaders) return { [WIRE]: "headers", entries: [...v] };
+  if (v instanceof NativeReadableStream) return { [WIRE]: "stream", body: bodies.add(v) };
+  if (v instanceof NativeResponse) {
+    if ((v as { webSocket?: unknown }).webSocket)
+      throw new DOMException(
+        "A WebSocket response cannot be passed in an RPC call; return it from fetch().",
+        "DataCloneError",
+      );
+    return {
+      [WIRE]: "response",
+      status: v.status,
+      statusText: v.statusText,
+      url: v.url,
+      headers: [...v.headers],
+      body: v.body ? bodies.add(v.body) : null,
+    };
+  }
+  if (v instanceof NativeRequest)
+    return {
+      [WIRE]: "request",
+      url: v.url,
+      method: v.method,
+      headers: [...v.headers],
+      redirect: v.redirect,
+      body: v.body ? bodies.add(v.body) : null,
+    };
+  return v;
+}
+
+/** Releases a body that was never read, once its stream is collected. */
+const unread = new FinalizationRegistry<() => void>((release) => release());
+
+/**
+ * The other side's body `id` as a stream: the first pull opens its port, so a body nobody
+ * reads costs nothing but its release.
+ */
+function remoteBody(mux: PortMux, id: number, release: (id: number) => void): ReadableStream {
+  let chunks: AsyncIterator<Uint8Array> | undefined;
+  const token = {};
+  const stream = new NativeReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (!chunks) {
+        unread.unregister(token);
+        const port = await mux.openPort({ kind: "body", id });
+        chunks = duplexOverPort(port)([])[Symbol.asyncIterator]();
+      }
+      const { done, value } = await chunks.next();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    async cancel(reason) {
+      if (chunks) await chunks.return?.(reason);
+      else {
+        unread.unregister(token);
+        release(id);
+      }
+    },
+  });
+  unread.register(stream, () => release(id), token);
+  return stream;
+}
+
+/** Statuses whose Response has no body. */
+const NULL_BODY = [101, 103, 204, 205, 304];
+
+/** The value `toWire` described, rebuilt; its body streams from the other side when read. */
+function fromWire(v: any, mux: PortMux, release: (id: number) => void): unknown {
+  const body = (id: number | null) => (id === null ? null : remoteBody(mux, id, release));
+  switch (v[WIRE]) {
+    case "headers":
+      return new Headers(v.entries);
+    case "stream":
+      return body(v.body);
+    case "response": {
+      if (NULL_BODY.includes(v.status) && v.body !== null) release(v.body);
+      const res = new Response(NULL_BODY.includes(v.status) ? null : body(v.body), {
+        status: v.status,
+        statusText: v.statusText,
+        headers: v.headers,
+      });
+      if (v.url) Object.defineProperty(res, "url", { value: v.url, enumerable: true });
+      return res;
+    }
+    case "request":
+      return new Request(v.url, {
+        method: v.method,
+        headers: v.headers,
+        redirect: v.redirect,
+        body: body(v.body),
+        duplex: "half",
+      } as RequestInit);
+  }
+  return v;
+}
+
 /** Marks a value passed by reference in a message: `{ [REF]: id }`. */
 const REF = "\u0000cellb.ref";
 
@@ -293,24 +462,31 @@ const REF = "\u0000cellb.ref";
  * value runs the value's own `Symbol.dispose`, as workerd does for an `RpcTarget`. A call
  * returns an RpcPromise: calls on it go to the other side at once, naming its answer.
  */
-function callsOver(port: MessageTarget, handle: Handle): Call {
+function callsOver(port: MessageTarget, handle: Handle, mux: PortMux, bodies: Bodies): Call {
   const values = new Map<number, any>();
   const answers = new Map<number, unknown>();
   let lastAnswer = 0;
   const holders = new Map<unknown, number>();
   let lastId = 0;
-  const encode = (v: unknown) =>
-    cloneable(
-      cross(
-        v,
-        (x) => {
-          values.set(++lastId, x);
-          holders.set(x, (holders.get(x) ?? 0) + 1);
-          return { [REF]: lastId };
-        },
-        (x) => x, // the port copies the rest
-      ),
-    );
+  const encode = (v: unknown) => {
+    const mark = bodies.mark();
+    try {
+      return cloneable(
+        cross(
+          v,
+          (x) => {
+            values.set(++lastId, x);
+            holders.set(x, (holders.get(x) ?? 0) + 1);
+            return { [REF]: lastId };
+          },
+          (x) => toWire(x, bodies), // Requests, Responses, Headers, streams; the port copies the rest
+        ),
+      );
+    } catch (e) {
+      bodies.releaseSince(mark); // the message is not sent: nobody will read its bodies
+      throw e;
+    }
+  };
   const release = (id: number) => {
     const v = values.get(id);
     if (!values.delete(id)) return;
@@ -322,19 +498,47 @@ function callsOver(port: MessageTarget, handle: Handle): Call {
     }
   };
   const send = (msg: object) => callPort(port, msg, { timeout: NO_TIMEOUT }).catch(() => {});
-  const collected = new FinalizationRegistry<number>((id) => send({ type: "release", id }));
+  // Stubs of one id held here: `dup()` makes another, and the id is released (and the other
+  // side's value with it, once no other id holds it) when the last of them is disposed or
+  // collected.
+  const local = new Map<number, number>();
+  const drop = (id: number) => {
+    const n = (local.get(id) ?? 1) - 1;
+    if (n) local.set(id, n);
+    else {
+      local.delete(id);
+      send({ type: "release", id });
+    }
+  };
+  const collected = new FinalizationRegistry<number>(drop);
   const stubOf = (id: number) => {
-    const invoke = (path: string[], args: unknown[]) => call({ type: "ref", id, path, args });
+    local.set(id, (local.get(id) ?? 0) + 1);
+    let disposed = false;
+    const live = () => {
+      if (disposed) throw new Error("A stub was used after it was disposed.");
+    };
+    const invoke = (path: string[], args: unknown[]) => {
+      live();
+      return call({ type: "ref", id, path, args });
+    };
     const stub: any = new Proxy(() => {}, {
       apply: (_t, _this, args) => invoke([], args),
       get(_t, prop) {
         if (prop === STUB) return true;
         if (prop === Symbol.dispose)
           return () => {
+            if (disposed) return;
+            disposed = true;
             collected.unregister(stub);
-            send({ type: "release", id });
+            drop(id);
           };
         if (prop === "then" || typeof prop === "symbol") return undefined;
+        // workerd's `stub.dup()`: another stub of the same value, disposed on its own.
+        if (prop === "dup")
+          return () => {
+            live();
+            return stubOf(id);
+          };
         return (...args: unknown[]) => invoke([prop], args);
       },
     });
@@ -345,6 +549,8 @@ function callsOver(port: MessageTarget, handle: Handle): Call {
   const decode = (v: any): any => {
     if (Array.isArray(v)) for (let i = 0; i < v.length; i++) v[i] = decode(v[i]);
     else if (v && Object.getPrototypeOf(v) === Object.prototype) {
+      if (typeof v[WIRE] === "string")
+        return fromWire(v, mux, (body) => send({ type: "release", body }));
       if (typeof v[REF] === "number") return stubOf(v[REF]);
       for (const k of Object.keys(v)) v[k] = decode(v[k]);
     }
@@ -361,7 +567,8 @@ function callsOver(port: MessageTarget, handle: Handle): Call {
   // settles.
   const serve = async (m: any) => {
     if (m.type === "release") {
-      if (m.answer === undefined) release(m.id);
+      if (m.body !== undefined) bodies.release(m.body);
+      else if (m.answer === undefined) release(m.id);
       else answers.delete(m.answer);
       return;
     }

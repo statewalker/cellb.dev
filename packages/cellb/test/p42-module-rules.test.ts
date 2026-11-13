@@ -152,11 +152,13 @@ describe("module rules", () => {
     const out = mkdtempSync(join(tmpdir(), "cellb-build-wasm-"));
     await buildProject(FIXTURE, out);
     const code = readFileSync(join(out, "worker.js"), "utf8");
-    expect(code).not.toMatch(/\.(wasm|md|dat)\b["'?]/);
-    expect(code).toContain("await WebAssembly.compile(");
+    // No import of the files is left (their names remain, as workerd's /bundle names them).
+    expect(code).not.toMatch(/(from|import\()\s*["'][^"']*\.(wasm|md|dat)\b/);
+    expect(code).toContain("new WebAssembly.Module(");
+    expect(code).not.toContain("await WebAssembly.compile(");
     expect(await answer(out)).toEqual(EXPECTED);
   });
-  test("cellb build with nodejs_compat (awaits lowered) keeps the wasm's top-level await", async () => {
+  test("cellb build with nodejs_compat (awaits lowered) runs the wasm import", async () => {
     const dir = mkdtempSync(join(tmpdir(), "cellb-rules-compat-"));
     for (const name of ["add.wasm", "bytes.dat", "greeting.md", "index.js"])
       writeFileSync(join(dir, name), readFileSync(join(FIXTURE, name)));
@@ -175,6 +177,32 @@ describe("module rules", () => {
     const out = mkdtempSync(join(tmpdir(), "cellb-build-compat-"));
     await buildProject(dir, out);
     expect(await answer(out)).toEqual(EXPECTED);
+  });
+
+  test("a wasm import inside circular imports loads (compiled synchronously, as workerd does)", async () => {
+    // a.js and b.js import each other, b.js imports a .wasm, and index.js also imports b.js
+    // dynamically, so esbuild wraps the modules in lazy inits. With a top-level await in the wasm
+    // module those inits were async, b's waited on a's and a's on b's, and loadProject never
+    // settled.
+    const dir = project({
+      "add.wasm": ADD_WASM,
+      "a.js": `import { viaB } from "./b.js";
+export const name = "a";
+export const fromA = (x, y) => viaB(x, y);`,
+      "b.js": `import wasm from "./add.wasm";
+import { name } from "./a.js";
+const { add } = new WebAssembly.Instance(wasm).exports;
+export const viaB = (x, y) => ({ from: name, sum: add(x, y) });`,
+      "index.js": `import { fromA } from "./a.js";
+export default {
+  fetch: async () => Response.json({ ...fromA(2, 40), again: (await import("./b.js")).viaB(1, 1).sum }),
+};`,
+    });
+    const settled = await Promise.race([
+      answer(dir, "/"),
+      new Promise((r) => setTimeout(() => r("loadProject did not settle"), 3_000)),
+    ]);
+    expect(settled).toEqual({ from: "a", sum: 42, again: 2 });
   });
 
   test("one file reached by rules of two types is two modules", async () => {

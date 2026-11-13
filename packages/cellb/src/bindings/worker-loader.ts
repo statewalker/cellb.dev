@@ -6,10 +6,12 @@ import {
   entrypointStub,
   ISOLATED,
   type IsolatedClass,
+  ON_ABORT,
   pipeTo,
   REFUSE,
   rpcPromise,
 } from "../core/handles.js";
+import { commonJsModule } from "./cjs-module.js";
 
 /** workerd's refusal of a loaded Worker's entrypoint passed on to another Worker. */
 const DYNAMIC_ENTRYPOINT =
@@ -23,7 +25,15 @@ export interface WorkerCode {
   modules: Record<
     string,
     | string
-    | { js?: string; esModule?: string; text?: string; json?: unknown; wasm?: BufferSource }
+    | {
+        js?: string;
+        esModule?: string;
+        cjs?: string;
+        text?: string;
+        json?: unknown;
+        /** The bytes, or (from `compileWasmModules`) the compiled module. */
+        wasm?: BufferSource | WebAssembly.Module;
+      }
     | { data: BufferSource }
   >;
   env?: Record<string, unknown>;
@@ -50,11 +60,19 @@ export interface TailEvent {
 
 /**
  * One `WorkerCode.modules` entry as ES module source; text and JSON become a default export,
- * wasm bytes a compiled `WebAssembly.Module`.
+ * wasm bytes a compiled `WebAssembly.Module`, and a CommonJS module's `module.exports` the
+ * default export. `name` names a CommonJS module in stack traces.
  */
-export function moduleText(entry: WorkerCode["modules"][string]): string {
+export function moduleText(
+  entry: WorkerCode["modules"][string],
+  name = "module.cjs",
+  names?: ReadonlySet<string>,
+): string {
   if (typeof entry === "string") return entry;
   const m = entry as Exclude<typeof entry, { data: BufferSource }>; // workerLoader refuses data
+  if (typeof m.cjs === "string") return commonJsModule(m.cjs, name, names);
+  if (m.wasm instanceof WebAssembly.Module)
+    return `export default globalThis.${WASM_TABLE}[${JSON.stringify(wasmModuleKey(m.wasm))}];`;
   if (m.wasm) {
     const bytes = ArrayBuffer.isView(m.wasm)
       ? new Uint8Array(m.wasm.buffer, m.wasm.byteOffset, m.wasm.byteLength)
@@ -64,6 +82,64 @@ export function moduleText(entry: WorkerCode["modules"][string]): string {
     return `export default new WebAssembly.Module(Uint8Array.from(atob("${btoa(bin)}"), (c) => c.charCodeAt(0)));`;
   }
   return m.js ?? m.esModule ?? `export default ${JSON.stringify(m.text ?? m.json)};`;
+}
+
+/** The realm's table of compiled wasm modules of loaded code, by key. */
+export const WASM_TABLE = "__cellsWasmModules";
+const keys = new WeakMap<WebAssembly.Module, string>();
+let lastKey = 0;
+
+/** The key of `mod` in this realm's wasm table (registered on first use). */
+export function wasmModuleKey(mod: WebAssembly.Module): string {
+  let key = keys.get(mod);
+  if (!key) {
+    key = `w${++lastKey}`;
+    keys.set(mod, key);
+    registerWasmModules({ [key]: mod });
+  }
+  return key;
+}
+
+/** Puts compiled modules in this realm's wasm table (an isolate receives its loader's). */
+export function registerWasmModules(modules: Record<string, WebAssembly.Module>): void {
+  const g = globalThis as Record<string, unknown>;
+  g[WASM_TABLE] ??= {};
+  Object.assign(g[WASM_TABLE] as Record<string, WebAssembly.Module>, modules);
+}
+
+/** The table entries the wasm modules of `code` use (what an isolate needs of this realm's table). */
+export function wasmModulesOf(code: WorkerCode): Record<string, WebAssembly.Module> {
+  const out: Record<string, WebAssembly.Module> = {};
+  for (const m of Object.values(code.modules))
+    if (typeof m === "object" && "wasm" in m && m.wasm instanceof WebAssembly.Module)
+      out[wasmModuleKey(m.wasm)] = m.wasm;
+  return out;
+}
+
+const compiled = new WeakMap<object, Promise<WebAssembly.Module>>();
+
+/**
+ * `code` with each `wasm` module compiled (asynchronously, once per bytes object: Kitesurf hands
+ * the same ArrayBuffer to every page's Worker), so loaders put a compiled module in the realm's
+ * table instead of the bytes as base64 text, which a large module makes slow to build, parse,
+ * decode and compile synchronously on every load.
+ */
+export async function compileWasmModules(code: WorkerCode): Promise<WorkerCode> {
+  let modules: WorkerCode["modules"] | undefined;
+  for (const [name, m] of Object.entries(code.modules)) {
+    if (typeof m !== "object" || !("wasm" in m) || !m.wasm) continue;
+    if (m.wasm instanceof WebAssembly.Module) continue;
+    const bytes = m.wasm;
+    let p = compiled.get(bytes);
+    if (!p) {
+      p = WebAssembly.compile(bytes);
+      compiled.set(bytes, p);
+      p.catch(() => compiled.delete(bytes));
+    }
+    modules ??= { ...code.modules };
+    modules[name] = { ...m, wasm: await p };
+  }
+  return modules ? { ...code, modules } : code;
 }
 
 /**
@@ -136,6 +212,15 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             const sink: LogSink = (level, message) =>
               logs.push({ level, message, timestamp: Date.now() });
             const module = await load(id, code, sink);
+            // Its isolate ended (`abortIsolate()`): the next get() of this id loads it again.
+            (
+              (module as Record<symbol, unknown>)[ON_ABORT] as
+                | ((forget: () => void) => void)
+                | undefined
+            )?.(() => {
+              if (cache.get(id) === p) cache.delete(id);
+              if (own === p) own = undefined;
+            });
             const env = code.env ?? {};
             return { module, env, exports: ctxExports(module, env), code, logs };
           })();
@@ -224,12 +309,14 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             refused.catch(() => {});
             return refused as never;
           }
-          return new Proxy(
+          const entrypoint: Record<string, unknown> = new Proxy(
             {},
             {
               get(_t, prop) {
                 if (prop === REFUSE) return DYNAMIC_ENTRYPOINT;
                 if (prop === "then" || typeof prop === "symbol") return undefined;
+                // workerd's `dup()`: this entrypoint holds nothing to release, so it is itself.
+                if (prop === "dup") return () => entrypoint;
                 return (...args: unknown[]) => {
                   // Boxed, so awaiting the load does not await the call: calls on its
                   // RpcPromise are pipelined.
@@ -253,6 +340,7 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
               },
             },
           );
+          return entrypoint;
         },
       };
     },

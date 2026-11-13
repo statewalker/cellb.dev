@@ -1,4 +1,8 @@
-import type { ModuleLoader, WorkerCode } from "../bindings/worker-loader.js";
+import {
+  compileWasmModules,
+  type ModuleLoader,
+  type WorkerCode,
+} from "../bindings/worker-loader.js";
 import type { CellStorage } from "../ports.js";
 import { putLoadedModule } from "../project/site-loader.js";
 import { isolatedModuleLoader } from "./host.js";
@@ -31,7 +35,8 @@ export function browserIsolatedLoader(opts: {
     prepare: async (id: string, code: WorkerCode) => {
       if (!opts.siteBaseUrl)
         return {
-          modules: code.modules,
+          // Compiled here once: a Dedicated Worker takes a WebAssembly.Module as it is.
+          modules: (await compileWasmModules(code)).modules,
           mainModule: code.mainModule,
           storageName: storageName(id),
         } as never;

@@ -89,7 +89,7 @@ test("EmDash built in the browser: the admin flow, a reload, a second tab", asyn
         "this browser tab, and runs there on cellb, its data in SQLite on LTX files in OPFS.",
     });
 
-    // Persistence: the host tab reloads (and builds the site again); the site's Durable
+    // Persistence: the host tab reloads (and runs the saved build); the site's Durable
     // Objects reopen from their LTX files.
     await site.close();
     await host.reload();
@@ -99,7 +99,8 @@ test("EmDash built in the browser: the admin flow, a reload, a second tab", asyn
       { timeout: 600_000, polling: 2000 },
     );
     expect(await host.evaluate(() => document.body.dataset.error ?? null)).toBeNull();
-    log("host reloaded and rebuilt");
+    expect(await host.evaluate(() => document.body.dataset.saved ?? null)).not.toBeNull();
+    log("host reloaded, the saved build running");
     const after = await context.newPage();
     await expectPost(after, origin);
     await shot(after, "10-post-after-reload", true);
