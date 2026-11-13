@@ -25,29 +25,29 @@ catalogs:
       specifier: 1.2.7
       version: 1.2.7
     '@statewalker/notebook-build':
-      specifier: ^0.1.1
-      version: 0.1.1
+      specifier: ^0.2.0
+      version: 0.2.0
     '@statewalker/notebook-site':
       specifier: ^0.1.2
       version: 0.1.2
     '@statewalker/webrun-builder':
-      specifier: ^0.2.1
-      version: 0.2.1
+      specifier: ^0.4.1
+      version: 0.4.1
     '@statewalker/webrun-bundler':
-      specifier: ^0.1.1
+      specifier: ^0.1.2
       version: 0.1.2
     '@statewalker/webrun-files':
-      specifier: ^0.10.3
+      specifier: ^0.10.4
       version: 0.10.4
     '@statewalker/webrun-files-mem':
-      specifier: ^0.10.3
+      specifier: ^0.10.4
       version: 0.10.4
     '@statewalker/webrun-files-node':
-      specifier: ^0.10.3
+      specifier: ^0.10.4
       version: 0.10.4
     '@statewalker/webrun-http-browser':
-      specifier: ^0.12.5
-      version: 0.12.5
+      specifier: ^0.13.0
+      version: 0.13.0
     '@statewalker/webrun-modules':
       specifier: ^0.3.6
       version: 0.3.6
@@ -129,7 +129,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/sandbox:
     dependencies:
@@ -169,6 +169,9 @@ importers:
       '@codemirror/language':
         specifier: ^6.13.1
         version: 6.13.1
+      '@codemirror/lint':
+        specifier: ^6.8.5
+        version: 6.9.8
       '@codemirror/search':
         specifier: ^6.7.2
         version: 6.7.2
@@ -183,13 +186,13 @@ importers:
         version: 6.43.15
       '@earendil-works/pi-agent-core':
         specifier: ~1.4.0
-        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)
+        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(bufferutil@4.2.0)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)
       '@earendil-works/pi-ai':
         specifier: ~1.4.0
-        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)
+        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(bufferutil@4.2.0)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)
       '@flue/runtime':
         specifier: ^2.3.0
-        version: 2.3.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(typescript@5.9.3)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)
+        version: 2.3.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(bufferutil@4.2.0)(typescript@7.0.2)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)
       '@fontsource-variable/inter':
         specifier: ^5.3.0
         version: 5.3.0
@@ -207,7 +210,7 @@ importers:
         version: 7.0.2
       '@libp2p/websockets':
         specifier: ^10.1.21
-        version: 10.1.25
+        version: 10.1.25(bufferutil@4.2.0)
       '@radix-ui/react-slot':
         specifier: ^1.5.0
         version: 1.5.0(@types/react@19.3.0)(react@19.3.1)
@@ -237,10 +240,10 @@ importers:
         version: 0.1.3
       '@statewalker/httpeers-member':
         specifier: ^0.3.2
-        version: 0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25)(@statewalker/webrun-http-browser@0.12.5)(idb-keyval@6.3.0)(libp2p@3.5.1)
+        version: 0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.13.0)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
       '@statewalker/notebook-build':
         specifier: 'catalog:'
-        version: 0.1.1(@statewalker/webrun-builder@0.2.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@statewalker/notebook-site':
         specifier: 'catalog:'
         version: 0.1.2(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4))
@@ -261,28 +264,28 @@ importers:
         version: 0.2.3
       '@statewalker/webrun-builder':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.4.1
       '@statewalker/webrun-bundler':
-        specifier: ^0.1.1
+        specifier: ^0.1.2
         version: 0.1.2(esbuild-wasm@0.28.2)
       '@statewalker/webrun-files':
         specifier: 'catalog:'
         version: 0.10.4
       '@statewalker/webrun-files-browser':
-        specifier: ^0.10.2
+        specifier: ^0.10.3
         version: 0.10.3
       '@statewalker/webrun-files-composite':
         specifier: ^0.10.3
         version: 0.10.4
       '@statewalker/webrun-files-mem':
-        specifier: ^0.10.3
+        specifier: ^0.10.4
         version: 0.10.4
       '@statewalker/webrun-files-s3':
         specifier: ^0.10.3
         version: 0.10.4(@aws-sdk/client-s3@3.1168.0)
       '@statewalker/webrun-http-browser':
         specifier: 'catalog:'
-        version: 0.12.5
+        version: 0.13.0
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
         version: 0.3.6
@@ -295,6 +298,18 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.3.5
         version: 4.3.5(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@typescript/ata':
+        specifier: 0.9.8
+        version: 0.9.8(typescript@7.0.2)
+      '@typescript/vfs':
+        specifier: 1.6.6
+        version: 1.6.6(typescript@7.0.2)
+      '@valtown/codemirror-ts':
+        specifier: 2.3.1
+        version: 2.3.1(@codemirror/autocomplete@6.20.4)(@codemirror/lint@6.9.8)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)
+      '@wasmer/sdk':
+        specifier: 0.19.1
+        version: 0.19.1
       astro:
         specifier: ^7.4.11
         version: 7.4.11(@astrojs/markdown-remark@7.3.8)(@types/node@26.6.6)(aws4fetch@1.0.20)(esbuild@0.28.2)(idb-keyval@6.3.0)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -304,6 +319,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      comlink:
+        specifier: 4.4.2
+        version: 4.4.2
       esbuild-wasm:
         specifier: 'catalog:'
         version: 0.28.2
@@ -337,6 +355,9 @@ importers:
       typebox:
         specifier: 1.3.27
         version: 1.3.27
+      typescript-js:
+        specifier: npm:typescript@6.0.3
+        version: typescript@6.0.3
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20260702.1
@@ -364,7 +385,7 @@ importers:
         version: 10.1.0
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/sandbox-hub:
     dependencies:
@@ -391,7 +412,7 @@ importers:
         version: 7.0.2
       '@libp2p/websockets':
         specifier: ^10.1.21
-        version: 10.1.25
+        version: 10.1.25(bufferutil@4.2.0)
       '@statewalker/cellb':
         specifier: workspace:*
         version: link:../../packages/cellb
@@ -406,10 +427,10 @@ importers:
         version: 0.1.4(@statewalker/webrun-files@0.10.4)
       '@statewalker/httpeers-libp2p':
         specifier: ^0.3.2
-        version: 0.3.2
+        version: 0.3.2(bufferutil@4.2.0)
       '@statewalker/httpeers-member':
         specifier: ^0.3.2
-        version: 0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25)(@statewalker/webrun-http-browser@0.7.1)(idb-keyval@6.3.0)(libp2p@3.5.1)
+        version: 0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.7.1)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
       libp2p:
         specifier: ^3.5.1
         version: 3.5.1
@@ -468,7 +489,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/bundler:
     dependencies:
@@ -514,7 +535,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/cellb:
     dependencies:
@@ -525,29 +546,29 @@ importers:
         specifier: ^3.54.1-build1
         version: 3.54.1-build1
       '@statewalker/webrun-files':
-        specifier: ^0.10.3
+        specifier: ^0.10.4
         version: 0.10.4
       '@statewalker/webrun-files-browser':
-        specifier: ^0.10.2
+        specifier: ^0.10.3
         version: 0.10.3
       '@statewalker/webrun-files-mem':
-        specifier: ^0.10.3
+        specifier: ^0.10.4
         version: 0.10.4
       '@statewalker/webrun-files-node':
-        specifier: ^0.10.3
+        specifier: ^0.10.4
         version: 0.10.4
       '@statewalker/webrun-http-browser':
         specifier: 'catalog:'
-        version: 0.12.5
+        version: 0.13.0
       '@statewalker/webrun-http-streams':
-        specifier: ^0.4.2
-        version: 0.4.2
+        specifier: ^0.5.0
+        version: 0.5.0
       '@statewalker/webrun-rpc':
-        specifier: ^0.10.2
-        version: 0.10.2
+        specifier: ^0.11.0
+        version: 0.11.0
       '@statewalker/webrun-streams':
-        specifier: ^0.2.3
-        version: 0.2.3
+        specifier: ^0.3.0
+        version: 0.3.0
       acorn:
         specifier: ^8.19.0
         version: 8.19.0
@@ -574,7 +595,7 @@ importers:
         version: 8.0.34
       ws:
         specifier: 'catalog:'
-        version: 8.23.0
+        version: 8.23.0(bufferutil@4.2.0)
     devDependencies:
       '@playwright/test':
         specifier: ^1.65.0
@@ -583,7 +604,7 @@ importers:
         specifier: ^153.0.0
         version: 153.0.0(bare-buffer@3.7.2)
       '@statewalker/webrun-bundler':
-        specifier: ^0.1.1
+        specifier: ^0.1.2
         version: 0.1.2(esbuild-wasm@0.28.2)
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
@@ -611,7 +632,7 @@ importers:
         version: 0.4.1
       miniflare:
         specifier: 4.20260730.0
-        version: 4.20260730.0
+        version: 4.20260730.0(bufferutil@4.2.0)
       partyserver:
         specifier: 0.5.10
         version: 0.5.10(@cloudflare/workers-types@5.20261106.1)
@@ -629,7 +650,7 @@ importers:
         version: 8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       zod:
         specifier: ^3.25.0
         version: 3.25.76
@@ -654,13 +675,13 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/notebooks:
     dependencies:
       '@observablehq/notebook-kit':
         specifier: ^2.11.0
-        version: 2.11.0(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 2.11.0(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@portabletext/markdown':
         specifier: ^2.9.4
         version: 2.9.4
@@ -678,7 +699,7 @@ importers:
         version: link:../platform-core
       '@statewalker/notebook-build':
         specifier: 'catalog:'
-        version: 0.1.1(@statewalker/webrun-builder@0.2.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@statewalker/notebook-db':
         specifier: ^0.1.1
         version: 0.1.1(@statewalker/db-api@0.1.4)(@statewalker/webrun-files@0.10.4)
@@ -687,7 +708,7 @@ importers:
         version: 0.1.2(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4))
       '@statewalker/webrun-builder':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.4.1
       '@statewalker/webrun-files':
         specifier: 'catalog:'
         version: 0.10.4
@@ -724,7 +745,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/platform:
     dependencies:
@@ -776,10 +797,10 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       wrangler:
         specifier: 'catalog:'
-        version: 4.161.0(@types/node@26.6.6)
+        version: 4.161.0(@types/node@26.6.6)(bufferutil@4.2.0)
 
   packages/platform-core:
     dependencies:
@@ -807,7 +828,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   site:
     dependencies:
@@ -827,10 +848,10 @@ importers:
         specifier: workspace:*
         version: link:../packages/cellb
       '@statewalker/webrun-bundler':
-        specifier: ^0.1.1
+        specifier: ^0.1.2
         version: 0.1.2(esbuild-wasm@0.28.2)
       '@statewalker/webrun-files-mem':
-        specifier: ^0.10.3
+        specifier: ^0.10.4
         version: 0.10.4
       '@tailwindcss/vite':
         specifier: ^4.3.5
@@ -2134,6 +2155,10 @@ packages:
   '@mdx-js/mdx@3.1.1':
     resolution: {integrity: sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ==}
 
+  '@mercuryworkshop/wisp-js@0.4.1':
+    resolution: {integrity: sha512-104LwiXiuhti/e32gmv0Da0u0yuLFDHX8JawCzleTPWJ5t5qTX4EYi4E7/ucbjBPN9wwVPWHE5g5yGqzl/NzQA==}
+    hasBin: true
+
   '@mixmark-io/domino@2.2.0':
     resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
 
@@ -2811,10 +2836,10 @@ packages:
       libp2p:
         optional: true
 
-  '@statewalker/notebook-build@0.1.1':
-    resolution: {integrity: sha512-SrMBK98mehNN2mqd+Npedew5tbdr7hg2zfYnZJUEQJa5ZXUqn4aUiXM39BNGke2nyyeZF/4nR+4Es48X7FhO0g==}
+  '@statewalker/notebook-build@0.2.0':
+    resolution: {integrity: sha512-w7yFwzCF2x1d2++SUNs9/RO6CHN0ld/3JtaBM4yOlH87D4psFK8T4OigeVbQphzqPpYuL6RK4WO+71hedFvFyw==}
     peerDependencies:
-      '@statewalker/webrun-builder': ^0.1.1 || ^0.2.0
+      '@statewalker/webrun-builder': ^0.3.1
       '@statewalker/webrun-files': ^0.10.0
       '@statewalker/webrun-modules': ^0.2.1 || ^0.3.0
 
@@ -2854,16 +2879,13 @@ packages:
   '@statewalker/webrun-biscuit@0.2.3':
     resolution: {integrity: sha512-OgdQqAzzmDI2OQd8Mt1pWlEkAbshIbql0lbRitBqCVAZG0zuGtAS+K2qSoTEczdDGWUrAH+hm/cD9UdoDOXfJA==}
 
-  '@statewalker/webrun-builder@0.2.1':
-    resolution: {integrity: sha512-SoLZ88zccPEQ0KqZkIS/OZIiUJbDFsDeZzzIYTu/ymRJKKHfZPOLdVsr2iHGxn7NJWJTs0yA8CRKrZNhx1ImcQ==}
+  '@statewalker/webrun-builder@0.4.1':
+    resolution: {integrity: sha512-32iTLau4woJdSkG94apZ41n2XnfiExrbPRfXA59Xy7DDLGtR55HCvKytRrut9iw2QdQrjk3yGNe+6U2z8dDcaA==}
 
   '@statewalker/webrun-bundler@0.1.2':
     resolution: {integrity: sha512-DrPllJChQvgXwIFQRDJEK4AlDxEHmN200dR2ZgEqqPbuL13jEvZPin8sbO+J1PCmHKemc0yHXClmdu6EC0MSmw==}
     peerDependencies:
       esbuild-wasm: ^0.28.0
-
-  '@statewalker/webrun-dataflow@0.1.3':
-    resolution: {integrity: sha512-SrvSkwk8PQIPm3bgg3ZoXc1c5Abce1Wdjo5+qVCO4hRC2SpypOk8TsgqdPA4ydEs+mqrFWphZcNt96fv5UtfLg==}
 
   '@statewalker/webrun-files-browser@0.10.3':
     resolution: {integrity: sha512-O5ZOp3uqJuoRyit3VWz66rtfwpEXdTuXTb6k/WcOGjkqGBtOKTGznYSVMz4HSPNl/nLZYOeokdEBtyBnIxQPuA==}
@@ -2885,8 +2907,8 @@ packages:
   '@statewalker/webrun-files@0.10.4':
     resolution: {integrity: sha512-8+i8e3TYX5fAzJySDUBXRxC9S2kSC229Va6sI3LcmBm2OS9OF1IKXBcXNhLXo/zNMzjUFesZ9iX23KaGBFJNKw==}
 
-  '@statewalker/webrun-http-browser@0.12.5':
-    resolution: {integrity: sha512-ori32quYvYBKq5O7e94G17wmgrKq8OE/AVyoKMyHXtoyc7c+lS1VI8d1RHq7hSEqdW+37DtN+Dq+HOosmOspVQ==}
+  '@statewalker/webrun-http-browser@0.13.0':
+    resolution: {integrity: sha512-/Glv+XWWljJ8slqlkZYntTlWAwDkK8/t4XQTtcyEOqWeOWzdG+Qmkk9NgcudNsRdeGC0fjPqdTsknwMI9sgoQQ==}
 
   '@statewalker/webrun-http-browser@0.7.1':
     resolution: {integrity: sha512-MxRTSu1QXQ6N8QuXYXxJFKTJADZUjmJXDF7gzqrjFhkYZt37BQXZkk0gZvY94p/WsbZSyTST1QONMJsk3ShNAQ==}
@@ -2900,14 +2922,14 @@ packages:
   '@statewalker/webrun-http-streams@0.3.2':
     resolution: {integrity: sha512-hbpnb4TCHYTE8UoFbPE3BGjInPVGrRZzFdGazdfAHjABSDqJrvEzSr9WmqfI7tgp3ss+UnD3bEEBl9Za5mo37Q==}
 
-  '@statewalker/webrun-http-streams@0.4.2':
-    resolution: {integrity: sha512-wY3bX47I0aUO52x3E3seOlHzLkiqyNAFCCRxiB6oMzvRmtgBdGoeRNzNrelLQIxCTTNYPdRCzaZka4sBfW7TTA==}
+  '@statewalker/webrun-http-streams@0.5.0':
+    resolution: {integrity: sha512-3/dNpuDTffRsvYp2tLgag7J6pOcuvuUoIXS+aiV86FgHMw9iwxBmJYhHI/ZN3E3YoEp/ObhysJWQySrd6RafjA==}
 
   '@statewalker/webrun-modules@0.3.6':
     resolution: {integrity: sha512-WRkePPCfKIGM63cEnmC32HRQSsbP2y0hPJayB6ugTtKN0VXr5lnQ33wjCc1W8sLh0GuBad0vevfD2kKlbWK4pQ==}
 
-  '@statewalker/webrun-rpc@0.10.2':
-    resolution: {integrity: sha512-li7QgZ7mA8XDuGnqI5wRKBy1Z5MUXB0PhjPZo9PE8azQzlZBMfX6N9BcTY3laV82O2EDcbpAVyynrHMh3m21BQ==}
+  '@statewalker/webrun-rpc@0.11.0':
+    resolution: {integrity: sha512-SBxXrUfYgJMM8FkkXt1pFJ288dvOHuS/4PdcDSq0vIUIt11S5pE10hXVjDD2KiWafykRpGsWceJKcb4rEIiDmA==}
 
   '@statewalker/webrun-rpc@0.5.1':
     resolution: {integrity: sha512-DpnT0dJ0KpdL5QKqKTmN75CnGc1w24iHdZqYfJQLVpSKEIR/GjPb3Vzbzb4NIu9tCHsroW+Dq1CO84Jp6YCXzw==}
@@ -2937,6 +2959,9 @@ packages:
 
   '@statewalker/webrun-streams@0.2.3':
     resolution: {integrity: sha512-v4+32VDLjt8HzAhjgd7K3bgiasQosU7FooXhLaTU2dQzYyNZ6NbNMOI/24SL0bdmTHkSU3bxktASn0hO3sCwng==}
+
+  '@statewalker/webrun-streams@0.3.0':
+    resolution: {integrity: sha512-yA2tPT5N/IAvkXK9i8cfknKEP44KheFfjWNvTa//rC6mcKhG7MWF/z2oa0Hlkes7pvXkAOoCL3qGk1Nnfxu+bg==}
 
   '@sveltejs/acorn-typescript@1.0.13':
     resolution: {integrity: sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ==}
@@ -3134,6 +3159,11 @@ packages:
   '@types/ws@8.18.2':
     resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
 
+  '@typescript/ata@0.9.8':
+    resolution: {integrity: sha512-+M815CeDRJS5H5ciWfhFCKp25nNfF+LFWawWAaBhNlquFb2wS5IIMDI+2bKWN3GuU6mpj+FzySsOD29M4nG8Xg==}
+    peerDependencies:
+      typescript: '>=4.4.4'
+
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
     engines: {node: '>=16.20.0'}
@@ -3254,6 +3284,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@typescript/vfs@1.6.6':
+    resolution: {integrity: sha512-gXw0+tpchiQUjTcbnNIPnyLFIhbwJ7M1VaxLQ1vXhjQxtTBK3sdDLY1ih0jxCu1I5K3V0dDxq8CkVZtIMspC3A==}
+    peerDependencies:
+      typescript: '*'
+
   '@ungap/structured-clone@1.4.0':
     resolution: {integrity: sha512-1mEZtMKPM09vDmQt5y7YvmN2+DFTP7Tg0EWXdic8/C6VRnpb33e4ghisCIE3WZjsE2N8mf+QV1Zqh7ZFYLWInQ==}
 
@@ -3261,6 +3296,14 @@ packages:
     resolution: {integrity: sha512-a0M+uwCuQZEPAo65NYkFSJ14O5c213KoSZmPdoCfuFvUhfULi4T2Z6Tpjv6lTVMW9RoLm74RpRAjNEa43KcN+g==}
     peerDependencies:
       valibot: ^1.5.0
+
+  '@valtown/codemirror-ts@2.3.1':
+    resolution: {integrity: sha512-v5XiI4WA+bUy0XDgkrqZksqBWgIUeyLZuC94Px/rhXBph8ASmVXaimlGDtt0vH/9t8aDdIZYdr59r9H3oKMFOg==}
+    peerDependencies:
+      '@codemirror/autocomplete': ^6
+      '@codemirror/lint': ^6
+      '@codemirror/state': ^6
+      '@codemirror/view': ^6
 
   '@vitejs/plugin-react@6.3.0':
     resolution: {integrity: sha512-H9E955aVvD2F4zNHCw4eIZbIfF6xKldlh7MNu+hSU7xwQzh65lI/N+CJWqmfhi0PEjDXIt/H7T7J/4wU63KJiw==}
@@ -3291,6 +3334,10 @@ packages:
 
   '@vitest/spy@5.1.0':
     resolution: {integrity: sha512-2DPO5OMHWKrBngC+fCmTQqemNF0gidRhp3lxbBmRhW+M1XJrfgPpqNqWVevXtn2f2ufD5ZaR1B6B641aAlcX5A==}
+
+  '@wasmer/sdk@0.19.1':
+    resolution: {integrity: sha512-wAfPud0PkSV2dFaliehEidslpz4iZBWfvVfBOrKnS6erdN3pj2kSUCtRqekMyMOMzLntVog6ZrCzBKd3ks1E7g==}
+    engines: {node: '>=20'}
 
   abort-error@1.0.2:
     resolution: {integrity: sha512-lVgvB2NyPLqbXXhVmXcYFTC1x5K7CiVdPgdY7LGgFQWC8506oN01sPN3i9cl9ynuwF4iJ0TS9exnR7cZ9FuX4w==}
@@ -3473,6 +3520,10 @@ packages:
   buffer@6.0.3:
     resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
 
+  bufferutil@4.2.0:
+    resolution: {integrity: sha512-gyy58jET9kst2IGyBKb96a4Y2bPGTHXGyCd0/1eqIV3hr1Sz3VxtA8n7bXh8fLIuE2K6Z0Upax5a5Msx+HU1IQ==}
+    engines: {node: '>=6.14.2'}
+
   cac@7.1.0:
     resolution: {integrity: sha512-LMDU/U2yA4IPIY8KT0NsNPWEYZvAMkbgyspxJ6btJaYV+WMDOHAZCmB0lsTObiHaRS1V/ztKAl7+TSkTqXyeoA==}
     engines: {node: '>=20.19.0'}
@@ -3536,12 +3587,19 @@ packages:
   collapse-white-space@2.1.0:
     resolution: {integrity: sha512-loKTxY1zCOuG4j9f6EPnuyyYkf58RnhhWTvRoZEokgB+WbdXehfjFviyOVYkqzEWz1Q5kRiZdBYS5SwxbQYwzw==}
 
+  comlink@4.4.2:
+    resolution: {integrity: sha512-OxGdvBmJuNKSCMO4NTl1L47VRp6xn2wG4F/2hYzB6tiCb709otOxtEYCSvK80PtjODfXXZu8ds+Nw5kVCjqd2g==}
+
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
 
   commander@11.1.0:
     resolution: {integrity: sha512-yPVavfyCcRhmorC7rWlkHn15b4wDVgVmBA7kV4QVBsF7kv/9TKJAbAXVTxvTnwP8HHKjRCJDClKbciiYS7p0DQ==}
     engines: {node: '>=16'}
+
+  commander@14.0.3:
+    resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
+    engines: {node: '>=20'}
 
   commander@4.1.1:
     resolution: {integrity: sha512-NOKm8xhkzAjzFx8B2v5OAHT+u5pRQc2UCa2Vq9jYL/31o2wi9mxBA7LIFs3sV5VSC49z6pEhfbMULvShKj26WA==}
@@ -4117,6 +4175,10 @@ packages:
 
   ipaddr.js@2.2.0:
     resolution: {integrity: sha512-Ag3wB2o37wslZS19hZqorUnrnzSkpOVy+IiiDEiTqNubEYpYuHWIf6K4psgN2ZWKExS4xhVCrRVfb/wfW8fWJA==}
+    engines: {node: '>= 10'}
+
+  ipaddr.js@2.5.0:
+    resolution: {integrity: sha512-aq+t5NAc+cS6rZQQVWC2x98CPqGtKKTMDd4Gaodv0wShnItdKg/51djkGJ1hqH+Oy0ivDftCbSLCQob8zso01w==}
     engines: {node: '>= 10'}
 
   iron-webcrypto@1.2.1:
@@ -5460,6 +5522,11 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   typescript@7.0.2:
     resolution: {integrity: sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==}
     engines: {node: '>=16.20.0'}
@@ -6718,9 +6785,9 @@ snapshots:
       '@leichtgewicht/ip-codec': 2.0.5
       utf8-codec: 1.0.0
 
-  '@earendil-works/pi-agent-core@1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)':
+  '@earendil-works/pi-agent-core@1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(bufferutil@4.2.0)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)':
     dependencies:
-      '@earendil-works/pi-ai': 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)
+      '@earendil-works/pi-ai': 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(bufferutil@4.2.0)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)
       typebox: 1.3.27
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -6735,16 +6802,16 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)':
+  '@earendil-works/pi-ai@1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(bufferutil@4.2.0)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)':
     dependencies:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.7)
       '@aws-sdk/client-bedrock-runtime': 3.1127.0
       '@earendil-works/pi-telemetry': 1.4.0
-      '@google/genai': 2.21.0
+      '@google/genai': 2.21.0(bufferutil@4.2.0)
       '@smithy/node-http-handler': 4.12.1
       http-proxy-agent: 9.1.0
       https-proxy-agent: 9.1.0
-      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)
+      openai: 7.19.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)
       partial-json: 0.1.7
       typebox: 1.3.27
     transitivePeerDependencies:
@@ -6885,17 +6952,17 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@flue/runtime@2.3.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(typescript@5.9.3)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)':
+  '@flue/runtime@2.3.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(bufferutil@4.2.0)(typescript@7.0.2)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)':
     dependencies:
-      '@earendil-works/pi-agent-core': 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)
-      '@earendil-works/pi-ai': 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7)
+      '@earendil-works/pi-agent-core': 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(bufferutil@4.2.0)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)
+      '@earendil-works/pi-ai': 1.4.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(bufferutil@4.2.0)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7)
       '@hono/node-server': 2.1.8(hono@4.13.18)
       '@modelcontextprotocol/client': 2.4.0
-      '@valibot/to-json-schema': 1.8.0(valibot@1.5.0(typescript@5.9.3))
+      '@valibot/to-json-schema': 1.8.0(valibot@1.5.0(typescript@7.0.2))
       hono: 4.13.18
       js-yaml: 5.5.0
       ulidx: 2.4.1
-      valibot: 1.5.0(typescript@5.9.3)
+      valibot: 1.5.0(typescript@7.0.2)
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@modelcontextprotocol/sdk'
@@ -6918,12 +6985,12 @@ snapshots:
 
   '@fontsource-variable/spline-sans-mono@5.3.0': {}
 
-  '@google/genai@2.21.0':
+  '@google/genai@2.21.0(bufferutil@4.2.0)':
     dependencies:
       google-auth-library: 10.9.1
       p-retry: 4.6.2
       protobufjs: 7.6.6
-      ws: 8.23.0
+      ws: 8.23.0(bufferutil@4.2.0)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -7439,7 +7506,7 @@ snapshots:
       uint8arraylist: 3.0.2
       uint8arrays: 6.1.1
 
-  '@libp2p/websockets@10.1.25':
+  '@libp2p/websockets@10.1.25(bufferutil@4.2.0)':
     dependencies:
       '@libp2p/interface': 3.4.0
       '@libp2p/utils': 7.4.5
@@ -7451,7 +7518,7 @@ snapshots:
       progress-events: 1.1.0
       uint8arraylist: 3.0.2
       uint8arrays: 6.1.1
-      ws: 8.23.0
+      ws: 8.23.0(bufferutil@4.2.0)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -7512,6 +7579,15 @@ snapshots:
       vfile: 6.0.3
     transitivePeerDependencies:
       - supports-color
+
+  '@mercuryworkshop/wisp-js@0.4.1':
+    dependencies:
+      bufferutil: 4.2.0
+      commander: 14.0.3
+      ipaddr.js: 2.5.0
+      ws: 8.23.0(bufferutil@4.2.0)
+    transitivePeerDependencies:
+      - utf-8-validate
 
   '@mixmark-io/domino@2.2.0': {}
 
@@ -7620,7 +7696,7 @@ snapshots:
     dependencies:
       isoformat: 0.2.1
 
-  '@observablehq/notebook-kit@2.11.0(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
+  '@observablehq/notebook-kit@2.11.0(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
     dependencies:
       '@fontsource-variable/inter': 5.3.0
       '@fontsource-variable/source-serif-4': 5.3.1
@@ -7639,7 +7715,7 @@ snapshots:
       '@sveltejs/acorn-typescript': 1.0.13(acorn@8.19.0)
       acorn: 8.19.0
       acorn-walk: 8.3.5
-      jsdom: 26.1.0
+      jsdom: 26.1.0(bufferutil@4.2.0)
       markdown-it: 14.3.3
       markdown-it-anchor: 9.2.1(@types/markdown-it@14.2.0)(markdown-it@14.3.3)
       vite: 8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -8180,7 +8256,7 @@ snapshots:
     optionalDependencies:
       '@statewalker/webrun-files': 0.10.4
 
-  '@statewalker/httpeers-libp2p@0.3.2':
+  '@statewalker/httpeers-libp2p@0.3.2(bufferutil@4.2.0)':
     dependencies:
       '@chainsafe/libp2p-noise': 17.0.0
       '@chainsafe/libp2p-yamux': 8.0.1
@@ -8192,7 +8268,7 @@ snapshots:
       '@libp2p/tcp': 11.0.32
       '@libp2p/utils': 7.4.5
       '@libp2p/webrtc': 7.0.2
-      '@libp2p/websockets': 10.1.25
+      '@libp2p/websockets': 10.1.25(bufferutil@4.2.0)
       '@multiformats/multiaddr': 13.0.3
       '@statewalker/httpeers-bridge': 0.2.1
       '@statewalker/httpeers-core': 0.1.3
@@ -8205,7 +8281,7 @@ snapshots:
       - react-native-webrtc
       - utf-8-validate
 
-  '@statewalker/httpeers-member@0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25)(@statewalker/webrun-http-browser@0.12.5)(idb-keyval@6.3.0)(libp2p@3.5.1)':
+  '@statewalker/httpeers-member@0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.13.0)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)':
     dependencies:
       '@libp2p/crypto': 5.2.0
       '@libp2p/interface': 3.4.0
@@ -8213,7 +8289,7 @@ snapshots:
       '@multiformats/multiaddr': 13.0.3
       '@statewalker/httpeers-access': 0.1.4
       '@statewalker/httpeers-core': 0.1.3
-      '@statewalker/httpeers-libp2p': 0.3.2
+      '@statewalker/httpeers-libp2p': 0.3.2(bufferutil@4.2.0)
     optionalDependencies:
       '@chainsafe/libp2p-noise': 17.0.0
       '@chainsafe/libp2p-yamux': 8.0.1
@@ -8221,8 +8297,8 @@ snapshots:
       '@libp2p/identify': 4.1.18
       '@libp2p/tcp': 11.0.32
       '@libp2p/webrtc': 7.0.2
-      '@libp2p/websockets': 10.1.25
-      '@statewalker/webrun-http-browser': 0.12.5
+      '@libp2p/websockets': 10.1.25(bufferutil@4.2.0)
+      '@statewalker/webrun-http-browser': 0.13.0
       idb-keyval: 6.3.0
       libp2p: 3.5.1
     transitivePeerDependencies:
@@ -8230,7 +8306,7 @@ snapshots:
       - react-native-webrtc
       - utf-8-validate
 
-  '@statewalker/httpeers-member@0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25)(@statewalker/webrun-http-browser@0.7.1)(idb-keyval@6.3.0)(libp2p@3.5.1)':
+  '@statewalker/httpeers-member@0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.7.1)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)':
     dependencies:
       '@libp2p/crypto': 5.2.0
       '@libp2p/interface': 3.4.0
@@ -8238,7 +8314,7 @@ snapshots:
       '@multiformats/multiaddr': 13.0.3
       '@statewalker/httpeers-access': 0.1.4
       '@statewalker/httpeers-core': 0.1.3
-      '@statewalker/httpeers-libp2p': 0.3.2
+      '@statewalker/httpeers-libp2p': 0.3.2(bufferutil@4.2.0)
     optionalDependencies:
       '@chainsafe/libp2p-noise': 17.0.0
       '@chainsafe/libp2p-yamux': 8.0.1
@@ -8246,7 +8322,7 @@ snapshots:
       '@libp2p/identify': 4.1.18
       '@libp2p/tcp': 11.0.32
       '@libp2p/webrtc': 7.0.2
-      '@libp2p/websockets': 10.1.25
+      '@libp2p/websockets': 10.1.25(bufferutil@4.2.0)
       '@statewalker/webrun-http-browser': 0.7.1
       idb-keyval: 6.3.0
       libp2p: 3.5.1
@@ -8255,10 +8331,10 @@ snapshots:
       - react-native-webrtc
       - utf-8-validate
 
-  '@statewalker/notebook-build@0.1.1(@statewalker/webrun-builder@0.2.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
+  '@statewalker/notebook-build@0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
     dependencies:
-      '@observablehq/notebook-kit': 2.11.0(@types/markdown-it@14.2.0)(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
-      '@statewalker/webrun-builder': 0.2.1
+      '@observablehq/notebook-kit': 2.11.0(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      '@statewalker/webrun-builder': 0.4.1
       '@statewalker/webrun-files': 0.10.4
       '@statewalker/webrun-modules': 0.3.6
       markdown-it: 15.0.3
@@ -8346,9 +8422,8 @@ snapshots:
       '@noble/curves': 2.4.0
       '@noble/hashes': 2.4.0
 
-  '@statewalker/webrun-builder@0.2.1':
+  '@statewalker/webrun-builder@0.4.1':
     dependencies:
-      '@statewalker/webrun-dataflow': 0.1.3
       '@statewalker/webrun-files': 0.10.4
 
   '@statewalker/webrun-bundler@0.1.2(esbuild-wasm@0.28.2)':
@@ -8357,8 +8432,6 @@ snapshots:
       '@statewalker/webrun-modules': 0.3.6
       esbuild-wasm: 0.28.2
       resolve.exports: 2.0.4
-
-  '@statewalker/webrun-dataflow@0.1.3': {}
 
   '@statewalker/webrun-files-browser@0.10.3':
     dependencies:
@@ -8383,11 +8456,11 @@ snapshots:
 
   '@statewalker/webrun-files@0.10.4': {}
 
-  '@statewalker/webrun-http-browser@0.12.5':
+  '@statewalker/webrun-http-browser@0.13.0':
     dependencies:
-      '@statewalker/webrun-http-streams': 0.4.2
-      '@statewalker/webrun-rpc': 0.10.2
-      '@statewalker/webrun-streams': 0.2.3
+      '@statewalker/webrun-http-streams': 0.5.0
+      '@statewalker/webrun-rpc': 0.11.0
+      '@statewalker/webrun-streams': 0.3.0
       idb-keyval: 6.3.0
 
   '@statewalker/webrun-http-browser@0.7.1':
@@ -8407,9 +8480,9 @@ snapshots:
     dependencies:
       '@statewalker/webrun-streams': 0.2.3
 
-  '@statewalker/webrun-http-streams@0.4.2':
+  '@statewalker/webrun-http-streams@0.5.0':
     dependencies:
-      '@statewalker/webrun-streams': 0.2.3
+      '@statewalker/webrun-streams': 0.3.0
 
   '@statewalker/webrun-modules@0.3.6':
     dependencies:
@@ -8426,9 +8499,9 @@ snapshots:
       semver: 7.8.6
       sucrase: 3.35.1
 
-  '@statewalker/webrun-rpc@0.10.2':
+  '@statewalker/webrun-rpc@0.11.0':
     dependencies:
-      '@statewalker/webrun-streams': 0.2.3
+      '@statewalker/webrun-streams': 0.3.0
 
   '@statewalker/webrun-rpc@0.5.1':
     dependencies:
@@ -8458,6 +8531,8 @@ snapshots:
       libp2p: 3.5.1
 
   '@statewalker/webrun-streams@0.2.3': {}
+
+  '@statewalker/webrun-streams@0.3.0': {}
 
   '@sveltejs/acorn-typescript@1.0.13(acorn@8.19.0)':
     dependencies:
@@ -8626,6 +8701,10 @@ snapshots:
     dependencies:
       '@types/node': 26.6.6
 
+  '@typescript/ata@0.9.8(typescript@7.0.2)':
+    dependencies:
+      typescript: 7.0.2
+
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
 
@@ -8686,11 +8765,25 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
+  '@typescript/vfs@1.6.6(typescript@7.0.2)':
+    dependencies:
+      debug: 4.4.3
+      typescript: 7.0.2
+    transitivePeerDependencies:
+      - supports-color
+
   '@ungap/structured-clone@1.4.0': {}
 
-  '@valibot/to-json-schema@1.8.0(valibot@1.5.0(typescript@5.9.3))':
+  '@valibot/to-json-schema@1.8.0(valibot@1.5.0(typescript@7.0.2))':
     dependencies:
-      valibot: 1.5.0(typescript@5.9.3)
+      valibot: 1.5.0(typescript@7.0.2)
+
+  '@valtown/codemirror-ts@2.3.1(@codemirror/autocomplete@6.20.4)(@codemirror/lint@6.9.8)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)':
+    dependencies:
+      '@codemirror/autocomplete': 6.20.4
+      '@codemirror/lint': 6.9.8
+      '@codemirror/state': 6.7.6
+      '@codemirror/view': 6.43.15
 
   '@vitejs/plugin-react@6.3.0(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
@@ -8707,6 +8800,12 @@ snapshots:
       vite: 8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   '@vitest/spy@5.1.0': {}
+
+  '@wasmer/sdk@0.19.1':
+    dependencies:
+      '@mercuryworkshop/wisp-js': 0.4.1
+    transitivePeerDependencies:
+      - utf-8-validate
 
   abort-error@1.0.2: {}
 
@@ -8947,6 +9046,10 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
+  bufferutil@4.2.0:
+    dependencies:
+      node-gyp-build: 4.8.4
+
   cac@7.1.0: {}
 
   call-bind-apply-helpers@1.0.2:
@@ -8999,9 +9102,13 @@ snapshots:
 
   collapse-white-space@2.1.0: {}
 
+  comlink@4.4.2: {}
+
   comma-separated-tokens@2.0.3: {}
 
   commander@11.1.0: {}
+
+  commander@14.0.3: {}
 
   commander@4.1.1: {}
 
@@ -9721,6 +9828,8 @@ snapshots:
 
   ipaddr.js@2.2.0: {}
 
+  ipaddr.js@2.5.0: {}
+
   iron-webcrypto@1.2.1: {}
 
   is-alphabetical@2.0.1: {}
@@ -9883,7 +9992,7 @@ snapshots:
     dependencies:
       argparse: 3.0.4
 
-  jsdom@26.1.0:
+  jsdom@26.1.0(bufferutil@4.2.0):
     dependencies:
       cssstyle: 4.6.0
       data-urls: 5.0.0
@@ -9903,7 +10012,7 @@ snapshots:
       whatwg-encoding: 3.1.1
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
-      ws: 8.23.0
+      ws: 8.23.0(bufferutil@4.2.0)
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - bufferutil
@@ -10573,25 +10682,25 @@ snapshots:
   mimic-response@3.1.0:
     optional: true
 
-  miniflare@4.20260730.0:
+  miniflare@4.20260730.0(bufferutil@4.2.0):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.2
       undici: 7.30.2
       workerd: 1.20260730.1
-      ws: 8.21.0
+      ws: 8.21.0(bufferutil@4.2.0)
       youch: 4.1.0-beta.10
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  miniflare@5.20261110.2-beta(@types/node@26.6.6):
+  miniflare@5.20261110.2-beta(@types/node@26.6.6)(bufferutil@4.2.0):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.5(@types/node@26.6.6)
       undici: 7.30.1
       workerd: 1.20261110.1
-      ws: 8.21.0
+      ws: 8.21.0(bufferutil@4.2.0)
       youch: 4.1.0-beta.10
     transitivePeerDependencies:
       - '@types/node'
@@ -10679,8 +10788,7 @@ snapshots:
       fetch-blob: 3.2.0
       formdata-polyfill: 4.0.10
 
-  node-gyp-build@4.8.4:
-    optional: true
+  node-gyp-build@4.8.4: {}
 
   node-liblzma@2.2.0:
     dependencies:
@@ -10747,12 +10855,12 @@ snapshots:
       regex: 6.1.0
       regex-recursion: 6.0.2
 
-  openai@7.19.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0)(zod@4.6.7):
+  openai@7.19.0(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(undici@7.30.2)(ws@8.23.0(bufferutil@4.2.0))(zod@4.6.7):
     optionalDependencies:
       '@aws-sdk/credential-provider-node': 3.972.97
       '@smithy/signature-v4': 5.7.5
       undici: 7.30.2
-      ws: 8.23.0
+      ws: 8.23.0(bufferutil@4.2.0)
       zod: 4.6.7
 
   p-defer@4.0.1: {}
@@ -11561,6 +11669,8 @@ snapshots:
 
   typescript@5.9.3: {}
 
+  typescript@6.0.3: {}
+
   typescript@7.0.2:
     optionalDependencies:
       '@typescript/typescript-aix-ppc64': 7.0.2
@@ -11731,9 +11841,9 @@ snapshots:
       is-typed-array: 1.1.15
       which-typed-array: 1.1.24
 
-  valibot@1.5.0(typescript@5.9.3):
+  valibot@1.5.0(typescript@7.0.2):
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 7.0.2
 
   validate-npm-package-name@8.0.0: {}
 
@@ -11773,7 +11883,7 @@ snapshots:
     optionalDependencies:
       vite: 8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
-  vitest@5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)):
+  vitest@5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/mocker': 5.1.0(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
@@ -11792,7 +11902,7 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.10.0
       '@types/node': 26.6.6
-      jsdom: 26.1.0
+      jsdom: 26.1.0(bufferutil@4.2.0)
     transitivePeerDependencies:
       - msw
 
@@ -11895,14 +12005,14 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20261110.1
       '@cloudflare/workerd-windows-64': 1.20261110.1
 
-  wrangler@4.161.0(@types/node@26.6.6):
+  wrangler@4.161.0(@types/node@26.6.6)(bufferutil@4.2.0):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
       '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20261110.1)
       '@cspotcode/source-map-support': 0.8.1
       blake3-wasm: 2.1.5
       esbuild: 0.28.2
-      miniflare: 5.20261110.2-beta(@types/node@26.6.6)
+      miniflare: 5.20261110.2-beta(@types/node@26.6.6)(bufferutil@4.2.0)
       path-to-regexp: 6.3.0
       unenv: 2.0.0-rc.24
       workerd: 1.20261110.1
@@ -11916,9 +12026,13 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@8.21.0: {}
+  ws@8.21.0(bufferutil@4.2.0):
+    optionalDependencies:
+      bufferutil: 4.2.0
 
-  ws@8.23.0: {}
+  ws@8.23.0(bufferutil@4.2.0):
+    optionalDependencies:
+      bufferutil: 4.2.0
 
   xml-name-validator@5.0.0: {}
 

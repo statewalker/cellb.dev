@@ -25,6 +25,8 @@ export interface StudioHost {
   store?(workspace: string): FilesApi | undefined;
   /** Runs Python (Pyodide) on a copy of files; reports what changed (python-tool.ts). */
   python?(req: { files: [string, Uint8Array][]; code: string; cwd?: string }): Promise<PythonOut>;
+  /** Runs a Wasmer registry command on a copy of files; reports what changed (wasmer-tool.ts). */
+  wasmer?(req: WasmerReq): Promise<WasmerOut>;
   notify?(workspace: string, path: string, kind: "write" | "delete" | "mkdir"): void;
 }
 
@@ -32,6 +34,23 @@ export interface PythonOut {
   stdout: string;
   stderr: string;
   value: string | null;
+  error?: string;
+  changes: [string, Uint8Array | null][];
+}
+
+export interface WasmerReq {
+  files: [string, Uint8Array][];
+  packages: string[];
+  command: string;
+  args: string[];
+  stdin?: string;
+  cwd?: string;
+}
+
+export interface WasmerOut {
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
   error?: string;
   changes: [string, Uint8Array | null][];
 }

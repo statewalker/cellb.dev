@@ -37,6 +37,7 @@ import { attenuationBlock } from "./capfs/policy.ts";
 import { hostTools, type StudioHost } from "./host-tools.ts";
 import { pythonTool } from "./python-tool.ts";
 import { scriptTool } from "./script-tool.ts";
+import { wasmerTool } from "./wasmer-tool.ts";
 
 export interface AgentRunRequest {
   prompt: string;
@@ -207,6 +208,7 @@ export async function runAgentLoop(
     ...(opts.host ? hostTools(opts.host) : []),
     ...(env.LOADER && env.TOOL_ISOLATES !== "off" ? [scriptTool(cap, env.LOADER as never)] : []),
     ...(opts.host?.python ? [pythonTool(cap, opts.host)] : []),
+    ...(opts.host?.wasmer ? [wasmerTool(cap, opts.host)] : []),
     ...((opts.depth ?? 0) < MAX_DEPTH ? [delegateTool()] : []),
   ];
 

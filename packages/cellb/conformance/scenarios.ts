@@ -483,7 +483,7 @@ scenarios["wd-worker-loader-gaps"] = {
   project: "wd-worker-loader",
   steps: [{ path: `/?skip=${WL_AGREE.join(",")}` }],
   knownGap:
-    "WorkerCode compatibilityFlags, getDurableObjectClass props, abortIsolateDynamic builds, gc(); celld refuses allowExperimental and stub cloning",
+    "WorkerCode compatibilityFlags, getDurableObjectClass props, gc(); celld refuses allowExperimental and stub cloning",
 };
 scenarios["miniflare2-details-relative-url"] = {
   project: "miniflare2-details",

@@ -1,3 +1,4 @@
 dist/
 .astro/
 public/studio/
+public/wasmer-sdk/

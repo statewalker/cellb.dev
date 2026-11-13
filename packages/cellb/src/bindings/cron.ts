@@ -210,13 +210,18 @@ export function startCronTriggers(
   const timers = new Set<unknown>();
   let chain: Promise<void> = Promise.resolve();
   let stopped = false;
+  // A timer waits at most 2^31 - 1 ms: setTimeout fires a longer delay after 1 ms, which ran
+  // a trigger whose occurrences are further apart (any monthly or yearly one) at once, and
+  // then each following occurrence about every millisecond.
   const at = (t: number, fn: () => void) => {
     const h = clock.setTimeout(
       () => {
         timers.delete(h);
-        if (!stopped) fn();
+        if (stopped) return;
+        if (clock.now() < t) at(t, fn);
+        else fn();
       },
-      Math.max(0, t - clock.now()),
+      Math.min(Math.max(0, t - clock.now()), 2 ** 31 - 1),
     );
     timers.add(h);
   };

@@ -13,10 +13,20 @@ import { Worker as NodeWorker } from "node:worker_threads";
 import { build } from "esbuild";
 import { applyD1Migrations } from "../bindings/d1-migrations.js";
 import {
+  exportNamesByModule,
+  IMPORT_FROM,
+  prefixModule,
+  RESOLVE_MODULE_NAME_SOURCE,
+  routeDynamicImports,
+} from "../bindings/module-registry.js";
+import {
+  compileWasmModules,
   type LogSink,
   type ModuleLoader,
   moduleText,
   outboundFetch,
+  type WorkerCode,
+  wasmModulesOf,
 } from "../bindings/worker-loader.js";
 import { ctxExports } from "../core/handles.js";
 import type { WorkerModule } from "../core/runtime.js";
@@ -58,6 +68,78 @@ const nodeBuiltinName = new RegExp(
     .join("|")})$`,
 );
 
+/** Worker code's `node:fs` under nodejs_compat on Node: Node's own, with workerd's `/bundle`. */
+const FS_OVERLAY = `import * as real from "node:fs";
+import { bundleFs } from "cellb:bundle-fs";
+export * from "node:fs";
+const o = bundleFs(real);
+export const { existsSync, readFileSync, statSync, lstatSync, readdirSync, accessSync, readFile, stat, lstat, readdir, access, promises } = o;
+export default { ...real, ...o };`;
+/** Worker code's `node:fs/promises`, the same way. */
+const FS_PROMISES_OVERLAY = `import * as real from "node:fs/promises";
+import { bundleFsPromises } from "cellb:bundle-fs";
+export * from "node:fs/promises";
+const o = bundleFsPromises(real);
+export const { readFile, stat, lstat, readdir, access } = o;
+export default o;`;
+
+/**
+ * The modules of loaded code as ES module text, each `import()` the bundler cannot link going to
+ * the `cellb:modules` registry instead (module-registry.ts).
+ */
+function loadedModuleTexts(code: WorkerCode): {
+  modules: Record<string, string>;
+  registry: string;
+} {
+  const texts: Record<string, string> = {};
+  const names = new Set(Object.keys(code.modules));
+  for (const [name, m] of Object.entries(code.modules)) texts[name] = moduleText(m, name, names);
+  const modules: Record<string, string> = {};
+  for (const [name, text] of Object.entries(texts)) {
+    const routed = routeDynamicImports(text, name);
+    let prelude =
+      routed === undefined ? "" : `import { importFrom as ${IMPORT_FROM} } from "cellb:modules"; `;
+    // The main module evaluates the registry, so it is there before any code runs.
+    if (name === code.mainModule && !prelude) prelude = 'import "cellb:modules"; ';
+    modules[name] = prelude ? prefixModule(routed ?? text, prelude) : text;
+  }
+  return { modules, registry: registrySource(texts, code.mainModule) };
+}
+
+/**
+ * What an import of loaded code that names none of its modules becomes: a module that throws when
+ * it is evaluated, so the failure comes where workerd's would (when the importing module runs), not
+ * at build time or when an unrelated module loads. CommonJS, so any named import of it builds.
+ */
+function missingModule(spec: string, importer: string) {
+  const message = `No such module "${spec}" (imported from "${importer}")`;
+  return {
+    path: `${importer}\u0000${spec}`,
+    namespace: "cells-missing",
+    pluginData: `throw new Error(${JSON.stringify(message)});\nmodule.exports = {};`,
+  };
+}
+
+/**
+ * The `cellb:modules` registry of a bundle of loaded code: each module, imported on demand. It
+ * also publishes itself as `globalThis.__cellbLoadedModules`, where an isolate thread's module
+ * hooks find it (node-entry.ts: `import()` from code built with `Function`).
+ */
+function registrySource(texts: Record<string, string>, main: string): string {
+  const q = JSON.stringify;
+  const names = Object.keys(texts);
+  return [
+    `const names = new Set(${q(names)});`,
+    `const resolve = ${RESOLVE_MODULE_NAME_SOURCE};`,
+    `const table = { ${names.map((n) => `${q(n)}: () => import(${q(`memory:${n}`)})`).join(", ")} };`,
+    "export const importFrom = (spec, importer) => {",
+    "  const name = resolve(String(spec), importer, names);",
+    "  return name === undefined ? import(spec) : table[name]();",
+    "};",
+    `globalThis.__cellbLoadedModules = { main: ${q(main)}, names, exportNames: ${q(exportNamesByModule(texts))}, load: (name) => table[name]() };`,
+  ].join("\n");
+}
+
 /**
  * Node host: bundles `main` with esbuild (as `celld deploy` does) and builds the runtime.
  * `cloudflare:workers` resolves to cellb's module so user classes extend the
@@ -65,7 +147,14 @@ const nodeBuiltinName = new RegExp(
  */
 /** Bundles Worker code (a file, or in-memory modules) with the runtime's module mappings, then imports it. */
 export async function bundleWorker(
-  entry: { path: string } | { modules: Record<string, string>; main: string },
+  entry:
+    | { path: string }
+    | {
+        modules: Record<string, string>;
+        main: string;
+        /** The `cellb:modules` registry the modules import (loadedModuleTexts). */
+        registry?: string;
+      },
   logs?: LogSink,
   outbound?: typeof fetch,
   opts: {
@@ -167,8 +256,23 @@ export async function bundleWorker(
             path: "console",
             namespace: "cells-console",
           }));
-          // nodejs_compat on a Node host: `node:*` are the real Node.js modules.
+          // nodejs_compat on a Node host: `node:*` are the real Node.js modules, except that
+          // `node:fs` also reads workerd's `/bundle` (node-compat/bundle-files.ts).
           if (opts.nodeCompat) {
+            b.onResolve({ filter: /^(node:)?fs(\/promises)?$/ }, (a) => {
+              const name = a.path.replace(/^node:/, "");
+              return a.namespace === "cells-fs"
+                ? { path: `node:${name}`, external: true }
+                : { path: name, namespace: "cells-fs" };
+            });
+            b.onResolve({ filter: /^cellb:bundle-fs$/ }, () => ({
+              path: ownModule(join(import.meta.dirname, "../node-compat"), "bundle-files"),
+              external: true,
+            }));
+            b.onLoad({ filter: /.*/, namespace: "cells-fs" }, (a) => ({
+              contents: a.path === "fs" ? FS_OVERLAY : FS_PROMISES_OVERLAY,
+              loader: "js",
+            }));
             b.onResolve({ filter: /^node:/ }, (a) => ({ path: a.path, external: true }));
             // workerd's nodejs_compat also takes the bare names ("path", "fs/promises").
             b.onResolve({ filter: nodeBuiltinName }, (a) => ({
@@ -213,16 +317,37 @@ export async function bundleWorker(
             path: a.path.slice(7),
             namespace: "memory",
           }));
-          b.onResolve({ filter: /^\.{1,2}\// }, (a) =>
-            a.namespace === "memory"
-              ? {
-                  path: new URL(a.path, `file:///${a.importer}`).pathname.slice(1),
-                  namespace: "memory",
-                }
-              : undefined,
-          );
+          b.onResolve({ filter: /^\.{1,2}\// }, (a) => {
+            if (a.namespace !== "memory") return undefined;
+            const path = new URL(a.path, `file:///${a.importer}`).pathname.slice(1);
+            // Not one of the loaded modules: it fails when it runs, as on workerd (missingModule).
+            return path in memory
+              ? { path, namespace: "memory" }
+              : missingModule(a.path, a.importer);
+          });
           b.onLoad({ filter: /.*/, namespace: "memory" }, (a) => ({
             contents: memory[a.path],
+            loader: "js",
+          }));
+          b.onResolve({ filter: /^cellb:modules$/ }, () => ({
+            path: "modules",
+            namespace: "cells-modules",
+          }));
+          b.onLoad({ filter: /.*/, namespace: "cells-modules" }, () => ({
+            contents:
+              (entry as { registry?: string }).registry ??
+              "export const importFrom = (s) => import(s);",
+            loader: "js",
+          }));
+          // Anything else loaded code imports: a module's whole name (a URL, say), as workerd names
+          // modules, or else a module that throws when it is evaluated (missingModule).
+          b.onResolve({ filter: /.*/ }, (a) => {
+            if (a.namespace !== "memory") return undefined;
+            if (a.path in memory) return { path: a.path, namespace: "memory" };
+            return missingModule(a.path, a.importer);
+          });
+          b.onLoad({ filter: /.*/, namespace: "cells-missing" }, (a) => ({
+            contents: a.pluginData as string,
             loader: "js",
           }));
         },
@@ -234,14 +359,14 @@ export async function bundleWorker(
 }
 
 /** Worker Loader on Node: compiles `WorkerCode.modules` with esbuild (as celld compiles loaded code). */
-export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
+export const nodeModuleLoader: ModuleLoader = async (_id, loaded, logs) => {
+  const code = await compileWasmModules(loaded);
   const outbound = outboundFetch(code);
-  const modules: Record<string, string> = {};
-  for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
+  const { modules, registry } = loadedModuleTexts(code);
   // `env` and `exports` of the loaded code's `cloudflare:workers` are its own (WorkerCode.env).
   const env = code.env ?? {};
   const scope = workerScope(env);
-  const module = (await bundleWorker({ modules, main: code.mainModule }, logs, outbound, {
+  const module = (await bundleWorker({ modules, main: code.mainModule, registry }, logs, outbound, {
     scope,
   })) as Record<string, unknown>;
   scope.bind({ env, exports: ctxExports(module, env) });
@@ -345,11 +470,10 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
       port.unref(); // an idle isolate never keeps the process alive
       return { port: port as unknown as PortLike, terminate: () => void port.terminate() };
     },
-    prepare: async (_id, code) => {
+    prepare: async (_id, loaded) => {
       isolateEntry ??= buildIsolateEntry();
-      await isolateEntry;
-      const modules: Record<string, string> = {};
-      for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
+      const [code] = await Promise.all([compileWasmModules(loaded), isolateEntry]);
+      const { modules, registry } = loadedModuleTexts(code);
       const out = await build({
         entryPoints: [`memory:${code.mainModule}`],
         write: false,
@@ -384,23 +508,43 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
                 path: a.path.slice(7),
                 namespace: "memory",
               }));
-              b.onResolve({ filter: /^\.{1,2}\// }, (a) =>
-                a.namespace === "memory"
-                  ? {
-                      path: new URL(a.path, `file:///${a.importer}`).pathname.slice(1),
-                      namespace: "memory",
-                    }
-                  : undefined,
-              );
+              b.onResolve({ filter: /^\.{1,2}\// }, (a) => {
+                if (a.namespace !== "memory") return undefined;
+                const path = new URL(a.path, `file:///${a.importer}`).pathname.slice(1);
+                // Not one of the loaded modules: it fails when it runs, as on workerd (missingModule).
+                return path in modules
+                  ? { path, namespace: "memory" }
+                  : missingModule(a.path, a.importer);
+              });
               b.onLoad({ filter: /.*/, namespace: "memory" }, (a) => ({
                 contents: modules[a.path],
+                loader: "js",
+              }));
+              b.onResolve({ filter: /^cellb:modules$/ }, () => ({
+                path: "modules",
+                namespace: "cells-modules",
+              }));
+              b.onLoad({ filter: /.*/, namespace: "cells-modules" }, () => ({
+                contents: registry,
+                loader: "js",
+              }));
+              // Anything else loaded code imports: a module's whole name (a URL, say), as workerd names
+              // modules, or else a module that throws when it is evaluated (missingModule).
+              b.onResolve({ filter: /.*/ }, (a) => {
+                if (a.namespace !== "memory") return undefined;
+                if (a.path in modules) return { path: a.path, namespace: "memory" };
+                return missingModule(a.path, a.importer);
+              });
+              b.onLoad({ filter: /.*/, namespace: "cells-missing" }, (a) => ({
+                contents: a.pluginData as string,
                 loader: "js",
               }));
             },
           },
         ],
       });
-      return { source: out.outputFiles[0].text };
+      // Compiled wasm modules travel beside the source (a worker thread takes them as they are).
+      return { source: out.outputFiles[0].text, wasm: wasmModulesOf(code) };
     },
   });
 }
