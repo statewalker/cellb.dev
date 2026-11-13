@@ -1,5 +1,21 @@
 # @statewalker/cellb
 
+## 0.9.0
+
+### Minor Changes
+
+- 7f21ad8: A project loaded in a browser has `exportCells()`: the cells' databases from its OPFS pool, as `[file name, bytes]`. The names are the ones `nodeSqliteOpener(dir)` gives the same cells, so a data directory on Node (`loadProject(dir, { data })`) starts where the browser's cells are. A project whose cells are not in a pool (a bucket) returns none.
+
+### Patch Changes
+
+- 3fa2705: node:sqlite on Node 22: a zero-length BLOB is stored as a BLOB, not as NULL. Node 22 binds a view whose buffer has no backing store (`new ArrayBuffer(0)`, or a `Uint8Array` made from one) as NULL, so `sql.exec("INSERT … VALUES (?)", new ArrayBuffer(0))` stored NULL where workerd stores an empty BLOB, and the sqlite object store (celld dev's bucket) refused an empty object (`NOT NULL constraint failed: objects.body`). Zero-length bytes are now bound as an empty view over a real buffer. SQLite WASM was not affected.
+- e4354f8: Alarms and cron triggers more than about 24.8 days ahead now fire once, when they are due. setTimeout takes at most 2^31 − 1 ms and fires any longer delay after 1 ms. Before this fix:
+  
+  - An alarm set further ahead fired at once, found itself not yet due, re-armed, and woke its object every millisecond. celld's workflows set 30-day alarms.
+  - A cron trigger whose occurrences are further apart than that ran its `scheduled()` handler at once, then ran each following occurrence about every millisecond, each with a future `scheduledTime`. This covers any monthly or yearly trigger.
+  
+  Both now wait in steps of at most 2^31 − 1 ms.
+
 ## 0.8.9
 
 ### Patch Changes
