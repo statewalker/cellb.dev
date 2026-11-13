@@ -9,8 +9,10 @@ export default class extends WorkerEntrypoint {
     const byUrl = await importModule("https://example.test/app/index.js");
     const relative = await importModule("./pages/one.js");
     const plain = await viaFunction("pages/one.js");
+    // A literal import of no loaded module fails only when it runs, as on workerd.
+    const missing = await import("./absent.js").then(() => "loaded", (e) => e.message);
     return { byUrl: byUrl.default, named: byUrl.answer, relative: relative.default, plain: plain.default,
-             isFunction: viaFunction instanceof Function };
+             isFunction: viaFunction instanceof Function, missing };
   }
 }`;
 export default {

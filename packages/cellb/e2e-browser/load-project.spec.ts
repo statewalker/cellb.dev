@@ -104,6 +104,7 @@ test("an import() in code a loaded Worker builds with Function resolves against 
     relative: "one",
     plain: "one",
     isFunction: true,
+    missing: 'No such module "./absent.js" (imported from "main.js")',
   });
 });
 
