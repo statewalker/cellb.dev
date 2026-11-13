@@ -260,6 +260,17 @@ return Response.json({
       expect(resolveModuleName("node:fs", "dir/m.js", names)).toBeUndefined();
     });
 
+    it("rewrites import() in a Function body, keeping everything else (unit)", async () => {
+      const { routeBodyImports } = await import("../src/isolate/function-imports.js");
+      expect(routeBodyImports(["spec"], "return await import(spec);", "async function")).toBe(
+        "return await __cellbFunctionImport(spec);",
+      );
+      expect(routeBodyImports([], "const s = 'import(x)'; return 1;", "function")).toBe(
+        "const s = 'import(x)'; return 1;",
+      );
+      expect(routeBodyImports([], "return import(", "function")).toBe("return import(");
+    });
+
     it("collects each module's export names, following export * within the modules (unit)", async () => {
       const { exportNamesByModule } = await import("../src/bindings/module-registry.js");
       expect(
@@ -531,6 +542,21 @@ return Response.json({ inIsolate: await load(env).getEntrypoint().post(), inProj
         ),
       );
       expect(await json(runtime)).toEqual({ inIsolate: "streamed", inProject: "here too" });
+    });
+
+    it("Response.error() crosses as an error response, not a failed call", async () => {
+      const runtime = await project(
+        withLoaded(
+          {
+            "main.js": {
+              js: "import { WorkerEntrypoint } from 'cloudflare:workers'; export default class extends WorkerEntrypoint { fail() { return Response.error(); } }",
+            },
+          },
+          `const res = await load(env).getEntrypoint().fail();
+return Response.json({ type: res.type, status: res.status, ok: res.ok });`,
+        ),
+      );
+      expect(await json(runtime)).toEqual({ type: "error", status: 0, ok: false });
     });
 
     it("new Request(url, request) keeps the request's method, headers and streamed body", async () => {

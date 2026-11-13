@@ -62,6 +62,12 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 
 ## Other gaps
 
+- **The browser Worker Loader without `isolateScript` keeps a little per load.** Each load of
+  loaded code into the project's own realm registers its console, its outbound `fetch` and its
+  `import()` table on `globalThis` for its Blob-URL modules to read, and they are never freed:
+  a browser never unloads a module, so there is no point at which nothing can read them. With
+  `isolateScript` (the default of `loadProject`) each loaded Worker has a Dedicated Worker of its
+  own, and these go with it.
 - **Configuration CellB does not support** is reported in `createProjectRuntime(...).unsupported`,
   instead of being silently ignored: `migrations.renamed_classes`,
   `durable_objects.bindings[].script_name`, `containers`, service bindings to other scripts, the

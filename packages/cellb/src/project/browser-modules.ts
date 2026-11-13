@@ -13,6 +13,7 @@ import {
   type WorkerCode,
 } from "../bindings/worker-loader.js";
 import { ctxExports } from "../core/handles.js";
+import { FUNCTION_IMPORT } from "../isolate/function-imports.js";
 import { rewriteModuleSpecifiers } from "./module-specifiers.js";
 import { workerScope } from "./worker-scope.js";
 
@@ -35,7 +36,16 @@ export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env 
  * `workersModuleShim`, the same for every load); relative imports resolve to the Blob URLs of
  * sibling modules; with a log sink the module gets a module-scoped `console` (Tail Workers).
  */
-export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
+export function browserModuleLoader(
+  workersModuleShim?: string,
+  opts: {
+    /**
+     * This realm is the loaded Worker's own (an isolate): an `import()` in code it builds with
+     * `Function` resolves against its modules too (isolate/function-imports.ts).
+     */
+    functionImports?: boolean;
+  } = {},
+): ModuleLoader {
   const blob = (text: string) => URL.createObjectURL(new Blob([text], { type: "text/javascript" }));
   const fixedShimUrl = workersModuleShim && blob(workersModuleShim);
   return async (_id: string, loaded: WorkerCode, logs?: LogSink) => {
@@ -92,6 +102,10 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
       const name = resolveModuleName(String(spec), importer, names);
       return import(/* @vite-ignore */ name === undefined ? String(spec) : urlOf(name));
     };
+    // Code built with `Function` has no module of its own: it resolves from the main module.
+    if (opts.functionImports)
+      g[FUNCTION_IMPORT] = (spec: unknown) =>
+        (imports[importsKey] as (s: unknown, i: string) => Promise<unknown>)(spec, code.mainModule);
     const routed = (name: string) => {
       const text = source(name);
       const out = routeDynamicImports(text, name);

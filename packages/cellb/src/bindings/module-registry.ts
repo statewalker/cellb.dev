@@ -34,6 +34,30 @@ export const RESOLVE_MODULE_NAME_SOURCE = `(spec, importer, names) => {
 /** The identifier rewritten calls use. */
 export const IMPORT_FROM = "__cellbImportFrom";
 
+/** What an ES module exports by name, and the specifiers it re-exports everything from. */
+export interface ModuleExports {
+  names: string[];
+  stars: string[];
+}
+
+/**
+ * One parse of ES module `source` (named `name`): its text with each `import(spec)` the bundler
+ * cannot link routed through `__cellbImportFrom` (`routed`, undefined when there is none), and
+ * its exports. `undefined` when it does not parse (the loader then reports its syntax error).
+ */
+export function analyzeModule(
+  source: string,
+  name: string,
+): { routed: string | undefined; exports: ModuleExports } | undefined {
+  let ast: any;
+  try {
+    ast = parse(source, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true });
+  } catch {
+    return undefined;
+  }
+  return { routed: routed(ast, source, name), exports: exportsOf(ast) };
+}
+
 /**
  * `source` (an ES module named `name`) with each `import(spec)` that the bundler cannot link (a
  * computed specifier, or a literal that is not a relative path) calling `__cellbImportFrom(spec,
@@ -42,12 +66,15 @@ export const IMPORT_FROM = "__cellbImportFrom";
  */
 export function routeDynamicImports(source: string, name: string): string | undefined {
   if (!source.includes("import")) return undefined;
-  let ast: any;
-  try {
-    ast = parse(source, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true });
-  } catch {
-    return undefined;
-  }
+  return analyzeModule(source, name)?.routed;
+}
+
+/** The exports of ES module `source` (`undefined` if it does not parse). */
+export function moduleExports(source: string): ModuleExports | undefined {
+  return analyzeModule(source, "")?.exports;
+}
+
+function routed(ast: any, source: string, name: string): string | undefined {
   const calls: { start: number; sourceEnd: number }[] = [];
   const visit = (n: any) => {
     if (!n || typeof n.type !== "string") return;
@@ -65,7 +92,7 @@ export function routeDynamicImports(source: string, name: string): string | unde
       else if (v && typeof v === "object" && typeof v.type === "string") visit(v);
     }
   };
-  visit(ast);
+  if (source.includes("import")) visit(ast);
   if (!calls.length) return undefined;
   let out = source;
   // From the end, so earlier positions stay valid: `import(spec` → `__cellbImportFrom(spec, name`.
@@ -79,29 +106,7 @@ export function routeDynamicImports(source: string, name: string): string | unde
   return out;
 }
 
-/** `prelude` put in front of `source` on its first line (after a hashbang), so lines keep their numbers. */
-export function prefixModule(source: string, prelude: string): string {
-  if (!source.startsWith("#!")) return prelude + source;
-  const nl = source.indexOf("\n");
-  return nl < 0
-    ? `${source}\n${prelude}`
-    : `${source.slice(0, nl + 1)}${prelude}${source.slice(nl + 1)}`;
-}
-
-/** What an ES module exports by name, and the specifiers it re-exports everything from. */
-export interface ModuleExports {
-  names: string[];
-  stars: string[];
-}
-
-/** The exports of ES module `source` (`undefined` if it does not parse). */
-export function moduleExports(source: string): ModuleExports | undefined {
-  let ast: any;
-  try {
-    ast = parse(source, { ecmaVersion: "latest", sourceType: "module", allowHashBang: true });
-  } catch {
-    return undefined;
-  }
+function exportsOf(ast: any): ModuleExports {
   const names = new Set<string>();
   const stars: string[] = [];
   const nameOf = (n: any) => (n.type === "Identifier" ? n.name : String(n.value));
@@ -129,14 +134,32 @@ export function moduleExports(source: string): ModuleExports | undefined {
   return { names: [...names], stars };
 }
 
+/** `prelude` put in front of `source` on its first line (after a hashbang), so lines keep their numbers. */
+export function prefixModule(source: string, prelude: string): string {
+  if (!source.startsWith("#!")) return prelude + source;
+  const nl = source.indexOf("\n");
+  return nl < 0
+    ? `${source}\n${prelude}`
+    : `${source.slice(0, nl + 1)}${prelude}${source.slice(nl + 1)}`;
+}
+
 /**
  * Each module's export names, `export *` followed within the modules (as far as they resolve).
- * A module that does not parse, or a star from outside them, adds nothing.
+ * A module that does not parse, or a star from outside them, adds nothing. `modules` are the
+ * modules' texts, or their exports already found (`analyzeModule`).
  */
-export function exportNamesByModule(modules: Record<string, string>): Record<string, string[]> {
-  const own = new Map<string, ModuleExports>();
-  for (const [name, text] of Object.entries(modules))
-    own.set(name, moduleExports(text) ?? { names: [], stars: [] });
+export function exportNamesByModule(
+  modules: Record<string, string> | Map<string, ModuleExports>,
+): Record<string, string[]> {
+  const own =
+    modules instanceof Map
+      ? modules
+      : new Map(
+          Object.entries(modules).map(([n, text]) => [
+            n,
+            moduleExports(text) ?? { names: [], stars: [] },
+          ]),
+        );
   const names = new Set(own.keys());
   const all = (name: string, seen: Set<string>): Set<string> => {
     const out = new Set(own.get(name)?.names ?? []);
