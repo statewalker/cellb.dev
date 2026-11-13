@@ -1,8 +1,10 @@
 // The host pages as static files, for any HTTP file server (dist/static/):
 //
-//   /index.html                 the first visit: a link to each host page
+//   /index.html                 the first visit: forwards to /__cellb/start.html
 //   /cellb-sw.js                the ServiceWorker: cross-origin isolation for /__cellb/, and the
 //                               rest of the origin is the app the host page built
+//   /__cellb/start.html         the chooser: a link to each host page (also where the
+//                               ServiceWorker sends a visit when no tab runs the site)
 //   /__cellb/index.html         builds the small Astro app (app/) and runs it
 //   /__cellb/emdash.html        builds EmDash (../emdash) and runs it
 //   /__cellb/<app>-src/         each app's sources: list.json and files/<path>
@@ -19,22 +21,16 @@ const run = (...args) =>
 run("build", "browser", "--config", "browser/vite.config.ts");
 run("build", "--config", "browser/vite.sw.config.ts");
 
+// The first visit, before the ServiceWorker controls the origin: the chooser, which lives
+// under /__cellb/ (once the ServiceWorker runs, `/` is the site built here).
 writeFileSync(
   join(root, "dist/static/index.html"),
   `<!doctype html>
 <html lang="en">
 <meta charset="utf-8">
+<meta http-equiv="refresh" content="0; url=/__cellb/start.html">
 <title>Astro, built in the browser, on CellB</title>
-<style>body { font: 15px/1.5 system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }</style>
-<h1>Astro, built in the browser, on CellB</h1>
-<p>Each page reads an app's sources, builds them in this tab (esbuild and Astro's compiler as
-WebAssembly, packages from the npm registry) and runs the result on CellB, served from the tab at
-this origin's root. One app at a time: building the other replaces it.</p>
-<ul>
-  <li><a href="/__cellb/">A small Astro app</a> (a few seconds)</li>
-  <li><a href="/__cellb/emdash.html">EmDash</a>, the Astro CMS (about two minutes the first time, a
-  few hundred packages)</li>
-</ul>
+<p><a href="/__cellb/start.html">Astro, built in the browser, on CellB</a></p>
 `,
 );
 console.log("dist/static: serve it with any HTTP file server");

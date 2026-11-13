@@ -82,6 +82,7 @@ export default defineConfig(({ command }) => ({
     entries: [
       "index.html",
       "emdash.html",
+      "start.html",
       "cells-lab.html",
       "host.ts",
       "shard-worker.ts",
@@ -106,6 +107,7 @@ export default defineConfig(({ command }) => ({
       input: {
         index: resolve(import.meta.dirname, "index.html"),
         emdash: resolve(import.meta.dirname, "emdash.html"),
+        start: resolve(import.meta.dirname, "start.html"),
       },
     },
   },
