@@ -28,14 +28,13 @@ import { type RejectionHandler, rejectionScope, reportToStderr } from "./worker-
 export interface WorkerModule {
   /**
    * An object with handlers (`fetch(req, env, ctx)`), or a class (`export default class extends
-   * WorkerEntrypoint`): an instance per request, built with `(ctx, env)`, whose `fetch(req)` answers.
+   * WorkerEntrypoint`): an instance per request, built with `(ctx, env)`, whose `fetch(req)`
+   * answers. A class matches through its `prototype`, so `default.fetch` stays readable.
    */
-  default:
-    | { fetch?(req: Request, env: any, ctx: ExecutionContext): Response | Promise<Response> }
-    | (new (
-        ctx: any,
-        env: any,
-      ) => { fetch?(req: Request): Response | Promise<Response> });
+  default: {
+    fetch?(req: Request, env: any, ctx: ExecutionContext): Response | Promise<Response>;
+    prototype?: { fetch?(req: Request): Response | Promise<Response> };
+  };
   [exportName: string]: unknown;
 }
 
