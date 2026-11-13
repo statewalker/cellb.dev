@@ -1,11 +1,14 @@
 import {
   closeSync,
+  existsSync,
   fstatSync,
   mkdtempSync,
   openSync,
   readFileSync,
   readSync,
+  rmdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -30,21 +33,44 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   #path: string;
   readonly #exclusive: boolean;
   readonly #pageCapture: boolean;
-  constructor(path = ":memory:", opts: { exclusive?: boolean; pageCapture?: boolean } = {}) {
+  /** A file of its own that close() removes (a cell "in memory" that needs a WAL). */
+  readonly #temporary: boolean;
+  constructor(
+    path = ":memory:",
+    opts: { exclusive?: boolean; pageCapture?: boolean; temporary?: boolean } = {},
+  ) {
     this.#path = path;
+    this.#temporary = !!opts.temporary && path !== ":memory:";
     this.#exclusive = !!opts.exclusive;
     this.#pageCapture = !!opts.pageCapture && path !== ":memory:";
+    this.#db = this.#connect();
+    this.#walSetup();
+  }
+
+  /** Extensions loaded so far, by name: a new connection (restore()) loads them again. */
+  #extensions: string[] = [];
+  /** The directory restore() made for an in-memory database's file. */
+  #restoredDir: string | undefined;
+
+  /** A connection to `#path`, set up as every connection of this driver is. */
+  #connect(): DatabaseSyncT {
     // As celld and workerd: a double-quoted name that is no column is a string literal.
-    this.#db = new DatabaseSync(path, {
+    const db = new DatabaseSync(this.#path, {
       allowExtension: true,
       enableDoubleQuotedStringLiterals: true,
     });
-    this.#db.enableLoadExtension(false); // only loadExtension() below may load, by name
+    db.enableLoadExtension(false); // only loadExtension() below may load, by name
     // EXCLUSIVE locking: the first write takes an OS lock on the file that is
     // kept until close (or process death) — a second process can neither read
     // nor write the cell. Storage-level fencing on one host, no lease needed.
-    if (opts.exclusive) this.#db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
-    this.#walSetup();
+    if (this.#exclusive) db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
+    try {
+      for (const name of this.#extensions) this.#load(db, name);
+    } catch (e) {
+      db.close(); // not left open behind the error
+      throw e;
+    }
+    return db;
   }
 
   // ---- page capture through the WAL (what the WASM driver does with its xWrite hook) ----
@@ -54,9 +80,14 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   // instead of reading the whole file. Automatic checkpoints are off; take() checkpoints
   // (TRUNCATE) itself once the WAL grows, and restarts from its start.
   #walOffset = 0;
+  /** Whether anyone reads the captured pages; until then exec() keeps the WAL bounded itself. */
+  #taken = false;
+  #writes = 0;
   #walSetup(): void {
     if (!this.#pageCapture) return;
     this.#db.exec("PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0;");
+    // A temporary file is only the WAL's carrier (the bucket keeps the cell): no fsync per commit.
+    if (this.#temporary) this.#db.exec("PRAGMA synchronous = OFF");
     this.#db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     this.#walOffset = 0;
   }
@@ -65,6 +96,7 @@ export class NodeSqliteDriver implements SyncSqlDriver {
     | { pageSize: number; pageCount: number; pages: Map<number, Uint8Array> }
     | undefined {
     if (!this.#pageCapture) return undefined;
+    this.#taken = true;
     const walPath = `${this.#path}-wal`;
     let fd: number;
     try {
@@ -126,6 +158,7 @@ export class NodeSqliteDriver implements SyncSqlDriver {
       last = this.#one(text, params);
       written += last.rowsWritten;
     }
+    if (this.#pageCapture && !this.#taken && ++this.#writes % 64 === 0) this.#boundWal();
     return { ...last, rowsWritten: written };
   }
   #one(sql: string, params: unknown[]): SqlResult {
@@ -140,6 +173,20 @@ export class NodeSqliteDriver implements SyncSqlDriver {
     const rows = (stmt.all(...args) as unknown as unknown[][]).map((row) => row.map(fromSqlite));
     return { columnNames, rows, rowsWritten: 0 };
   }
+  /**
+   * A database whose pages nobody takes (the runtime's own tables, a storage that logs no pages)
+   * has no one to checkpoint its WAL (automatic checkpoints are off): past 4 MiB, fold it in.
+   */
+  #boundWal(): void {
+    if (this.inTransaction()) return;
+    try {
+      if (statSync(`${this.#path}-wal`).size <= 4 * 1024 * 1024) return;
+    } catch {
+      return;
+    }
+    this.#db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    this.#walOffset = 0;
+  }
   inTransaction(): boolean {
     return (this.#db as unknown as { isTransaction: boolean }).isTransaction;
   }
@@ -150,6 +197,18 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   }
   close(): void {
     this.#db.close();
+    if (this.#restoredDir) {
+      rmSync(this.#restoredDir, { recursive: true, force: true });
+      temporaryDirs.delete(this.#restoredDir);
+      this.#restoredDir = undefined;
+    }
+    if (!this.#temporary) return;
+    for (const suffix of ["", "-wal", "-shm", "-journal"])
+      rmSync(this.#path + suffix, { force: true });
+    try {
+      rmdirSync(dirname(this.#path)); // the opener's directory, once its last cell is closed
+      temporaryDirs.delete(dirname(this.#path));
+    } catch {}
   }
 
   // ---- change capture (session extension) for transaction logs -------------------------
@@ -189,13 +248,17 @@ export class NodeSqliteDriver implements SyncSqlDriver {
 
   /** Known extensions only: "sqlite_vec" → the sqlite-vec npm package's loadable library. */
   loadExtension(name: string): void {
+    this.#load(this.#db, name);
+    if (!this.#extensions.includes(name)) this.#extensions.push(name);
+  }
+  #load(db: DatabaseSyncT, name: string): void {
     const path = KNOWN_EXTENSIONS[name]?.();
     if (!path) throw new Error(`Unknown SQLite extension "${name}"`);
-    this.#db.enableLoadExtension(true);
+    db.enableLoadExtension(true);
     try {
-      this.#db.loadExtension(path);
+      db.loadExtension(path);
     } finally {
-      this.#db.enableLoadExtension(false);
+      db.enableLoadExtension(false);
     }
   }
 
@@ -229,12 +292,15 @@ export class NodeSqliteDriver implements SyncSqlDriver {
   /** Replaces the database file with `image` and reopens it (an in-memory DB becomes file-backed). */
   restore(image: Uint8Array): void {
     this.#db.close();
-    if (this.#path === ":memory:")
-      this.#path = join(mkdtempSync(join(tmpdir(), "cell-mem-")), "db.sqlite");
+    if (this.#path === ":memory:") {
+      // A directory of its own, removed with the driver (close() or process exit).
+      this.#restoredDir = mkdtempSync(join(tmpdir(), "cell-mem-"));
+      removeAtExit(this.#restoredDir);
+      this.#path = join(this.#restoredDir, "db.sqlite");
+    }
     for (const suffix of ["-wal", "-shm", "-journal"]) rmSync(this.#path + suffix, { force: true });
     writeFileSync(this.#path, image);
-    this.#db = new DatabaseSync(this.#path, { enableDoubleQuotedStringLiterals: true });
-    if (this.#exclusive) this.#db.exec("PRAGMA locking_mode = EXCLUSIVE; PRAGMA busy_timeout = 0;");
+    this.#db = this.#connect(); // with the extensions loaded before
     this.#walSetup(); // a new file: a new WAL
   }
 }
@@ -250,18 +316,50 @@ function fromSqlite(v: unknown): unknown {
   return v;
 }
 
-/** One file per cell in `dir`, or in-memory when `dir` is omitted. */
+/** Temporary cell directories still present: removed if the process exits without closing them. */
+const temporaryDirs = new Set<string>();
+let exitHook = false;
+function removeAtExit(dir: string): void {
+  temporaryDirs.add(dir);
+  if (exitHook) return;
+  exitHook = true;
+  process.once("exit", () => {
+    for (const d of temporaryDirs) rmSync(d, { recursive: true, force: true });
+  });
+}
+
 /**
- * `pageCapture` (file-backed only): WAL mode, and each commit's changed pages read from the WAL
- * (takeDirtyPages) — LTX logs then cost O(changed pages) on Node as with SQLite WASM.
+ * One file per cell in `dir`; without `dir`, each cell in memory.
+ *
+ * `pageCapture`: WAL mode, and each commit's changed pages read from the WAL (takeDirtyPages),
+ * so LTX logs (a celld bucket) cost O(changed pages) on Node as with SQLite WASM, instead of an
+ * image of the whole database (VACUUM INTO) and a page-by-page diff per commit. A WAL needs a
+ * file: without `dir`, each cell opened gets a temporary file (in a `cellb-cells-…` directory
+ * under the OS temp directory), removed when the cell closes, so it still starts empty each
+ * time as in memory (a bucket restores it).
  */
 export function nodeSqliteOpener(
   dir?: string,
   opts: { exclusive?: boolean; pageCapture?: boolean } = {},
 ): OpenCellSql {
-  return (cellKey) =>
-    new NodeSqliteDriver(
-      dir ? `${dir}/${cellKey.replace(/[^\w.-]/g, "_")}.sqlite` : ":memory:",
-      opts,
-    );
+  let temp: string | undefined;
+  let opened = 0;
+  return (cellKey) => {
+    const name = cellKey.replace(/[^\w.-]/g, "_");
+    // The runtime's own databases (alarms index, cron state) log no pages: never captured.
+    const capture = !!opts.pageCapture && !cellKey.startsWith("__cellb/");
+    const o = { ...opts, pageCapture: capture };
+    if (dir) return new NodeSqliteDriver(`${dir}/${name}.sqlite`, o);
+    if (!capture) return new NodeSqliteDriver(":memory:", o);
+    if (!temp || !existsSync(temp)) {
+      temp = mkdtempSync(join(tmpdir(), "cellb-cells-"));
+      removeAtExit(temp);
+    }
+    // A file per opening: a cell reopened while its previous database is still closing gets
+    // a fresh one, as in memory.
+    return new NodeSqliteDriver(join(temp, `${name}-${++opened}.sqlite`), {
+      ...o,
+      temporary: true,
+    });
+  };
 }

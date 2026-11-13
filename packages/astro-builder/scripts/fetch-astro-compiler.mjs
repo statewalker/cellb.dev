@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
 
 const NAME = "@astrojs/compiler-binding-wasm32-wasi";
-const VERSION = "0.5.2";
+const VERSION = "0.5.3";
 const FILE = "astro.wasm32-wasi.wasm";
 const dir = resolve(import.meta.dirname, "../vendor/astro-compiler");
 const out = join(dir, FILE);

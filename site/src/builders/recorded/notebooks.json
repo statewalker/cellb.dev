@@ -1,0 +1,117 @@
+{
+  "kind": "notebooks",
+  "recordedAt": "2026-11-12",
+  "host": "the platform on CellB in Node (packages/platform, dist/platform/cellb)",
+  "steps": [
+    {
+      "title": "Send the notebooks",
+      "note": "A Markdown notebook and an Observable Notebook Kit document. They go to the NotebookSite object named demo.",
+      "curl": "node -e 'const fs=require(\"fs\");const files={};for(const p of process.argv.slice(1))files[p]=fs.readFileSync(p,\"utf8\");console.log(JSON.stringify({files}))' index.md plots.html \\\n  | curl -X POST -H 'content-type: application/json' --data-binary @- http://localhost:8787/nb/demo/import",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8787/nb/demo/import",
+        "body": "{ \"files\": { \"index.md\": \"…\", \"plots.html\": \"…\" } }"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"files\": 2\n}",
+        "bodyLang": "json",
+        "bytes": 16,
+        "ms": 12
+      }
+    },
+    {
+      "title": "Build the pages",
+      "note": "notebook-build compiles each notebook to a page, in the object, with linkedom as its DOM. The broken cell in index.md is not a failure: it renders as an error in place.",
+      "curl": "curl -X POST http://localhost:8787/nb/demo/build",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8787/nb/demo/build"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"changed\": [\n    \"/index.html\",\n    \"/plots.html\"\n  ],\n  \"failures\": [],\n  \"ms\": 161,\n  \"pages\": [\n    \"/index.html\",\n    \"/plots.html\"\n  ],\n  \"models\": 2,\n  \"modelFailures\": []\n}",
+        "bodyLang": "json",
+        "bytes": 183,
+        "ms": 405
+      }
+    },
+    {
+      "title": "A compiled page",
+      "note": "Each cell is a module the notebook runtime runs in dependency order. npm: imports point at the site's module server, under /nb/demo/_m/.",
+      "curl": "curl http://localhost:8787/nb/demo/plots.html",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8787/nb/demo/plots.html"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/html; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Observable notebook on the webrun platform</title>\n<link rel=\"stylesheet\" href=\"/nb/demo/_m/@observablehq/notebook-kit@2.11.0/dist/src/styles/dist/src/styles/index.css\">\n</head>\n<body>\n<div id=\"cell-1\"><h1>Observable notebook on the webrun platform</h1>\n<p>An <a href=\"https://github.com/observablehq/notebook-kit\">Observable Notebook Kit</a> document, compiled\nto a page inside a Durable Object. Its npm imports are served by the platform's module server.</p>\n</div>\n<div id=\"cell-2\"></div>\n<div id=\"cell-3\"></div>\n<div id=\"cell-4\"></div>\n<div id=\"cell-5\"></div>\n<script type=\"module\">\nimport {define} from \"/nb/demo/_m/@observablehq/notebook-kit@2.11.0/dist/src/runtime/index.js\";\ndefine({root: document.getElementById(\"cell-2\"), variables: [], expanded: []}, {\"id\":2,\"body\":(view,Inputs) => {\nconst count = view(Inputs.range([10, 200], {value: 60, step: 10, label: \"points\"}));\nreturn {count};\n},\"inputs\":[\"view\",\"Inputs\"],\"outputs\":[\"count\"],\"autodisplay\":false});\ndefine({root: document.getElementById(\"cell-3\"), variables: [], expanded: []}, {\"id\":3,\"body\":async (count) => {\nconst d3 = await import(\"/nb/demo/_m/d3@7.9.2/dist/d3.mjs\");\n\nconst points = d3.range(count).map((i) => ({x: i, y: Math.sin(i / 8) * 30 + d3.randomNormal(50, 4)()}));\nreturn {d3,points};\n},\"inputs\":[\"count\"],\"outputs\":[\"d3\",\"points\"],\"autodisplay\":false});\ndefine({root: document.getElementById(\"cell-4\"), variables: [], expanded: []}, {\"id\":4,\"body\":async (display,points) => {\nconst Plot = await import(\"/nb/demo/_m/@observablehq/plot@0.6.19/dist/plot.js\");\n\ndisplay(Plot.plot({height: 260, marks: [Plot.dot(points, {x: \"x\", y: \"y\", fill: \"steelblue\"}), Plot.lineY(points, Plot.windowY(9, {x: \"x\", y…\nreturn {Plot};\n},\"inputs\":[\"display\",\"points\"],\"outputs\":[\"Plot\"],\"autodisplay\":false});\ndefine({root: document.getElementById(\"cell-5\"), variables: [], expanded: []}, {\"id\":5,\"body\":(display,html,count,d3,points) => {\ndisplay(html`<p id=\"summary\">${count} points, mean y = ${d3.mean(points, (d) => d.y).toFixed(1)}</p>`);\n},\"inputs\":[\"display\",\"html\",\"count\",\"d3\",\"points\"],\"outputs\":[],\"autodisplay\":false});\n</script>\n</body>\n</html>",
+        "bodyLang": "html",
+        "bytes": 2221,
+        "ms": 4
+      }
+    },
+    {
+      "title": "Build again, nothing changed",
+      "note": "Builds are incremental: an unchanged notebook is not compiled again.",
+      "curl": "curl -X POST http://localhost:8787/nb/demo/build",
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:8787/nb/demo/build"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*"
+        },
+        "body": "{\n  \"changed\": [],\n  \"failures\": [],\n  \"ms\": 29,\n  \"pages\": [\n    \"/index.html\",\n    \"/plots.html\"\n  ],\n  \"models\": 2,\n  \"modelFailures\": []\n}",
+        "bodyLang": "json",
+        "bytes": 142,
+        "ms": 34
+      }
+    }
+  ],
+  "shots": [
+    {
+      "src": "/builders/notebooks-plots.png",
+      "width": 1600,
+      "height": 938,
+      "alt": "The Observable notebook: a points slider at 120, a scatter plot with a moving-average line, and the summary",
+      "caption": "http://localhost:8787/nb/demo/plots.html in Chromium, after the slider was set to 120: \"120 points, mean y = 53.4\"",
+      "checks": [
+        "Plot drew 60 dots; setting the input to 120 re-ran the cells that read it (120 dots)",
+        "d3 and Observable Plot came from the site's module server",
+        "no page errors"
+      ]
+    },
+    {
+      "src": "/builders/notebooks-markdown.png",
+      "width": 1600,
+      "height": 1654,
+      "alt": "The Markdown notebook: two plots of a sine wave, the broken cell's error, and the cell after it",
+      "caption": "http://localhost:8787/nb/demo/index.html in Chromium: the Markdown notebook",
+      "checks": [
+        "both plots drawn",
+        "the broken cell shows its syntax error in place",
+        "the cell after it ran (\"n is 24\")"
+      ]
+    }
+  ],
+  "facts": {
+    "buildMs": 405
+  }
+}

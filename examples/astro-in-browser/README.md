@@ -5,7 +5,7 @@ compiler and esbuild run as WebAssembly, packages come from the npm registry, an
 runs in CellB's shards with its Durable Objects on CellB's LTX storage. Two apps are built this way,
 a small Astro app (`app/`) and [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare`
 template
-(`../emdash`), which brings `astro.config.mjs`, its integrations, 225 routes, React islands, D1,
+(`../emdash`), which brings `astro.config.mjs`, its integrations, 227 routes, React islands, D1,
 R2, KV and a cron trigger. The same builder runs on Node, and its output runs on CellB in Node too.
 The package is private, since it is a test of CellB and of webrun-bundler and not a library.
 
@@ -36,6 +36,18 @@ host tab (browser/host.ts, emdash.html or index.html)
   store without downloading anything. `?memory` keeps them in the builder's memory instead, fetched
   from the
   registry on every build.
+- **Cleaning the package cache.** The host page's *Package cache* panel shows what the store
+  holds and, once a build is over, cleans it (then rebuilds, unless *rebuild after* is unticked):
+  *Remove unused packages* keeps only the packages some build's lock names (after an update of
+  EmDash or Astro, the old versions go); *Forget the locks* removes the locks and the version
+  index, so the next build resolves every version again from the registry and records a new
+  lock; *Clear the package cache* removes every package, so the next build downloads them all.
+  The same operations are the store's routes (`GET …/admin/stats`, `POST …/admin/prune`,
+  `POST …/admin/forget`, `POST …/admin/clear[?prefix=…]`, `DELETE …/files/<path>`), and
+  `await __packageCache("prune")` in the page's console. A build holds a lease on the store
+  (`…/admin/lease`, renewed every 15 s, lapsing after 60 s), and a clean-up is refused while one
+  is held, in this tab or another: the small app and EmDash share the store. Freed
+  space is reused by later packages; the store's database file does not shrink.
 - **The project's own Worker entry.** When `wrangler.jsonc` names a `main` (EmDash's
   `src/worker.ts`, with `scheduled()` for its cron trigger and `PluginBridge`), it is the bundle's
   entry,
@@ -78,6 +90,7 @@ pools instead of the LTX storage. Network access to registry.npmjs.org is needed
 | `build-in-browser.spec.ts` | the small app is built in the tab (in about 5 s) and served by CellB |
 | `emdash-in-browser.spec.ts` | EmDash is built in the tab through the package store (about 320 downloads cold, then none after a reload), run on the LTX storage and seeded; its pages and hydrated admin render, and it is exported as a ZIP and served from disk. `EMDASH_STORE=0` keeps packages in memory, and `EMDASH_HEAP=1` reports the memory of every realm. The spec fails on skipped component scripts, unsupported configuration and LTX store failures |
 | `emdash-admin-in-browser.spec.ts` | on the build made in the tab, runs EmDash's setup wizard, creates a passkey account and publishes a post with a featured image in R2; reads the post back after a reload of the host tab (a new build); checks that a second host tab takes the shard over when the first closes |
+| `package-cache.spec.ts` | the package cache's clean-up: the small app built through the store, a stray pack pruned, the lock forgotten, the store cleared, and a rebuild that downloads every package again |
 | `pkgstore-probe.spec.ts` | the package store alone, then under concurrent 5–20 MB PUTs, ranged GETs and compaction, with an integrity pass (`PKGSTORE_PACKS=80 PKGSTORE_CONCURRENCY=8` goes past the context's storage, and then only PUTs may fail) |
 | `cells-lab`, `*-probe` | a lab of the storage choices for shards, and probes (see each file's header). The labs of CellB's storage internals (`ltx-lab`, `sqlite-lab`) are in `packages/cellb/e2e-browser/probes` |
 
@@ -117,6 +130,11 @@ crashes at 2.5 GB.
   client evaluates every define in the host page and its workers, which have no `process` yet).
 - **`Could not resolve "…": Failed to fetch`** in a cold build is a download from the npm
   registry that failed. Building again downloads only the packages still missing.
+- **`LinkError: … "napi_create_async_work": function import requires a callable`** when Astro's
+  compiler loads means `@napi-rs/wasm-runtime` got emnapi 2 (a beta), whose imports the compiler's
+  WebAssembly does not match. The runtime's peer range admits `2.0.0-beta.*`, and pnpm reuses the
+  one rolldown (in Vite) brings, so `package.json` names `@emnapi/core` and `@emnapi/runtime` 1.11.3,
+  as `packages/astro-builder` does.
 
 ## License
 

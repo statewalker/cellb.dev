@@ -193,7 +193,9 @@ export async function buildProject(opts: {
   const entry = spec.entry ?? config.main;
   if (!entry) throw new Error("nothing to build: no `entry` and no wrangler `main`");
   const flags = config.compatibility_flags ?? [];
-  const nodeCompat = flags.some((f) => f.startsWith("nodejs_compat"));
+  // nodejs_compat or nodejs_compat_v2, as in workerd and Wrangler (the other nodejs_compat_* flags
+  // tune it and do nothing alone).
+  const nodeCompat = flags.some((f) => f === "nodejs_compat" || f === "nodejs_compat_v2");
   const kind = spec.kind ?? "worker";
 
   const inputPaths = (await listFiles(files)).filter((p) => !p.startsWith("/node_modules/"));

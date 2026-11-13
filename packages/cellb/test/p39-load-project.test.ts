@@ -137,3 +137,38 @@ describe("buildProject / cellb build", () => {
     ).toThrow();
   });
 });
+
+// A fleet bucket logs every commit as LTX. Without page capture each commit costs a VACUUM INTO
+// of the whole database and a page-by-page diff (O(database)); with it, the commit's pages come
+// from the WAL (O(changed)). Cells without a data directory live in temporary files for that.
+describe("loadProject on a bucket: commits are logged from the WAL, not from database images", () => {
+  test("no data directory: page capture still on (temporary files), and they are removed", async () => {
+    const { celldBucket, memoryObjectStore } = await import("@statewalker/cellb");
+    const bucket = celldBucket(memoryObjectStore(), { node: "cellb-test" });
+    const seen: boolean[] = [];
+    const durability = bucket.durability as unknown as {
+      committed: (k: string, i: { pages?: unknown }) => Promise<void>;
+    };
+    const committed = durability.committed.bind(durability);
+    durability.committed = (k, info) => {
+      seen.push(!!info.pages);
+      return committed(k, info);
+    };
+    const before = new Set(readdirSync(tmpdir()));
+    const project = await loadProject(COUNTER, { bucket });
+    expect(await counterRun(project)).toEqual([1, 2, 1]);
+    expect(seen.length).toBeGreaterThanOrEqual(3);
+    expect(seen.every(Boolean)).toBe(true);
+    // This opener's directory: the one holding these cells' files (other tests may make their own
+    // alongside, in parallel).
+    const made = readdirSync(tmpdir()).filter(
+      (f) =>
+        !before.has(f) &&
+        f.startsWith("cellb-cells-") &&
+        readdirSync(`${tmpdir()}/${f}`).some((n) => n.startsWith("Counter_")),
+    );
+    expect(made.length).toBe(1);
+    await project.close();
+    expect(existsSync(join(tmpdir(), made[0] as string))).toBe(false);
+  });
+});

@@ -1,0 +1,146 @@
+---
+import Files from "@/components/builders/Files.astro";
+import Flow from "@/components/builders/Flow.astro";
+import Pager from "@/components/builders/Pager.astro";
+import RecordedNote from "@/components/builders/RecordedNote.astro";
+import Shots from "@/components/builders/Shots.astro";
+import Transcript from "@/components/builders/Transcript.astro";
+import CodeBlock from "@/components/CodeBlock.astro";
+import Docs from "@/layouts/Docs.astro";
+import { recordedOf } from "@/lib/builders";
+import { docHref } from "@/lib/docs";
+import { repoFile } from "@/lib/site";
+import markdown from "../../../../examples/platform-demos/notebooks/index.md?raw";
+import observable from "../../../../examples/platform-demos/notebooks/plots.html?raw";
+
+const rec = recordedOf("notebooks");
+const f = rec.facts;
+
+const client = `const NB = "http://localhost:8787/nb/demo";
+
+await fetch(\`\${NB}/files/plots.html\`, { method: "PUT", body: source });   // one notebook
+const { changed, failures, pages } = await (await fetch(\`\${NB}/build\`, { method: "POST" })).json();
+for (const f of failures) console.warn(f.notebook, f.error);
+iframe.src = \`\${NB}/plots.html\`;                                           // its cells run there`;
+---
+
+<Docs
+  title="Notebooks"
+  description="The platform's notebook builder: Markdown notebooks and Observable Notebook Kit documents compiled to live pages inside a Durable Object, their npm imports served by the site. A working example with recorded results."
+>
+  <p class="font-mono text-xs uppercase tracking-wider text-primary">Builders · 5 of 5</p>
+  <h1>Notebooks: Markdown and Observable notebooks as live pages</h1>
+  <p>
+    A notebook is a document with code cells that run in the reader's browser and re-run when
+    what they read changes. The notebook builder takes Markdown notebooks and{" "}
+    <a href="https://github.com/observablehq/notebook-kit">Observable Notebook Kit</a> documents,
+    compiles each to a page inside a Durable Object, and serves the pages with the npm packages
+    their cells import.
+  </p>
+
+  <h2>What it is for</h2>
+  <ul>
+    <li>
+      <strong>Publishing notebooks as pages.</strong> Reports, dashboards and explainers whose
+      charts are computed in the page from data and code that sit next to them.
+    </li>
+    <li>
+      <strong>Writing them anywhere.</strong> The compiler runs in the object, so an editor in a
+      browser, a script or an agent only has to send files and ask for a build.
+    </li>
+    <li>
+      <strong>npm in cells with nothing to install.</strong> <code>import * as Plot from
+      "npm:@observablehq/plot"</code> works: the site serves the package as ESM.
+    </li>
+  </ul>
+
+  <h2>How it works</h2>
+  <Flow
+    steps={[
+      { label: "PUT · POST /import", detail: ".md and Notebook Kit .html files, and data files", kind: "client" },
+      { label: "POST /build", detail: "notebook-build compiles changed notebooks, with linkedom as its DOM" },
+      { label: "GET /nb/<site>/<page>.html", detail: "a page whose cells are modules for the notebook runtime" },
+      { label: "/nb/<site>/_m/…", detail: "the site's module server: npm: imports and the runtime", kind: "external" },
+    ]}
+    caption="One NotebookSite object per site. Its module server is webrun-modules, with packages from the platform's package store."
+  />
+  <ol>
+    <li>
+      <strong>Sources.</strong> A Markdown notebook is a <code>.md</code> file whose fenced{" "}
+      <code>js</code> blocks are cells. A Notebook Kit document is an HTML file with a{" "}
+      <code>&lt;notebook&gt;</code> element whose <code>&lt;script&gt;</code> elements are cells
+      (Markdown, JavaScript, and others).
+    </li>
+    <li>
+      <strong>A build in the object.</strong> <code>@statewalker/notebook-build</code> runs in
+      hosted mode inside <code>NotebookSite</code>, with linkedom standing in for a DOM. Each cell
+      becomes a function with the names it reads as inputs and the names it declares as outputs;
+      the runtime runs them in dependency order, not document order. A cell that does not compile
+      becomes an error shown in its place, so the page still builds. Builds are incremental: an
+      unchanged notebook is not compiled again.
+    </li>
+    <li>
+      <strong>Imports.</strong> <code>npm:d3</code> in a cell is resolved to a pinned URL under
+      the site's <code>_m/</code> path, served by the site's module server. The notebook runtime
+      and its styles come from there too, so a page needs nothing from another origin.
+    </li>
+  </ol>
+  <table>
+    <thead><tr><th>Request</th><th>Answer</th></tr></thead>
+    <tbody>
+      <tr><td><code>PUT /nb/&lt;site&gt;/files/&lt;path&gt;</code></td><td>writes a notebook or a data file</td></tr>
+      <tr><td><code>POST /nb/&lt;site&gt;/import</code></td><td>replaces the sources: a ZIP, or <code>{`{ files: { path: text } }`}</code></td></tr>
+      <tr><td><code>POST /nb/&lt;site&gt;/build</code></td><td><code>{`{ changed, failures, pages, ms }`}</code></td></tr>
+      <tr><td><code>GET /nb/&lt;site&gt;/&lt;page&gt;.html</code></td><td>a built page</td></tr>
+      <tr><td><code>GET /nb/&lt;site&gt;/_m/…</code></td><td>the modules the pages import</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Usage</h2>
+  <p>
+    The example is the platform's two demo notebooks: a Markdown notebook (with one cell broken on
+    purpose) and an Observable Notebook Kit document with an input, d3 and Observable Plot.
+  </p>
+  <Files
+    files={{ "plots.html": observable, "index.md": markdown }}
+    source={{ label: "examples/platform-demos/notebooks/", href: repoFile("examples/platform-demos/notebooks/plots.html") }}
+  />
+  <p>From a shell, in that folder:</p>
+  <CodeBlock
+    lang="sh"
+    code={`node -e 'const fs=require("fs");const files={};for(const p of process.argv.slice(1))files[p]=fs.readFileSync(p,"utf8");console.log(JSON.stringify({files}))' index.md plots.html \\
+  | curl -X POST -H 'content-type: application/json' --data-binary @- http://localhost:8787/nb/demo/import
+curl -X POST http://localhost:8787/nb/demo/build     # then open http://localhost:8787/nb/demo/plots.html`}
+  />
+  <p>From an editor, after each save:</p>
+  <CodeBlock lang="js" code={client} />
+
+  <h2>Results</h2>
+  <RecordedNote recorded={rec} />
+  <h3>The pages</h3>
+  <p>
+    Both notebooks were compiled in {f.buildMs} ms (request to answer). In Chromium their cells ran
+    with d3 and Plot from the site's module server:
+  </p>
+  <Shots shots={rec.shots} />
+  <h3>The requests</h3>
+  <Transcript steps={rec.steps} />
+
+  <h2>Limits</h2>
+  <ul>
+    <li>
+      The pages are static: cells run in the reader's browser, not on the server. A cell that
+      needs a secret or a database should call an API (a Worker next to the site) for it.
+    </li>
+    <li>
+      The first view of a page downloads and transforms its packages; later views and other pages
+      that import the same versions get them from the object's storage.
+    </li>
+  </ul>
+  <p>
+    API reference: <a href={docHref("packages/notebooks/README.md")}>Notebooks</a>. The notebooks
+    are also run on every host by <a href={docHref("examples/platform-demos/README.md")}>the
+    platform demos</a>.
+  </p>
+  <Pager slug="notebooks" />
+</Docs>

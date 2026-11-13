@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { cpSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +12,7 @@ import {
   sqliteObjectStore,
   startCelldPeerServer,
 } from "../src/node.js";
-import { freePort } from "../test/free-port.js";
+import { startCelldDev } from "../test/celld-dev.js";
 
 // A mixed fleet: a cellb node in Node speaks celld's peer protocol, so when it owns a
 // cell, celld ROUTES that cell's requests (fetch and JS RPC) to it through /peer/tunnel instead
@@ -20,20 +20,7 @@ import { freePort } from "../test/free-port.js";
 const CELLD = process.env.CELLD_BIN;
 const examples = join(__dirname, "../conformance/celld-examples");
 
-async function celldDev(dir: string) {
-  const port = await freePort();
-  const p = spawn(CELLD!, ["dev", ".", "--port", String(port), "--logs"], {
-    cwd: dir,
-    env: { ...process.env, PATH: `${process.env.ESBUILD_DIR ?? ""}:${process.env.PATH}` },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let log = "";
-  p.stdout!.on("data", (d) => (log += d));
-  p.stderr!.on("data", (d) => (log += d));
-  for (let i = 0; i < 150 && !log.includes("ready"); i++)
-    await new Promise((r) => setTimeout(r, 200));
-  return { p, base: `http://127.0.0.1:${port}`, log: () => log };
-}
+const celldDev = (dir: string) => startCelldDev(dir);
 const stop = (p: ChildProcess) =>
   new Promise<void>((r) => {
     if (p.exitCode !== null || p.signalCode !== null) return r();

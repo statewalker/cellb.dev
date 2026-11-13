@@ -1,5 +1,51 @@
 # @statewalker/cellb
 
+## 0.8.8
+
+### Patch Changes
+
+- 2292f58: node:sqlite driver: `restore()` loads the extensions loaded before (e.g. a cell's `sqlExtensions` such as `sqlite_vec`) into the new connection. A cell restored from a backup lost them: its first `vec_version()` failed with "no such function". SQL still cannot load a library by itself after a restore.
+  
+  An in-memory driver's `restore()` makes a directory for the database file; `close()` (or process exit) now removes it, where it was left in the temp directory. A connection whose extensions fail to load is closed before the error is thrown.
+
+## 0.8.7
+
+### Patch Changes
+
+- Release of the changes since the last published version:
+  
+  - exports changed
+
+## 0.8.6
+
+### Patch Changes
+
+- 3a64eff: While an async `ctx.storage.transaction()` is open, async storage writes from another event (`put`, `delete`, `deleteAll`, `setAlarm`, `deleteAlarm`) wait until it ends, as that event would on workerd. Before, they ran inside the transaction's savepoint, and its rollback undid them. Reads don't wait, so a transaction can still await a read another event started. A synchronous write from another event (`sql.exec`, `kv.put`) cannot wait; CellB warns about it once per object. Events are told apart through async context (Node, or engines with `AsyncContext`); elsewhere nothing changes.
+
+## 0.8.5
+
+### Patch Changes
+
+- b97e764: On a celld bucket, commits are logged from the WAL also for cells without a data directory. `nodeSqliteOpener(undefined, { pageCapture: true })` keeps each cell in a temporary file (not synced, removed when the cell closes or the process exits), so its commits' pages are read from the WAL instead of imaging and diffing the whole database per commit. `loadProject` on Node turns page capture on when its storage logs pages, and Node isolates' facets use it too. The runtime's own databases are never page-captured, and a captured database whose pages nobody reads keeps its WAL bounded.
+- 487d52c: An object's async `ctx.storage.transaction()` calls now run one after another, as on workerd. Before, two calls that had both passed the input gate could overlap. Each opened the same savepoint, so when one rolled back it also undid the other's writes.
+  
+  D1 hit this. Miniflare's D1 object reads each request's body before it starts the request's transaction, so concurrent queries overlapped. EmDash 1.5's first start then failed with `no such table: _emdash_migrations_lock`: a failing read rolled back the `CREATE TABLE` that a concurrent migration had just run.
+  
+  A `transaction()` awaited inside another transaction's closure nests, as on workerd, wherever async context is available (Node, and engines with `AsyncContext`). Elsewhere, in most browsers today, such a call waits forever: use the closure's `txn` argument there.
+
+## 0.8.4
+
+### Patch Changes
+
+- a4d8821: Only `nodejs_compat` and `nodejs_compat_v2` turn on Node.js compatibility, as in workerd and Wrangler. Before, any flag starting with `nodejs_compat` did, so a project with only `nodejs_compat_populate_process_env` got the Node.js modules and a filled `process.env` that workerd would not give it.
+
+## 0.8.3
+
+### Patch Changes
+
+- 44a9e41: A project with `nodejs_compat_populate_process_env` or `nodejs_compat_do_not_populate_process_env` is no longer told these flags are unsupported: every host already honours them when it fills `process.env`.
+- 52392b2: A browser runtime's OPFS pool (`sahpoolOpener`, used by `browserProjectRuntime`) grows ahead of its cells instead of once it is full. Each new slot is an OPFS file with a sync access handle, made one at a time, and in a busy worker each one takes seconds, about 5 s with 32 Flue conversations in one worker. Before, the pool counted only the files that already existed, so it did not see the journals open cells were about to create. Its background growth ran from a microtask that ran late under load. And a cell that found the pool full waited for it to double (64 more handles, minutes), which looked like a hang: 32 conversations in one worker stalled. Now an open cell counts its journal until it has one; every open (a failed one too) starts the background growth, which keeps two thirds of the pool free; a growth step asks for its 16 slots in parallel (about one slot's wait instead of sixteen); and a cell waiting for room waits for what was needed when it asked, not for later reservations.
+
 ## 0.8.2
 
 ### Patch Changes

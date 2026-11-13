@@ -1,6 +1,8 @@
 ---
-// Every notebook: prose blocks rendered when the page model was made, an empty root per code
-// cell, and one inline module script that imports notebook-kit's runtime and defines the cells.
+// Every notebook: prose blocks rendered when the page model was made (expressions as spans), an
+// empty root per code cell (its source under it for `echo`, in its place for `run=false`; `hidden`
+// keeps the root, so the cell runs, and hides it), and one
+// inline module script that imports notebook-kit's runtime and defines the cells.
 import { getLiveEntry } from "astro:content";
 import Notebook from "../layouts/Notebook.astro";
 
@@ -15,7 +17,14 @@ const page = entry.data;
     b.kind === "prose" ? (
       <div class="prose" set:html={b.html} />
     ) : (
-      <div id={`cell-${b.id}`} class="cell">{b.error && <pre class="cell-error">{b.error}</pre>}</div>
+      <div class="cell-block">
+        {b.run !== false && (
+          <div id={`cell-${b.id}`} class="cell" hidden={b.hidden}>{b.error && <pre class="cell-error">{b.error}</pre>}</div>
+        )}
+        {b.source !== undefined && (
+          <pre class="cell-source"><code class={`language-${b.mode}`}>{b.source}</code></pre>
+        )}
+      </div>
     ),
   )}
   <script type="module" is:inline set:html={page.script}></script>

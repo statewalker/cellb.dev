@@ -71,11 +71,18 @@ What the tests prove:
   `browser`, then the `module` and `main` fields.
 - **The opencode bundle is large** (about 430,000 lines), so its first load takes about half a
   minute.
+- **pi-ai 1.5 has to be imported from `@earendil-works/pi-ai/models`** for `createModels` and
+  `createProvider`. pi-ai 1.5 loads some modules with `import()` and marks most files side-effect
+  free, so esbuild (wrangler's bundler as well as CellB's) wraps `models.js` in a lazy initializer
+  that an import through the package's index never runs: `createModels()` then throws
+  `ModelsImpl is not a constructor`. pi-ai 1.5 also stopped re-exporting TypeBox's `Type`; the tool's
+  parameters are a plain JSON Schema now.
 
 ### Dependencies
 
 `@earendil-works/pi-agent-core` and `@earendil-works/pi-ai` (pi), `@opencode-ai/sdk` (pinned to the
-build celld's example uses); `@statewalker/cellb`, `@statewalker/fake-openai` and vitest for the
+build celld's example uses: only `0.0.0-dev-*` builds have the `workerd` SDK, none after
+`0.0.0-dev-19272`, and the 1.x releases do not); `@statewalker/cellb`, `@statewalker/fake-openai` and vitest for the
 tests.
 
 ## License

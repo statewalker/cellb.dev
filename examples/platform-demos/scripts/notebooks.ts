@@ -70,11 +70,19 @@ export async function notebooksDemo(host: string, base: string, t: Tools) {
       `pages ${res.pages}`,
     );
     assert(res.failures.length === 0, `failures ${JSON.stringify(res.failures)}`);
-    assert(res.models === 2, `${res.models} page models`);
+    assert(res.models === 3, `${res.models} page models`);
     assert(res.modelFailures.length === 0, `model failures ${JSON.stringify(res.modelFailures)}`);
     const page = await (await fetch(`${site}/plots.html`)).text();
     assert(page.includes("/nb/demo/_m/"), "the page does not import from the module server");
-    return `${res.pages.length} pages in ${res.ms} ms`;
+    const css = /<link rel="stylesheet" href="([^"]+)"/.exec(page)?.[1];
+    assert(css, "the page links no stylesheet");
+    const sheet = await fetch(new URL(css, site));
+    assert(sheet.ok, `stylesheet ${css}: ${sheet.status}`);
+    assert(
+      /text\/css/.test(sheet.headers.get("content-type") ?? ""),
+      `stylesheet ${css} is not CSS`,
+    );
+    return `${res.pages.length} pages in ${res.ms} ms; stylesheet ${css.replace(/^.*\/_m\//, "")}`;
   });
   if (!built) return;
   if (browserOn) await plainPagesInBrowser(host, site, t);
@@ -180,9 +188,51 @@ async function themedDemo(host: string, site: string, t: Tools) {
     },
   );
 
+  await check(
+    host,
+    "notebooks: echo, run=false and inline expressions in the themed page",
+    async () => {
+      const html = await (await fetch(`${site}/t/features`)).text();
+      // cells: the expression 1, the echo cell 2, the run=false cell 3
+      assert(html.includes('<span id="cell-1" class="expr"></span>'), "no span for the expression");
+      assert(html.includes('<div id="cell-2" class="cell">'), "no root for the echo cell");
+      assert(
+        html.includes(
+          '<pre class="cell-source"><code class="language-js">const answer = 6 * 7;</code></pre>',
+        ),
+        "the echo cell's source is not shown",
+      );
+      assert(!html.includes('id="cell-3"'), "the run=false cell has a root");
+      assert(html.includes("this cell must not run"), "the run=false cell's source is not shown");
+      assert(!/getElementById\("cell-3"\)/.test(html), "the run=false cell is defined");
+      return "the expression's span, the echo cell's source, the run=false cell shown and not defined";
+    },
+  );
+
   await exportDemo(host, site, t);
 
   if (!browserOn) return;
+  await check(host, "notebooks: an inline expression displays its value in Chromium", async () => {
+    const b = await playwright().chromium.launch(chromiumOptions());
+    try {
+      const page = await b.newPage();
+      const errors: string[] = [];
+      page.on("pageerror", (e: Error) => errors.push(e.message));
+      await page.goto(`${site}/t/features`);
+      await page.waitForFunction(
+        () => document.querySelector("#cell-1")?.textContent?.includes("42"),
+        null,
+        { timeout: 30000 },
+      );
+      const sentence = await page.textContent(".prose p");
+      assert(sentence?.includes("The answer is 42"), `sentence: ${sentence}`);
+      assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
+      return `"${sentence?.trim().slice(0, 60)}…", no page error`;
+    } finally {
+      await b.close();
+    }
+  });
+
   await check(host, "notebooks: the themed page's cells run in Chromium", async () => {
     const b = await playwright().chromium.launch(chromiumOptions());
     try {
@@ -201,7 +251,7 @@ async function themedDemo(host: string, site: string, t: Tools) {
       const dots = await page.$$eval("svg circle", (c: Element[]) => c.length);
       assert(dots === 60, `Plot drew ${dots} dots`);
       const nav = await page.$$eval(".site-nav a", (a: Element[]) => a.map((x) => x.textContent));
-      assert(nav.length === 2, `navigation: ${nav}`);
+      assert(nav.length === 3, `navigation: ${nav}`);
       assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
       // notebook-kit's built-ins (Inputs, htl) come from the site's module server, not esm.sh
       assert(offOrigin.length === 0, `off-origin requests: ${offOrigin.join("; ")}`);

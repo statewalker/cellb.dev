@@ -135,12 +135,19 @@ CORS preflights, since the worker's origin is the Vite server's) and a fresh OPF
   `dist/`.
 - **The browser test's Chromium** is `PW_CHROMIUM`, else Playwright's own, else the one
   `@sparticuz/chromium` unpacks (as in `packages/cellb`).
+- **The 32-conversation browser specs on one worker need cellb 0.8.3 or later.** 32
+  conversations need more than the worker's first 64 OPFS files. Older versions grew the pool
+  only once it was full, by doubling it, and in a busy worker each new file takes seconds, so a
+  conversation waited for minutes and the specs timed out. 0.8.3 grows it ahead of need
+  (`packages/cellb/src/adapters/wasm-sqlite.ts`), so the example's cellb range starts above it.
 - What CellB still lacks for Agents SDK apps is listed in [Gaps](../../packages/cellb/docs/gaps.md).
 
 ### Dependencies
 
 `@flue/runtime`, `@flue/vite` and `@flue/sdk` (pinned together, because the build and the client
-must agree), `@earendil-works/pi-ai` (Flue's model layer), `hono` (the app's router),
+must agree), `@earendil-works/pi-ai` (Flue's model layer, pinned to 1.4.0: Flue 2.3 imports
+`Type` from it, which pi-ai 1.5 no longer exports, so `examples/pnpm-workspace.yaml` keeps Flue's
+own pi-ai and pi-agent-core on 1.4.0 too, one copy for the app and Flue), `hono` (the app's router),
 `@cloudflare/vite-plugin` and `wrangler` (Flue's Cloudflare build), `@statewalker/cellb` (the
 runtime under test), `agents` (the plain Agents SDK app), `@statewalker/fake-openai` (the fake
 model), and `@playwright/test`, `@sparticuz/chromium` and `@sqlite.org/sqlite-wasm` (the browser

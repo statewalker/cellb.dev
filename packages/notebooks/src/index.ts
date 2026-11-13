@@ -178,9 +178,12 @@ export class NotebookSite extends DurableObject<PlatformEnv> {
     await ensureLightningCss();
     const moduleServer = this.moduleServer(site);
     const basePath = `/nb/${site}/_m/`;
+    // notebook-kit exports its stylesheets as `"./*.css": "./dist/src/styles/*.css"`: the subpath
+    // is `index.css`. The file's own path (`dist/src/styles/index.css`) went through that pattern
+    // too, and came out as `dist/src/styles/dist/src/styles/index.css`, a 404.
     const styles = await moduleServer.resolve({
       pkg: "@observablehq/notebook-kit",
-      subpath: "dist/src/styles/index.css",
+      subpath: "index.css",
     });
     const { document } = parseHTML("<!doctype html><html><head></head><body></body></html>");
     const changed: string[] = [];

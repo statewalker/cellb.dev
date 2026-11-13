@@ -80,14 +80,20 @@ jobs:
           pnpm --dir .. install --frozen-lockfile
           pnpm --dir ../packages/cellb pack --pack-destination "$RUNNER_TEMP"
           tarball=$(ls "$RUNNER_TEMP"/statewalker-cellb-*.tgz)
-          printf '\noverrides:\n  "@statewalker/cellb": "file:%s"\n' "$tarball" >> pnpm-workspace.yaml
+          # Right under the file's own `overrides:` when it has one, wherever that block is: a
+          # second `overrides:` key would make the YAML invalid.
+          if grep -q '^overrides:' pnpm-workspace.yaml; then
+            sed -i "/^overrides:/a\\  \"@statewalker/cellb\": \"file:$tarball\"" pnpm-workspace.yaml
+          else
+            printf '\noverrides:\n  "@statewalker/cellb": "file:%s"\n' "$tarball" >> pnpm-workspace.yaml
+          fi
           pnpm install --no-frozen-lockfile
           echo "cellb: $(node -p 'require("./emdash/node_modules/@statewalker/cellb/package.json").version') from $tarball"
 
       - name: Chromium
         if: matrix.browser
         working-directory: cellb.dev/examples/${{ matrix.dir }}
-        run: pnpm exec playwright install --with-deps chromium
+        run: bash ${{ github.workspace }}/cellb.dev/.github/scripts/install-chromium.sh pnpm exec playwright
       - name: Run
         working-directory: cellb.dev/examples/${{ matrix.dir || '.' }}
         run: ${{ matrix.run }}

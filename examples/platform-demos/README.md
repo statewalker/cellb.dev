@@ -12,7 +12,7 @@ these exercise the platform as it is in this checkout: they read its build
 | [`../emdash`](../emdash) | [EmDash](https://github.com/emdash-cms/emdash)'s `blog-cloudflare` template (D1, KV sessions, R2 media, cron, passkeys), the example next to this one | `astro build`, then the bundler: 758 files, 38.5 MB in, a 22.9 MB worker out, on the Node runner (or in the object on hosts without the 128 MB limit) |
 | `platform-astro`, from sources (`astro-src`) | the same app's sources alone, no `dist/` | built by the platform's port of the in-browser Astro builder of [`../astro-in-browser`](../astro-in-browser), in its object |
 | `emdash`, from sources (`emdash-src`) | EmDash's sources alone (28 files, 0.2 MB) | built by the same builder: on the Node runner by default, in the object with `--emdash-src-tier object` |
-| `notebooks/` | a Markdown notebook and an Observable Notebook Kit HTML document with Inputs, d3 and Observable Plot | sent as sources; compiled to pages in a `NotebookSite` object; their npm imports come from the site's module server. Then rendered by `packages/notebooks/theme`, an Astro theme the platform builds from its sources |
+| `notebooks/` | two Markdown notebooks (one using `echo`, `run=false` and an inline `${…}`) and an Observable Notebook Kit HTML document with Inputs, d3 and Observable Plot | sent as sources; compiled to pages in a `NotebookSite` object; their npm imports come from the site's module server. Then rendered by `packages/notebooks/theme`, an Astro theme the platform builds from its sources |
 
 ## How to use it
 
@@ -48,7 +48,7 @@ For each host, the platform is started on it, then for each demo:
   - the home page, a post, the RSS feed and the admin answer;
   - in Chromium, the home page links to the post and the post renders.
 - **notebooks**:
-  - both notebooks compile to pages with no failures, and the pages import from the site's
+  - the notebooks compile to pages with no failures, and the pages import from the site's
     module server;
   - in Chromium, Plot draws 60 dots and the summary cell runs;
   - changing the range input re-runs the dependent cells (100 points);
@@ -60,6 +60,9 @@ For each host, the platform is started on it, then for each demo:
     theme build;
   - in Chromium, the themed page's cells run (Plot draws 60 dots) and its navigation lists both
     notebooks;
+  - `/nb/demo/t/features` shows the `echo` cell's source and the `run=false` cell's source, the
+    latter neither compiled nor run, and has a span for the inline expression; in Chromium the
+    sentence reads "The answer is 42";
   - the themed page makes no request off the platform: notebook-kit's built-ins (`Inputs`, `htl`)
     come from the site's module server, not esm.sh;
   - the themed site is exported (`POST /nb/demo/export`) with both pages, every module the pins

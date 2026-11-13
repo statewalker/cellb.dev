@@ -1,0 +1,31 @@
+---
+import type { RecordedShot } from "@/builders/types";
+
+// Screenshots scripts/record-builders.ts took of what an example produced, and what it checked
+// on the page before taking them.
+interface Props {
+  shots: RecordedShot[];
+}
+
+const { shots } = Astro.props;
+---
+
+{shots.map((shot) => (
+  <figure class="not-prose my-6 overflow-hidden rounded-xl border bg-card shadow-xs">
+    <div class="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2">
+      <span class="size-2.5 rounded-full bg-foreground/15" />
+      <span class="size-2.5 rounded-full bg-foreground/15" />
+      <span class="size-2.5 rounded-full bg-foreground/15" />
+      <span class="ml-2 truncate font-mono text-xs text-muted-foreground">Chromium</span>
+    </div>
+    <img src={shot.src} alt={shot.alt} width={shot.width} height={shot.height} loading="lazy" class="block h-auto w-full bg-white" />
+    <figcaption class="border-t px-4 py-3 text-sm">
+      <p class="my-0 break-words text-foreground/90">{shot.caption}</p>
+      <ul class="mt-2 mb-0 list-none space-y-1 pl-0 text-muted-foreground">
+        {shot.checks.map((c) => (
+          <li class="flex gap-2"><span class="text-emerald-600 dark:text-emerald-400" aria-hidden="true">✓</span><span>{c}</span></li>
+        ))}
+      </ul>
+    </figcaption>
+  </figure>
+))}

@@ -289,7 +289,7 @@ const tools = [
   {
     icon: "cpu",
     title: "Astro builder",
-    body: "Astro sites built from their sources without Node or Vite: config and integrations, compiler-rs as WebAssembly, server and client bundles. EmDash's 225 routes build in a Durable Object; a small Astro app builds in your tab.",
+    body: "Astro sites built from their sources without Node or Vite: config and integrations, compiler-rs as WebAssembly, server and client bundles. EmDash's 227 routes build in a Durable Object; a small Astro app builds in your tab.",
     api: "POST /builds (an astro.config.* project)",
     href: docHref("packages/astro-builder/README.md"),
   },
@@ -608,7 +608,8 @@ const lifecycle = [
           </a>
         ))}
       </div>
-      <div class="mt-8">
+      <div class="mt-8 flex flex-wrap gap-3">
+        <Button href="/builders">Each builder, with a working example <Icon name="arrowRight" class="size-4" /></Button>
         <Button href="/docs/tools" variant="outline">How the tools work <Icon name="arrowRight" class="size-4" /></Button>
       </div>
     </div>
@@ -623,7 +624,7 @@ const lifecycle = [
           Large Cloudflare apps that CellB did not write, running in a tab
         </h2>
         <p class="text-muted-foreground">
-          The examples install CellB from npm as its users do (they pin 0.5.x today). A CI job, started by hand, also runs
+          The examples install CellB from npm as its users do (they use its current release). A CI job, started by hand, also runs
           them on CellB as the next release would publish it. Running them found gaps in CellB,
           which are now closed. The first two are published as{" "}
           <a href="/examples#live-demos" class="text-primary hover:underline">live demos</a>: open

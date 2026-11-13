@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>A chart from the ESM CDN</title>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Rainfall, by month</h1>
+      <p id="note">Loading Observable Plot from the platform…</p>
+      <div id="chart"></div>
+    </main>
+    <script type="module">
+      // Three npm packages, no install and no bundler: each URL is answered by the ESM CDN.
+      // A range redirects to a pinned version; the pinned modules are immutable.
+      import "http://localhost:8787/npm/browser/@picocss/pico@2/css/pico.min.css?module";
+      import * as Plot from "http://localhost:8787/npm/browser/@observablehq/plot@0.6";
+      import { csvParse } from "http://localhost:8787/npm/browser/d3-dsv@3";
+
+      const rows = csvParse(`month,mm
+Jan,78
+Feb,61
+Mar,55
+Apr,49
+May,57
+Jun,52
+Jul,63
+Aug,71
+Sep,66
+Oct,82
+Nov,90
+Dec,85`);
+
+      document.getElementById("chart").append(
+        Plot.plot({
+          height: 280,
+          marginLeft: 40,
+          x: { domain: rows.map((d) => d.month), label: null },
+          y: { grid: true, label: "mm" },
+          marks: [Plot.barY(rows, { x: "month", y: (d) => +d.mm, fill: "#7c3aed" }), Plot.ruleY([0])],
+        }),
+      );
+      document.getElementById("note").textContent =
+        `${rows.length} rows, parsed by d3-dsv and drawn by Observable Plot ${Plot.version}.`;
+    </script>
+  </body>
+</html>

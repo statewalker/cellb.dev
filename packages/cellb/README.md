@@ -171,7 +171,10 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 
 const dir = "./counter"; // wrangler.jsonc and its `main`
 const { runtime, unsupported } = await loadNodeProject(dir, {
-  openSql: nodeSqliteOpener(), // in memory: every cell is restored from the bucket on first use
+  // Every cell starts empty and is restored from the bucket on first use. pageCapture logs each
+  // commit's pages from the WAL (O(changed pages)) instead of imaging the whole database per
+  // commit; without a directory, cells live in temporary files removed when they close.
+  openSql: nodeSqliteOpener(undefined, { pageCapture: true }),
   files: new MemFilesApi(), // blob store for large KV values
   storage: celldBucket(sqliteObjectStore(`${dir}/.celld/dev/objects.sqlite3`), { node: "cellb-1" }),
 });

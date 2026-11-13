@@ -95,11 +95,6 @@ for (const conversations of [8, 32])
       const bundle = await bundleWorkerForBrowser(join(built, config.main), { nodeCompat: true });
       await page.goto("/");
       await page.waitForFunction(() => document.body.dataset.ready === "true");
-      const browser = page.context().browser()!;
-      await browser.startTracing(page, {
-        path: `/tmp/claude-0/trace-${conversations}.json`,
-        categories: ["disabled-by-default-v8.cpu_profiler", "v8"],
-      });
       const r = await page.evaluate((job) => (window as any).__runFlue(job), {
         config,
         bundle,
@@ -107,7 +102,6 @@ for (const conversations of [8, 32])
         scenario: "whoami",
         conversations,
       });
-      await browser.stopTracing();
       expect(r.ok, r.error).toBe(true);
       expect(r.problems).toEqual([]);
       expect(wrongIdentities(r.results)).toEqual([]);

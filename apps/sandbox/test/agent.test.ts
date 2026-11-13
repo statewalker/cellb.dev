@@ -315,9 +315,9 @@ describe("Flue agent client (the page holds the project's capabilities)", () => 
         llm: { api: "openai-completions", baseUrl: "http://m/v1", model: "m" },
       },
     });
-    expect((run?.body as { task: { instructions: string } }).task.instructions).toContain(
-      "<agents_md>",
-    );
+    expect(
+      (run?.body as { task: { instructions: string } } | undefined)?.task.instructions,
+    ).toContain("<agents_md>");
     expect(run?.headers?.["x-llm-token"]).toBeTruthy();
     expect(events.some((e) => e.type === "tool_call")).toBe(true);
   });

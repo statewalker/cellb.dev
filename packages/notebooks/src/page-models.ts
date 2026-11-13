@@ -4,33 +4,57 @@
  * (docs/notebook-runtime/options.md in statewalker-sandbox, Section 3): the theme never parses
  * Markdown or transpiles cells, it lays out prose blocks, cell roots and one module script.
  *
- * The stages are `@statewalker/notebook-build`'s: `parseMarkdown` or `parseNotebookHtml`
- * (Markdown or a Notebook Kit document → notebook-kit `Notebook`), `resolveNotebook` (`npm:` imports → URLs under the module server's base path) and
- * `transpileNotebook` (cells → `define()` definitions). Prose is rendered here with markdown-it,
- * headings get ids, and the outline is collected for a table of contents.
+ * A notebook becomes a document first (`portable-text.ts`): code cells and prose, the prose's
+ * `${…}` expressions taken out before any Markdown parsing. Cells and expressions are numbered and
+ * compiled with notebook-build's stages: `resolveNotebook` (`npm:` imports → URLs under the
+ * module server's base path) and `transpileNotebook` (cells → `define()` definitions). Prose is
+ * rendered from its Markdown with markdown-it (heading ids, an outline for a table of contents),
+ * and the document as Portable Text is kept in the model (`content`).
+ *
+ * What a fence's info string says (` ```js echo `, ` ```js run=false `,
+ * ` ```sql database=warehouse output=rows `) reaches the page: `echo` shows the source next to the
+ * output, `run=false` shows the source and does not run it, `hidden` runs it with its output hidden,
+ * `database`/`output` go to the SQL cell.
  */
+import { toNotebook } from "@observablehq/notebook-kit";
 import {
   type CellDefinition,
   type DomEnv,
   type ModuleResolver,
-  parseMarkdown,
   parseNotebookHtml,
   resolveNotebook,
   toModuleRef,
   transpileNotebook,
 } from "@statewalker/notebook-build";
 import type { FilesApi } from "@statewalker/webrun-files";
-import MarkdownIt from "markdown-it";
+import {
+  CODE_MODES,
+  type CodeCell,
+  markdownToDocument,
+  type NotebookDocument,
+  notebookToDocument,
+  numberCells,
+  type OutlineEntry,
+  type PtBlock,
+  renderProse,
+  toPortableText,
+} from "./portable-text.js";
 
-export interface OutlineEntry {
-  depth: number;
-  text: string;
-  slug: string;
-}
+export type { OutlineEntry } from "./portable-text.js";
 
 export type PageBlock =
   | { kind: "prose"; html: string }
-  | { kind: "cell"; id: number; error?: string };
+  | {
+      kind: "cell";
+      id: number;
+      error?: string;
+      /** The cell's source, when the page shows it: `echo`, or `run=false` (shown, not run). */
+      source?: string;
+      mode?: string;
+      run?: boolean;
+      /** `hidden`: the cell runs, its output is not shown. */
+      hidden?: boolean;
+    };
 
 export interface PageModel {
   /** The collection entry's id: the notebook's path without its extension (`index`, `guide/plots`). */
@@ -44,6 +68,8 @@ export interface PageModel {
   script: string;
   /** notebook-kit's stylesheet (inspector, cell output). */
   stylesUrl: string;
+  /** The notebook as Portable Text, cells and expressions numbered (`portable-text.ts`). */
+  content: PtBlock[];
 }
 
 export interface SiteModel {
@@ -63,34 +89,6 @@ export interface PageModels {
 }
 
 const RUNTIME_SPECIFIER = "npm:@observablehq/notebook-kit/runtime";
-/** The modes whose cells run in the page; the same set as notebook-build's `CODE_MODES`. */
-const CODE_MODES = new Set(["js", "ts", "ojs", "sql"]);
-
-const slugify = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "-")
-    .replace(/^-|-$/g, "");
-
-/** Renders a prose cell; its headings get ids and go into `outline`. */
-function renderProse(
-  md: InstanceType<typeof MarkdownIt>,
-  source: string,
-  outline: OutlineEntry[],
-  used: Set<string>,
-) {
-  const tokens = md.parse(source, {});
-  for (const [i, t] of tokens.entries()) {
-    if (t.type !== "heading_open") continue;
-    const text = tokens[i + 1]?.content ?? "";
-    let slug = slugify(text) || "section";
-    for (let n = 2; used.has(slug); n++) slug = `${slugify(text)}-${n}`;
-    used.add(slug);
-    t.attrSet("id", slug);
-    outline.push({ depth: Number(t.tag.slice(1)), text, slug });
-  }
-  return md.renderer.render(tokens, md.options, {});
-}
 
 /**
  * One `define()` call, as notebook-build's `renderPage` writes it (`renderDefineCall` in
@@ -105,6 +103,18 @@ function defineCall(cell: CellDefinition): string {
     `"inputs":${JSON.stringify(cell.inputs)},"outputs":${JSON.stringify(cell.outputs)},` +
     `${output}"autodisplay":${JSON.stringify(cell.autodisplay)}});`
   );
+}
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/**
+ * A cell that does not run in a page (`html`, `tex`, `dot`, `python`, …; see notebook-build's
+ * `CODE_MODES`) stays inert as notebook-build leaves it: `html` as its markup, the others as code.
+ */
+function inertCellHtml(cell: CodeCell): string {
+  if (cell.mode === "html") return cell.source;
+  return `<pre><code class="language-${escapeHtml(cell.mode)}">${escapeHtml(cell.source)}</code></pre>`;
 }
 
 async function* walk(files: FilesApi, dir: string): AsyncGenerator<string> {
@@ -130,6 +140,13 @@ async function readText(files: FilesApi, path: string): Promise<string> {
 const pagePath = (base: string, id: string) =>
   id === "index" ? `${base}/` : `${base}/${id.replace(/\/index$/, "")}`;
 
+/** A notebook's document: Markdown directly, a Notebook Kit document through notebook-build's parser. */
+function documentOf(file: string, text: string, dom: DomEnv): NotebookDocument {
+  return file.endsWith(".md")
+    ? markdownToDocument(text)
+    : notebookToDocument(parseNotebookHtml(text, dom));
+}
+
 /**
  * The models of every notebook (`.md`, or Notebook Kit `.html`) in `notebooks`. `base` prefixes
  * page paths (`/nb/<site>/t`); `dom` is what `parseNotebookHtml` needs (linkedom in an isolate).
@@ -145,7 +162,6 @@ export async function buildPageModels(opts: {
   const allPins: Record<string, string> = {};
   const allInputs = new Set<string>();
   const base = (opts.base ?? "").replace(/\/$/, "");
-  const md = new MarkdownIt({ html: true });
   const runtimeUrl = (await opts.moduleServer.resolve(toModuleRef(RUNTIME_SPECIFIER))).url;
   // The runtime is `<modules>/@observablehq/notebook-kit@<version>/dist/src/runtime/index.js`;
   // the stylesheet sits beside it in the same package.
@@ -167,31 +183,65 @@ export async function buildPageModels(opts: {
     }
     seen.add(id);
     try {
-      const text = await readText(opts.notebooks, file);
-      const nb = file.endsWith(".md") ? parseMarkdown(text) : parseNotebookHtml(text, opts.dom);
+      const doc = documentOf(file, await readText(opts.notebooks, file), opts.dom);
+      const { parts, cells: specs } = numberCells(doc);
+      // `run=false`: shown, not run, so not compiled either.
+      const notRun = new Set<number>();
+      for (const p of parts)
+        if (p.kind === "cell" && p.cell.attrs.run === false) notRun.add(p.cell.id);
+      const nb = toNotebook({
+        cells: specs.filter((c) => !notRun.has(c.id)) as never,
+        ...(doc.title ? { title: doc.title } : {}),
+      });
       const pins = await resolveNotebook(nb, { moduleServer: opts.moduleServer }, file);
       for (const [k, v] of pins) allPins[k] = v;
-      const cells = transpileNotebook(nb, pins);
-      for (const cell of cells) for (const name of cell.inputs) allInputs.add(name);
-      const source = new Map(nb.cells.map((c) => [c.id, c.value]));
+      const compiled = new Map(transpileNotebook(nb, pins).map((c) => [c.id, c]));
+      for (const cell of compiled.values()) for (const name of cell.inputs) allInputs.add(name);
+      // An expression that does not compile shows its error in its span, as a cell does in place.
+      const exprErrors = new Map<number, string>();
+      for (const p of parts)
+        if (p.kind === "prose")
+          for (const e of p.exprs) {
+            const error = compiled.get(e.id)?.error;
+            if (error !== undefined) exprErrors.set(e.id, error);
+          }
 
       const outline: OutlineEntry[] = [];
       const used = new Set<string>();
       const blocks: PageBlock[] = [];
       const defines: string[] = [];
-      for (const cell of cells) {
+      for (const part of parts) {
+        if (part.kind === "prose") {
+          blocks.push({ kind: "prose", html: renderProse(part, outline, used, exprErrors) });
+          for (const e of part.exprs) {
+            const def = compiled.get(e.id);
+            if (def && !def.error) defines.push(defineCall(def));
+          }
+          continue;
+        }
+        const cell = part.cell;
         if (!CODE_MODES.has(cell.mode)) {
-          blocks.push({
-            kind: "prose",
-            html: renderProse(md, source.get(cell.id) ?? "", outline, used),
-          });
-        } else if (cell.error) {
-          blocks.push({ kind: "cell", id: cell.id, error: cell.error });
-        } else {
-          blocks.push({ kind: "cell", id: cell.id });
-          defines.push(defineCall(cell));
+          blocks.push({ kind: "prose", html: inertCellHtml(cell) });
+          continue;
+        }
+        const id = cell.id;
+        const shown = cell.attrs.echo === true || notRun.has(id);
+        const view = {
+          ...(shown ? { source: cell.source, mode: cell.mode } : {}),
+          ...(cell.attrs.hidden === true ? { hidden: true } : {}),
+        };
+        if (notRun.has(id)) {
+          blocks.push({ kind: "cell", id, ...view, run: false });
+          continue;
+        }
+        const def = compiled.get(id);
+        if (def?.error) blocks.push({ kind: "cell", id, error: def.error, ...view });
+        else {
+          blocks.push({ kind: "cell", id, ...view });
+          if (def) defines.push(defineCall(def));
         }
       }
+      const content = toPortableText(parts);
       // A literal `</script` would end the inline script early; `<\/script` is the same string.
       const script = [`import {define} from "${runtimeUrl}";`, ...defines]
         .join("\n")
@@ -199,11 +249,12 @@ export async function buildPageModels(opts: {
       pages.push({
         id,
         path: pagePath(base, id),
-        title: nb.title || id,
+        title: doc.title || id,
         outline,
         blocks,
         script,
         stylesUrl,
+        content,
       });
     } catch (e) {
       failures.push({ notebook: file, error: String((e as Error)?.message ?? e) });
