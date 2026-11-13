@@ -107,7 +107,7 @@ test("the package cache is pruned and cleared from the host page", async ({ cont
   expect(cleared.size).toBe(0);
 
   // The rebuild downloads every package again (the store is empty) and serves the site.
-  await host.reload();
+  await host.goto("/__cellb/?rebuild");
   const log = await built(host);
   const downloads = Number(/package store: (\d+) packages downloaded/.exec(log)?.[1] ?? -1);
   expect(downloads).toBeGreaterThan(10);
