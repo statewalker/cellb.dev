@@ -74,8 +74,9 @@ does not support in `unsupported` instead of ignoring it. The hosts differ only 
   `env` and `exports` (the configuration's `vars` while the module is evaluated, the runtime's
   objects once it exists), as code built for Cloudflare reads them at top level; a loaded Worker's
   reads its own (its `WorkerCode.env`, and stubs of its own entrypoints), and gets the Workers
-  globals of its own compatibility flags, in its thread too; `cloudflare:email`
-  loads but cannot send; under `nodejs_compat`, bare built-in names (`path`) are Node's modules.
+  globals of its own compatibility flags, in its thread too, and `process`, `Buffer` and `node:*`
+  only with its own `nodejs_compat`; `cloudflare:email` loads but cannot send; under
+  `nodejs_compat`, bare built-in names (`path`) are Node's modules.
 - `browserProjectRuntime(opts)` imports a browser bundle or modules served by the in-browser HTTP
   server; loaded Workers run in Dedicated Workers. See [browser-host.md](browser-host.md).
 

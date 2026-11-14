@@ -10,13 +10,15 @@ import { builtinModules } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Worker as NodeWorker } from "node:worker_threads";
-import { build } from "esbuild";
+import { build, type PluginBuild } from "esbuild";
 import { applyD1Migrations } from "../bindings/d1-migrations.js";
 import {
   type LogSink,
   type ModuleLoader,
   moduleText,
+  nodeCompatOf,
   outboundFetch,
+  startFailure,
 } from "../bindings/worker-loader.js";
 import { ctxExports } from "../core/handles.js";
 import type { WorkerModule } from "../core/runtime.js";
@@ -52,6 +54,18 @@ const nodeBuiltinName = new RegExp(
 );
 
 /**
+ * nodejs_compat on a Node host: `node:*` are the real Node.js modules, and so are the bare names
+ * workerd's nodejs_compat also takes ("path", "fs/promises").
+ */
+function externalNodeModules(b: PluginBuild): void {
+  b.onResolve({ filter: /^node:/ }, (a) => ({ path: a.path, external: true }));
+  b.onResolve({ filter: nodeBuiltinName }, (a) => ({ path: `node:${a.path}`, external: true }));
+}
+
+/** Loaded code without nodejs_compat, as on workerd: no `process` or `Buffer` global. */
+const NO_NODE_GLOBALS = { process: "undefined", Buffer: "undefined" };
+
+/**
  * Node host: bundles `main` with esbuild (as `celld deploy` does) and builds the runtime.
  * `cloudflare:workers` resolves to cellb's module so user classes extend the
  * runtime's own DurableObject / WorkerEntrypoint.
@@ -61,7 +75,13 @@ export async function bundleWorker(
   entry: { path: string } | { modules: Record<string, string>; main: string },
   logs?: LogSink,
   outbound?: typeof fetch,
-  opts: { nodeCompat?: boolean; standardBinaryType?: boolean; scope?: WorkerScope } = {},
+  opts: {
+    nodeCompat?: boolean;
+    /** No `process` or `Buffer` either (a loaded Worker without nodejs_compat). */
+    noNodeGlobals?: boolean;
+    standardBinaryType?: boolean;
+    scope?: WorkerScope;
+  } = {},
 ): Promise<WorkerModule> {
   // `env` and `exports` of `cloudflare:workers` belong to one Worker: the bundle reads them
   // from its own scope (empty objects for code that has none).
@@ -125,6 +145,7 @@ export async function bundleWorker(
     platform: "neutral",
     target: "es2022",
     logLevel: "silent",
+    define: opts.noNodeGlobals ? NO_NODE_GLOBALS : undefined,
     inject: [
       resolve(import.meta.dirname, "workers-globals.ts"),
       ...(logs ? ["cellb:console"] : []),
@@ -138,15 +159,7 @@ export async function bundleWorker(
             path: "console",
             namespace: "cells-console",
           }));
-          // nodejs_compat on a Node host: `node:*` are the real Node.js modules.
-          if (opts.nodeCompat) {
-            b.onResolve({ filter: /^node:/ }, (a) => ({ path: a.path, external: true }));
-            // workerd's nodejs_compat also takes the bare names ("path", "fs/promises").
-            b.onResolve({ filter: nodeBuiltinName }, (a) => ({
-              path: `node:${a.path}`,
-              external: true,
-            }));
-          }
+          if (opts.nodeCompat) externalNodeModules(b);
           b.onResolve({ filter: /^cellb:compat$/ }, () => ({
             path: "compat",
             namespace: "cells-compat",
@@ -211,9 +224,14 @@ export const nodeModuleLoader: ModuleLoader = async (_id, code, logs) => {
   // `env` and `exports` of the loaded code's `cloudflare:workers` are its own (WorkerCode.env).
   const env = code.env ?? {};
   const scope = workerScope(env);
+  const nodeCompat = nodeCompatOf(code);
   const module = (await bundleWorker({ modules, main: code.mainModule }, logs, outbound, {
     scope,
+    nodeCompat,
+    noNodeGlobals: !nodeCompat,
     standardBinaryType: code.compatibilityFlags?.includes("websocket_standard_binary_type"),
+  }).catch((e) => {
+    throw startFailure(e.message);
   })) as Record<string, unknown>;
   scope.bind({ env, exports: ctxExports(module, env) });
   return module;
@@ -311,6 +329,7 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
       await isolateEntry;
       const modules: Record<string, string> = {};
       for (const [name, m] of Object.entries(code.modules)) modules[name] = moduleText(m);
+      const nodeCompat = nodeCompatOf(code);
       const out = await build({
         entryPoints: [`memory:${code.mainModule}`],
         write: false,
@@ -319,11 +338,13 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
         platform: "neutral",
         target: "es2022",
         logLevel: "silent",
+        define: nodeCompat ? undefined : NO_NODE_GLOBALS,
         inject: ["cells:globals"],
         plugins: [
           {
             name: "isolate-modules",
             setup(b) {
+              if (nodeCompat) externalNodeModules(b);
               b.onResolve({ filter: /^cells:globals$/ }, () => ({
                 path: "globals",
                 namespace: "cells-globals",
@@ -368,6 +389,8 @@ export function nodeIsolatedLoader(storage?: () => CellStorage | undefined): Mod
             },
           },
         ],
+      }).catch((e) => {
+        throw startFailure(e.message);
       });
       return { source: out.outputFiles[0].text };
     },

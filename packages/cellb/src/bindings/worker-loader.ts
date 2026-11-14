@@ -34,6 +34,14 @@ function checkFlags(code: WorkerCode): void {
     if (!LOADED_WORKER_FLAGS.has(f)) throw new Error(`No such compatibility flag: ${f}`);
 }
 
+/** nodejs_compat of a loaded Worker: on workerd it has `process`, `Buffer` and `node:*` only with it. */
+export const nodeCompatOf = (code: WorkerCode): boolean =>
+  !!code.compatibilityFlags?.some((f) => f.startsWith("nodejs_compat"));
+
+/** workerd's error when a loaded Worker's modules do not load (`No such module "node:fs"`…). */
+export const startFailure = (detail: string): Error =>
+  new Error(`Failed to start Worker:\n${detail}`);
+
 /** What `env.LOADER.get(id, () => code)` returns from its callback (workerd's WorkerCode). */
 export interface WorkerCode {
   compatibilityDate?: string;

@@ -67,7 +67,10 @@ code and builds the runtime from the wrangler configuration. The code is either:
 A loaded Worker's `cloudflare:workers` has its own `env` and `exports` (its `WorkerCode.env`, and
 stubs of its own entrypoints), except on a site without `isolateScript`. Its Workers globals
 (`Response`, `Request`, `WebSocketPair`, …) are cellb's, with `WebSocketPair` following its own
-`websocket_standard_binary_type`, wherever it runs.
+`websocket_standard_binary_type`, wherever it runs. Its `nodejs_compat` is its own in an
+isolate: `process`, `Buffer` and the `node:*` polyfills with the flag, `Failed to start Worker:`
+for a `node:*` import without it; in this worker's realm `process` and `Buffer` are the realm's
+([gaps.md](gaps.md)).
 With `isolateScript`, each loaded Worker runs in its own Dedicated Worker; without it, it runs in
 this worker's realm. The package ships that worker as `@statewalker/cellb/isolate-worker`; with
 Vite, `import isolateWorker from "@statewalker/cellb/isolate-worker?worker&url"` and pass

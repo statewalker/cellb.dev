@@ -1,0 +1,16 @@
+{
+  "workerd": "miniflare 4.20260730.0",
+  "transcript": [
+    {
+      "request": "GET /node-compat",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "none": "undefined",
+        "nodeCompat": "object",
+        "nodeImport": "Error: Failed to start Worker:",
+        "nodeImportCompat": "aGk="
+      }
+    }
+  ]
+}

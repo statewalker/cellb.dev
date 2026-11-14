@@ -2,7 +2,9 @@ import {
   type LogSink,
   type ModuleLoader,
   moduleText,
+  nodeCompatOf,
   outboundFetch,
+  startFailure,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
 import { ctxExports } from "../core/handles.js";
@@ -28,8 +30,9 @@ export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env 
  * module. `cloudflare:workers` resolves to a shim reading the runtime's own classes from
  * `globalThis.__cellsWorkersModule` and the loaded code's own `env` and `exports` (or to
  * `workersModuleShim`, the same for every load); relative imports resolve to the Blob URLs of
- * sibling modules; each module gets the Workers globals of the code's compatibility flags, and
- * with a log sink a module-scoped `console` (Tail Workers).
+ * sibling modules; `node:*` to the polyfills with nodejs_compat (`process` and `Buffer` are the
+ * realm's globals); each module gets the Workers globals of the code's compatibility flags,
+ * and with a log sink a module-scoped `console` (Tail Workers).
  */
 export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
   const blob = (text: string) => URL.createObjectURL(new Blob([text], { type: "text/javascript" }));
@@ -82,6 +85,26 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
       (g.__cellsOutbound as Record<string, unknown>)[key] = outbound;
       prelude += `const fetch = globalThis.__cellsOutbound[${JSON.stringify(key)}];\n`;
     }
+    // Loaded on demand: the npm `util` polyfill reads the `process` global when it is imported,
+    // which a realm has with nodejs_compat (an isolate's for its Worker, else the project's).
+    const nodeCompat = nodeCompatOf(code);
+    if (nodeCompat && !("process" in globalThis))
+      throw startFailure(
+        "nodejs_compat needs a realm with nodejs_compat: an isolate (isolateScript), or the project's with the flag",
+      );
+    const node = nodeCompat
+      ? (await import("../node-compat/browser-registry.js")).nodeRegistryEntries
+      : {};
+    const nodeUrl = (spec: string): string => {
+      const m = node[spec] as Record<string, unknown> | undefined;
+      if (!m || !spec.startsWith("node:")) throw startFailure(`No such module "${spec}".`);
+      const g = globalThis as Record<string, unknown>;
+      g.__cellsNodeModules = node;
+      const names = Object.keys(m).filter((k) => k !== "default" && /^[A-Za-z_$][\w$]*$/.test(k));
+      return blob(
+        `const m = globalThis.__cellsNodeModules[${JSON.stringify(spec)}]; export default "default" in m ? m.default : m; export const { ${names.join(", ")} } = m;`,
+      );
+    };
     const urls = new Map<string, string>();
     const source = (name: string) => {
       const m = code.modules[name];
@@ -96,6 +119,7 @@ export function browserModuleLoader(workersModuleShim?: string): ModuleLoader {
         /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g,
         (all, pre, q, spec: string) => {
           if (spec === "cloudflare:workers") return `${pre}${q}${shimUrl}${q}`;
+          if (spec.startsWith("node:")) return `${pre}${q}${nodeUrl(spec)}${q}`;
           if (spec.startsWith("./") || spec.startsWith("../"))
             return `${pre}${q}${urlOf(new URL(spec, `file:///${base}`).pathname.slice(1))}${q}`;
           return all;

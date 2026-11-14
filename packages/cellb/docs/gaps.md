@@ -14,7 +14,7 @@ from the celld golden, and turns red when it stops differing ([conformance.md](c
 | `wd-actor-fetch-rejection` | No global `addEventListener('unhandledrejection')` in Node; celld's own `assert` rethrows its `rejected: … [at …]` error. |
 | `wd-websocket-hibernation` | The other way round: celld fails this workerd test (`got `); cellb passes it, as workerd does. |
 | `wd-websocket-constructor-gaps` | The host's own classes: Node's `WebSocket` takes `'BLOB'` as `'blob'`, and Chromium's `CloseEvent` keeps lone surrogates in a close reason. |
-| `wd-worker-loader-gaps` | `WorkerCode.compatibilityFlags`; `abortIsolateDynamic*` do not build; `facets`: a facet started inside a loaded Worker's isolate from a class of the host (a `ctx.exports` class handle in its `env` or props) fails with `opts.cls is not a constructor`, because a class handle crosses into an isolate as a plain stub; `facetUafRegression` needs `gc()`. celld refuses `allowExperimental`, so most of these exports fail on celld as well. |
+| `wd-worker-loader-gaps` | `compatDateFlags`: cellb has no compatibility dates, so `WorkerCode.compatibilityDate` changes nothing (a `Request`'s `cache` option is accepted at any date, where workerd refuses it before 2024-11-11); `abortIsolateDynamic*` do not build; `facets`: a facet started inside a loaded Worker's isolate from a class of the host (a `ctx.exports` class handle in its `env` or props) fails with `opts.cls is not a constructor`, because a class handle crosses into an isolate as a plain stub; `facetUafRegression` needs `gc()`. celld refuses `allowExperimental`, so most of these exports fail on celld as well. |
 | `miniflare2-details-relative-url` | A stub's `fetch()` of a relative URL: celld passes it to the object, which fails on `new URL()`; cellb rejects at the stub, as workerd does. |
 
 ## Stubs pass by reference, as on workerd, except between nodes
@@ -71,6 +71,14 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   (`_v2`), `websocket_standard_binary_type`, and `enable_ctx_exports` and `experimental`, whose
   behaviour cellb always has. Any other flag in `WorkerCode.compatibilityFlags` fails the load
   with workerd's `No such compatibility flag: <flag>`, a flag workerd has but cellb lacks too.
+- **A browser gives a loaded Worker its own `nodejs_compat` only in an isolate.** On Node, and in
+  a browser isolate (`isolateScript`), a loaded Worker has `process`, `Buffer` and `node:*` with
+  the flag and not without it (`Failed to start Worker:` and `No such module "node:buffer".`), as
+  on workerd. Loaded into a browser bundle's realm, `node:*` follows the Worker's flag but
+  `process` and `Buffer` are the realm's globals, there with the project's `nodejs_compat`; a
+  Worker with the flag in a project without it fails to load (`Failed to start Worker:
+  nodejs_compat needs a realm with nodejs_compat: …`). On an in-browser site the module server
+  gives loaded code `process` and `node:*` whatever its flags.
 - **Workers AI is an OpenAI-compatible endpoint.** `env.AI.run()` serves text generation and
   embeddings through the host's `ai` endpoint, with Workers AI model ids mapped to its models;
   image, speech and classification models throw, and `options.gateway` (AI Gateway) is ignored.

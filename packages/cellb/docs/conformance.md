@@ -33,6 +33,7 @@ celld transcript is recorded too, so the difference stays on file, and it carrie
 | `worker-details-rpc-target` | returns an `RpcTarget` from a Durable Object method as a stub |
 | `worker-details-pipeline` | calls and property reads on a Durable Object stub call's result before it settles (`stub.target().inc()`, `stub.nested().inner.n`) |
 | `isolation-api-pipeline` | the same on a loaded Worker's entrypoint, and from loaded code on a host binding's `RpcTarget` result |
+| `worker-loader-flags-node-compat` | gives a loaded Worker `process` and `node:*` only with its `nodejs_compat` (celld always does) |
 | `worker-loader-flags-unknown` | refuses an unknown flag in a loaded Worker's `compatibilityFlags` (celld ignores it) |
 | `worker-loader-props` | starts a facet of a loaded class with `getDurableObjectClass(name, { props })`, a stub among the props |
 
@@ -72,6 +73,8 @@ differently. The workerd test configuration (`.wd-test`) is translated by hand i
 - **`knownGap`** marks a recorded celld behaviour cellb does not reproduce yet. In Node the scenario
   is expected to fail (`it.fails`): if cellb starts to match, the test turns red and the marker must
   go. Chromium skips it. The current list is in [gaps.md](gaps.md).
+- **`siteGap`** marks what an in-browser site does not reproduce while Node and a browser bundle
+  do: `site-projects.spec.ts` skips the scenario, the others run it. gaps.md says why.
 - **`workerdDiffers`** marks a project where workerd answers differently from celld.
   `conformance/record-workerd.ts` runs the scenarios that use only Durable Objects, `vars` and
   Worker Loaders on workerd through Miniflare 4 (the pinned `miniflare` devDependency), writes

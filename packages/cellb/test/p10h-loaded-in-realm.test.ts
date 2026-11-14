@@ -7,9 +7,11 @@ import { goldenDir, LOADED_IN_REALM, scenarios } from "../conformance/scenarios.
 import { loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
 // Conformance scenarios about loaded Workers (test/p09 runs them in isolates, one thread each)
-// with the loaded code in the project's realm instead: they must answer the same.
+// with the loaded code in the project's realm instead: they must answer the same. On Node a
+// loaded Worker's nodejs_compat is its own in the project's realm too (in a browser it is the
+// realm's: docs/gaps.md).
 describe("P10h loaded Workers in the project's realm", () => {
-  it.each(LOADED_IN_REALM)("%s", async (name) => {
+  it.each([...LOADED_IN_REALM, "worker-loader-flags-node-compat"])("%s", async (name) => {
     const s = scenarios[name];
     const { transcript } = JSON.parse(
       readFileSync(

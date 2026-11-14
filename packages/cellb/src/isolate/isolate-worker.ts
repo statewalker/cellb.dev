@@ -28,6 +28,9 @@ serveIsolate(
       error: (...a: unknown[]) => logs("error", a),
       debug: (...a: unknown[]) => logs("debug", a),
     });
+    // The realm is this one Worker's: nodejs_compat's `Buffer` and `process` are its globals.
+    if ((load.flags as string[]).some((f) => f.startsWith("nodejs_compat")))
+      (await import("../node-compat/install.js")).installNodeGlobals();
     if (load.url) {
       // A site's modules read `cloudflare:workers` and the Workers globals of this one Worker
       // from the realm's registry.

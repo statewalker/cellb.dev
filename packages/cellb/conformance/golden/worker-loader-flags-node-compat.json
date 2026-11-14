@@ -1,0 +1,16 @@
+{
+  "celld": "0.6.3",
+  "transcript": [
+    {
+      "request": "GET /node-compat",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "none": "object",
+        "nodeCompat": "object",
+        "nodeImport": "aGk=",
+        "nodeImportCompat": "aGk="
+      }
+    }
+  ]
+}

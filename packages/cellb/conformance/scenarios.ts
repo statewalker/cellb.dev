@@ -36,6 +36,8 @@ export interface Scenario {
   project?: string;
   /** A recorded celld behaviour cellb does not reproduce yet (tests expect a mismatch). */
   knownGap?: string;
+  /** What an in-browser site does not reproduce (e2e-browser/site-projects.spec.ts skips it). */
+  siteGap?: string;
   /** Why workerd (conformance/record-workerd.ts) answers differently from celld's golden. */
   workerdDiffers?: string;
   /**
@@ -366,6 +368,12 @@ export const scenarios: Record<string, Scenario> = {
     project: "worker-loader-flags",
     steps: [{ path: "/binary-type" }],
   },
+  "worker-loader-flags-node-compat": {
+    project: "worker-loader-flags",
+    steps: [{ path: "/node-compat" }],
+    judge: "workerd",
+    siteGap: "the site's module server gives loaded code process and node:* whatever its flags",
+  },
   "miniflare2-details": { steps: ["/storage", "/stub"].map((path) => ({ path })) },
   "queues-details": {
     steps: [{ path: "/validate" }, { path: "/send" }, { waitMs: 3500 }, { path: "/log" }],
@@ -500,7 +508,7 @@ scenarios["wd-worker-loader-gaps"] = {
   project: "wd-worker-loader",
   steps: [{ path: `/?skip=${WL_AGREE.join(",")}` }],
   knownGap:
-    "WorkerCode compatibilityFlags, abortIsolateDynamic builds, a host class as a facet inside an isolate, gc(); celld refuses allowExperimental and stub cloning",
+    "compatDateFlags (no compatibility dates: Request's cache option before 2024-11-11), abortIsolateDynamic builds, a host class as a facet inside an isolate, gc(); celld refuses allowExperimental and stub cloning",
 };
 scenarios["miniflare2-details-relative-url"] = {
   project: "miniflare2-details",
@@ -540,6 +548,8 @@ const workerdDiffers: Record<string, string> = {
     "workerd passes stubs into a loaded Worker; celld refuses to clone them",
   "worker-loader-flags-unknown":
     "workerd refuses a loaded Worker's unknown compatibility flag; celld ignores it",
+  "worker-loader-flags-node-compat":
+    "workerd gives a loaded Worker process and node:* only with nodejs_compat; celld always does",
   "worker-loader-props":
     "workerd passes a stub in a loaded class's props; celld refuses to clone it",
   "ws-details": "celld rejects with Error (workerd TypeError) and allows send() before accept()",
