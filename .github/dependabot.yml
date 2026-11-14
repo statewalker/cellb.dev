@@ -1,4 +1,4 @@
-# The statewalker convention (statewalker/.github README): weekly, ranges kept while new versions
+# The statewalker convention (statewalker/statewalker-ci README): weekly, ranges kept while new versions
 # fit them, versions younger than 3 days skipped, grouped pull requests merged by hand.
 # Two npm workspaces: cellb's (/) and the examples' (/examples). A new @statewalker/cellb
 # release reaches the examples through the /examples group: the pull request runs them on it.
