@@ -409,7 +409,10 @@ the repository root); without one, the release planner (statewalker/statewalker-
 On every push to `main`, after the `cellb` checks pass:
 
 1. `version` applies the pending changesets in a "chore: version packages" pull request
-   (versions, `CHANGELOG.md`). It never publishes.
+   (versions, `CHANGELOG.md`). It never publishes. It opens the pull request with the
+   `statewalker-release` GitHub App's token (organization variable `RELEASE_APP_CLIENT_ID`,
+   secret `RELEASE_APP_KEY`), not `GITHUB_TOKEN`, so the checks run on it: GitHub does not run
+   CI on what `GITHUB_TOKEN` pushes until a maintainer approves the run.
 2. Once that pull request is merged, `pack` packs every public package whose version npm lacks
    (`pnpm pack`: `prepack` builds `dist/`, and `catalog:` ranges are resolved).
 3. `publish` waits for a maintainer's approval (the `npm` GitHub environment), then publishes
