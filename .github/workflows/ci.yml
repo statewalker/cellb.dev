@@ -93,6 +93,23 @@ jobs:
   # version is published by hand, with the maintainer's 2FA, before the version pull request
   # that releases it merges; `pack` or `publish` then skips it.
 
+  # The lockfile-only pull request that .github/workflows/statewalker-update.yml opens: merged
+  # once every other check on it passes (interop.yml and site.yml included; examples.yml runs by hand only), after checking it
+  # changes pnpm-lock.yaml alone (statewalker/statewalker-ci's merge-lockfile.yml;
+  # statewalker-root docs/process/merging.md).
+  lockfile:
+    needs: [cellb, platform]
+    # !cancelled(): also after a failed check job, so the pull request gets a comment saying why.
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.head_ref == 'deps/statewalker-lockfile' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      statuses: read
+      actions: read
+    uses: statewalker/statewalker-ci/.github/workflows/merge-lockfile.yml@main
+    secrets: inherit
+
   # Writes the changesets nobody wrote by hand (statewalker/statewalker-ci's
   # scripts/release-changesets.mjs: a patch for every package whose packed files or published
   # manifest differ from npm's `latest`, a minor (0.x) / major when a dependency moved to another
