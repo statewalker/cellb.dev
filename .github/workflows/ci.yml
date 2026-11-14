@@ -12,14 +12,11 @@ on:
   workflow_dispatch:
 
 # A newer push cancels a pull request's run. Every other run (a push to main, a manual run) has a
-# group of its own and finishes: a release is never cut short, and a run whose `publish` waits for
-# approval holds up no later run. (With one group for main, that waiting run kept every later push
-# pending, and each new push cancelled the one before.) Only `version` has a group of its own
+# group of its own and finishes: a release is never cut short, and a slow run holds up no later
+# run. Only `version` has a group of its own
 # (`release-<repository>`: one runs at a time, and a newer waiting one replaces an older one);
 # `pack` and `publish` of several runs may overlap. A version already on npm is skipped, and an
-# older one never takes `latest` (see `publish`). Two runs can still hold the same version packed
-# from different commits: approve the oldest waiting `publish` first, so a version is published
-# from the commit that released it.
+# older one never takes `latest` (see `publish`).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -82,17 +79,19 @@ jobs:
           pnpm run build:browser
 
   # Releases to npm in three jobs: `version` opens the version pull request, `pack` packs what
-  # npm lacks once it is merged, `publish` uploads the tarballs after a maintainer approves.
+  # npm lacks once it is merged, `publish` uploads the tarballs. Nobody approves the upload:
+  # merging the version pull request is the release decision.
   #
   # No npm token is stored in GitHub: `publish` authenticates with trusted publishing (OIDC),
   # and its provenance attestation ties each tarball to this commit. npm's trusted publishers
-  # name this file (ci.yml) and the `npm` environment, so a run that skips the approval cannot
-  # publish. Only `publish` may request an identity token, and it never checks out, installs or
-  # builds: no build tool or dependency runs where a publish token can be obtained.
+  # name this file (ci.yml) and the `npm` environment, which admits only `main`, so a run from
+  # another branch cannot publish. Only `publish` may request an identity token, and it never
+  # checks out, installs or builds: no build tool or dependency runs where a publish token can
+  # be obtained.
   #
   # A trusted publisher can only be added to a package that exists, so a package's first
-  # version is published by hand, with the maintainer's 2FA, before `publish` is approved; `pack`
-  # or `publish` then skips it.
+  # version is published by hand, with the maintainer's 2FA, before the version pull request
+  # that releases it merges; `pack` or `publish` then skips it.
 
   # Writes the changesets nobody wrote by hand (statewalker/statewalker-ci's
   # scripts/release-changesets.mjs: a patch for every package whose packed files or published
@@ -212,8 +211,8 @@ jobs:
           name: packages
           path: ${{ runner.temp }}/out/*.tgz
 
-  # Waits for a maintainer's approval (the `npm` environment), then publishes the tarballs packed
-  # above with OIDC and tags each one as a GitHub release.
+  # Runs in the `npm` environment (only `main`, no approval) and publishes the tarballs packed
+  # above with OIDC, tagging each one as a GitHub release.
   publish:
     needs: pack
     if: needs.pack.outputs.any == 'true'
@@ -238,9 +237,9 @@ jobs:
           name: packages
           path: packages
 
-      # Skips a version already on npm: a first version published by hand while this job waited
-      # for approval, or what an earlier attempt of a re-run job published. A version older than
-      # npm's `latest` (an old run approved after a newer release) is published under the
+      # Skips a version already on npm: a first version published by hand after the tarballs were
+      # packed, or what an earlier attempt of a re-run job published. A version older than
+      # npm's `latest` (an old run re-run after a newer release) is published under the
       # `backport` dist-tag, and a prerelease under `next`, so `latest` never moves backwards.
       # Only npm's "not found" (E404) counts as no `latest`; any other failure to read it stops
       # the step rather than publish blind.
