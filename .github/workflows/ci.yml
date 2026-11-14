@@ -99,7 +99,7 @@ jobs:
   # statewalker-root docs/process/merging.md).
   lockfile:
     needs: [cellb, platform]
-    if: github.event_name == 'pull_request' && github.head_ref == 'deps/statewalker-lockfile'
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.head_ref == 'deps/statewalker-lockfile' }}
     permissions:
       contents: read
       pull-requests: read
