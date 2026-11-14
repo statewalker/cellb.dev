@@ -404,7 +404,7 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 
 Releases are made by CI, the same pipeline as the other statewalker monorepos
 (`.github/workflows/ci.yml`). A change to the package carries a changeset (`pnpm changeset` at
-the repository root); without one, the release planner (statewalker/.github's
+the repository root); without one, the release planner (statewalker/statewalker-ci's
 `scripts/release-changesets.mjs`) writes a patch for a package whose published contents changed.
 On every push to `main`, after the `cellb` checks pass:
 
