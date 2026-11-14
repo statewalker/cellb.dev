@@ -292,3 +292,14 @@ jobs:
             gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && continue
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --notes "Published to npm."
           done
+
+  # What this run published reaches the other repositories of the statewalker-release App's
+  # installation as a `statewalker-published` dispatch; each dependent then moves its lockfile
+  # within its ranges (statewalker/statewalker-ci's notify-dependents.yml, which reads the
+  # published tarballs from the `packages` artifact). Also after a partly failed publish.
+  notify:
+    needs: publish
+    if: ${{ !cancelled() && needs.publish.result != 'skipped' }}
+    permissions: {}
+    uses: statewalker/statewalker-ci/.github/workflows/notify-dependents.yml@main
+    secrets: inherit
