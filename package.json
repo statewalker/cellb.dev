@@ -21,9 +21,11 @@
     "build": "pnpm --filter \"./packages/*\" --filter \"!./packages/platform\" run build",
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
+    "typecheck:tests": "tsc -p examples/agents && tsc -p examples/fake-openai && tsc -p examples/flue && tsc -p examples/emdash/tsconfig.test.json && tsc -p examples/astro-in-browser/tsconfig.test.json",
     "lint": "biome check --write .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
+    "format:check": "biome format .",
     "changeset": "changeset"
   },
   "devDependencies": {

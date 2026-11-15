@@ -52,11 +52,12 @@ jobs:
   # The statewalker CI baseline checks this repository's own CI does not run otherwise, taken from
   # statewalker/statewalker-ci as its shared ci.yml runs them: the secret scan (gitleaks over the
   # files and the commits of the pull request, before the install; false positives in
-  # .gitleaks.toml), the release path (no publish step outside `publish` below), and publint +
-  # attw on every packed public package.
+  # .gitleaks.toml), the release path (no publish step outside `publish` below), the required
+  # baseline (root scripts, every test typechecked, the whole workspace and the examples' tests
+  # typechecked), and publint + attw on every packed public package.
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       # The secret scan reads the commits of the pull request (or push): it needs their history.
       - uses: actions/checkout@v7
@@ -89,6 +90,20 @@ jobs:
         run: pnpm install --frozen-lockfile --dir "$RUNNER_TEMP/statewalker-ci"
       - name: Release path
         run: node "$RUNNER_TEMP/statewalker-ci/scripts/check-release-path.mjs"
+      # The examples are a workspace of their own (on cellb from npm); root `typecheck:tests`
+      # compiles their tests, so their dependencies must be there.
+      - name: Install the examples
+        run: pnpm --dir examples install --frozen-lockfile
+      # The required baseline (`library`): lint:check, format:check, build, typecheck and test
+      # exist at the root and run something, and every TypeScript test file is typechecked.
+      - name: Required scripts and typechecked tests
+        run: node "$RUNNER_TEMP/statewalker-ci/scripts/check-scripts.mjs" library
+      - name: Format
+        run: pnpm run format:check
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Typecheck tests
+        run: pnpm run typecheck:tests
       - name: Build
         run: pnpm run build
       - name: publint and attw

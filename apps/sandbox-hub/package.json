@@ -7,6 +7,7 @@
   "description": "The hub of a CellB sandbox mesh (HTTPeers): a local Node app that holds the mesh's identity, mints invitations, and reserves on a public relay; plus a bridge that gives a desktop agent a published sandbox's MCP endpoint.",
   "scripts": {
     "start": "tsx src/main.ts start",
+    "typecheck": "tsc --noEmit",
     "invite": "tsx src/main.ts invite",
     "members": "tsx src/main.ts members",
     "bridge": "tsx src/bridge.ts",

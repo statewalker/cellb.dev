@@ -13,6 +13,7 @@
     "build": "tsx scripts/build-examples.ts && astro build && node scripts/build-sandbox.mjs && node scripts/compress.mjs",
     "sandbox": "node scripts/build-sandbox.mjs",
     "preview": "astro preview",
+    "typecheck": "tsx scripts/build-examples.ts && astro sync && tsc --noEmit",
     "check:examples": "node scripts/check-examples.mjs",
     "check:snippets": "node scripts/check-snippets.mjs",
     "record:builders": "tsx scripts/record-builders.ts"
