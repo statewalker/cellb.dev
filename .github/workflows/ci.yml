@@ -54,7 +54,7 @@ jobs:
   # files and the commits of the pull request, before the install; false positives in
   # .gitleaks.toml), the release path (no publish step outside `publish` below), the required
   # baseline (root scripts, every test typechecked, the whole workspace and the examples' tests
-  # typechecked), and publint + attw on every packed public package.
+  # typechecked), publint + attw on every packed public package, and the API diff against npm.
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -85,7 +85,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # publint, attw and yaml (release path), pinned by statewalker-ci's lockfile.
+      # publint, attw, TypeScript (API diff) and yaml (release path), pinned by statewalker-ci's
+      # lockfile.
       - name: Install the check tools
         run: pnpm install --frozen-lockfile --dir "$RUNNER_TEMP/statewalker-ci"
       - name: Release path
@@ -108,6 +109,11 @@ jobs:
         run: pnpm run build
       - name: publint and attw
         run: node "$RUNNER_TEMP/statewalker-ci/scripts/check-package-tools.mjs" --attw-profile esm-only
+      # Each public package's declarations against npm's `latest`: a breaking change (an entry
+      # point, export or public member removed) fails unless a changeset or the version declares
+      # the bump it needs (minor on 0.x).
+      - name: API diff against npm
+        run: node "$RUNNER_TEMP/statewalker-ci/scripts/check-api-diff.mjs"
 
   # The platform packages (packages/platform*, esm-cdn, bundler, astro-builder, notebooks): lint,
   # typecheck, unit tests and the per-host builds. Their end-to-end checks need celld, wrangler
