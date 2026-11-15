@@ -1,0 +1,14 @@
+# gitleaks configuration for the secret scan in CI (statewalker/statewalker-ci's check-secrets.mjs).
+# The default rules apply; each allowlist entry below says why its match is not a secret.
+
+[extend]
+useDefault = true
+
+# packages/cellb/scripts/interop-env.sh starts a throwaway RustFS on 127.0.0.1 for the interop
+# tests and creates a bucket with the credentials it just gave that server (RUSTFS_ACCESS_KEY /
+# RUSTFS_SECRET_KEY a few lines above). They guard nothing outside the test run.
+[[allowlists]]
+description = "local RustFS test credentials in interop-env.sh"
+condition = "AND"
+paths = ['''^packages/cellb/scripts/interop-env\.sh$''']
+regexes = ['''rustfsadmin:rustfssecret''']
