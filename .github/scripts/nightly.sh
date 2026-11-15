@@ -40,12 +40,15 @@ suite "examples: install" bash -ec '
   done' _ "$root"
 suite "examples: flue in tabs" bash -ec 'cd "$1/examples/flue" && pnpm test:browser' _ "$root"
 suite "examples: emdash static build" bash -ec 'cd "$1/examples/emdash" && pnpm test:browser' _ "$root"
-# As examples.yml's two in-tab jobs run them.
+# As examples.yml's two in-tab jobs run them, plus the specs those jobs leave out.
 aib() { suite "examples: astro-in-browser $1" bash -ec 'cd "$1/examples/astro-in-browser"; shift; "$@"' _ "$root" "${@:2}"; }
 aib "build in the tab" pnpm exec playwright test test/browser/pkgstore-probe.spec.ts test/browser/build-in-browser.spec.ts test/browser/cells-lab.spec.ts
 aib "emdash in the tab" pnpm exec playwright test test/browser/emdash-in-browser.spec.ts
 aib "emdash in the tab, in memory" env EMDASH_STORE=0 pnpm exec playwright test test/browser/emdash-in-browser.spec.ts
 aib "emdash admin in the tab" pnpm exec playwright test test/browser/emdash-admin-in-browser.spec.ts
+# Specs no workflow ran before: the package cache's clean-up and the chooser with saved builds.
+# The *-probe specs are measurements run by hand, not checks.
+aib "package cache and start page" pnpm exec playwright test test/browser/package-cache.spec.ts test/browser/start-page.spec.ts
 
 suite "platform: e2e on wrangler, celld, cellb" bash -ec '
   cd "$1/packages/platform"
