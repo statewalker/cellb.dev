@@ -1,5 +1,11 @@
 # @statewalker/cellb
 
+## 0.9.2
+
+### Patch Changes
+
+- d3aa0a5: `installProjectRouter(self)` typechecks with TypeScript's WebWorker lib: `ServiceWorkerScope.addEventListener` takes a listener of `Event` instead of `never`, which a real `ServiceWorkerGlobalScope` was not assignable to.
+
 ## 0.9.1
 
 ### Patch Changes
