@@ -10,4 +10,5 @@ breaking lines: webrun-rpc's port wire changed across them, so a page hosting si
 must serve the ServiceWorker script (`/sw-worker.js`) from `@statewalker/webrun-http-browser`
 0.17 too. No API change in cellb. An error a loaded Worker's `fetch` throws in its isolate still
 reaches the caller with the stack where it was thrown (webrun-http-streams 0.6 leaves it out of
-its error header unless asked).
+its error header unless asked); an error of the host's `globalOutbound` Fetcher now reaches the
+loaded code without the host's stack.
