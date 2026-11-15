@@ -1,0 +1,27 @@
+name: Nightly
+
+# The suites no pull request waits on (statewalker/statewalker-ci's nightly.yml): root
+# `test:nightly` (.github/scripts/nightly.sh) runs cellb's whole e2e-browser suite against celld
+# and RustFS, the examples' browser suites on cellb as released, and the platform's end-to-end
+# checks on Wrangler, celld, CellB in Node and in a Chromium tab, each to the end even when one
+# fails. A failure opens one `bug` + `ci-baseline` issue here; later failures comment on it while
+# it is open.
+
+on:
+  schedule:
+    - cron: "37 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  nightly:
+    uses: statewalker/statewalker-ci/.github/workflows/nightly.yml@main
+    with:
+      node-version: "24"
+      timeout-minutes: 180
+      setup: |
+        bash .github/scripts/install-chromium.sh pnpm --filter @statewalker/cellb exec playwright
+        bash .github/scripts/install-chromium.sh pnpm --filter @statewalker/cellb-platform exec playwright
