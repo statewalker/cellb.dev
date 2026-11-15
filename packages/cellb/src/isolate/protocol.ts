@@ -118,7 +118,7 @@ export function isolatePort(
       const m = meta as { kind?: string; target: FetchTarget; url: string; id: number } | undefined;
       if (m?.kind === "body") return bodies.serve(p, m.id);
       if (m?.kind === "fetch") {
-        serveFetch(p, m.url, (r) => fetch(m.target, r));
+        serveFetch(p, m.url, (r) => fetch(m.target, r), true);
         return true;
       }
       if (m?.kind === "upgrade") {
@@ -147,11 +147,23 @@ function fetchOver(mux: PortMux, meta: object, req: Request): Promise<Response> 
   );
 }
 
-/** Serves the fetch on port `p` (its URL from the meta) with `fetch`. */
-function serveFetch(p: MessageTarget, url: string, fetch: (req: Request) => Promise<Response>) {
+/**
+ * Serves the fetch on port `p` (its URL from the meta) with `fetch`. An error crosses with its
+ * own properties; with its stack only when `includeErrorStack` (webrun-http-streams leaves it
+ * out of the error header by default). The isolate sets it, so the host sees where loaded code
+ * threw; the host does not, so loaded code never sees the host's frames and file paths.
+ */
+function serveFetch(
+  p: MessageTarget,
+  url: string,
+  fetch: (req: Request) => Promise<Response>,
+  includeErrorStack = false,
+) {
   serveDuplexOverPort(
     p,
-    serveFetchOverDuplex((req) => withUrl(req, url).then(fetch).catch(throwOwn)),
+    serveFetchOverDuplex((req) => withUrl(req, url).then(fetch).catch(throwOwn), {
+      includeErrorStack,
+    }),
   );
 }
 
