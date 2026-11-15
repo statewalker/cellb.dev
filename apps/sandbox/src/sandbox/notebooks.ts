@@ -43,13 +43,13 @@ export function createNotebookSite(opts: NotebookSiteOptions) {
     const t0 = performance.now();
     const base = `${opts.sitePath().replace(/\/?$/, "/")}notebooks${MODULES}`;
     const moduleServer = newModuleServer({ cache: opts.cache, basePath: base, target: "browser" });
-    const styles = await moduleServer.resolve({
+    // notebook-kit exports its stylesheets as `"./*.css": "./dist/src/styles/*.css"`: the subpath
+    // is `index.css`. The file's own path went through that pattern too and came out doubled
+    // (`dist/src/styles/dist/src/styles/index.css`), which webrun-modules 0.4 refuses.
+    const { url: stylesUrl } = await moduleServer.resolve({
       pkg: "@observablehq/notebook-kit",
-      subpath: "dist/src/styles/index.css",
+      subpath: "index.css",
     });
-    // webrun-modules 0.3 repeats a subpath in a resolved URL (…/dist/src/styles/dist/src/styles/…).
-    const subpath = "dist/src/styles/";
-    const stylesUrl = styles.url.replace(`/${subpath}${subpath}`, `/${subpath}`);
     const notebooks = new MemFilesApi();
     for (const [path, bytes] of opts.files) await notebooks.write(path, [bytes]);
     const output = new MemFilesApi();
@@ -132,12 +132,11 @@ export async function exportNotebooks(
 ): Promise<ProjectFiles> {
   const base = `${NOTEBOOKS_DIR}${MODULES}`;
   const moduleServer = newModuleServer({ cache, basePath: base, target: "browser" });
-  const styles = await moduleServer.resolve({
+  // The exported subpath, not the file's own path (see above).
+  const { url: stylesUrl } = await moduleServer.resolve({
     pkg: "@observablehq/notebook-kit",
-    subpath: "dist/src/styles/index.css",
+    subpath: "index.css",
   });
-  const subpath = "dist/src/styles/";
-  const stylesUrl = styles.url.replace(`/${subpath}${subpath}`, `/${subpath}`);
   const notebooks = new MemFilesApi();
   for (const [path, bytes] of files) await notebooks.write(path, [bytes]);
   const output = new MemFilesApi();

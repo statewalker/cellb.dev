@@ -26,7 +26,7 @@
     "@statewalker/cellb-esm-cdn": "workspace:*",
     "@statewalker/cellb-platform-core": "workspace:*",
     "@statewalker/notebook-build": "catalog:",
-    "@statewalker/notebook-db": "^0.1.1",
+    "@statewalker/notebook-db": "^0.2.0",
     "@statewalker/notebook-site": "catalog:",
     "@statewalker/webrun-builder": "catalog:",
     "@statewalker/webrun-files": "catalog:",
