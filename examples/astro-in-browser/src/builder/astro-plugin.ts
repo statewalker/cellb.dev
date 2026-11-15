@@ -17,7 +17,13 @@ export type AstroTransform = (
   diagnostics: { severity: unknown; text: string }[];
   containsHead?: boolean;
   propagation?: boolean;
+  scripts?: { type: string; code?: string }[];
+  hydratedComponents?: AstroComponentRef[];
+  clientOnlyComponents?: AstroComponentRef[];
 };
+
+/** An island the compiler found in a component (`resolvedPath` once `resolvePath` ran). */
+type AstroComponentRef = { specifier: string; resolvedPath?: string };
 
 /** Compiles one `.astro` file as Astro's Vite plugin does (`id`: its file id). */
 export function compileAstro(transform: AstroTransform, id: string, source: string) {

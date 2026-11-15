@@ -289,7 +289,9 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
 export interface ServiceWorkerScope {
   readonly location: { readonly origin: string };
   readonly clients: unknown;
-  addEventListener(type: string, listener: (event: never) => unknown): void;
+  // `Event`, not `never`: a real ServiceWorkerGlobalScope's listener overloads take events, and
+  // TypeScript refuses to assign them to a listener of `never`.
+  addEventListener(type: string, listener: (event: Event) => unknown): void;
 }
 
 /**
