@@ -147,11 +147,17 @@ function fetchOver(mux: PortMux, meta: object, req: Request): Promise<Response> 
   );
 }
 
-/** Serves the fetch on port `p` (its URL from the meta) with `fetch`. */
+/**
+ * Serves the fetch on port `p` (its URL from the meta) with `fetch`. Both ends are this
+ * runtime's own, so an error crosses with its stack (`includeErrorStack`: webrun-http-streams
+ * leaves it out of the error header by default, for peers it does not trust).
+ */
 function serveFetch(p: MessageTarget, url: string, fetch: (req: Request) => Promise<Response>) {
   serveDuplexOverPort(
     p,
-    serveFetchOverDuplex((req) => withUrl(req, url).then(fetch).catch(throwOwn)),
+    serveFetchOverDuplex((req) => withUrl(req, url).then(fetch).catch(throwOwn), {
+      includeErrorStack: true,
+    }),
   );
 }
 
