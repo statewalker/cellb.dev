@@ -424,7 +424,7 @@ importers:
         version: 0.1.4
       '@statewalker/httpeers-hub':
         specifier: ^0.1.4
-        version: 0.1.5(@statewalker/webrun-files@0.10.5)
+        version: 0.1.6(@statewalker/webrun-files@0.10.5)
       '@statewalker/httpeers-libp2p':
         specifier: ^0.3.2
         version: 0.3.2(bufferutil@4.2.0)
@@ -2790,10 +2790,10 @@ packages:
   '@statewalker/httpeers-core@0.1.4':
     resolution: {integrity: sha512-PsZBkw4nem/JECkbNuzJfroH4M+N1Ohgz3LpwCyAkJcBkUrwtp1H4L9RrfvFe7OHKGjsR+sjhxLTGfjcF5BISA==}
 
-  '@statewalker/httpeers-hub@0.1.5':
-    resolution: {integrity: sha512-J6+44IopTtFMGos9oY/1Ck3Yk1Vf3tYTPjx6RGHscruehsQwjwrCarkblXcaOtoeQDfFrTLjzyF1EypRk2A7FA==}
+  '@statewalker/httpeers-hub@0.1.6':
+    resolution: {integrity: sha512-z/PRDe0n05NICN68Jxd8SuFQ2xR+ovJ2wTScMEMfCwl5+tR7oioK581w5EdjK+aTU/y40BcrQmpJqB7Qdl8jQw==}
     peerDependencies:
-      '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
+      '@statewalker/webrun-files': ^0.9.0 || ^0.10.0 || ^0.12.0
     peerDependenciesMeta:
       '@statewalker/webrun-files':
         optional: true
@@ -8248,7 +8248,7 @@ snapshots:
 
   '@statewalker/httpeers-core@0.1.4': {}
 
-  '@statewalker/httpeers-hub@0.1.5(@statewalker/webrun-files@0.10.5)':
+  '@statewalker/httpeers-hub@0.1.6(@statewalker/webrun-files@0.10.5)':
     dependencies:
       '@statewalker/httpeers-access': 0.1.5
       '@statewalker/httpeers-core': 0.1.4
