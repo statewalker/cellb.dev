@@ -253,4 +253,85 @@ describe("P11i self-fencing at the lease deadline", () => {
     );
     await rt.close();
   });
+
+  // statewalker/statewalker-root#51: a renewal that lands after the local deadline (a slow
+  // bucket write: celld holding the shared SQLite file, a slow S3 PUT) fences the node's cells.
+  // The node still renews, so the next event takes the cell again at the next epoch. It used to
+  // fail: the fenced host's release (own.json → released) raced the new host's compare-and-swap
+  // claim, the claim lost, and the cell was refused as "owned by another node" — then left
+  // released for celld to take (p11i live hand-over, intermittently in CI).
+  it("a node fenced by a late renewal takes its cell again on the next event", async () => {
+    const mem = memoryObjectStore();
+    let slowLeasePut = 0;
+    const store: ObjectStore = {
+      get: (k) => mem.get(k),
+      list: (p) => mem.list(p),
+      delete: (k) => mem.delete(k),
+      put: async (k, b, c, a) => {
+        if (slowLeasePut && k.startsWith("nodes/")) {
+          const ms = slowLeasePut;
+          slowLeasePut = 0;
+          await new Promise((r) => setTimeout(r, ms));
+        }
+        return mem.put(k, b, c, a);
+      },
+    };
+    const bucket = celldBucket(store, { node: "n", leaseTtlMs: 3_000 });
+    const rt = createCellRuntime({
+      worker: { Counter, default: {} },
+      durableObjects: { C: { className: "Counter" } },
+      openSql: nodeSqliteOpener(),
+      storage: bucket,
+    });
+    const stub = (rt.env.C as any).getByName("c");
+    expect(await runInDurableObject(stub, (o: Counter) => o.bump())).toBe(1);
+    const fenced = new Promise<unknown>((r) =>
+      bucket.ownership.tryAcquire("C/probe").then((l) => l?.lost.addEventListener("abort", r)),
+    );
+    slowLeasePut = 2_500; // the next renewal lands after the deadline (ttl 3 s → 2.25 s)
+    await fenced;
+    await new Promise((r) => setTimeout(r, 2_500)); // the late renewal lands; renewals go on
+    expect(await runInDurableObject(stub, (o: Counter) => o.bump())).toBe(2);
+    const own = await mem.list("cells/");
+    const rec = own.find((k) => k.endsWith("/own.json") && !k.includes("probe"))!;
+    const { node, epoch } = JSON.parse(new TextDecoder().decode((await mem.get(rec))!.body));
+    expect({ node, epoch }).toEqual({ node: "n", epoch: 2 });
+    // a cell taken after the lapse is fenced by the next one (not by the spent signal)
+    const later = await bucket.ownership.tryAcquire("C/probe");
+    expect(later?.lost.aborted).toBe(false);
+    await rt.close();
+  }, 20_000);
+
+  it("a node keeps renewing after a failed renewal and takes its cell again", async () => {
+    const mem = memoryObjectStore();
+    let failLeasePut = false;
+    const store: ObjectStore = {
+      get: (k) => mem.get(k),
+      list: (p) => mem.list(p),
+      delete: (k) => mem.delete(k),
+      put: (k, b, c, a) => {
+        if (failLeasePut && k.startsWith("nodes/")) {
+          failLeasePut = false;
+          return Promise.reject(new Error("bucket unavailable"));
+        }
+        return mem.put(k, b, c, a);
+      },
+    };
+    const bucket = celldBucket(store, { node: "n", leaseTtlMs: 3_000 });
+    const rt = createCellRuntime({
+      worker: { Counter, default: {} },
+      durableObjects: { C: { className: "Counter" } },
+      openSql: nodeSqliteOpener(),
+      storage: bucket,
+    });
+    const stub = (rt.env.C as any).getByName("c");
+    expect(await runInDurableObject(stub, (o: Counter) => o.bump())).toBe(1);
+    const lease = await bucket.ownership.tryAcquire("C/probe");
+    const fenced = new Promise((r) => lease!.lost.addEventListener("abort", r));
+    failLeasePut = true;
+    await fenced; // the failed renewal fenced the node's cells
+    await new Promise((r) => setTimeout(r, 1_500)); // the next renewal lands
+    expect(await runInDurableObject(stub, (o: Counter) => o.bump())).toBe(2);
+    await rt.close();
+  }, 20_000);
 });

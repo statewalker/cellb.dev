@@ -49,7 +49,9 @@ const lostRecordError = (scope: string) =>
 export function celldBucket(store: ObjectStore & { close?(): void }, opts: CelldBucketOptions) {
   const now = opts.now ?? (() => Date.now());
   const ttl = opts.leaseTtlMs ?? 10_000;
-  const lost = new AbortController();
+  // The cells' fence: aborted when this node's authority lapses, then replaced, so the cells it
+  // takes again later (at the next epoch, once renewals land again) are fenced by the next lapse.
+  let lost = new AbortController();
   let renew: ReturnType<typeof setTimeout> | undefined;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let leaseWritten: Promise<void> | undefined;
@@ -86,6 +88,15 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     }
   })();
   let validUntil = 0;
+  /** The validity a fence was raised for: one fence per lapse. */
+  let fencedAt = -1;
+  const fence = (reason: unknown) => {
+    if (fencedAt === validUntil) return;
+    fencedAt = validUntil;
+    const was = lost;
+    lost = new AbortController();
+    was.abort(reason);
+  };
   const writeLease = () => {
     const w = putLease();
     // Every write in flight, not only the latest: they may land in any order.
@@ -137,15 +148,19 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
       const tick = () => {
         if (closed) return;
         renew = setTimeout(() => {
-          writeLease().then(tick, (e) => lost.abort(e));
+          // A failed renewal stops every cell (self-fencing); the node keeps renewing, so it
+          // can take cells again once the bucket answers.
+          writeLease().then(tick, (e) => {
+            fence(e);
+            tick();
+          });
         }, ttl / 3);
         // If renewals stop arriving (a stalled process, an unreachable bucket), every cell
         // stops at the local deadline — before celld may take it over.
         if (deadline) clearTimeout(deadline);
         deadline = setTimeout(
           () => {
-            if (now() >= validUntil)
-              lost.abort(new Error(`node ${opts.node}: lease deadline passed`));
+            if (now() >= validUntil) fence(new Error(`node ${opts.node}: lease deadline passed`));
           },
           Math.max(0, validUntil - now()),
         );
