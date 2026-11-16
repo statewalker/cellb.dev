@@ -63,7 +63,9 @@ describe("P11h wake index hygiene", () => {
   it("celld 0.6.3: a cell whose own.json is lost but whose LTX exists is refused, not restarted empty", async () => {
     let t = 1_000_000;
     const store = memoryObjectStore();
-    const b = celldBucket(store, { node: "n", now: () => t });
+    // A lease longer than the 10 s jump below: the node is live throughout (no renewal runs on
+    // this fake clock, and a node whose lease lapsed claims nothing).
+    const b = celldBucket(store, { node: "n", now: () => t, leaseTtlMs: 60_000 });
     const cell = "Agent/" + "c".repeat(64);
     const scope = `Agent:${"c".repeat(64)}`;
     await store.put(
