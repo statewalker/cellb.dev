@@ -49,7 +49,9 @@ const lostRecordError = (scope: string) =>
 export function celldBucket(store: ObjectStore & { close?(): void }, opts: CelldBucketOptions) {
   const now = opts.now ?? (() => Date.now());
   const ttl = opts.leaseTtlMs ?? 10_000;
-  const lost = new AbortController();
+  // The cells' fence: aborted when this node's authority lapses, then replaced, so the cells it
+  // takes again later (at the next epoch, once renewals land again) are fenced by the next lapse.
+  let lost = new AbortController();
   let renew: ReturnType<typeof setTimeout> | undefined;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let leaseWritten: Promise<void> | undefined;
@@ -86,6 +88,13 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     }
   })();
   let validUntil = 0;
+  // Every lapse (a failed renewal, a passed deadline) fences the cells holding the current
+  // signal, even when one fence was raised before: a cell taken in between holds a fresh signal.
+  const fence = (reason: unknown) => {
+    const was = lost;
+    lost = new AbortController();
+    was.abort(reason);
+  };
   const writeLease = () => {
     const w = putLease();
     // Every write in flight, not only the latest: they may land in any order.
@@ -137,15 +146,19 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
       const tick = () => {
         if (closed) return;
         renew = setTimeout(() => {
-          writeLease().then(tick, (e) => lost.abort(e));
+          // A failed renewal stops every cell (self-fencing); the node keeps renewing, so it
+          // can take cells again once the bucket answers.
+          writeLease().then(tick, (e) => {
+            fence(e);
+            tick();
+          });
         }, ttl / 3);
         // If renewals stop arriving (a stalled process, an unreachable bucket), every cell
         // stops at the local deadline — before celld may take it over.
         if (deadline) clearTimeout(deadline);
         deadline = setTimeout(
           () => {
-            if (now() >= validUntil)
-              lost.abort(new Error(`node ${opts.node}: lease deadline passed`));
+            if (now() >= validUntil) fence(new Error(`node ${opts.node}: lease deadline passed`));
           },
           Math.max(0, validUntil - now()),
         );
@@ -169,6 +182,13 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   const ownership = {
     async tryAcquire(cellKey: string) {
       await ensureLease();
+      // No claim while this node's authority has lapsed: no deadline is left to fence a cell
+      // taken now, and a late renewal could make its writes acknowledged again after its node
+      // record had expired and another node took the cell (a split brain).
+      const lapsed = () =>
+        new Error(`node ${opts.node}: lease lapsed; ${cellKey} is not claimed until it is renewed`);
+      if (now() >= validUntil) throw lapsed();
+      const fenced = lost.signal; // the fence this claim answers to
       const scope = scopeOf(cellKey);
       const key = `cells/${scope}/own.json`;
       const t0 = now();
@@ -206,12 +226,15 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
         if (e instanceof PreconditionFailedError) return undefined; // another node won the race
         throw e;
       }
+      // Fenced while claiming: an aborted signal never fires again, so the cell must not start.
+      // The record names this node at the new epoch; the next claim takes the one after it.
+      if (fenced.aborted) throw lapsed();
       log.begin(cellKey, epoch); // a new owner epoch starts a new generation
       owned.add(cellKey);
       return {
         name: cellKey,
         epoch,
-        lost: lost.signal,
+        lost: fenced,
         release: async () => {
           const now2 = await readJson<{ node: string; epoch: number }>(key);
           if (now2?.value.node === opts.node && now2.value.epoch === epoch)
