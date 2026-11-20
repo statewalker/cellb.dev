@@ -105,6 +105,31 @@ In Node, `spawn` returns a `worker_threads` Worker and the worker passes `parent
   same requests and blocks on `Atomics.wait` until the pool's thread answers (it needs
   SharedArrayBuffer: cross-origin isolation in browsers).
 
+## Start times: one run per container
+
+An isolated pool with `slots: 1` (the default): each container in a worker of its own, warmed
+ahead of time, handed to one script, and terminated with its worker when the script exits. Pool
+size 2; times from the request to the result, acquire and termination included.
+`bench/isolated-start-node.ts`, `e2e-browser/isolated-start.spec.ts` (`WORKER_POOL_PROBE=1`).
+
+| | QuickJS (`wasmer/quickjs`) | Python (`python/python`) | edgejs (`wasmer/edgejs`, JSPI) |
+| --- | --- | --- | --- |
+| Node 22/24: 2 containers cold, in parallel | 1.0 s | 2.1 s | 3.1 s |
+| Node: memory per ready container | 106 MB | 306 MB | 354 MB |
+| Node: a run with a container ready | **21 ms** | 185 ms | 388 ms |
+| Node: refill (a new worker, warmed) | 234 ms | 573 ms | 743 ms |
+| Node: a run when none is ready | 451 ms | 2.2 s | 1.75 s |
+| Node: 8 runs at once on 2 ready | 1.3 s | 3.6 s | 4.7 s |
+| Chromium 153: 2 containers cold | 2.4 s | 5.2 s | 5.8 s |
+| Chromium: a run with a container ready | **34 ms** | 196 ms | 326 ms |
+| Chromium: refill | 376 ms | 550 ms | 2.2 s |
+
+Medians of 10 runs (8 in Chromium); edgejs ran on Node 24. "When none is ready" emptied the pool
+first, so two refills competed for the CPU. A run's cost is mostly the runtime's own start (a
+process in a warm, compiled engine): QuickJS answers in tens of milliseconds, edgejs pays for
+Node's bootstrap. Keep `size` at the expected burst: a request that finds the pool empty waits
+for a whole refill.
+
 ## Several scripts per container
 
 A container (one worker, one engine) can run more than one script at a time. Whether scripts of

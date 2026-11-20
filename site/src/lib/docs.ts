@@ -44,6 +44,11 @@ export const referencePages: RepoPage[] = [
     slug: "containers-isolated-pools",
     label: "Isolated container pools",
   },
+  {
+    file: "packages/containers/docs/layered-files.md",
+    slug: "containers-layered-files",
+    label: "Layered container files",
+  },
   { file: "packages/cellb/CONTEXT.md", slug: "glossary", label: "Glossary" },
   { file: "packages/cellb/bench/README.md", slug: "benchmarks", label: "Benchmarks" },
 ];

@@ -163,6 +163,13 @@ sandbox and a worker is bound to one capabilities key. QuickJS costs about 20 MB
 and scales to about two scripts per core; Lifo runs one at a time
 ([Several scripts per container](docs/isolated-pools.md#several-scripts-per-container)).
 
+### Layered files: install once, run read-only
+
+A build container with egress (`wasmerContainerEngine(wasmer, { egress: "host" })`, trusted steps
+only) runs `npm install` into a writable FilesApi; that FilesApi is then a read-only base layer
+under every run, each run adding its own writable layer (`CompositeFilesApi`, or `cow` for
+copy-on-write), as Docker builds and runs images. [Layered files](docs/layered-files.md).
+
 ### Runaway code
 
 A timeout kills the run. A guest that makes system calls (I/O, `sleep`) stops then. A guest in a
