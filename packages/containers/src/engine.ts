@@ -225,3 +225,11 @@ export function wasmerContainerEngine(
     },
   };
 }
+
+/**
+ * A Wasmer engine for a container worker: the guests' filesystem calls are forwarded to `files`,
+ * where the pool serves the mounted FilesApis (serveHostFiles).
+ */
+export function wasmerWorkerEngine(_wasmer: WasmerLike, _files: unknown): ContainerEngine {
+  throw new Error("not implemented");
+}
