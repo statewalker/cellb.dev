@@ -67,3 +67,36 @@ test("the Node example: node:http in wasmer/edgejs (JSPI) in a cellb cell", asyn
   expect(r.out[0]).toMatchObject({ cell: "alpha", fromContainer: { url: "/hello?cell=alpha" } });
   expect(r.out[0].fromContainer.node).toMatch(/^v\d+/);
 });
+
+test("the pool example: each cell runs its code on its own FilesApi, nothing leaks", async ({
+  page,
+}) => {
+  await open(page);
+  const r = await page.evaluate(() =>
+    (window as any).__cellb(
+      [
+        {
+          path: "/run?cell=alpha",
+          method: "POST",
+          body: "import os\nopen('/data/note.txt','w').write('alpha')\nopen('/tmp/t','w').write('x')\nprint(os.environ['CELL'])",
+        },
+        {
+          path: "/run?cell=beta",
+          method: "POST",
+          body: "import os, json\nprint(json.dumps([os.listdir('/data'), os.path.exists('/tmp/t')]))",
+        },
+        { path: "/run?cell=alpha", method: "POST", body: "print(open('/data/note.txt').read())" },
+        "/files?cell=alpha",
+        "/files?cell=beta",
+      ],
+      "pool",
+    ),
+  );
+  expect(r.error).toBeUndefined();
+  const [a1, b1, a2, fa, fb] = r.out;
+  expect(a1).toMatchObject({ exitCode: 0, stdout: "alpha\n" });
+  expect(JSON.parse(b1.stdout)).toEqual([[], false]);
+  expect(a2.stdout).toBe("alpha\n");
+  expect(fa).toEqual(["/note.txt"]);
+  expect(fb).toEqual([]);
+});

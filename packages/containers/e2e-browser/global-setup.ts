@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 export default function setup() {
   const pkg = fileURLToPath(new URL("..", import.meta.url));
   const cli = fileURLToPath(new URL("../../cellb/bin/cellb.mjs", import.meta.url));
-  for (const name of ["python", "php", "node"])
+  for (const name of ["python", "php", "node", "pool"])
     execFileSync(
       process.execPath,
       [cli, "build", `examples/${name}`, "--out", `e2e-public/built/${name}`],

@@ -1,15 +1,27 @@
 /// <reference lib="webworker" />
-// A cellb node in a worker: an example project (cellb build output) and its engine.
+// A cellb node in a worker: an example project (cellb build output), its engine, and for the
+// pool example a pool of containers whose runs mount FilesApis served on this thread.
 import { loadProject } from "@statewalker/cellb/browser";
 import { Wasmer } from "@wasmer/sdk/browser";
 import { provideContainerEngine } from "../../src/container.ts";
 import { wasmerContainerEngine } from "../../src/engine.ts";
+import { HostMounts, installHostFiles } from "../../src/files/bridge.ts";
+import { createContainerPool, provideContainerPool } from "../../src/pool.ts";
+
+type Req = string | { path: string; method?: string; body?: string };
 
 self.addEventListener("message", async (e: MessageEvent) => {
   const reply = (v: unknown) => (e.ports[0] as MessagePort).postMessage(v);
   try {
-    const wasmer = new Wasmer();
-    const withdraw = provideContainerEngine(wasmerContainerEngine(wasmer));
+    const engine = wasmerContainerEngine(new Wasmer());
+    const withdraw = provideContainerEngine(engine);
+    const mounts = new HostMounts();
+    const uninstall = installHostFiles(mounts);
+    const pool = createContainerPool(engine, mounts, {
+      image: { packages: ["python/python"] },
+      size: 2,
+    });
+    const unprovide = provideContainerPool("python", pool);
     const project = await loadProject(
       new URL(`/built/${e.data.project ?? "python"}/`, location.href).href,
       {
@@ -17,8 +29,17 @@ self.addEventListener("message", async (e: MessageEvent) => {
       },
     );
     const out = [];
-    for (const path of e.data.paths as string[])
-      out.push(await (await project.fetch(new Request(`http://localhost${path}`))).json());
+    for (const r of e.data.paths as Req[]) {
+      const { path, method, body } = typeof r === "string" ? { path: r } : r;
+      out.push(
+        await (
+          await project.fetch(new Request(`http://localhost${path}`, { method, body }))
+        ).json(),
+      );
+    }
+    unprovide();
+    await pool.close();
+    uninstall();
     await withdraw();
     await project.close();
     reply({ unsupported: project.unsupported, out });

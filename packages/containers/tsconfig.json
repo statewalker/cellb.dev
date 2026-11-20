@@ -2,5 +2,5 @@
   "extends": "../../tsconfig.platform.json",
   // .ts specifiers: the worker fixtures run under Node's own type stripping, which loads them as written.
   "compilerOptions": { "allowImportingTsExtensions": true },
-  "include": ["src", "test"]
+  "include": ["src", "test", "bench"]
 }

@@ -24,6 +24,6 @@ export default defineConfig({
     include: ["assert", "buffer", "events", "path-browserify", "util", "acorn"].map(
       (d) => `@statewalker/cellb > ${d}`,
     ),
-    entries: ["index.html", "engine-worker.ts", "cellb-worker.ts"],
+    entries: ["index.html", "engine-worker.ts", "cellb-worker.ts", "capacity-worker.ts"],
   },
 });

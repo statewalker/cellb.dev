@@ -51,6 +51,8 @@ setInterval(() => {
   last = now;
 }, 10);
 
+let capacityWorker: Worker | undefined;
+
 Object.assign(window, {
   async __http() {
     maxGap = 0;
@@ -93,7 +95,18 @@ Object.assign(window, {
     };
   },
 
-  async __cellb(paths: string[], project = "python") {
+  /** The capacity run's node: one worker, kept across calls. */
+  __capacity(msg: { op: string; cell?: string; project?: string }) {
+    capacityWorker ??= new Worker(new URL("./capacity-worker.ts", import.meta.url), {
+      type: "module",
+    });
+    const { port1, port2 } = new MessageChannel();
+    const done = new Promise((resolve) => (port1.onmessage = (e) => resolve(e.data)));
+    capacityWorker.postMessage(msg, [port2]);
+    return done;
+  },
+
+  async __cellb(paths: unknown[], project = "python") {
     const w = new Worker(new URL("./cellb-worker.ts", import.meta.url), { type: "module" });
     const { port1, port2 } = new MessageChannel();
     const done = new Promise((resolve) => (port1.onmessage = (e) => resolve(e.data)));
