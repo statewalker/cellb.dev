@@ -20,8 +20,8 @@
   },
   "scripts": {
     "test": "vitest run",
-    "test:browser": "node scripts/browser-e2e.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@statewalker/webrun-files": "catalog:",
@@ -34,6 +34,7 @@
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@playwright/test": "^1.65.0"
   }
 }

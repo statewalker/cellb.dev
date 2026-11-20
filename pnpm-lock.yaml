@@ -669,6 +669,9 @@ importers:
         specifier: 0.19.1
         version: 0.19.1(patch_hash=0932d73adc901b4872a84caf29b20966f66232c591d5abe61af0e2101979ac6a)
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.65.0
+        version: 1.65.0
       '@statewalker/cellb':
         specifier: workspace:*
         version: link:../cellb
