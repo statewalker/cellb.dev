@@ -105,9 +105,9 @@ FilesApi. Then 8 workers or threads, with nothing of their own, open the same ce
 | | Browser (LTX VFS, `files: { module, args: { dir } }`) | Node (`filesApiLtxLog` over `rpcFilesClient`) |
 |---|---|---|
 | What the host serves | a `FileSystemDirectoryHandle` (OPFS here; `showDirectoryPicker` gives the same type) | a `NodeFilesApi` folder, served from the main thread over a port |
-| Write throughput | 6.1 MB/s | 28.9 MB/s |
+| Write throughput | 6.1 MB/s | 26.3 MB/s (28.9 in an earlier run) |
 | Host folder after writing | 543 MB in 385 files | 517 MB |
-| Reopened by 8 workers | all 2,048 rows, 512 MiB, in 26 s | all 2,048 rows, 512 MiB, in 54 s |
+| Reopened by 8 workers | all 2,048 rows, 512 MiB, in 26 s | all 2,048 rows, 512 MiB, in 59 s (54 s earlier) |
 
 - In both, the data survives a change of placement (4 → 8) because the host's FilesApi holds it.
   This is the property that lets the host move cells between workers, frames or processes.

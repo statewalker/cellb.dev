@@ -9,21 +9,21 @@
   "test": "cells logged to the host's FilesApi, re-sharded",
   "write": {
     "tasks": 2048,
-    "ms": 17693,
-    "tasksPerSec": 116,
-    "mbPerSec": 28.9,
+    "ms": 19435,
+    "tasksPerSec": 105,
+    "mbPerSec": 26.3,
     "workersUsed": 4,
     "errors": [],
     "errorCount": 0
   },
-  "writeMs": 46814,
+  "writeMs": 47142,
   "before": {
     "rows": 2048,
     "bytes": 536870912,
     "movedObjects": 0
   },
   "hostMB": 517,
-  "reopenMs": 53681,
+  "reopenMs": 58736,
   "after": {
     "rows": 2048,
     "bytes": 536870912,
@@ -31,9 +31,9 @@
   },
   "more": {
     "tasks": 64,
-    "ms": 259,
-    "tasksPerSec": 247,
-    "mbPerSec": 1,
+    "ms": 272,
+    "tasksPerSec": 235,
+    "mbPerSec": 0.9,
     "workersUsed": 8,
     "errors": [],
     "errorCount": 0
