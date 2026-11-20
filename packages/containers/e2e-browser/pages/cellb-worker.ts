@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-// A cellb node in a worker: the Python example project (cellb build output) and its engine.
+// A cellb node in a worker: an example project (cellb build output) and its engine.
 import { loadProject } from "@statewalker/cellb/browser";
 import { Wasmer } from "@wasmer/sdk/browser";
 import { provideContainerEngine } from "../../src/container.ts";
@@ -10,9 +10,12 @@ self.addEventListener("message", async (e: MessageEvent) => {
   try {
     const wasmer = new Wasmer();
     const withdraw = provideContainerEngine(wasmerContainerEngine(wasmer));
-    const project = await loadProject(new URL("/built/python/", location.href).href, {
-      data: `e2e-${Date.now()}`,
-    });
+    const project = await loadProject(
+      new URL(`/built/${e.data.project ?? "python"}/`, location.href).href,
+      {
+        data: `e2e-${Date.now()}`,
+      },
+    );
     const out = [];
     for (const path of e.data.paths as string[])
       out.push(await (await project.fetch(new Request(`http://localhost${path}`))).json());

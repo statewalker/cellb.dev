@@ -311,9 +311,11 @@ export class FilesVolume {
         buffer = new Buffer(initial);
         this.#buffers.set(rel, buffer);
       } else if (truncate) buffer.setLen(0);
-      // Write back at open when the content changes (create, truncate): a refused write fails
-      // here, where the guest checks for errors, and O_CREAT puts the file in the FilesApi.
-      if (!existing || truncate) {
+      // Write back at the first open for writing: a write the FilesApi refuses (a guard, a
+      // read-only view) fails here, where every guest checks for errors; at close() it would be
+      // lost by guests that never close explicitly. It also puts an O_CREAT file in the FilesApi.
+      // Cost: one rewrite of the file per first open for writing.
+      if (!existing || truncate || buffer.refs === 0) {
         buffer.dirty = true;
         try {
           await this.#flush(buffer, rel);

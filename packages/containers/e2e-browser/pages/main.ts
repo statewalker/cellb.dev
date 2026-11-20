@@ -93,11 +93,11 @@ Object.assign(window, {
     };
   },
 
-  async __cellb(paths: string[]) {
+  async __cellb(paths: string[], project = "python") {
     const w = new Worker(new URL("./cellb-worker.ts", import.meta.url), { type: "module" });
     const { port1, port2 } = new MessageChannel();
     const done = new Promise((resolve) => (port1.onmessage = (e) => resolve(e.data)));
-    w.postMessage({ paths }, [port2]);
+    w.postMessage({ paths, project }, [port2]);
     const r = await done;
     w.terminate();
     return r;

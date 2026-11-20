@@ -164,6 +164,14 @@ describe("FilesVolume", () => {
       await code(v.request("open", ["docs/a.txt", false, true, false, false, true, false])),
     ).toBe("EACCES");
     expect(await readText(files, "/docs/a.txt")).toBe("hello world");
+    // ...for append and read-write opens too: a guest that never checks close() still learns.
+    expect(
+      await code(v.request("open", ["docs/a.txt", false, false, false, false, false, true])),
+    ).toBe("EACCES");
+    expect(
+      await code(v.request("open", ["docs/a.txt", true, true, false, false, false, false])),
+    ).toBe("EACCES");
+    expect(await readText(files, "/docs/a.txt")).toBe("hello world");
     // create puts the file in the FilesApi at open(), as POSIX O_CREAT does
     const fd = await v.request("open", ["made.txt", false, true, true, false, false, false]);
     expect(await files.exists("/made.txt")).toBe(true);

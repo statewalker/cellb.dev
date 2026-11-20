@@ -47,3 +47,23 @@ test("the Python example as a cellb project in a worker, one container per cell"
     ["beta", 1, "beta"],
   ]);
 });
+
+test("the PHP example: PHP's built-in server in a cellb cell", async ({ page }) => {
+  await open(page);
+  const r = await page.evaluate(() => (window as any).__cellb(["/?cell=alpha"], "php"));
+  expect(r.error).toBeUndefined();
+  expect(r.out[0]).toMatchObject({
+    cell: "alpha",
+    visits: 1,
+    fromContainer: { uri: "/?cell=alpha" },
+  });
+  expect(r.out[0].fromContainer.php).toMatch(/^8\./);
+});
+
+test("the Node example: node:http in wasmer/edgejs (JSPI) in a cellb cell", async ({ page }) => {
+  await open(page);
+  const r = await page.evaluate(() => (window as any).__cellb(["/hello?cell=alpha"], "node"));
+  expect(r.error).toBeUndefined();
+  expect(r.out[0]).toMatchObject({ cell: "alpha", fromContainer: { url: "/hello?cell=alpha" } });
+  expect(r.out[0].fromContainer.node).toMatch(/^v\d+/);
+});

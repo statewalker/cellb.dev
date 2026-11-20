@@ -1,0 +1,11 @@
+{
+  "name": "containers-node",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": { "bindings": [{ "name": "APP", "class_name": "NodeApp" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NodeApp"] }],
+  // celld builds ./Dockerfile; cellb runs the same server.js in wasmer/edgejs (Node-compatible
+  // JavaScript in WASIX), which needs WebAssembly JSPI: Node 24+ or Chromium 137+.
+  "containers": [{ "class_name": "NodeApp", "image": "./Dockerfile", "instance_type": "basic" }],
+  "rules": [{ "type": "Text", "globs": ["**/server.js"] }]
+}
