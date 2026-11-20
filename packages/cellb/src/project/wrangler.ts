@@ -3,6 +3,7 @@ import type { AssetFiles, AssetsConfig } from "../bindings/assets.js";
 import type { QueueConsumerConfig } from "../bindings/celld-queues.js";
 import type { ModuleLoader } from "../bindings/worker-loader.js";
 import { type WorkersAiOptions, workersAi } from "../bindings/workers-ai.js";
+import type { ContainerEngine } from "../container.js";
 import { defaultHandler, entrypointStub } from "../core/handles.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
@@ -78,6 +79,8 @@ export interface ProjectHost
   ai?: WorkersAiOptions;
   /** The binding implementations the config needs: `await loadProjectBindings(config)`. */
   bindings?: ProjectBindings;
+  /** Runs the project's `containers` (images from its `cellb.containers` key); without it they are reported. */
+  containers?: ContainerEngine;
 }
 
 /**

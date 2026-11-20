@@ -24,7 +24,8 @@
     "./site": "./src/site.ts",
     "./bundle": "./src/bundle.ts",
     "./host-modules": "./src/project/host-modules.ts",
-    "./isolate-worker": "./src/isolate/isolate-worker.ts"
+    "./isolate-worker": "./src/isolate/isolate-worker.ts",
+    "./container": "./src/container.ts"
   },
   "files": [
     "dist",
@@ -67,6 +68,10 @@
       "./isolate-worker": {
         "types": "./dist/isolate/isolate-worker.d.ts",
         "default": "./dist/isolate/isolate-worker.js"
+      },
+      "./container": {
+        "types": "./dist/container.d.ts",
+        "default": "./dist/container.js"
       }
     }
   },

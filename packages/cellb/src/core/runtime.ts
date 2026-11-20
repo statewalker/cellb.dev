@@ -1,3 +1,4 @@
+import type { ContainerEngine, ContainerSpec } from "../container.js";
 import {
   type CellDurability,
   type CellStorage,
@@ -49,6 +50,12 @@ export interface CellRuntimeOptions {
   worker: WorkerModule;
   /** Durable Object bindings: env name → exported class name (wrangler `durable_objects.bindings`). */
   durableObjects?: Record<string, { className: string }>;
+  /**
+   * Containers (wrangler `containers`): objects of a class in `images` get `ctx.container`, a
+   * container of that image on `engine` (one per cell, kept across the object's instances,
+   * destroyed after its inactivity timeout or by `close()`).
+   */
+  containers?: { engine: ContainerEngine; images: Record<string, ContainerSpec> };
   /** Plain vars / other bindings merged into env. */
   vars?: Record<string, unknown>;
   openSql: OpenCellSql;
