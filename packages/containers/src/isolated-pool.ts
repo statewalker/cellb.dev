@@ -1,7 +1,7 @@
 // A pool of isolated containers: each in a worker of its own, prepared ahead of time, used once.
 import type { FilesApi } from "@statewalker/webrun-files";
 import type { Container } from "./container.ts";
-import type { ContainerHandle, ContainerSpec } from "./engine.ts";
+import type { ContainerEngine, ContainerHandle, ContainerSpec } from "./engine.ts";
 import { HostMounts, serveHostFiles } from "./files/bridge.ts";
 import type { RunOptions, RunResult } from "./pool.ts";
 import type { PortLike } from "./rpc.ts";
@@ -39,6 +39,8 @@ export interface IsolatedPoolOptions {
   maxRunsPerContainer?: number;
   /** After a timeout, how long a retiring container's other scripts may take (default 30 s). */
   drainMs?: number;
+  /** A container with slots and no run for this long is terminated (default 30 s). */
+  idleMs?: number;
 }
 
 export interface AcquireOptions {
@@ -67,6 +69,7 @@ export interface IsolatedPool {
 
 interface Slot {
   worker: ContainerWorker;
+  engine: ContainerEngine;
   handle: ContainerHandle;
   mountId: number;
   ports: { close?(): void }[];
@@ -123,7 +126,7 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
               );
             }),
           ]);
-          return { ...partial, handle };
+          return { ...partial, engine, handle };
         } catch (e) {
           terminate(partial);
           throw e;
@@ -173,6 +176,145 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
     };
   };
 
+  // ---- containers with several script slots ----------------------------------------------
+  const slots = Math.max(1, opts.slots ?? 1);
+  const isolation = opts.isolation ?? "sandbox";
+  const maxRuns = opts.maxRunsPerContainer ?? 200;
+  const drainMs = opts.drainMs ?? 30_000;
+  const idleMs = opts.idleMs ?? 30_000;
+  interface Active {
+    slot: Promise<Slot>;
+    inflight: number;
+    runs: number;
+    retiring: boolean;
+    terminated: boolean;
+    key?: string;
+    files?: FilesApi;
+    /** Sandbox mode: the sandbox started while warming, not used by any run yet. */
+    fresh: boolean;
+    idleTimer?: ReturnType<typeof setTimeout>;
+  }
+  const actives: Active[] = [];
+
+  const end = async (a: Active) => {
+    if (a.terminated) return;
+    a.terminated = true;
+    clearTimeout(a.idleTimer);
+    actives.splice(actives.indexOf(a), 1);
+    const slot = await a.slot.catch(() => undefined);
+    if (slot) await pool.destroy(slot);
+  };
+  const retire = (a: Active, grace = 0) => {
+    a.retiring = true;
+    if (a.inflight === 0) void end(a);
+    else if (grace) setTimeout(() => void end(a), grace);
+  };
+  const settle = (a: Active) => {
+    a.inflight--;
+    a.runs++;
+    if (a.runs >= maxRuns) a.retiring = true;
+    if (a.inflight > 0) return;
+    if (a.retiring) void end(a);
+    else a.idleTimer = setTimeout(() => retire(a), idleMs);
+  };
+  const pick = (run: IsolatedRunOptions): Active => {
+    if (isolation === "shared") {
+      if (!run.capabilities)
+        throw new Error('isolation "shared" needs a capabilities key for each run');
+      const bound = actives.find((a) => a.key === run.capabilities && !a.retiring);
+      if (bound && bound.files !== run.files)
+        throw new Error(
+          `capabilities "${run.capabilities}" are bound to other files: one key, one FilesApi`,
+        );
+    }
+    const free = actives.find(
+      (a) =>
+        !a.retiring &&
+        a.inflight < slots &&
+        (isolation === "sandbox" || a.key === run.capabilities),
+    );
+    const a: Active = free ?? {
+      slot: pool.acquire({ timeoutMs: run.acquireTimeoutMs }),
+      inflight: 0,
+      runs: 0,
+      retiring: false,
+      terminated: false,
+      fresh: true,
+      key: isolation === "shared" ? run.capabilities : undefined,
+      files: isolation === "shared" ? run.files : undefined,
+    };
+    if (!free) {
+      actives.push(a);
+      a.slot.catch(() => void end(a));
+      if (isolation === "shared" && run.files)
+        void a.slot
+          .then((slot) =>
+            mounts.bind(slot.mountId, run.files as FilesApi, { readOnly: run.readOnly }),
+          )
+          .catch(() => {});
+    }
+    clearTimeout(a.idleTimer);
+    a.inflight++;
+    return a;
+  };
+  const runInSlot = async (run: IsolatedRunOptions): Promise<RunResult> => {
+    const t0 = performance.now();
+    const a = pick(run);
+    let handle: ContainerHandle | undefined;
+    let mountId: number | undefined;
+    let ownSandbox = false;
+    let timedOut = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const slot = await a.slot;
+      if (isolation === "shared") handle = slot.handle;
+      else if (a.fresh) {
+        a.fresh = false;
+        handle = slot.handle;
+        mountId = slot.mountId;
+        ownSandbox = true;
+      } else {
+        mountId = mounts.reserve();
+        handle = await slot.engine.start({
+          ...opts.image,
+          mounts: [{ path: mountPath, id: mountId }],
+        });
+        ownSandbox = true;
+      }
+      if (isolation === "sandbox" && run.files && mountId !== undefined)
+        mounts.bind(mountId, run.files, { readOnly: run.readOnly });
+      const out = await Promise.race([
+        handle.exec(run.argv, { env: run.env, cwd: run.cwd }),
+        new Promise<"timeout">((resolve) => {
+          if (run.timeoutMs) timer = setTimeout(() => resolve("timeout"), run.timeoutMs);
+        }),
+      ]);
+      const ms = Math.round(performance.now() - t0);
+      if (out === "timeout") {
+        timedOut = true;
+        return {
+          exitCode: 124,
+          stdout: "",
+          stderr: `timed out after ${run.timeoutMs} ms`,
+          timedOut: true,
+          ms,
+        };
+      }
+      return { ...out, timedOut: false, ms };
+    } finally {
+      clearTimeout(timer);
+      if (isolation === "sandbox" && mountId !== undefined) mounts.remove(mountId);
+      if (timedOut) {
+        // The guest may ignore kill(): the worker goes, once its other scripts had their time.
+        a.inflight--;
+        retire(a, drainMs);
+      } else {
+        if (ownSandbox) await handle?.destroy().catch(() => {});
+        settle(a);
+      }
+    }
+  };
+
   return {
     get idle() {
       return pool.idle;
@@ -181,7 +323,7 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
       return pool.creating;
     },
     get containers() {
-      return 0; // not implemented yet
+      return actives.length;
     },
     ready: () => pool.ready(),
     async acquire(options = {}) {
@@ -190,6 +332,7 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
       return containerOf(slot);
     },
     async run(run) {
+      if (slots > 1 || isolation === "shared") return runInSlot(run);
       const t0 = performance.now();
       const c = await this.acquire({
         files: run.files,
@@ -219,6 +362,9 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
         await c.destroy(); // terminates the worker, whatever the guest is doing
       }
     },
-    close: () => pool.close(),
+    async close() {
+      await Promise.all([...actives].map(end));
+      await pool.close();
+    },
   };
 }
