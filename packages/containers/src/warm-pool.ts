@@ -15,27 +15,170 @@ export interface WarmPoolOptions {
   backoffMs?: number;
 }
 
+interface Waiter<T> {
+  resolve(instance: T): void;
+  reject(error: Error): void;
+  timer?: ReturnType<typeof setTimeout>;
+  onAbort?: () => void;
+  signal?: AbortSignal;
+}
+
+/**
+ * Keeps `size` single-use instances ready. A request takes one, or waits in line for the next;
+ * a replacement starts as soon as one is taken, so the pool is warm again by the time the work
+ * ends. Instances are never handed out twice: destroy them after use (use() does).
+ */
 export class WarmPool<T> {
-  constructor(_factory: WarmPoolFactory<T>, _opts: WarmPoolOptions) {}
+  readonly #factory: WarmPoolFactory<T>;
+  readonly #size: number;
+  readonly #maxCreating: number;
+  readonly #backoffMs: number;
+  readonly #idle: T[] = [];
+  readonly #waiters: Waiter<T>[] = [];
+  readonly #readyListeners: (() => void)[] = [];
+  #creating = 0;
+  #failures = 0;
+  #backoff?: ReturnType<typeof setTimeout>;
+  #closed = false;
+
+  constructor(factory: WarmPoolFactory<T>, opts: WarmPoolOptions) {
+    this.#factory = factory;
+    this.#size = Math.max(1, opts.size);
+    this.#maxCreating = Math.max(1, opts.maxCreating ?? this.#size);
+    this.#backoffMs = opts.backoffMs ?? 250;
+    this.#fill();
+  }
+
+  /** Instances ready to be taken. */
   get idle(): number {
-    throw new Error("not implemented");
+    return this.#idle.length;
   }
+
+  /** Instances being created. */
   get creating(): number {
-    throw new Error("not implemented");
+    return this.#creating;
   }
+
+  /** Resolves when `size` instances are ready. */
   ready(): Promise<void> {
-    throw new Error("not implemented");
+    if (this.#idle.length >= this.#size || this.#closed) return Promise.resolve();
+    return new Promise((resolve) => this.#readyListeners.push(resolve));
   }
-  acquire(_opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
-    throw new Error("not implemented");
+
+  /** Takes a ready instance, or waits for the next one (up to `timeoutMs`). */
+  acquire(opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
+    if (this.#closed) return Promise.reject(new Error("the pool is closed"));
+    if (opts.signal?.aborted) return Promise.reject(new Error("aborted"));
+    const ready = this.#idle.shift();
+    const result = ready !== undefined ? Promise.resolve(ready) : this.#wait(opts);
+    this.#fill(); // replace it now: the pool is warm again when the work ends
+    return result;
   }
-  destroy(_instance: T): Promise<void> {
-    throw new Error("not implemented");
+
+  /** Destroys an instance after use (it is never returned to the pool). */
+  async destroy(instance: T): Promise<void> {
+    await this.#factory.destroy(instance);
   }
-  use<R>(_fn: (instance: T) => Promise<R>, _opts: { timeoutMs?: number } = {}): Promise<R> {
-    throw new Error("not implemented");
+
+  /** Takes an instance, runs `fn` with it, and destroys it, whatever `fn` does. */
+  async use<R>(
+    fn: (instance: T) => Promise<R>,
+    opts: { timeoutMs?: number; signal?: AbortSignal } = {},
+  ): Promise<R> {
+    const instance = await this.acquire(opts);
+    try {
+      return await fn(instance);
+    } finally {
+      void Promise.resolve(this.#factory.destroy(instance)).catch(() => {});
+    }
   }
-  close(): Promise<void> {
-    throw new Error("not implemented");
+
+  /** Rejects waiting requests and destroys ready instances (and those still being created). */
+  async close(): Promise<void> {
+    this.#closed = true;
+    clearTimeout(this.#backoff);
+    for (const w of this.#waiters.splice(0))
+      this.#settle(w).reject(new Error("the pool is closed"));
+    for (const l of this.#readyListeners.splice(0)) l();
+    await Promise.allSettled(this.#idle.splice(0).map((i) => this.#factory.destroy(i)));
+  }
+
+  #wait(opts: { timeoutMs?: number; signal?: AbortSignal }): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const w: Waiter<T> = { resolve, reject, signal: opts.signal };
+      if (opts.timeoutMs !== undefined)
+        w.timer = setTimeout(() => {
+          this.#drop(w);
+          reject(new Error(`timed out after ${opts.timeoutMs} ms waiting for a ready instance`));
+        }, opts.timeoutMs);
+      if (opts.signal) {
+        w.onAbort = () => {
+          this.#drop(w);
+          reject(new Error("aborted"));
+        };
+        opts.signal.addEventListener("abort", w.onAbort, { once: true });
+      }
+      this.#waiters.push(w);
+    });
+  }
+
+  #drop(w: Waiter<T>) {
+    const i = this.#waiters.indexOf(w);
+    if (i >= 0) this.#waiters.splice(i, 1);
+    this.#settle(w);
+  }
+
+  #settle(w: Waiter<T>) {
+    clearTimeout(w.timer);
+    if (w.onAbort) w.signal?.removeEventListener("abort", w.onAbort);
+    return w;
+  }
+
+  // Creates instances until `size` are ready (plus one for each waiting request), at most
+  // `maxCreating` at once, and not while backing off after failures.
+  #fill() {
+    while (
+      !this.#closed &&
+      !this.#backoff &&
+      this.#creating < this.#maxCreating &&
+      this.#idle.length + this.#creating < this.#size + this.#waiters.length
+    ) {
+      this.#creating++;
+      let created: Promise<T>;
+      try {
+        created = this.#factory.create();
+      } catch (e) {
+        created = Promise.reject(e);
+      }
+      created.then(
+        (instance) => {
+          this.#creating--;
+          this.#failures = 0;
+          this.#offer(instance);
+          this.#fill();
+        },
+        () => {
+          this.#creating--;
+          this.#failures++;
+          const delay = Math.min(30_000, this.#backoffMs * 2 ** (this.#failures - 1));
+          clearTimeout(this.#backoff);
+          this.#backoff = setTimeout(() => {
+            this.#backoff = undefined;
+            this.#fill();
+          }, delay);
+        },
+      );
+    }
+  }
+
+  #offer(instance: T) {
+    if (this.#closed) {
+      void Promise.resolve(this.#factory.destroy(instance)).catch(() => {});
+      return;
+    }
+    const w = this.#waiters.shift();
+    if (w) this.#settle(w).resolve(instance);
+    else this.#idle.push(instance);
+    if (this.#idle.length >= this.#size) for (const l of this.#readyListeners.splice(0)) l();
   }
 }

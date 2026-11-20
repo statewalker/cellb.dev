@@ -1,6 +1,7 @@
 // The worker side of an isolated container: one engine, served to the pool over a port.
 import type { ContainerEngine } from "./engine.ts";
-import type { PortLike } from "./rpc.ts";
+import { onMessage } from "./files/bridge.ts";
+import { type PortLike, serveEngine } from "./rpc.ts";
 
 /** What a worker's engine factory gets: the port its guests' filesystem calls go to. */
 export interface ContainerWorkerContext {
@@ -12,8 +13,13 @@ export interface ContainerWorkerContext {
  * sends `{ engine, files }` ports; `makeEngine` builds the engine, wiring `files` its own way.
  */
 export function serveContainerWorker(
-  _endpoint: PortLike,
-  _makeEngine: (ctx: ContainerWorkerContext) => ContainerEngine,
+  endpoint: PortLike,
+  makeEngine: (ctx: ContainerWorkerContext) => ContainerEngine,
 ): void {
-  throw new Error("not implemented");
+  let served = false;
+  onMessage(endpoint, (data: { engine?: PortLike; files?: PortLike }) => {
+    if (served || !data?.engine || !data.files) return;
+    served = true;
+    serveEngine(data.engine, makeEngine({ files: data.files }));
+  });
 }

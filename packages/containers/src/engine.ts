@@ -1,3 +1,5 @@
+import { forwardHostFiles, installHostFiles } from "./files/bridge.ts";
+import type { PortLike } from "./rpc.ts";
 // The ContainerEngine port and its Wasmer implementation.
 
 /** What a container runs: the cellb counterpart of a Docker image plus `start()` options. */
@@ -230,6 +232,7 @@ export function wasmerContainerEngine(
  * A Wasmer engine for a container worker: the guests' filesystem calls are forwarded to `files`,
  * where the pool serves the mounted FilesApis (serveHostFiles).
  */
-export function wasmerWorkerEngine(_wasmer: WasmerLike, _files: unknown): ContainerEngine {
-  throw new Error("not implemented");
+export function wasmerWorkerEngine(wasmer: WasmerLike, files: PortLike): ContainerEngine {
+  installHostFiles(forwardHostFiles(files));
+  return wasmerContainerEngine(wasmer);
 }
