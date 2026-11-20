@@ -13,6 +13,11 @@ export interface WarmPoolOptions {
   maxCreating?: number;
   /** First delay after a failed create; doubles on each consecutive failure, up to 30 s. */
   backoffMs?: number;
+  /**
+   * Consecutive failed creates after which waiting requests are rejected with the last error
+   * (the pool keeps retrying for later requests). Default: 5.
+   */
+  failAfter?: number;
 }
 
 interface Waiter<T> {
@@ -33,6 +38,7 @@ export class WarmPool<T> {
   readonly #size: number;
   readonly #maxCreating: number;
   readonly #backoffMs: number;
+  readonly #failAfter: number;
   readonly #idle: T[] = [];
   readonly #waiters: Waiter<T>[] = [];
   readonly #readyListeners: (() => void)[] = [];
@@ -46,6 +52,7 @@ export class WarmPool<T> {
     this.#size = Math.max(1, opts.size);
     this.#maxCreating = Math.max(1, opts.maxCreating ?? this.#size);
     this.#backoffMs = opts.backoffMs ?? 250;
+    this.#failAfter = Math.max(1, opts.failAfter ?? 5);
     this.#fill();
   }
 
@@ -157,9 +164,17 @@ export class WarmPool<T> {
           this.#offer(instance);
           this.#fill();
         },
-        () => {
+        (error: unknown) => {
           this.#creating--;
           this.#failures++;
+          if (this.#failures % this.#failAfter === 0) {
+            const cause = error instanceof Error ? error.message : String(error);
+            const e = new Error(
+              `no instance could be created (${this.#failures} failed attempts): ${cause}`,
+              { cause: error },
+            );
+            for (const w of this.#waiters.splice(0)) this.#settle(w).reject(e);
+          }
           const delay = Math.min(30_000, this.#backoffMs * 2 ** (this.#failures - 1));
           clearTimeout(this.#backoff);
           this.#backoff = setTimeout(() => {

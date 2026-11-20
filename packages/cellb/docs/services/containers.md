@@ -87,8 +87,8 @@ Each cell of a container class has at most one container. The runtime keeps it p
 object instance, so an object woken from hibernation or reset gets the same running container, as
 on celld. CellB's `ctx.container` (`@statewalker/cellb/container`) implements:
 
-- `start()` with `entrypoint` and `env`. `enableInternet: true` is refused: containers have no
-  egress yet.
+- `start()` with `entrypoint` and `env`. `enableInternet: true` is refused unless the engine
+  allows egress (`egress: "host"`, for trusted build steps; not for a node's cells).
 - `running`, and `monitor()`, which settles when the container exits.
 - `destroy()`, and `signal()` (15 terminates with a grace period, 9 kills).
 - `getTcpPort(port).fetch()` sends an HTTP request to a port; `getTcpPort(port).connect()` opens a
@@ -173,7 +173,8 @@ the package README has the details.
 
 - Only WASIX software runs, not Docker images. The image comes from `cellb.containers.<class>`,
   not from `image`.
-- No egress (`enableInternet: true` is refused).
+- No egress for cells (`enableInternet: true` is refused); an engine with `egress: "host"` is
+  for trusted build steps, unfenced.
 - No `instance_type` limits or `max_instances` yet.
 - Wasmer packages published as zstd-compressed WEBC (`sharrattj/coreutils`, `wasmer/winterjs`,
   `sqlite/sqlite`) do not load with `@wasmer/sdk` 0.19.1.

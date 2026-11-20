@@ -154,23 +154,76 @@ export function lifoMount(
   };
 }
 
-/** A ContainerEngine on Lifo; `files` is the port the pool serves mounted FilesApis on. */
+// Lifo fetches esbuild-wasm from unpkg (browsers) through the same fetch as its guests: its own
+// runtime files stay reachable without egress.
+const LIFO_RUNTIME_URLS =
+  /^https:\/\/unpkg\.com\/esbuild-wasm@[\d.]+\/(esbuild\.wasm|esm\/browser\.min\.js|lib\/browser\.min\.js)$/;
+
+export interface LifoEngineOptions {
+  /** The port the pool serves mounted FilesApis on. */
+  files?: PortLike;
+  /**
+   * "none" (default): containers have no network. "host": a container started with
+   * `enableInternet: true` gets the realm's network (fetch), unfenced; for trusted build steps.
+   */
+  egress?: "none" | "host";
+}
+
+/**
+ * Lifo reaches the network through its realm's fetch (npm, curl, a guest's fetch, node:http
+ * clients), read at each call: guard it, and the realm's other ways out. The realm is the
+ * engine's own (a dedicated worker), so its network is the engine's: with several containers in
+ * one engine, the network is open while any running container was started with it.
+ */
+function guardRealmNetwork(allowed: () => boolean): () => void {
+  const g = globalThis as Record<string, unknown>;
+  const saved = {
+    fetch: g.fetch,
+    WebSocket: g.WebSocket,
+    XMLHttpRequest: g.XMLHttpRequest,
+    EventSource: g.EventSource,
+  };
+  const refuse = (what: string) =>
+    new TypeError(`network access refused: this container has no egress (${what})`);
+  const realFetch = saved.fetch as typeof fetch | undefined;
+  g.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (realFetch && (allowed() || LIFO_RUNTIME_URLS.test(url))) return realFetch(input, init);
+    return Promise.reject(refuse(url));
+  };
+  for (const name of ["WebSocket", "XMLHttpRequest", "EventSource"] as const) {
+    const Real = saved[name] as (new (...a: unknown[]) => object) | undefined;
+    if (!Real) continue;
+    g[name] = new Proxy(Real, {
+      construct(target, args) {
+        if (!allowed()) throw refuse(name);
+        return Reflect.construct(target, args);
+      },
+    });
+  }
+  return () => Object.assign(g, saved);
+}
+
+/** A ContainerEngine on Lifo. Run it in a worker of its own: it guards that realm's network. */
 export function lifoContainerEngine(
   lifo: LifoModule,
-  opts: { files?: PortLike } = {},
+  opts: LifoEngineOptions = {},
 ): ContainerEngine {
   const handles = new Set<ContainerHandle>();
+  const online = new Set<object>(); // containers started with enableInternet
+  const unguard = guardRealmNetwork(() => online.size > 0);
   return {
     get running() {
       return handles.size;
     },
     async close() {
       await Promise.all([...handles].map((h) => h.destroy()));
+      unguard();
     },
     async start(spec) {
-      if (spec.enableInternet)
+      if (spec.enableInternet && opts.egress !== "host")
         throw new Error(
-          "enableInternet: true needs an egress policy, which this engine does not have yet",
+          'enableInternet: true is refused: this engine has no egress (lifoContainerEngine(lifo, { egress: "host" }))',
         );
       const files = Object.fromEntries(
         Object.entries(spec.files ?? {}).map(([k, v]) => [
@@ -188,6 +241,8 @@ export function lifoContainerEngine(
         if (!opts.files) throw new Error("mounts need the pool's files port");
         box.kernel.vfs.mount(m.path, lifoMount(syncHostFiles(opts.files, m.id), lifo.VFSError));
       }
+      const id = {};
+      if (spec.enableInternet) online.add(id);
       if (spec.entrypoint?.length)
         await box.commands.run(`${quote(spec.entrypoint)} &`, { cwd: "/workspace" });
       let running = true;
@@ -199,6 +254,7 @@ export function lifoContainerEngine(
         if (!running) return;
         running = false;
         handles.delete(handle);
+        online.delete(id);
         box.destroy();
         exit({ exitCode: 137, reason: "terminated" });
       };

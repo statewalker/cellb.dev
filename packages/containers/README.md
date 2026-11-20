@@ -26,7 +26,7 @@ runs. The same class runs on celld with its Dockerfile; each example ships both.
 | `isolated-pool` | `createIsolatedPool({ spawn, image, size })`: one worker per container, prepared ahead of time and terminated after use; `acquire()` returns `ctx.container`'s API, `run()` a one-call form |
 | `warm-pool` | `WarmPool<T>`: a dependency-free pool of single-use instances (keeps N ready, replaces on take, queues with timeouts, backs off) |
 | `worker` | `serveContainerWorker(endpoint, makeEngine)`: any engine served from a worker; `wasmerWorkerEngine(wasmer, files)` |
-| `lifo` | `lifoContainerEngine(lifo, { files })`: containers on [Lifo](https://lifo.sh) (shell, Node-compatible JS); `syncHostFiles` mounts a FilesApi through synchronous hooks |
+| `lifo` | `lifoContainerEngine(lifo, { files, egress })`: containers on [Lifo](https://lifo.sh) (shell, `npm`, Node-compatible JS) with no network unless `egress: "host"` and `enableInternet`; `syncHostFiles` mounts a FilesApi through synchronous hooks |
 
 ```js
 import { Wasmer } from "@wasmer/sdk/node"; // or "@wasmer/sdk/browser"
@@ -165,10 +165,15 @@ and scales to about two scripts per core; Lifo runs one at a time
 
 ### Layered files: install once, run read-only
 
-A build container with egress (`wasmerContainerEngine(wasmer, { egress: "host" })`, trusted steps
-only) runs `npm install` into a writable FilesApi; that FilesApi is then a read-only base layer
-under every run, each run adding its own writable layer (`CompositeFilesApi`, or `cow` for
-copy-on-write), as Docker builds and runs images. [Layered files](docs/layered-files.md).
+A build container with egress (`wasmerContainerEngine(wasmer, { egress: "host" })` in Node, or
+`lifoContainerEngine(lifo, { egress: "host" })` in browsers and Node; trusted steps only) runs
+`npm install` into a writable FilesApi; that FilesApi is then a read-only base layer under every
+run, each run adding its own writable layer (`CompositeFilesApi`, or `cow` for copy-on-write), as
+Docker builds and runs images. [Layered files](docs/layered-files.md).
+
+[Observable Framework](docs/observable-framework.md) installs and builds sites this way in Node
+and in Chromium: one build step with egress, then site builds with no network, about 5 to 6 s
+each.
 
 ### Runaway code
 
@@ -271,7 +276,11 @@ times are reported from `lastModified` and `setTimes` is accepted but not stored
   outside WASIX and no access to the page's or the process's JavaScript.
 - **Network:** `network: { mode: "http", peers: [] }`: a virtual localhost per container, no
   egress, and two containers cannot reach each other (tested). `enableInternet: true` is refused
-  until an egress policy exists (a fenced WISP relay in browsers, an egress hook in Node).
+  unless the engine was created with `egress: "host"`, which gives such a container the host's
+  network, unfenced (for trusted build steps; Wasmer: Node only). Lifo guests reach the network
+  through their worker's `fetch`: `lifoContainerEngine` guards it (and `WebSocket`,
+  `XMLHttpRequest`, `EventSource`) unless a running container was started with
+  `enableInternet` (tested in Node and Chromium).
 - **Files:** only what the mounts' FilesApi allows (above).
 - **Runaway guests:** a guest in a compute loop is not stopped by `kill()` or `destroy()`; only
   terminating its Wasmer client's worker stops it (`recyclableEngine`, above).

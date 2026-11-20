@@ -18,6 +18,8 @@ export interface IsolatedPoolOptions {
   /** Containers kept ready. */
   size: number;
   maxCreating?: number;
+  /** Failed starts in a row after which waiting runs fail with the cause (default 5). */
+  failAfter?: number;
   /** Where a run's FilesApi appears in the guest. */
   mountPath?: string;
   /** A command run while warming (compiles the guest, so a run starts hot). */
@@ -136,7 +138,7 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
       },
       destroy: (slot) => terminate(slot),
     },
-    { size: opts.size, maxCreating: opts.maxCreating },
+    { size: opts.size, maxCreating: opts.maxCreating, failAfter: opts.failAfter },
   );
 
   const containerOf = (slot: Slot): Container => {

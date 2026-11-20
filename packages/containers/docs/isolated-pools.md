@@ -81,6 +81,13 @@ serveContainerWorker(self, ({ files }) => lifoContainerEngine(lifo, { files }));
 In Node, `spawn` returns a `worker_threads` Worker and the worker passes `parentPort` instead of
 `self`.
 
+Lifo reaches the network through its realm's `fetch` (its `npm`, `curl`, a guest's `fetch` and
+`node:http` clients). `lifoContainerEngine` guards that realm: containers have no network, and an
+engine created with `egress: "host"` gives it to a container started with `enableInternet: true`
+(a build step). The guard covers the whole worker, which is why a Lifo engine needs a worker of
+its own. Lifo's own runtime files (esbuild-wasm from unpkg, in browsers) stay reachable. Lifo's
+`npm` exits 0 when a package cannot be fetched (it warns on stderr): check what it installed.
+
 | Cloudflare / celld | Isolated pool |
 | --- | --- |
 | `ctx.container` of a Durable Object | the `Container` from `pool.acquire()` |
@@ -95,7 +102,9 @@ In Node, `spawn` returns a `worker_threads` Worker and the worker passes `parent
 
 - `WarmPool<T>` keeps `size` instances ready: a request takes one or waits in line (with a timeout
   or an abort signal); a replacement starts as soon as one is taken; failed creates back off
-  (250 ms, doubling, up to 30 s); `maxCreating` caps creates at once. It has no dependencies and
+  (250 ms, doubling, up to 30 s); after `failAfter` failures in a row (default 5) the waiting
+  requests fail with the cause, and the pool keeps retrying for later ones; `maxCreating` caps
+  creates at once. It has no dependencies and
   knows nothing about workers.
 - Each instance of an isolated pool is a worker running `serveContainerWorker`, an engine served
   over the existing engine RPC (`connectEngine`), and a started container. A run's FilesApi is
