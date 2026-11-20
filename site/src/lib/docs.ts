@@ -39,6 +39,11 @@ export const referencePages: RepoPage[] = [
     slug: "containers-capacity",
     label: "Containers per node",
   },
+  {
+    file: "packages/containers/docs/isolated-pools.md",
+    slug: "containers-isolated-pools",
+    label: "Isolated container pools",
+  },
   { file: "packages/cellb/CONTEXT.md", slug: "glossary", label: "Glossary" },
   { file: "packages/cellb/bench/README.md", slug: "benchmarks", label: "Benchmarks" },
 ];

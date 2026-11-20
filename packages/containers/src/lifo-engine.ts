@@ -1,6 +1,8 @@
 // A ContainerEngine on Lifo (https://lifo.sh): a Linux-like OS in TypeScript (kernel, shell, VFS,
 // Node-compatible JS). Run it inside a worker of its own (serveContainerWorker): Lifo's in-realm
-// Sandbox is not a security boundary, and terminating the worker is what frees it.
+// Sandbox is not a security boundary, and terminating the worker is what frees it. Keep that
+// worker dedicated: Lifo takes everything its realm writes to `console` while a command runs as
+// the command's output.
 import type { ContainerEngine, ContainerHandle, ExecResult } from "./engine.ts";
 import { type SyncFilesCall, syncHostFiles } from "./files/sync-client.ts";
 import { CHUNK_BYTES } from "./files/volume.ts";

@@ -11,6 +11,7 @@ import { createContainer } from "../../src/container.ts";
 import { HostMounts, serveHostFiles } from "../../src/files/bridge.ts";
 import { connectEngine } from "../../src/rpc.ts";
 import "./worker-pool.ts";
+import "./isolated.ts";
 
 const files = new MemFilesApi();
 const mounts = new HostMounts();

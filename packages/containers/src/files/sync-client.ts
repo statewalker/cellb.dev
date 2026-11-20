@@ -15,7 +15,8 @@ export function syncHostFiles(port: PortLike, mount: number): SyncFilesCall {
   let response: SharedArrayBuffer | undefined;
   return (method, args) => {
     // One call at a time per thread (the caller blocks), so the reply buffer is reused.
-    const buffer = (response ??= new SharedArrayBuffer(RESPONSE_BYTES));
+    if (!response) response = new SharedArrayBuffer(RESPONSE_BYTES);
+    const buffer = response;
     const control = new Int32Array(buffer, 0, 2);
     control.fill(0);
     port.postMessage({

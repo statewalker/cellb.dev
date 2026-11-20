@@ -22,6 +22,10 @@ runs. The same class runs on celld with its Dockerfile; each example ships both.
 | `files` | `FilesVolume`: Wasmer's host-filesystem protocol served by any `FilesApi`. `HostMounts` (`add`, `reserve`, `bind`, `remove`), `installHostFiles`, `forwardHostFiles`, `serveHostFiles`: route a guest's filesystem calls to the thread that owns the FilesApi |
 | `pool` | `createContainerPool(engine, mounts, { image, size })`: runs custom code, each run in a fresh sandbox with its own FilesApi, env and timeout. `provideContainerPool()` / `containerPool()` reach it from Durable Objects |
 | `recycle` | `recyclableEngine(spawn)`: an engine whose instance (a Wasmer client in a worker of its own) is replaced when a guest will not stop |
+| `isolated-pool` | `createIsolatedPool({ spawn, image, size })`: one worker per container, prepared ahead of time and terminated after use; `acquire()` returns `ctx.container`'s API, `run()` a one-call form |
+| `warm-pool` | `WarmPool<T>`: a dependency-free pool of single-use instances (keeps N ready, replaces on take, queues with timeouts, backs off) |
+| `worker` | `serveContainerWorker(endpoint, makeEngine)`: any engine served from a worker; `wasmerWorkerEngine(wasmer, files)` |
+| `lifo` | `lifoContainerEngine(lifo, { files })`: containers on [Lifo](https://lifo.sh) (shell, Node-compatible JS); `syncHostFiles` mounts a FilesApi through synchronous hooks |
 
 ```js
 import { Wasmer } from "@wasmer/sdk/node"; // or "@wasmer/sdk/browser"
@@ -133,6 +137,15 @@ What a run cannot see, by construction rather than by cleaning up:
   `examples/pool`, two cells never see each other's files (Node and Chromium).
 
 A warm sandbox costs about 100 MB (Python), so `size` is a memory budget too.
+
+### Isolated pools: one worker per container
+
+`createIsolatedPool` keeps each container in a worker of its own, prepared ahead of time; a request
+takes one (or waits for one), and the container is terminated with its worker after use, which
+gives its memory back at once and stops anything still running in it. It works with any engine
+served from a worker: Wasmer and [Lifo](https://lifo.sh) today, behind one contract test suite.
+[Isolated pools](docs/isolated-pools.md) has the measurements, the API and how it maps to
+Cloudflare's, the runtimes compared (Wasmer, Lifo, almostnode) and the pool libraries considered.
 
 ### Runaway code
 

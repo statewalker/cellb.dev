@@ -109,6 +109,11 @@ export class Workspace extends DurableObject {
 }
 ```
 
+For the strongest isolation, `createIsolatedPool` keeps each container in a worker of its own and
+terminates it after use: its memory is given back at once and nothing of it survives, at about 2.7
+times the memory of a shared engine for Python. It runs Wasmer or [Lifo](https://lifo.sh) (shell
+and Node-compatible JS) behind the same API ([Isolated pools](../../../containers/docs/isolated-pools.md)).
+
 A timeout stops a guest that makes system calls. A guest in a pure compute loop ignores `kill()`
 and keeps its Wasmer worker busy after its sandbox is gone; give a pool that runs untrusted code a
 `recyclableEngine`, which replaces the engine's worker on a timeout and terminates the old one.
