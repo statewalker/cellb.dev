@@ -3,6 +3,7 @@ import type {
   ContainerEngine,
   ContainerHandle,
   ContainerSpec,
+  ExecOptions,
   ExecResult,
   SpawnedProcess,
   TcpSocket,
@@ -20,7 +21,7 @@ export interface Container {
   monitor(): Promise<{ exitCode: number; reason: string }>;
   destroy(): Promise<void>;
   signal(signo: number): Promise<void>;
-  exec(argv: string[]): Promise<ExecResult>;
+  exec(argv: string[], options?: ExecOptions): Promise<ExecResult>;
   spawn(argv: string[]): Promise<SpawnedProcess>;
   /** Not in Cloudflare's API (its Container class polls with fetch). */
   waitForPort(port: number, timeoutMs?: number): Promise<void>;
@@ -80,7 +81,7 @@ export function createContainer(
       await h?.destroy();
     },
     signal: (signo) => need().signal(signo),
-    exec: (argv) => need().exec(argv),
+    exec: (argv, options) => need().exec(argv, options),
     async spawn(argv) {
       const h = need();
       if (!h.spawn) throw new Error("this engine cannot spawn interactive processes");

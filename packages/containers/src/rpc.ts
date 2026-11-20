@@ -85,8 +85,8 @@ export function serveEngine(port: PortLike, engine: ContainerEngine): void {
       void sock.readable.pipeTo(down).catch(() => sock.close());
       return {};
     },
-    async exec({ hid, argv }) {
-      return { result: await handle(hid).exec(argv) };
+    async exec({ hid, argv, options }) {
+      return { result: await handle(hid).exec(argv, options) };
     },
     async spawn({ hid, argv }) {
       const h = handle(hid);
@@ -206,7 +206,7 @@ export function connectEngine(port: PortLike): ContainerEngine {
             close: () => void up.writable.abort().catch(() => {}),
           };
         },
-        exec: (argv) => call("exec", { hid, argv }),
+        exec: (argv, options) => call("exec", { hid, argv, options }),
         async spawn(argv) {
           const { pid, stdin, stdout, stderr } = await call("spawn", { hid, argv });
           return {

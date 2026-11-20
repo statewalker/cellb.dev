@@ -84,17 +84,17 @@ export class HostMounts implements HostFilesHandler {
 
   /** Mounts with a FilesApi bound. */
   get size(): number {
-    throw new Error("not implemented");
+    return this.#volumes.size;
   }
 
   /** An id with nothing bound yet: its calls answer ENOENT until bind(). */
   reserve(): number {
-    throw new Error("not implemented");
+    return this.#next++;
   }
 
   /** Binds a FilesApi to a reserved id (a fresh volume: nothing carries over from before). */
-  bind(_id: number, _files: FilesApi, _opts: { readOnly?: boolean } = {}): void {
-    throw new Error("not implemented");
+  bind(id: number, files: FilesApi, opts: { readOnly?: boolean } = {}): void {
+    this.#volumes.set(id, { volume: new FilesVolume(files, opts), queue: Promise.resolve() });
   }
 
   handle(request: HostFileSystemRequest): void {

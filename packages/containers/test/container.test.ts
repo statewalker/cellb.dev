@@ -165,6 +165,24 @@ describe("wasmerContainerEngine + createContainer (Python in WASIX)", () => {
     await b.destroy();
   });
 
+  it("destroy() kills processes started with exec(), not only the main process", async () => {
+    const c = createContainer(engine, { packages: ["python/python"] });
+    await c.start();
+    // A sleeping guest makes system calls, so kill() reaches it. (A pure compute loop does not
+    // yield and needs its worker terminated: see pool-recycle.test.ts.)
+    const spinning = c.exec(["python", "-c", "import time\ntime.sleep(60)"]);
+    await new Promise((r) => setTimeout(r, 1000));
+    await c.destroy();
+    const settled = await Promise.race([
+      spinning.then(
+        (r) => `exit ${r.exitCode}`,
+        () => "rejected",
+      ),
+      new Promise((r) => setTimeout(() => r("still running"), 5000)),
+    ]);
+    expect(settled).not.toBe("still running");
+  });
+
   it("close() destroys every container of the engine", async () => {
     const own = wasmerContainerEngine(wasmer);
     const c = createContainer(own, { ...IMAGE, files: { "server.py": SERVER } });

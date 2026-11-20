@@ -129,7 +129,9 @@ describe("createContainerPool", () => {
   });
 
   it("stops a run that exceeds its timeout, and keeps serving", async () => {
-    const r = await pool.run({ argv: py("while True:\n    pass"), timeoutMs: 1500 });
+    // A guest that makes system calls (sleep, I/O) is stopped by kill(); one in a pure compute
+    // loop is not, and needs a recyclable engine (pool-recycle.test.ts).
+    const r = await pool.run({ argv: py("import time\ntime.sleep(60)"), timeoutMs: 1500 });
     expect(r.timedOut).toBe(true);
     expect(r.exitCode).not.toBe(0);
     const next = await pool.run({ argv: py("print('still here')") });

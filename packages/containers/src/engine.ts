@@ -16,6 +16,11 @@ export interface ContainerSpec {
   label?: string;
 }
 
+export interface ExecOptions {
+  env?: Record<string, string>;
+  cwd?: string;
+}
+
 export interface ExecResult {
   exitCode: number;
   stdout: string;
@@ -43,7 +48,7 @@ export interface ContainerHandle {
   waitForPort(port: number, timeoutMs?: number): Promise<void>;
   fetch(port: number, request: Request): Promise<Response>;
   connect(port: number): TcpSocket;
-  exec(argv: string[]): Promise<ExecResult>;
+  exec(argv: string[], options?: ExecOptions): Promise<ExecResult>;
   spawn?(argv: string[]): Promise<SpawnedProcess>;
   signal(signo: number): Promise<void>;
   destroy(): Promise<void>;
@@ -76,6 +81,7 @@ interface WasmerSandbox {
   command(
     cmd: string,
     args?: readonly string[],
+    options?: { env?: Record<string, string>; cwd?: string },
   ): {
     run(o?: {
       check?: boolean;
@@ -196,9 +202,9 @@ export function wasmerContainerEngine(
         waitForPort: (port, timeoutMs = 30_000) => sandbox.ports.wait(port, { timeoutMs }),
         fetch: (port, request) => sandbox.ports.fetch(port, request),
         connect: (port) => sandbox.ports.connect(port),
-        async exec(argv) {
+        async exec(argv, options = {}) {
           const [cmd, ...args] = argv;
-          const out = await sandbox.command(cmd, args).run({ check: false });
+          const out = await sandbox.command(cmd, args, options).run({ check: false });
           return { exitCode: out.exitCode, stdout: out.stdout.text(), stderr: out.stderr.text() };
         },
         spawn: spawnOf(sandbox),
