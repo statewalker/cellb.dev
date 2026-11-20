@@ -4,10 +4,10 @@ import { loadProject } from "@statewalker/cellb/node";
 import { Wasmer } from "@wasmer/sdk/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  type ContainerEngine,
   createContainerPool,
   HostMounts,
   installHostFiles,
-  provideContainerEngine,
   provideContainerPool,
   wasmerContainerEngine,
 } from "../src/index.ts";
@@ -17,18 +17,19 @@ const example = (name: string) => fileURLToPath(new URL(`../examples/${name}`, i
 const hasJspi = typeof (WebAssembly as { Suspending?: unknown }).Suspending === "function";
 
 let wasmer: Wasmer;
-let withdraw: () => Promise<void>;
+let engine: ContainerEngine;
 beforeAll(() => {
   wasmer = new Wasmer({ cache: { directory: ".wasmer" } });
-  withdraw = provideContainerEngine(wasmerContainerEngine(wasmer));
+  engine = wasmerContainerEngine(wasmer);
 });
 afterAll(async () => {
-  await withdraw?.();
+  await engine?.close();
   await wasmer?.close();
 });
 
 async function run(name: string, paths: string[]) {
-  const project = await loadProject(example(name));
+  const project = await loadProject(example(name), { containers: engine });
+  expect(project.unsupported).toEqual([]);
   try {
     const out = [];
     for (const p of paths) {

@@ -40,7 +40,7 @@ test("the Python example as a cellb project in a worker, one container per cell"
     (window as any).__cellb(["/hello?cell=alpha", "/again?cell=alpha", "/hello?cell=beta"]),
   );
   expect(r.error).toBeUndefined();
-  expect(r.unsupported).toContain("containers[PyRunner] (cellb runs no containers)");
+  expect(r.unsupported).toEqual([]); // the container class runs: ctx.container
   expect(r.out.map((x: any) => [x.cell, x.visits, x.fromContainer.cell])).toEqual([
     ["alpha", 1, "alpha"],
     ["alpha", 2, "alpha"],

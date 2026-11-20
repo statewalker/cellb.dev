@@ -3,7 +3,6 @@
 // across steps. { op: "get", cell } asks a cell; { op: "close" } stops the node.
 import { loadProject } from "@statewalker/cellb/browser";
 import { Wasmer } from "@wasmer/sdk/browser";
-import { provideContainerEngine } from "../../src/container.ts";
 import { wasmerContainerEngine } from "../../src/engine.ts";
 
 let node:
@@ -15,10 +14,11 @@ self.addEventListener("message", async (e: MessageEvent) => {
   const { op, cell, project: name } = e.data as { op: string; cell?: string; project?: string };
   try {
     node ??= (async () => {
-      const withdraw = provideContainerEngine(wasmerContainerEngine(new Wasmer()));
+      const engine = wasmerContainerEngine(new Wasmer());
+      const withdraw = () => engine.close();
       const project = await loadProject(
         new URL(`/built/${name ?? "python"}/`, location.href).href,
-        { data: `cap-${Date.now()}` },
+        { data: `cap-${Date.now()}`, containers: engine },
       );
       return { project, withdraw };
     })();

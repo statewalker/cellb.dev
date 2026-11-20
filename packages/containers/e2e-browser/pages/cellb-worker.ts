@@ -26,6 +26,7 @@ self.addEventListener("message", async (e: MessageEvent) => {
       new URL(`/built/${e.data.project ?? "python"}/`, location.href).href,
       {
         data: `e2e-${Date.now()}`,
+        containers: engine, // objects of a containers class get ctx.container
       },
     );
     const out = [];
