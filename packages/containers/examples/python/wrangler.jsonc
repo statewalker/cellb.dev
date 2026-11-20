@@ -1,0 +1,10 @@
+{
+  "name": "containers-python",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": { "bindings": [{ "name": "PY", "class_name": "PyRunner" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PyRunner"] }],
+  // celld builds ./Dockerfile; cellb runs the same server.py in a Wasmer (WASIX) sandbox.
+  "containers": [{ "class_name": "PyRunner", "image": "./Dockerfile", "instance_type": "basic" }],
+  "rules": [{ "type": "Text", "globs": ["**/*.py"] }]
+}
