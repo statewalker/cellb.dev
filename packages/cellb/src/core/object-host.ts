@@ -1,5 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
+import type { Container } from "../container.js";
 import type {
   BackupInfo,
   CellBackup,
@@ -147,6 +148,8 @@ export class ObjectHost {
     sqlExtensions?: string[];
     /** storage.deleteAll() keeps the alarm (`delete_all_preserves_alarm`). */
     deleteAllPreservesAlarm?: boolean;
+    /** The cell's container (ctx.container), for objects of a `containers` class. */
+    container?: () => Container;
     /**
      * Ownership: acquire the cell's lease before restoring it. No lease → the cell is owned
      * elsewhere (the host refuses events). The lease epoch fences the cell's log segments;
@@ -219,6 +222,7 @@ export class ObjectHost {
     };
     state.exports = opts.exports ?? {};
     state.props = opts.props;
+    if (opts.container && !opts.facet) state.container = opts.container();
     state.facets = createFacets(
       { ...opts, epoch: () => this.#epoch },
       (name, cls, env, id, props) => {

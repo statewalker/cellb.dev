@@ -120,6 +120,7 @@ async function run(
     filesDir: `${data}-files`,
     bucket: options.bucket,
     ai: options.ai,
+    containers: options.containers,
     isolateScript,
   });
   const { runtime } = project;

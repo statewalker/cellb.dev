@@ -68,10 +68,94 @@ export interface Container {
   };
 }
 
+/** Cloudflare's default: a container with no request for this long goes to sleep. */
+export const DEFAULT_INACTIVITY_MS = 10 * 60_000;
+
+/**
+ * A Durable Object's container: Cloudflare's `ctx.container` over an engine. `start()` starts the
+ * image (options merged over it) once; every call counts as activity, and a container with no
+ * activity for its inactivity timeout is destroyed (the next `start()` starts a fresh one).
+ */
 export function createContainer(
-  _engine: ContainerEngine,
-  _image: ContainerSpec,
-  _opts: { label?: string } = {},
+  engine: ContainerEngine,
+  image: ContainerSpec,
+  opts: { label?: string } = {},
 ): Container {
-  throw new Error("not implemented");
+  let handle: ContainerHandle | undefined;
+  let starting: Promise<void> | undefined;
+  let idleMs = DEFAULT_INACTIVITY_MS;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  const destroy = async () => {
+    clearTimeout(idleTimer);
+    const h = handle;
+    handle = undefined;
+    starting = undefined;
+    await h?.destroy();
+  };
+  const touch = () => {
+    clearTimeout(idleTimer);
+    if (!handle?.running) return;
+    idleTimer = setTimeout(() => void destroy().catch(() => {}), idleMs);
+    (idleTimer as { unref?: () => void }).unref?.(); // never keeps a Node process alive
+  };
+  const need = () => {
+    if (!handle?.running) throw new Error("the container is not running: call start() first");
+    touch();
+    return handle;
+  };
+  return {
+    get running() {
+      return !!handle?.running;
+    },
+    start(options = {}) {
+      if (handle?.running) {
+        touch();
+        return Promise.resolve();
+      }
+      if (options.enableInternet)
+        return Promise.reject(
+          new Error(
+            "enableInternet: true needs an egress policy, which cellb containers do not have yet",
+          ),
+        );
+      starting ??= engine
+        .start({
+          ...image,
+          entrypoint: options.entrypoint ?? image.entrypoint,
+          env: { ...image.env, ...options.env },
+          enableInternet: false,
+          label: opts.label ?? image.label,
+        })
+        .then((h) => {
+          handle = h;
+          starting = undefined;
+          touch();
+        })
+        .catch((e) => {
+          starting = undefined;
+          throw e;
+        });
+      return starting;
+    },
+    monitor: () => need().monitor(),
+    destroy,
+    signal: (signo) => need().signal(signo),
+    exec: (argv, options) => need().exec(argv, options),
+    async spawn(argv) {
+      const h = need();
+      if (!h.spawn) throw new Error("this engine cannot spawn interactive processes");
+      return h.spawn(argv);
+    },
+    waitForPort: (port, timeoutMs) => need().waitForPort(port, timeoutMs),
+    setInactivityTimeout(ms) {
+      idleMs = ms;
+      touch();
+    },
+    getTcpPort(port) {
+      return {
+        fetch: async (input, init) => need().fetch(port, new Request(input, init)),
+        connect: () => need().connect(port),
+      };
+    },
+  };
 }

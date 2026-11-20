@@ -3,7 +3,7 @@ import type { AssetFiles, AssetsConfig } from "../bindings/assets.js";
 import type { QueueConsumerConfig } from "../bindings/celld-queues.js";
 import type { ModuleLoader } from "../bindings/worker-loader.js";
 import { type WorkersAiOptions, workersAi } from "../bindings/workers-ai.js";
-import type { ContainerEngine } from "../container.js";
+import type { ContainerEngine, ContainerSpec } from "../container.js";
 import { defaultHandler, entrypointStub } from "../core/handles.js";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
@@ -49,8 +49,72 @@ export interface WranglerConfig {
   ai?: { binding: string };
   /** Module rules: how imports of non-JS files load (`CompiledWasm`, `Data`, `Text`). */
   rules?: ModuleRule[];
-  /** Containers (celld runs them with Docker or Podman): not supported, reported. */
-  containers?: { class_name: string; image?: string }[];
+  /**
+   * Containers: celld runs them with Docker or Podman; cellb with the host's container engine
+   * (`ProjectHost.containers`) and the image of `cellb.containers[class_name]`.
+   */
+  containers?: {
+    class_name: string;
+    image?: string;
+    instance_type?: string;
+    max_instances?: number;
+  }[];
+  /** cellb's own key (celld and wrangler do not read it). */
+  cellb?: { containers?: Record<string, CellbContainerImage> };
+}
+
+/**
+ * The image of a container class for cellb's engines (`cellb.containers.<class>`), in place of the
+ * Docker image celld builds: WASIX packages, files written under /workspace (a value that starts
+ * with "./" or "../" is a file of the project, read when the project is loaded or built), the
+ * entrypoint and its environment.
+ */
+export interface CellbContainerImage {
+  packages: string[];
+  files?: Record<string, string>;
+  entrypoint?: string[];
+  env?: Record<string, string>;
+}
+
+const isFileReference = (v: unknown): v is string =>
+  typeof v === "string" && (v.startsWith("./") || v.startsWith("../"));
+
+/**
+ * The config with its container images' file references read (`read(path)` gets the path as
+ * written, relative to the project's root). Synchronous when `read` is.
+ */
+export function readContainerFiles(
+  config: WranglerConfig,
+  read: (path: string) => string,
+): WranglerConfig;
+export function readContainerFiles(
+  config: WranglerConfig,
+  read: (path: string) => Promise<string>,
+): Promise<WranglerConfig>;
+export function readContainerFiles(
+  config: WranglerConfig,
+  read: (path: string) => string | Promise<string>,
+): WranglerConfig | Promise<WranglerConfig> {
+  const images = config.cellb?.containers;
+  if (!images) return config;
+  const refs: [string, string, string][] = [];
+  for (const [cls, image] of Object.entries(images))
+    for (const [name, value] of Object.entries(image.files ?? {}))
+      if (isFileReference(value)) refs.push([cls, name, value]);
+  if (!refs.length) return config;
+  const values = refs.map(([, , path]) => read(path));
+  const assemble = (contents: string[]): WranglerConfig => {
+    const out: Record<string, CellbContainerImage> = {};
+    for (const [cls, image] of Object.entries(images))
+      out[cls] = { ...image, files: { ...image.files } };
+    refs.forEach(([cls, name], i) => {
+      (out[cls].files as Record<string, string>)[name] = contents[i];
+    });
+    return { ...config, cellb: { ...config.cellb, containers: out } };
+  };
+  return values.some((v) => v instanceof Promise)
+    ? Promise.all(values).then(assemble)
+    : assemble(values as string[]);
 }
 
 /** wrangler `workflows` entries. */
@@ -185,8 +249,21 @@ export function createProjectRuntime(
   for (const [i, r] of (config.rules ?? []).entries())
     if (!["ESModule", "CommonJS", "CompiledWasm", "Data", "Text"].includes(r.type))
       unsupported.push(`rules[${i}].type "${r.type}"`);
-  for (const c of config.containers ?? [])
-    unsupported.push(`containers[${c.class_name}] (cellb runs no containers)`);
+  const containerImages: Record<string, ContainerSpec> = {};
+  for (const c of config.containers ?? []) {
+    const image = config.cellb?.containers?.[c.class_name];
+    if (!image)
+      unsupported.push(
+        `containers[${c.class_name}] (no image for cellb: add cellb.containers.${c.class_name})`,
+      );
+    else if (!host.containers)
+      unsupported.push(`containers[${c.class_name}] (the host has no container engine)`);
+    else if (Object.values(image.files ?? {}).some(isFileReference))
+      unsupported.push(
+        `containers[${c.class_name}] (file references of cellb.containers.${c.class_name} were not read)`,
+      );
+    else containerImages[c.class_name] = { ...image };
+  }
   for (const b of config.durable_objects?.bindings ?? []) {
     if (b.script_name) unsupported.push(`durable_objects.bindings[${b.name}].script_name`);
     durableObjects[b.name] = { className: b.class_name };
@@ -281,6 +358,10 @@ export function createProjectRuntime(
     clock: host.clock,
     peers: host.peers,
     route: host.route,
+    containers:
+      host.containers && Object.keys(containerImages).length
+        ? { engine: host.containers, images: containerImages }
+        : undefined,
   });
   const env = runtime.env as Record<string, unknown>;
   if (config.ai && host.ai) env[config.ai.binding] = workersAi(host.ai);

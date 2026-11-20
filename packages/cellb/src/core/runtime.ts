@@ -1,4 +1,9 @@
-import type { ContainerEngine, ContainerSpec } from "../container.js";
+import {
+  type Container,
+  type ContainerEngine,
+  type ContainerSpec,
+  createContainer,
+} from "../container.js";
 import {
   type CellDurability,
   type CellStorage,
@@ -284,6 +289,23 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     }
   }
 
+  // ctx.container: one container per cell, kept here (not on the object), so an object's next
+  // instance (after hibernation or a reset) gets the same running container, as on celld.
+  const containers = new Map<string, Container>();
+  const containerOf = (className: string, cellKey: string, id: DurableObjectId) => {
+    const image = opts.containers?.images[className];
+    if (!image || !opts.containers) return undefined;
+    const engine = opts.containers.engine;
+    return () => {
+      let c = containers.get(cellKey);
+      if (!c) {
+        c = createContainer(engine, image, { label: id.name ?? id.toString() });
+        containers.set(cellKey, c);
+      }
+      return c;
+    };
+  };
+
   for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {
     const cls = opts.worker[className] as DurableObjectClass | undefined;
     if (typeof cls !== "function")
@@ -313,6 +335,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           acquire: acquireAfterRelease,
           sqlExtensions: opts.sqlExtensions,
           deleteAllPreservesAlarm: opts.deleteAllPreservesAlarm,
+          container: containerOf(className, cellKey, id),
         });
         hosts.set(cellKey, h);
       }
@@ -495,6 +518,11 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       const grace = opts.closeGraceMs ?? 2_000;
       // Requests in flight, the Worker's and its objects', see their signal abort.
       closing.abort(new Error("the runtime is closing"));
+      // A node stop destroys its containers (celld does the same).
+      const containersDestroyed = Promise.allSettled(
+        [...containers.values()].map((c) => c.destroy()),
+      );
+      containers.clear();
       for (const h of hosts.values()) h.shutdown();
       // Work in flight may start more (a queue's delivery calls the consumer, which writes to
       // another object): wait until nothing runs, nor started while waiting, or the grace ends.
@@ -525,6 +553,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       for (const key of [...hosts.keys()]) retire(key);
       await Promise.all([...releasing.values()]);
       alarms.close(); // every database of the runtime is closed now
+      await containersDestroyed;
       await storage.close?.();
     },
     async fetch(req) {

@@ -12,6 +12,7 @@ import { celldBucket } from "../bucket/celld-cells.js";
 import { idbObjectStore } from "../bucket/idb-object-store.js";
 import { filesApiObjectStore, type ObjectStore } from "../bucket/object-store.js";
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
+import type { ContainerEngine } from "../container.js";
 import type { CellRuntimeOptions, WorkerModule } from "../core/runtime.js";
 import { browserIsolatedLoader } from "../isolate/browser.js";
 import type { LtxStoreFiles } from "../ltx/ltx-page-server.js";
@@ -138,6 +139,8 @@ export interface BrowserProjectOptions {
   route?: CellRuntimeOptions["route"];
   /** The OpenAI-compatible endpoint behind the project's `ai` binding (Workers AI). */
   ai?: WorkersAiOptions;
+  /** The container engine for the project's `containers` (e.g. Wasmer, from @statewalker/cellb-containers). */
+  containers?: ContainerEngine;
 }
 
 async function bucketStore(b: BrowserBucket): Promise<ObjectStore> {
@@ -342,6 +345,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
     storage: shared, // R2 objects in the fleet bucket too, as celld keeps them
     route: opts.route,
     ai: opts.ai,
+    containers: opts.containers,
   });
   scope.bind(runtime);
   return {
