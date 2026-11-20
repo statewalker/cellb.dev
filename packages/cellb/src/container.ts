@@ -5,6 +5,8 @@ export interface ContainerSpec {
   packages: (string | Uint8Array)[];
   files?: Record<string, string | Uint8Array>;
   entrypoint?: string[];
+  /** The working directory of the entrypoint and the default one of exec() (Docker's WORKDIR). */
+  workdir?: string;
   env?: Record<string, string>;
   enableInternet?: boolean;
   mounts?: { path: string; id: number; readOnly?: boolean }[];
@@ -148,7 +150,10 @@ export function createContainer(
     },
     getTcpPort(port) {
       return {
-        fetch: async (input, init) => need().fetch(port, new Request(input, init)),
+        // a Request as is: an upgrade request keeps its headers as an own property
+        // (browsers drop Upgrade and Sec-* from a copy)
+        fetch: async (input, init) =>
+          need().fetch(port, input instanceof Request && !init ? input : new Request(input, init)),
         connect: () => need().connect(port),
       };
     },

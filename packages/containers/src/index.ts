@@ -6,4 +6,5 @@ export * from "./pool.ts";
 export * from "./recycle.ts";
 export * from "./rpc.ts";
 export * from "./warm-pool.ts";
+export * from "./websocket.ts";
 export * from "./worker.ts";

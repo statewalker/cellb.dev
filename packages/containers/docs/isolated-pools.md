@@ -88,6 +88,14 @@ engine created with `egress: "host"` gives it to a container started with `enabl
 its own. Lifo's own runtime files (esbuild-wasm from unpkg, in browsers) stay reachable. Lifo's
 `npm` exits 0 when a package cannot be fetched (it warns on stderr): check what it installed.
 
+WebSockets cross the worker both ways. Into the box: `getTcpPort(port).fetch()` of an upgrade
+request answers 101 with the socket's `MessagePort` (`containerWebSocket(container, port)` is a
+`WebSocket` class over it). Out of it: `lifoContainerEngine(lifo, { webSocket })` installs a WHATWG
+WebSocket class as the realm's `WebSocket`, which a guest's `WebSocket` and `node:http` upgrades
+use; with `createWebSocketClass` from `@statewalker/webrun-http-browser`, the box's sockets reach
+handlers the host chooses, with no network. Lifo runs one command at a time: start a server as the
+image's entrypoint (a background job, in `workdir`), not with `exec()`.
+
 | Cloudflare / celld | Isolated pool |
 | --- | --- |
 | `ctx.container` of a Durable Object | the `Container` from `pool.acquire()` |

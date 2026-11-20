@@ -6,6 +6,12 @@
 // calls are messages, request and response bodies are transferred buffers, and sockets and process
 // stdio are transferred WHATWG streams. Works with browser MessagePorts / Workers and with Node's
 // worker_threads ports.
+
+import {
+  takeUpgrade,
+  webSocketUpgradeResponse,
+  withHeaders,
+} from "@statewalker/webrun-http-browser";
 import type { ContainerEngine, ContainerHandle, ContainerSpec, SpawnedProcess } from "./engine.ts";
 import { onMessage } from "./files/bridge.ts";
 
@@ -55,14 +61,26 @@ export function serveEngine(port: PortLike, engine: ContainerEngine): void {
       return {};
     },
     async fetch({ hid, port: p, req }: { hid: number; port: number; req: SerializedRequest }) {
+      // the headers ride as the request's own property: browsers drop Upgrade and Sec-* from it
       const res = await handle(hid).fetch(
         p,
-        new Request(req.url, {
-          method: req.method,
-          headers: req.headers,
-          body: req.body as BodyInit | undefined,
-        }),
+        withHeaders(
+          new Request(req.url, {
+            method: req.method,
+            headers: req.headers,
+            body: req.body as BodyInit | undefined,
+          }),
+          new Headers(req.headers),
+        ),
       );
+      const upgrade = takeUpgrade(res);
+      if (upgrade) {
+        // a WebSocket: the socket's port goes to the caller
+        return {
+          result: { status: 101, upgrade: { port: upgrade.port, protocol: upgrade.protocol } },
+          transfer: [upgrade.port],
+        };
+      }
       const body = new Uint8Array(await res.arrayBuffer());
       return {
         result: { status: res.status, statusText: res.statusText, headers: [...res.headers], body },
@@ -186,6 +204,7 @@ export function connectEngine(port: PortLike): ContainerEngine {
         waitForPort: (p, timeoutMs) => call("waitForPort", { hid, port: p, timeoutMs }),
         async fetch(p, request) {
           const r = await call("fetch", { hid, port: p, req: await serializeRequest(request) });
+          if (r.upgrade) return webSocketUpgradeResponse(r.upgrade.port, r.upgrade.protocol);
           const noBody = request.method === "HEAD" || [101, 204, 205, 304].includes(r.status);
           return new Response(noBody ? null : r.body, {
             status: r.status,

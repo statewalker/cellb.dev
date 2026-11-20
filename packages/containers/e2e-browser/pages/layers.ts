@@ -7,9 +7,38 @@ import {
   frameworkBuild,
   frameworkBuildSteps,
   frameworkLayerFiles,
+  frameworkPreview,
   helloSite,
 } from "../../examples/observable-framework/recipe.ts";
+import { createContainer } from "../../src/container.ts";
+import { HostMounts, serveHostFiles } from "../../src/files/bridge.ts";
 import { createIsolatedPool } from "../../src/isolated-pool.ts";
+import { connectEngine } from "../../src/rpc.ts";
+import { containerWebSocket } from "../../src/websocket.ts";
+
+/** Framework's layer, once built by __framework (the preview reuses it). */
+let frameworkLayer: MemFilesApi | undefined;
+async function buildFrameworkLayer() {
+  const layer = await filesOf(frameworkLayerFiles("/data"));
+  const build = buildPool();
+  const steps: { argv: string; exitCode: number; ms: number; stderr: string }[] = [];
+  try {
+    for (const argv of frameworkBuildSteps("/data")) {
+      const r = await build.run({ argv, files: layer, cwd: "/data", timeoutMs: 600_000 });
+      steps.push({
+        argv: argv.join(" "),
+        exitCode: r.exitCode,
+        ms: r.ms,
+        stderr: r.stderr.slice(-1500),
+      });
+      if (r.exitCode !== 0) return { layer: undefined, steps };
+    }
+  } finally {
+    await build.close();
+  }
+  frameworkLayer = layer;
+  return { layer, steps };
+}
 
 const env = { HOME: "/home/user", OBSERVABLE_TELEMETRY_DISABLE: "true" };
 const buildPool = () =>
@@ -102,20 +131,8 @@ Object.assign(window, {
   },
 
   async __framework() {
-    const layer = await filesOf(frameworkLayerFiles("/data"));
-    const build = buildPool();
-    const steps: { argv: string; exitCode: number; ms: number; stderr: string }[] = [];
-    for (const argv of frameworkBuildSteps("/data")) {
-      const r = await build.run({ argv, files: layer, cwd: "/data", timeoutMs: 600_000 });
-      steps.push({
-        argv: argv.join(" "),
-        exitCode: r.exitCode,
-        ms: r.ms,
-        stderr: r.stderr.slice(-1500),
-      });
-      if (r.exitCode !== 0) break;
-    }
-    await build.close();
+    const { layer, steps } = await buildFrameworkLayer();
+    if (!layer) return { steps, sites: [], layerDist: false };
     const runs = runPool();
     const sites = [];
     for (const files of [helloSite, { "src/about.md": "# About\n" }]) {
@@ -140,5 +157,75 @@ Object.assign(window, {
     }
     await runs.close();
     return { steps, sites, layerDist: await layer.exists("/dist") };
+  },
+
+  async __preview() {
+    const layer = frameworkLayer ?? (await buildFrameworkLayer()).layer;
+    if (!layer) throw new Error("the Framework layer did not build");
+    // a Lifo container without network in a worker of its own; the layers on this thread
+    const worker = new Worker(new URL("./isolated-lifo-worker.ts", import.meta.url), {
+      type: "module",
+    });
+    const engineChannel = new MessageChannel();
+    const filesChannel = new MessageChannel();
+    const mounts = new HostMounts();
+    serveHostFiles(filesChannel.port1, mounts);
+    worker.postMessage({ engine: engineChannel.port2, files: filesChannel.port2 }, [
+      engineChannel.port2,
+      filesChannel.port2,
+    ]);
+    const top = await filesOf({ "src/index.md": "# Live\n\nversion one\n" });
+    const c = createContainer(connectEngine(engineChannel.port1), {
+      packages: [],
+      env,
+      mounts: [{ path: "/data", id: mounts.add(cow(readOnly(layer), top)) }],
+      workdir: "/data",
+    });
+    const t0 = performance.now();
+    try {
+      await c.start({ entrypoint: frameworkPreview("/data", 3000) });
+      await c.waitForPort?.(3000, 60_000);
+      const startMs = Math.round(performance.now() - t0);
+      const html = await (await c.getTcpPort(3000).fetch("http://container/")).text();
+      const hash = html.match(/open\(\{hash: "([^"]+)"/)?.[1];
+      // the page's live-reload client, with a WebSocket class into the container
+      const WS = containerWebSocket(c, 3000);
+      const ws = new WS("ws://container/_observablehq") as unknown as WebSocket;
+      const messages: { type: string; html?: unknown }[] = [];
+      ws.onmessage = (e) => messages.push(JSON.parse(String(e.data)));
+      ws.onopen = () => ws.send(JSON.stringify({ type: "hello", path: "/", hash }));
+      const waitFor = async (type: string) => {
+        for (let i = 0; i < 600; i++) {
+          const m = messages.find((x) => x.type === type);
+          if (m) return m;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        return undefined;
+      };
+      const welcome = await waitFor("welcome");
+      const t1 = performance.now();
+      const edit = await c.exec([
+        "node",
+        "-e",
+        "require('fs').writeFileSync('src/index.md', '# Live\\n\\nversion two\\n')",
+      ]);
+      const update = await waitFor("update");
+      const updateMs = Math.round(performance.now() - t1);
+      ws.close();
+      return {
+        startMs,
+        pageHasVersionOne: html.includes("version one"),
+        hash,
+        welcome: !!welcome,
+        edit: edit.exitCode,
+        update: update ? JSON.stringify(update.html) : null,
+        updateMs,
+        topHasEdit: (await readText(top, "/src/index.md")).includes("version two"),
+        types: messages.map((m) => m.type),
+      };
+    } finally {
+      await c.destroy();
+      worker.terminate();
+    }
   },
 });

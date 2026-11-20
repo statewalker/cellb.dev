@@ -70,7 +70,8 @@ const r = await esbuild.build({
   bundle: true, platform: "node", format: "esm", target: "es2022", logLevel: "warning",
   banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
   plugins: [{ name: "lifo", setup(b) {
-    b.onResolve({ filter: /^(jsdom|rollup|@rollup\\/wasm-node|fsevents|tsx|supports-color)(\\/.*)?$/ }, (a) => ({ path: a.path.replace(/^rollup/, "@rollup/wasm-node"), external: true }));
+    b.onResolve({ filter: /^ws$/ }, () => ({ path: dir + "/node_modules/ws/index.js" }));
+    b.onResolve({ filter: /^(jsdom|rollup|@rollup\\/wasm-node|fsevents|tsx|supports-color|bufferutil|utf-8-validate)(\\/.*)?$/ }, (a) => ({ path: a.path.replace(/^rollup/, "@rollup/wasm-node"), external: true }));
     b.onResolve({ filter: /^esbuild$/ }, (a) => (a.importer.endsWith("/lifo-esbuild.cjs") ? null : { path: dir + "/lifo-esbuild.cjs" }));
     b.onResolve({ filter: /^(node:)?util$/ }, () => ({ path: dir + "/lifo-util.cjs" }));
     b.onResolve({ filter: /^(node:)?path\\/posix$/ }, () => ({ path: "node:path", external: true }));
@@ -116,6 +117,18 @@ export function frameworkBuild(layerDir: string): string[] {
     "node",
     `${layerDir}/node_modules/@observablehq/framework/dist/observable.lifo.mjs`,
     "build",
+  ];
+}
+
+/** The command that serves the site in `<cwd>/src` with live reload (until it is stopped). */
+export function frameworkPreview(layerDir: string, port = 3000): string[] {
+  return [
+    "node",
+    `${layerDir}/node_modules/@observablehq/framework/dist/observable.lifo.mjs`,
+    "preview",
+    "--no-open",
+    "--port",
+    String(port),
   ];
 }
 

@@ -171,7 +171,13 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
       setInactivityTimeout() {},
       getTcpPort(port) {
         return {
-          fetch: async (input, init) => live().fetch(port, new Request(input, init)),
+          // a Request as is: an upgrade request keeps its headers as an own property
+          // (browsers drop Upgrade and Sec-* from a copy)
+          fetch: async (input, init) =>
+            live().fetch(
+              port,
+              input instanceof Request && !init ? input : new Request(input, init),
+            ),
           connect: () => live().connect(port),
         };
       },

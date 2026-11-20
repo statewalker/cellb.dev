@@ -61,12 +61,57 @@ into `dist/observable.lifo.mjs`, working around:
 - **Lifo's `import()`** keeps a query string in the path, and Framework imports its config file
   with a cache-busting query: no `observablehq.config.js`; the defaults apply (`root: "src"`).
 
-## Preview
+## Preview with live reload
 
-`observable preview` starts and serves pages through the container's port
-(`container.getTcpPort(3000).fetch()`), checked in Node by hand: the page and `client.js` answer
-200 and keep answering. Live reload does not work: Framework's `WebSocketServer` is not available
-in Lifo. Not covered by a test.
+`observable preview` runs in a container and live reload works, in Node and in Chromium (tested in
+both). Framework's server keeps a WebSocket per open page (`/_observablehq`): the page says which
+page it shows (`hello`), and the server pushes an `update` when the page's file changes.
+
+```ts
+import { containerWebSocket } from "@statewalker/cellb-containers";
+import { frameworkPreview } from "./examples/observable-framework/recipe.ts";
+
+const c = createContainer(lifoEngine, {
+  packages: [],
+  mounts: [{ path: "/data", id: mounts.add(cow(readOnly(layer), site)) }],
+  workdir: "/data",
+});
+await c.start({ entrypoint: frameworkPreview("/data", 3000) });
+await c.waitForPort(3000);
+
+const html = await (await c.getTcpPort(3000).fetch("http://container/")).text();
+const WS = containerWebSocket(c, 3000); // a WHATWG WebSocket class into the container
+const ws = new WS("ws://container/_observablehq");
+ws.onopen = () => ws.send(JSON.stringify({ type: "hello", path: "/", hash })); // hash: from the page
+ws.onmessage = (e) => console.log(JSON.parse(e.data).type); // "welcome", then "update" on edits
+```
+
+In Chromium the preview served pages 6.0 s after `start()`, and the `update` arrived 80 ms after
+the edit (Node: tested, not timed).
+
+What it took:
+
+- **`ws` resolved to its Node entry** in the CLI bundle. Lifo's esbuild picked the package's
+  `browser` export, a stub without `WebSocketServer`. Lifo's `node:http` server already emits
+  `upgrade` events, so `ws` works unchanged on top of them.
+- **WebSockets through the container's port.** `getTcpPort(port).fetch()` of an upgrade request
+  answers 101 and carries the socket's `MessagePort`, using the convention of
+  `@statewalker/webrun-http-browser` (`newWebSocketUpgradeRequest`, `takeUpgrade`); it crosses the
+  engine RPC like any other port. The Lifo engine bridges it to the server in the box (Lifo's
+  `box.connect()`). `containerWebSocket(container, port)` wraps it in that package's
+  `createWebSocketClass`: the browser's `WebSocket` API.
+- **The server as the entrypoint.** Lifo runs one command at a time, so a server started with
+  `exec()` would block every later command. The entrypoint runs as a background job instead, in
+  the image's `workdir` (new in `ContainerSpec`: Docker's `WORKDIR`).
+
+Framework watches files with `fs.watch`, which Lifo implements for writes made inside the box:
+an edit through a command in the container is seen, through the mount included. A write to the
+FilesApi from outside the container is not (the FilesApi has no change events): it shows on the
+next request, without a push.
+
+Not done: serving the preview to a real browser page. The page's own live-reload client would need
+`containerWebSocket` as its `WebSocket` and the page served from the container, e.g. through
+`@statewalker/webrun-site-host`'s ServiceWorker.
 
 ## In Wasmer (edgejs): blocked
 

@@ -133,7 +133,9 @@ export function wasmerContainerEngine(
       const output = { stdout: "", stderr: "" };
       if (spec.entrypoint?.length) {
         const [cmd, ...args] = spec.entrypoint;
-        main = await sandbox.command(cmd, args).spawn({ stdout: "pipe", stderr: "pipe" });
+        main = await sandbox
+          .command(cmd, args, spec.workdir ? { cwd: spec.workdir } : {})
+          .spawn({ stdout: "pipe", stderr: "pipe" });
         for (const key of ["stdout", "stderr"] as const) {
           void (async () => {
             try {
@@ -170,7 +172,9 @@ export function wasmerContainerEngine(
         connect: (port) => sandbox.ports.connect(port),
         async exec(argv, options = {}) {
           const [cmd, ...args] = argv;
-          const out = await sandbox.command(cmd, args, options).run({ check: false });
+          const out = await sandbox
+            .command(cmd, args, { cwd: spec.workdir, ...options })
+            .run({ check: false });
           return { exitCode: out.exitCode, stdout: out.stdout.text(), stderr: out.stderr.text() };
         },
         spawn: spawnOf(sandbox),

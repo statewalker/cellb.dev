@@ -3,6 +3,12 @@
 // Sandbox is not a security boundary, and terminating the worker is what frees it. Keep that
 // worker dedicated: Lifo takes everything its realm writes to `console` while a command runs as
 // the command's output.
+
+import {
+  isWebSocketUpgrade,
+  requestedProtocols,
+  upgradeWebSocket,
+} from "@statewalker/webrun-http-browser";
 import type { ContainerEngine, ContainerHandle, ExecResult } from "./engine.ts";
 import { type SyncFilesCall, syncHostFiles } from "./files/sync-client.ts";
 import { CHUNK_BYTES } from "./files/volume.ts";
@@ -40,8 +46,67 @@ interface LifoSandbox {
     init?: { method?: string; headers?: Record<string, string>; body?: Uint8Array },
   ): Promise<Response>;
   waitForPort(port: number, o?: { timeout?: number }): Promise<void>;
+  connect(
+    port: number,
+    url?: string,
+    o?: { protocol?: string; timeout?: number },
+  ): Promise<LifoVmSocket>;
   destroy(): void;
 }
+interface LifoVmSocket {
+  send(data: string | Uint8Array): void;
+  close(): void;
+  onmessage: ((e: { data: string | Uint8Array }) => void) | null;
+  onclose: ((e: { code: number; reason: string }) => void) | null;
+  onerror: ((e: Error) => void) | null;
+}
+
+/**
+ * A WebSocket into the box: Lifo's in-box connection to the server on `port` (its http.Server's
+ * `upgrade` event), bridged to the server end of a MessagePort socket, whose other port goes back
+ * in the 101 (webrun-http-browser). Lifo offers one subprotocol: the first one asked for.
+ */
+async function upgradeIntoBox(box: LifoSandbox, port: number, request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const [protocol] = requestedProtocols(request);
+  let vm: LifoVmSocket;
+  try {
+    vm = await box.connect(port, url.pathname + url.search, {
+      ...(protocol && { protocol }),
+      timeout: 10_000,
+    });
+  } catch (e) {
+    return new Response(`no WebSocket server on port ${port}: ${(e as Error).message}`, {
+      status: 502,
+    });
+  }
+  const { socket, response } = upgradeWebSocket(request, { protocol: protocol ?? "" });
+  socket.binaryType = "arraybuffer";
+  let open = true;
+  vm.onmessage = (e) => {
+    if (open) socket.send(e.data);
+  };
+  vm.onclose = (e) => {
+    if (!open) return;
+    open = false;
+    const code =
+      e.code >= 3000 || (e.code >= 1000 && ![1004, 1005, 1006].includes(e.code)) ? e.code : 1000;
+    socket.close(code, e.reason);
+  };
+  vm.onerror = () => {};
+  socket.addEventListener("message", (e) => {
+    const data = (e as MessageEvent).data;
+    vm.send(typeof data === "string" ? data : new Uint8Array(data as ArrayBuffer));
+  });
+  socket.addEventListener("close", () => {
+    if (!open) return;
+    open = false;
+    vm.close();
+  });
+  socket.accept();
+  return response;
+}
+
 /** The @lifo-sh/core module (or the part of it this engine uses): `import * as lifo from "@lifo-sh/core"`. */
 export interface LifoModule {
   Sandbox: {
@@ -167,6 +232,31 @@ export interface LifoEngineOptions {
    * `enableInternet: true` gets the realm's network (fetch), unfenced; for trusted build steps.
    */
   egress?: "none" | "host";
+  /**
+   * A WHATWG WebSocket class for the sockets the box opens (a guest's `WebSocket`, node:http
+   * upgrades): installed as this realm's `WebSocket`, so those sockets go where the class sends
+   * them (e.g. createWebSocketClass from @statewalker/webrun-http-browser, to the host's
+   * handlers), whatever `egress` is. Without it, the realm's WebSocket follows `egress`.
+   */
+  webSocket?: WebSocketClass;
+}
+
+type WebSocketClass = new (url: string | URL, protocols?: string | string[]) => object;
+
+/**
+ * `webSocket` as the realm's WebSocket. In Node, Lifo's node:http upgrade client calls it as the
+ * `ws` package's class, `new WebSocket(url, { protocols, headers })`: take the protocols.
+ */
+function asRealmWebSocket(Base: WebSocketClass): WebSocketClass {
+  return new Proxy(Base, {
+    construct(target, [url, p]) {
+      const protocols =
+        p && typeof p === "object" && !Array.isArray(p)
+          ? ((p as { protocols?: string[] }).protocols ?? [])
+          : p;
+      return Reflect.construct(target, protocols === undefined ? [url] : [url, protocols]);
+    },
+  });
 }
 
 /**
@@ -175,7 +265,7 @@ export interface LifoEngineOptions {
  * engine's own (a dedicated worker), so its network is the engine's: with several containers in
  * one engine, the network is open while any running container was started with it.
  */
-function guardRealmNetwork(allowed: () => boolean): () => void {
+function guardRealmNetwork(allowed: () => boolean, webSocket?: WebSocketClass): () => void {
   const g = globalThis as Record<string, unknown>;
   const saved = {
     fetch: g.fetch,
@@ -191,7 +281,9 @@ function guardRealmNetwork(allowed: () => boolean): () => void {
     if (realFetch && (allowed() || LIFO_RUNTIME_URLS.test(url))) return realFetch(input, init);
     return Promise.reject(refuse(url));
   };
+  if (webSocket) g.WebSocket = asRealmWebSocket(webSocket);
   for (const name of ["WebSocket", "XMLHttpRequest", "EventSource"] as const) {
+    if (name === "WebSocket" && webSocket) continue;
     const Real = saved[name] as (new (...a: unknown[]) => object) | undefined;
     if (!Real) continue;
     g[name] = new Proxy(Real, {
@@ -211,7 +303,7 @@ export function lifoContainerEngine(
 ): ContainerEngine {
   const handles = new Set<ContainerHandle>();
   const online = new Set<object>(); // containers started with enableInternet
-  const unguard = guardRealmNetwork(() => online.size > 0);
+  const unguard = guardRealmNetwork(() => online.size > 0, opts.webSocket);
   return {
     get running() {
       return handles.size;
@@ -244,7 +336,9 @@ export function lifoContainerEngine(
       const id = {};
       if (spec.enableInternet) online.add(id);
       if (spec.entrypoint?.length)
-        await box.commands.run(`${quote(spec.entrypoint)} &`, { cwd: "/workspace" });
+        await box.commands.run(`${quote(spec.entrypoint)} &`, {
+          cwd: spec.workdir ?? "/workspace",
+        });
       let running = true;
       let exit!: (r: { exitCode: number; reason: string }) => void;
       const exited = new Promise<{ exitCode: number; reason: string }>((r) => {
@@ -265,6 +359,7 @@ export function lifoContainerEngine(
         monitor: () => exited,
         waitForPort: (port, timeoutMs = 30_000) => box.waitForPort(port, { timeout: timeoutMs }),
         async fetch(port, request) {
+          if (isWebSocketUpgrade(request)) return upgradeIntoBox(box, port, request);
           const url = new URL(request.url);
           const body =
             request.method === "GET" || request.method === "HEAD"
@@ -280,7 +375,7 @@ export function lifoContainerEngine(
           throw new Error("raw sockets are not supported by the Lifo engine");
         },
         exec: (argv, o = {}) =>
-          box.commands.run(quote(argv), { cwd: o.cwd ?? "/workspace", env: o.env }),
+          box.commands.run(quote(argv), { cwd: o.cwd ?? spec.workdir ?? "/workspace", env: o.env }),
         signal: stop,
         destroy: stop,
       };

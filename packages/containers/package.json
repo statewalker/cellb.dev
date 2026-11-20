@@ -30,7 +30,8 @@
     "@statewalker/webrun-files": "catalog:",
     "@wasmer/sdk": "0.19.1",
     "@statewalker/webrun-files-mem": "catalog:",
-    "@statewalker/cellb": "workspace:*"
+    "@statewalker/cellb": "workspace:*",
+    "@statewalker/webrun-http-browser": "catalog:"
   },
   "devDependencies": {
     "@statewalker/webrun-files-composite": "^0.12.0",

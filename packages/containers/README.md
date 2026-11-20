@@ -26,7 +26,8 @@ runs. The same class runs on celld with its Dockerfile; each example ships both.
 | `isolated-pool` | `createIsolatedPool({ spawn, image, size })`: one worker per container, prepared ahead of time and terminated after use; `acquire()` returns `ctx.container`'s API, `run()` a one-call form |
 | `warm-pool` | `WarmPool<T>`: a dependency-free pool of single-use instances (keeps N ready, replaces on take, queues with timeouts, backs off) |
 | `worker` | `serveContainerWorker(endpoint, makeEngine)`: any engine served from a worker; `wasmerWorkerEngine(wasmer, files)` |
-| `lifo` | `lifoContainerEngine(lifo, { files, egress })`: containers on [Lifo](https://lifo.sh) (shell, `npm`, Node-compatible JS) with no network unless `egress: "host"` and `enableInternet`; `syncHostFiles` mounts a FilesApi through synchronous hooks |
+| `lifo` | `lifoContainerEngine(lifo, { files, egress, webSocket })`: containers on [Lifo](https://lifo.sh) (shell, `npm`, Node-compatible JS) with no network unless `egress: "host"` and `enableInternet`; WebSockets into the box through `getTcpPort().fetch()`; `webSocket`: the WHATWG class the box's own sockets use; `syncHostFiles` mounts a FilesApi through synchronous hooks |
+| `websocket` | `containerWebSocket(container, port)`: a WHATWG `WebSocket` class whose sockets reach a container's server (an upgrade through `getTcpPort(port).fetch()`, answered with 101 and a `MessagePort`, as in `@statewalker/webrun-http-browser`); the Lifo engine supports it |
 
 ```js
 import { Wasmer } from "@wasmer/sdk/node"; // or "@wasmer/sdk/browser"
@@ -173,7 +174,7 @@ Docker builds and runs images. [Layered files](docs/layered-files.md).
 
 [Observable Framework](docs/observable-framework.md) installs and builds sites this way in Node
 and in Chromium: one build step with egress, then site builds with no network, about 5 to 6 s
-each.
+each. Its preview runs with live reload, through a WebSocket into the container.
 
 ### Runaway code
 
