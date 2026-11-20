@@ -1,7 +1,11 @@
 // A thread that owns a FilesApi and answers a container's filesystem calls for it.
 import { parentPort } from "node:worker_threads";
 import { readText, writeText } from "@statewalker/webrun-files";
-import { FilteredFilesApi, GuardedFilesApi, newPathFilter } from "@statewalker/webrun-files-composite";
+import {
+  FilteredFilesApi,
+  GuardedFilesApi,
+  newPathFilter,
+} from "@statewalker/webrun-files-composite";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { HostMounts, serveHostFiles } from "../../src/files/bridge.ts";
 
@@ -14,7 +18,11 @@ port.on("message", async (msg: { type: string }) => {
     const mounts = new HostMounts();
     const id = mounts.add(
       new GuardedFilesApi(new FilteredFilesApi(files, newPathFilter("/secret")), [
-        { operations: ["write", "remove", "move", "mkdir", "copy"], check: (p: string) => !p.startsWith("/docs"), message: "read-only" },
+        {
+          operations: ["write", "remove", "move", "mkdir", "copy"],
+          check: (p: string) => !p.startsWith("/docs"),
+          message: "read-only",
+        },
       ]),
     );
     const { port1, port2 } = new MessageChannel();

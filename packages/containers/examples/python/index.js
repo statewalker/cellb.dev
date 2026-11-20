@@ -32,7 +32,9 @@ export class PyRunner extends DurableObject {
       await this.container.destroy();
       fromContainer = { destroyed: true };
     } else {
-      const res = await this.container.getTcpPort(8080).fetch(`http://container${url.pathname}${url.search}`);
+      const res = await this.container
+        .getTcpPort(8080)
+        .fetch(`http://container${url.pathname}${url.search}`);
       fromContainer = await res.json();
     }
     return Response.json({ cell: this.ctx.id.name, visits, startedMs, fromContainer });

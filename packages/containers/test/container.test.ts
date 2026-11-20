@@ -28,8 +28,13 @@ function fakeEngine() {
         monitor: () => exited,
         exit,
         waitForPort: async () => {},
-        fetch: async (_p: number, req: Request) => new Response(`fake ${new URL(req.url).pathname}`),
-        connect: () => ({ readable: new ReadableStream(), writable: new WritableStream(), close() {} }),
+        fetch: async (_p: number, req: Request) =>
+          new Response(`fake ${new URL(req.url).pathname}`),
+        connect: () => ({
+          readable: new ReadableStream(),
+          writable: new WritableStream(),
+          close() {},
+        }),
         exec: async (argv: string[]) => ({ exitCode: 0, stdout: argv.join(" "), stderr: "" }),
         signal: async () => exit(143),
         destroy: async () => exit(137),
@@ -57,7 +62,12 @@ describe("createContainer (unit)", () => {
     const c = createContainer(engine, IMAGE, { label: "alpha" });
     await Promise.all([c.start({ env: { A: "1" } }), c.start()]);
     expect(starts).toHaveLength(1);
-    expect(starts[0]).toMatchObject({ entrypoint: IMAGE.entrypoint, env: { A: "1" }, enableInternet: false, label: "alpha" });
+    expect(starts[0]).toMatchObject({
+      entrypoint: IMAGE.entrypoint,
+      env: { A: "1" },
+      enableInternet: false,
+      label: "alpha",
+    });
     expect(c.running).toBe(true);
     expect(await (await c.getTcpPort(8080).fetch("http://c/hi")).text()).toBe("fake /hi");
   });
@@ -122,14 +132,22 @@ describe("wasmerContainerEngine + createContainer (Python in WASIX)", () => {
     await c.start({ env: { CELL: "a" } });
     await c.waitForPort(8080);
     const port = c.getTcpPort(8080);
-    expect(await (await port.fetch("http://container/x?y=1")).json()).toEqual({ path: "/x?y=1", cell: "a" });
-    expect(await (await port.fetch("http://container/", { method: "POST", body: "wasix" })).text()).toBe("xisaw");
+    expect(await (await port.fetch("http://container/x?y=1")).json()).toEqual({
+      path: "/x?y=1",
+      cell: "a",
+    });
+    expect(
+      await (await port.fetch("http://container/", { method: "POST", body: "wasix" })).text(),
+    ).toBe("xisaw");
     const sock = port.connect();
     const w = sock.writable.getWriter();
     await w.write(new TextEncoder().encode("GET /raw HTTP/1.0\r\n\r\n"));
     await w.close();
     expect((await new Response(sock.readable).text()).split("\r\n")[0]).toBe("HTTP/1.0 200 OK");
-    expect(await c.exec(["python", "-c", "print(6*7)"])).toMatchObject({ exitCode: 0, stdout: "42\n" });
+    expect(await c.exec(["python", "-c", "print(6*7)"])).toMatchObject({
+      exitCode: 0,
+      stdout: "42\n",
+    });
     await c.destroy();
     expect(c.running).toBe(false);
   });
@@ -140,7 +158,8 @@ describe("wasmerContainerEngine + createContainer (Python in WASIX)", () => {
     await a.start();
     await a.waitForPort(8080);
     await b.start();
-    const probe = "import socket\ntry:\n    socket.create_connection(('127.0.0.1', 8080), 2); print('reached')\nexcept Exception as e: print('refused')";
+    const probe =
+      "import socket\ntry:\n    socket.create_connection(('127.0.0.1', 8080), 2); print('reached')\nexcept Exception as e: print('refused')";
     expect((await b.exec(["python", "-c", probe])).stdout.trim()).toBe("refused");
     await a.destroy();
     await b.destroy();

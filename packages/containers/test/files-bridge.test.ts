@@ -4,7 +4,11 @@
 // (the request carries a SharedArrayBuffer; whoever holds it can answer).
 import { Worker } from "node:worker_threads";
 import { readText, writeText } from "@statewalker/webrun-files";
-import { FilteredFilesApi, GuardedFilesApi, newPathFilter } from "@statewalker/webrun-files-composite";
+import {
+  FilteredFilesApi,
+  GuardedFilesApi,
+  newPathFilter,
+} from "@statewalker/webrun-files-composite";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { Wasmer } from "@wasmer/sdk/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -32,7 +36,11 @@ print(json.dumps(r))
 /** The FilesApi a container gets: /secret hidden, /docs read-only. */
 export function sandboxedFiles(files: MemFilesApi) {
   return new GuardedFilesApi(new FilteredFilesApi(files, newPathFilter("/secret")), [
-    { operations: ["write", "remove", "move", "mkdir", "copy"], check: (p: string) => !p.startsWith("/docs"), message: "read-only" },
+    {
+      operations: ["write", "remove", "move", "mkdir", "copy"],
+      check: (p: string) => !p.startsWith("/docs"),
+      message: "read-only",
+    },
   ]);
 }
 
@@ -58,7 +66,10 @@ afterAll(async () => {
 });
 
 async function runGuest(mountId: number) {
-  const sb = await wasmer.sandboxes.create({ packages: ["python/python"], mounts: [{ path: "/data", id: mountId }] } as never);
+  const sb = await wasmer.sandboxes.create({
+    packages: ["python/python"],
+    mounts: [{ path: "/data", id: mountId }],
+  } as never);
   try {
     const out = await sb.command("python", ["-c", GUEST]).run({ check: false });
     expect(out.stderr.text()).toBe("");
@@ -111,8 +122,13 @@ describe("FilesApi mounts in a container", () => {
   it("answers ENOENT for a mount id nobody registered", async () => {
     const uninstall = installHostFiles(new HostMounts());
     try {
-      const sb = await wasmer.sandboxes.create({ packages: ["python/python"], mounts: [{ path: "/data", id: 999 }] } as never);
-      const out = await sb.command("python", ["-c", "import os; print(os.path.exists('/data/x'))"]).run({ check: false });
+      const sb = await wasmer.sandboxes.create({
+        packages: ["python/python"],
+        mounts: [{ path: "/data", id: 999 }],
+      } as never);
+      const out = await sb
+        .command("python", ["-c", "import os; print(os.path.exists('/data/x'))"])
+        .run({ check: false });
       expect(out.stdout.text().trim()).toBe("False");
       await sb.close();
     } finally {

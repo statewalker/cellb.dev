@@ -1,11 +1,14 @@
 // Adds `sandbox.ports.fetch(port, request)` and `sandbox.ports.connect(port)` to @wasmer/sdk.
 // Both wrap methods the SDK's wasm core already has (`handleHttpRequest`, `connectTcp`) but the
 // public `Ports` class keeps private behind `#core`. This is the change to ask upstream for.
+//
+// Regenerates patches/@wasmer__sdk@0.19.1.patch:
+//   pnpm patch @wasmer/sdk@0.19.1 --edit-dir <dir>
+//   node packages/containers/scripts/patch-wasmer-sdk.mjs <dir>
+//   pnpm patch-commit <dir>
 import { readFileSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
-const require = createRequire(import.meta.url);
 const file = join(process.argv[2], "dist/index.js");
 const MARK = "/* cellb: ports.fetch/connect, mounts */";
 let src = readFileSync(file, "utf8");
@@ -13,7 +16,8 @@ if (src.includes(MARK)) {
   console.log("@wasmer/sdk already patched");
   process.exit(0);
 }
-const anchor = "    constructor(core) {\n        this.#core = core;\n    }\n    /**\n     * Wait until a guest TCP listener";
+const anchor =
+  "    constructor(core) {\n        this.#core = core;\n    }\n    /**\n     * Wait until a guest TCP listener";
 if (!src.includes(anchor)) throw new Error("patch anchor not found: @wasmer/sdk changed");
 const methods = `    constructor(core) {
         this.#core = core;
@@ -64,12 +68,15 @@ const envLoop = `        for (const [key, value] of Object.entries(options.env ?
         }
 `;
 if (!src.includes(envLoop)) throw new Error("patch anchor (env loop) not found");
-src = src.replace(envLoop, `${envLoop}        for (const m of options.mounts ?? []) {
+src = src.replace(
+  envLoop,
+  `${envLoop}        for (const m of options.mounts ?? []) {
             builder.mountHost(m.path, m.id, !!m.readOnly);
         }
         if (options.storage !== undefined)
             builder.storageHost(options.storage);
-`);
+`,
+);
 writeFileSync(file, src);
 console.log("patched", file);
 // Node pool workers: install the synchronous host-filesystem bridge, as browser workers do.
@@ -77,8 +84,13 @@ const nodeWorker = join(dirname(file), "node-worker.js");
 let nw = readFileSync(nodeWorker, "utf8");
 const nwAnchor = `installCapiObjectBridge((message, transfer = []) => port.postMessage(message, transfer));`;
 if (!nw.includes(nwAnchor)) throw new Error("patch anchor (node-worker) not found");
-nw = `import { installHostFileSystemWorkerBridge as __cellbFsBridge } from "./host-filesystem.js";\n` + nw.replace(nwAnchor, `${nwAnchor}\n${MARK}`);
+nw =
+  `import { installHostFileSystemWorkerBridge as __cellbFsBridge } from "./host-filesystem.js";\n` +
+  nw.replace(nwAnchor, `${nwAnchor}\n${MARK}`);
 // after globalThis.postMessage is defined:
-nw = nw.replace(/(Object\.defineProperty\(globalThis, "postMessage", \{[\s\S]*?\}\);)/, "$1\n__cellbFsBridge();");
+nw = nw.replace(
+  /(Object\.defineProperty\(globalThis, "postMessage", \{[\s\S]*?\}\);)/,
+  "$1\n__cellbFsBridge();",
+);
 writeFileSync(nodeWorker, nw);
 console.log("patched", nodeWorker);

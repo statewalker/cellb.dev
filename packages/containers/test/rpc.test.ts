@@ -22,7 +22,9 @@ let worker: Worker;
 let engine: ContainerEngine;
 beforeAll(async () => {
   worker = new Worker(new URL("./fixtures/engine-worker.ts", import.meta.url));
-  const port = await new Promise<MessagePort>((resolve) => worker.once("message", (m) => resolve(m.port)));
+  const port = await new Promise<MessagePort>((resolve) =>
+    worker.once("message", (m) => resolve(m.port)),
+  );
   engine = connectEngine(port);
 });
 afterAll(async () => {
@@ -32,10 +34,11 @@ afterAll(async () => {
 
 async function* lines(stream: ReadableStream<Uint8Array>) {
   let buf = "";
-  for await (const chunk of stream.pipeThrough(new TextDecoderStream())) {
+  for await (const chunk of stream.pipeThrough(
+    new TextDecoderStream() as unknown as TransformStream<Uint8Array, string>,
+  )) {
     buf += chunk;
-    let i: number;
-    while ((i = buf.indexOf("\n")) >= 0) {
+    for (let i = buf.indexOf("\n"); i >= 0; i = buf.indexOf("\n")) {
       yield buf.slice(0, i);
       buf = buf.slice(i + 1);
     }
@@ -46,7 +49,11 @@ describe("connectEngine / serveEngine", () => {
   it("runs a container in the worker: fetch, connect, exec, destroy", async () => {
     const delay = monitorEventLoopDelay({ resolution: 5 });
     delay.enable();
-    const c = createContainer(engine, { packages: ["python/python"], files: { "s.py": SERVER }, entrypoint: ["python", "/workspace/s.py"] });
+    const c = createContainer(engine, {
+      packages: ["python/python"],
+      files: { "s.py": SERVER },
+      entrypoint: ["python", "/workspace/s.py"],
+    });
     await c.start();
     await c.waitForPort(8080);
     delay.disable();
@@ -56,7 +63,10 @@ describe("connectEngine / serveEngine", () => {
     await w.write(new TextEncoder().encode("GET /sock HTTP/1.0\r\n\r\n"));
     await w.close();
     expect(await new Response(sock.readable).text()).toContain("hello /sock");
-    expect(await c.exec(["python", "-c", "print('exec ok')"])).toMatchObject({ exitCode: 0, stdout: "exec ok\n" });
+    expect(await c.exec(["python", "-c", "print('exec ok')"])).toMatchObject({
+      exitCode: 0,
+      stdout: "exec ok\n",
+    });
     expect(engine.running).toBe(1);
     await c.destroy();
     expect(c.running).toBe(false);

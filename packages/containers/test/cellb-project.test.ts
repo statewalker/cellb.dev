@@ -22,12 +22,17 @@ afterAll(async () => {
   await wasmer?.close();
 });
 
-const get = async (path: string) => (await project.fetch(new Request(`http://localhost${path}`))).json();
+const get = async (path: string) =>
+  (await project.fetch(new Request(`http://localhost${path}`))).json();
 
 it("cellb reports containers as unsupported, and the example still runs through the engine", async () => {
   expect(project.unsupported).toContain("containers[PyRunner] (cellb runs no containers)");
   const first = await get("/hello?cell=alpha");
-  expect(first).toMatchObject({ cell: "alpha", visits: 1, fromContainer: { path: "/hello?cell=alpha", cell: "alpha" } });
+  expect(first).toMatchObject({
+    cell: "alpha",
+    visits: 1,
+    fromContainer: { path: "/hello?cell=alpha", cell: "alpha" },
+  });
   expect(first.startedMs).toBeGreaterThan(0);
   const again = await get("/again?cell=alpha");
   expect(again).toMatchObject({ visits: 2, startedMs: 0 });

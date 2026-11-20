@@ -1,7 +1,12 @@
 // FilesVolume: Wasmer's host-filesystem protocol (the calls a WASIX guest makes on a mounted
 // directory) served by any FilesApi. No Wasmer here: the protocol is called directly.
 import { readText, writeText } from "@statewalker/webrun-files";
-import { FilteredFilesApi, GuardedFilesApi, newPathFilter, readOnly } from "@statewalker/webrun-files-composite";
+import {
+  FilteredFilesApi,
+  GuardedFilesApi,
+  newPathFilter,
+  readOnly,
+} from "@statewalker/webrun-files-composite";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { beforeEach, describe, expect, it } from "vitest";
 import { FilesVolume } from "../src/files/volume.ts";
@@ -45,13 +50,17 @@ describe("FilesVolume", () => {
       ["docs", "directory"],
       ["empty", "directory"],
     ]);
-    expect(await volume.request("readDir", ["docs"])).toEqual([expect.objectContaining({ name: "a.txt", kind: "file", size: 11 })]);
+    expect(await volume.request("readDir", ["docs"])).toEqual([
+      expect.objectContaining({ name: "a.txt", kind: "file", size: 11 }),
+    ]);
   });
 
   it("returns POSIX codes for missing paths and wrong kinds", async () => {
     expect(await code(volume.request("stat", ["nope"]))).toBe("ENOENT");
     expect(await code(volume.request("readDir", ["docs/a.txt"]))).toBe("ENOTDIR");
-    expect(await code(volume.request("open", ["docs", true, false, false, false, false, false]))).toBe("EISDIR");
+    expect(
+      await code(volume.request("open", ["docs", true, false, false, false, false, false])),
+    ).toBe("EISDIR");
     expect(await code(volume.request("mkdir", ["docs"]))).toBe("EEXIST");
   });
 
@@ -62,7 +71,15 @@ describe("FilesVolume", () => {
   });
 
   it("reads byte ranges through a descriptor", async () => {
-    const fd = await volume.request("open", ["docs/a.txt", true, false, false, false, false, false]);
+    const fd = await volume.request("open", [
+      "docs/a.txt",
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
     const bytes = (await volume.request("read", [fd, 6, 100])) as Uint8Array;
     expect(dec.decode(bytes)).toBe("world");
     expect(await volume.request("fileStat", [fd])).toMatchObject({ kind: "file", size: 11 });
@@ -94,8 +111,12 @@ describe("FilesVolume", () => {
   });
 
   it("refuses create_new on an existing file and open without create on a missing one", async () => {
-    expect(await code(volume.request("open", ["docs/a.txt", false, true, false, true, false, false]))).toBe("EEXIST");
-    expect(await code(volume.request("open", ["missing.txt", true, false, false, false, false, false]))).toBe("ENOENT");
+    expect(
+      await code(volume.request("open", ["docs/a.txt", false, true, false, true, false, false])),
+    ).toBe("EEXIST");
+    expect(
+      await code(volume.request("open", ["missing.txt", true, false, false, false, false, false])),
+    ).toBe("ENOENT");
   });
 
   it("makes, renames and removes entries", async () => {
@@ -116,7 +137,9 @@ describe("FilesVolume", () => {
 
   it("is read-only when asked: every mutation fails with EACCES", async () => {
     const ro = new FilesVolume(files, { readOnly: true });
-    expect(await code(ro.request("open", ["x.txt", false, true, true, false, false, false]))).toBe("EACCES");
+    expect(await code(ro.request("open", ["x.txt", false, true, true, false, false, false]))).toBe(
+      "EACCES",
+    );
     expect(await code(ro.request("mkdir", ["d"]))).toBe("EACCES");
     expect(await code(ro.request("remove", ["docs/a.txt"]))).toBe("EACCES");
     expect(await ro.request("stat", ["docs/a.txt"])).toMatchObject({ kind: "file" });
@@ -133,9 +156,13 @@ describe("FilesVolume", () => {
     ]);
     const v = new FilesVolume(guarded);
     expect(await code(v.request("stat", ["secret/key.txt"]))).toBe("ENOENT");
-    expect((await v.request("readDir", [""])) as { name: string }[]).not.toContainEqual(expect.objectContaining({ name: "secret" }));
+    expect((await v.request("readDir", [""])) as { name: string }[]).not.toContainEqual(
+      expect.objectContaining({ name: "secret" }),
+    );
     // A write the FilesApi refuses fails at open(), where the guest checks for errors.
-    expect(await code(v.request("open", ["docs/a.txt", false, true, false, false, true, false]))).toBe("EACCES");
+    expect(
+      await code(v.request("open", ["docs/a.txt", false, true, false, false, true, false])),
+    ).toBe("EACCES");
     expect(await readText(files, "/docs/a.txt")).toBe("hello world");
     // create puts the file in the FilesApi at open(), as POSIX O_CREAT does
     const fd = await v.request("open", ["made.txt", false, true, true, false, false, false]);
