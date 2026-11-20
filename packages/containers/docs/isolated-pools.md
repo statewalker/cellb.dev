@@ -105,6 +105,59 @@ In Node, `spawn` returns a `worker_threads` Worker and the worker passes `parent
   same requests and blocks on `Atomics.wait` until the pool's thread answers (it needs
   SharedArrayBuffer: cross-origin isolation in browsers).
 
+## Several scripts per container
+
+A container (one worker, one engine) can run more than one script at a time. Whether scripts of
+different callers may share it depends on what isolates them inside the engine, so we verified
+that first (`test/multi-script.test.ts`, Node 22, `wasmer/quickjs`):
+
+- **One sandbox per script, in one Wasmer client: isolated.** Six scripts ran at once, each in a
+  sandbox of its own with its own FilesApi mounted at `/data`. Each saw only its own `/data`,
+  `/tmp`, `/workspace` and environment, and the host's FilesApis got only their own script's files.
+- **Several processes in one sandbox: not isolated.** They share the sandbox's mounts and
+  `/workspace`; only `/tmp` and the root are per process. Only scripts with the same capabilities
+  (the same FilesApi view) may share a sandbox.
+- **Lifo: one command at a time per box**, and boxes in one worker share `console` and `process`.
+  N = 1: one worker per script.
+
+What an extra script costs in a warm Wasmer client (`bench/multi-script-node.ts`; each script does
+200 ms of CPU; 4 vCPUs):
+
+| Runtime | Starting a sandbox | Memory per running sandbox | 8 scripts at once | 16 at once |
+| --- | --- | --- | --- | --- |
+| QuickJS (`wasmer/quickjs`) | ~1 ms | 17–28 MB | 1.8× the time of one | 6.6× |
+| Node-compatible JS (`wasmer/edgejs`, Node 24) | ~1 ms | 65–78 MB | 2.6× | 6.7× |
+| Python (`python/python`) | ~1 ms | 46–65 MB | 10.9× | 63× |
+| Lifo (one worker each) | (a worker: ~50 ms) | ~31 MB | one at a time per box | |
+
+QuickJS and edgejs keep scaling to about two scripts per core; Python degrades within one client
+(four at once already took 4.4× the time of one), so Python scales better across workers than
+within one.
+
+The pool takes this as two options:
+
+```ts
+// Many callers' scripts on few workers: a fresh sandbox per script (verified isolated for Wasmer).
+createIsolatedPool({ spawn, image: { packages: ["wasmer/quickjs"] }, size: 1, slots: 8, isolation: "sandbox" });
+
+// Scripts that may share a sandbox: a worker is bound to one capabilities key (one FilesApi view).
+const pool = createIsolatedPool({ spawn, image, size: 1, slots: 4, isolation: "shared" });
+await pool.run({ argv, files: aliceFiles, capabilities: "alice" }); // alice's runs share a sandbox
+await pool.run({ argv, files: bobFiles, capabilities: "bob" });     // never alice's
+```
+
+- `slots: 1` (the default) is one container per run, terminated after it.
+- With slots, a worker serves runs until `maxRunsPerContainer` (200) or `idleMs` (30 s) without
+  one. A timed-out script retires its worker: the other scripts on it get `drainMs` (30 s) to
+  finish, then the worker is terminated, which is what stops a compute loop. A script that must
+  never be slowed by a neighbour's runaway loop needs `slots: 1`.
+- Suggested settings: QuickJS or edgejs, `slots` about twice the cores the pool may use; Python,
+  `slots: 1` or `2` and more workers; Lifo, `slots: 1`.
+
+Tests: `test/script-slots.test.ts` (8 scripts on 2 workers of 4 slots, each with only its own
+files; no trace of a script for the next on the same worker; a timeout retiring a worker after its
+sibling finishes; capability-bound sharing, and refusal of runs with no key or other files).
+
 ## Runtimes
 
 | Runtime | What runs | Where | Fit | Status |

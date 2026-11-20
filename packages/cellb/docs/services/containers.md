@@ -7,9 +7,10 @@ Podman. CellB runs them in browsers and in Node with
 `ctx.container` API with [Wasmer](https://docs.wasmer.io/runtime/js/) WASIX sandboxes: no daemon,
 no image registry at run time, the same object code.
 
-Containers are experimental in CellB. CellB's runtime itself still reports a `containers` entry in
-`unsupported`; until `ctx.container` is built in, an object reaches its container through
-`containerFor(ctx, image)` from the package, on the engine the host provides.
+Containers are experimental in CellB. An object of a `containers` class gets `ctx.container` when
+the host gives the runtime a container engine and the class has an image for CellB in the
+`cellb.containers` key of its wrangler config; otherwise the class is reported in `unsupported`,
+saying which of the two is missing.
 
 Only software compiled to WASI/WASIX runs: Python, PHP, bash, Node-compatible JavaScript
 (`wasmer/edgejs`), your own Rust or C. An arbitrary Linux image does not; that class stays on
@@ -18,49 +19,61 @@ celld, with its Dockerfile.
 ## Example
 
 The [Python example](../../../containers/examples/python) starts a stdlib HTTP server per object
-and reaches it through a container port. Its `wrangler.jsonc` keeps celld's `containers` entry, and
-the same `server.py` runs in Docker on celld and in a Wasmer sandbox on CellB:
+and reaches it through a container port. Its `wrangler.jsonc` keeps celld's `containers` entry and
+adds the image CellB runs; the same `server.py` runs in Docker on celld and in a Wasmer sandbox on
+CellB:
 
-```js
-import { DurableObject } from "cloudflare:workers";
-import { containerFor } from "@statewalker/cellb-containers/container";
-import SERVER from "./server.py"; // a Text module rule
-
-const IMAGE = {
-  packages: ["python/python"],
-  files: { "server.py": SERVER },
-  entrypoint: ["python", "/workspace/server.py"],
-};
-
-export class PyRunner extends DurableObject {
-  constructor(ctx, env) {
-    super(ctx, env);
-    // celld gives ctx.container; on CellB the node's engine provides it
-    this.container = ctx.container ?? containerFor(ctx, IMAGE);
-  }
-
-  async fetch(request) {
-    if (!this.container.running) {
-      await this.container.start({ env: { CELL: this.ctx.id.name } });
-      await this.container.waitForPort?.(8080);
+```jsonc
+{
+  "durable_objects": { "bindings": [{ "name": "PY", "class_name": "PyRunner" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PyRunner"] }],
+  "containers": [{ "class_name": "PyRunner", "image": "./Dockerfile" }], // what celld builds
+  "cellb": {
+    "containers": {
+      "PyRunner": {
+        "packages": ["python/python"],
+        "files": { "server.py": "./server.py" }, // a file of the project, or the content itself
+        "entrypoint": ["python", "/workspace/server.py"]
+      }
     }
-    return this.container.getTcpPort(8080).fetch(request);
   }
 }
 ```
 
-The host provides the engine once per node, before it loads the project:
+The object's code is the same on celld and on CellB:
+
+```js
+import { DurableObject } from "cloudflare:workers";
+
+export class PyRunner extends DurableObject {
+  async fetch(request) {
+    const container = this.ctx.container;
+    if (!container.running) {
+      await container.start({ env: { CELL: this.ctx.id.name } });
+      await container.waitForPort?.(8080); // CellB; on celld the Container class polls
+    }
+    return container.getTcpPort(8080).fetch(request);
+  }
+}
+```
+
+The host gives the runtime an engine, once per node:
 
 ```js
 import { loadProject } from "@statewalker/cellb/node"; // or /browser, in a worker
-import { provideContainerEngine, wasmerContainerEngine } from "@statewalker/cellb-containers";
+import { wasmerContainerEngine } from "@statewalker/cellb-containers";
 import { Wasmer } from "@wasmer/sdk/node"; // or /browser
 
-const withdraw = provideContainerEngine(wasmerContainerEngine(new Wasmer()));
-const project = await loadProject("./my-project");
+const engine = wasmerContainerEngine(new Wasmer());
+const project = await loadProject("./my-project", { containers: engine });
 // ...
-await withdraw(); // destroys the node's containers
+await project.close(); // destroys the project's containers
 ```
+
+`createCellRuntime({ containers: { engine, images } })` and `createProjectRuntime(config, module,
+{ containers })` take the same engine. File references in `files` (values starting with `./` or
+`../`) are read when the project is loaded from its sources, and `cellb build` writes their content
+into the built `wrangler.json`.
 
 More examples: [pool](../../../containers/examples/pool) (custom code run on a pool, against each
 cell's own files), [PHP](../../../containers/examples/php) (PHP's built-in server),
@@ -70,8 +83,9 @@ FilesApi mounted into a container).
 
 ## The object and its container
 
-Each object of a container class controls at most one container. CellB's `ctx.container` (from
-`createContainer` / `containerFor`) implements:
+Each cell of a container class has at most one container. The runtime keeps it per cell, not per
+object instance, so an object woken from hibernation or reset gets the same running container, as
+on celld. CellB's `ctx.container` (`@statewalker/cellb/container`) implements:
 
 - `start()` with `entrypoint` and `env`. `enableInternet: true` is refused: containers have no
   egress yet.
@@ -81,7 +95,8 @@ Each object of a container class controls at most one container. CellB's `ctx.co
   raw socket (a readable and a writable stream).
 - `exec()` runs a process to completion; `spawn()` runs one with streamed stdin, stdout and stderr.
 - `waitForPort(port)`, not in Cloudflare's API (its `Container` class polls with `fetch`).
-- `setInactivityTimeout()` is accepted and not yet acted on.
+- `setInactivityTimeout()`: a container with no call for that long (10 minutes by default, as on
+  Cloudflare) is destroyed; the next `start()` starts a fresh one.
 
 An image is a set of WASIX packages from the Wasmer registry (`python/python`, `php/php-32`,
 `wasmer/bash`, `wasmer/edgejs`) or package bytes, files written under `/workspace`, an entrypoint
@@ -156,13 +171,13 @@ the package README has the details.
 
 ## Differences from celld
 
-- Only WASIX software runs, not Docker images. The image comes from the package's own description
-  (in code today; the `cellb` key of the manifest once built into CellB), not from `image`.
+- Only WASIX software runs, not Docker images. The image comes from `cellb.containers.<class>`,
+  not from `image`.
 - No egress (`enableInternet: true` is refused).
-- No `instance_type` limits, `max_instances` or inactivity window yet.
+- No `instance_type` limits or `max_instances` yet.
 - Wasmer packages published as zstd-compressed WEBC (`sharrattj/coreutils`, `wasmer/winterjs`,
   `sqlite/sqlite`) do not load with `@wasmer/sdk` 0.19.1.
-- `@cloudflare/containers` (the `Container` class) reads `ctx.container`, which CellB does not set
-  yet: use `containerFor()` until it does.
+- `@cloudflare/containers` (the `Container` class) reads `ctx.container`; it is not tested on
+  CellB yet.
 - `@cloudflare/sandbox` does not run: its control server is part of the `cloudflare/sandbox` Docker
   image.

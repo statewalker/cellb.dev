@@ -5,9 +5,10 @@ with Docker, backed here by [Wasmer](https://docs.wasmer.io/runtime/js/) WASIX s
 Durable Object of a `containers` class gets a container that runs Python, PHP, bash or
 Node-compatible JavaScript next to it, in a tab or in a Node process, with no Docker daemon.
 
-Status: experimental. It runs on `@wasmer/sdk` 0.19.1 (alpha) with a small patch, and cellb itself
-is unchanged: projects reach their container through `containerFor(ctx, image)` until
-`ctx.container` is built into cellb (see [Integration into cellb](#integration-into-cellb)).
+Status: experimental. `ctx.container` is built into cellb: give `loadProject` an engine from this
+package and objects of a `containers` class with an image under `cellb.containers` get their
+container ([cellb in practice](#cellb-in-practice)). It runs on `@wasmer/sdk` 0.19.1 (alpha) with a
+small patch, and on [Lifo](https://lifo.sh).
 
 It is an engine beside celld's Docker, not a replacement: only software compiled to WASI/WASIX
 runs. The same class runs on celld with its Dockerfile; each example ships both.
@@ -17,7 +18,7 @@ runs. The same class runs on celld with its Dockerfile; each example ships both.
 | Module | What it does |
 | --- | --- |
 | `engine` | The `ContainerEngine` port and `wasmerContainerEngine(wasmer)`: containers with or without a main process, no egress, a localhost of their own, host mounts, `exec`, `spawn` with streamed stdio, `close()` destroying every container |
-| `container` | `createContainer(engine, image)`: `ctx.container` as Cloudflare and celld define it (`start`, `running`, `monitor`, `destroy`, `signal`, `exec`, `getTcpPort(p).fetch()` / `.connect()`), plus `waitForPort`, `spawn`. `provideContainerEngine()` / `containerFor()` connect a project's objects to the node's engine |
+| `container` | `createContainer(engine, image)` (re-exported from `@statewalker/cellb/container`, where `ctx.container` lives): Cloudflare's API (`start`, `running`, `monitor`, `destroy`, `signal`, `exec`, `getTcpPort(p).fetch()` / `.connect()`, `setInactivityTimeout`), plus `waitForPort`, `spawn`. `provideContainerEngine()` / `containerFor()` for objects outside a runtime with an engine |
 | `rpc` | `serveEngine(port, engine)` / `connectEngine(port)`: the engine in a worker, the cells holding a proxy with the same interface |
 | `files` | `FilesVolume`: Wasmer's host-filesystem protocol served by any `FilesApi`. `HostMounts` (`add`, `reserve`, `bind`, `remove`), `installHostFiles`, `forwardHostFiles`, `serveHostFiles`: route a guest's filesystem calls to the thread that owns the FilesApi |
 | `pool` | `createContainerPool(engine, mounts, { image, size })`: runs custom code, each run in a fresh sandbox with its own FilesApi, env and timeout. `provideContainerPool()` / `containerPool()` reach it from Durable Objects |
@@ -54,26 +55,34 @@ Each is a cellb project with the Dockerfile celld would build from the same sour
 | [`examples/files`](examples/files) | A host script: a composite FilesApi (read-only, filtered `/input`, writable `/output`) mounted for a Python analysis | Node 22+ |
 | [`examples/pool`](examples/pool) | A Durable Object per workspace runs code it is sent on the host's pool, against its own FilesApi | Node 22+, Chromium |
 
-In a project:
+In a project, the object's code is celld's:
 
 ```js
-import { DurableObject } from "cloudflare:workers";
-import { containerFor } from "@statewalker/cellb-containers/container";
-
 export class PyRunner extends DurableObject {
-  constructor(ctx, env) {
-    super(ctx, env);
-    // celld gives ctx.container; on cellb the node's engine provides it
-    this.container = ctx.container ?? containerFor(ctx, IMAGE);
+  async fetch(request) {
+    const c = this.ctx.container; // celld: Docker; cellb: the engine the host gives it
+    if (!c.running) await c.start();
+    return c.getTcpPort(8080).fetch(request);
   }
 }
 ```
 
-and in the host, once per node:
+its `wrangler.jsonc` adds cellb's image next to celld's `containers` entry:
+
+```jsonc
+"containers": [{ "class_name": "PyRunner", "image": "./Dockerfile" }],
+"cellb": { "containers": { "PyRunner": {
+  "packages": ["python/python"],
+  "files": { "server.py": "./server.py" },
+  "entrypoint": ["python", "/workspace/server.py"]
+} } }
+```
+
+and the host gives the runtime an engine:
 
 ```js
-const withdraw = provideContainerEngine(wasmerContainerEngine(new Wasmer()));
-const project = await loadProject(dir);
+const engine = wasmerContainerEngine(new Wasmer());
+const project = await loadProject(dir, { containers: engine });
 ```
 
 Packages known to run with the SDK 0.19.1: `python/python`, `php/php-32`, `php/php`, `wasmer/bash`,
@@ -146,6 +155,13 @@ gives its memory back at once and stops anything still running in it. It works w
 served from a worker: Wasmer and [Lifo](https://lifo.sh) today, behind one contract test suite.
 [Isolated pools](docs/isolated-pools.md) has the measurements, the API and how it maps to
 Cloudflare's, the runtimes compared (Wasmer, Lifo, almostnode) and the pool libraries considered.
+
+A container can also run several scripts at once (`slots`): with `isolation: "sandbox"` each script
+gets a fresh sandbox in the worker's Wasmer client, verified isolated (its own FilesApi, `/tmp`,
+`/workspace`, env), so different callers share workers; with `isolation: "shared"` scripts share a
+sandbox and a worker is bound to one capabilities key. QuickJS costs about 20 MB per extra script
+and scales to about two scripts per core; Lifo runs one at a time
+([Several scripts per container](docs/isolated-pools.md#several-scripts-per-container)).
 
 ### Runaway code
 
@@ -257,39 +273,25 @@ times are reported from `lastModified` and `setTimes` is accepted but not stored
   client per trust domain (per extension or tenant), and recreate the engine after `WORKER_FAILED`.
 - **Not enforced:** CPU and memory limits per container (`instance_type`), disk size.
 
-## Integration into cellb
+## cellb in practice
 
-Today the package runs beside cellb: cellb reports a `containers` entry as unsupported, and objects
-call `containerFor(ctx, image)`. Built into cellb, it becomes:
+`ctx.container` is part of cellb's runtime (`@statewalker/cellb/container`):
 
-1. **A port.** `ProjectHost.containers?: ContainerEngine` next to `openSql` and `storage`. Node
-   hosts pass `connectEngine(port)` to an engine in a `worker_threads` worker; browser hosts pass an
-   engine in the node worker or `connectEngine` to a worker of its own.
-2. **The manifest.** A `containers` entry keeps celld's keys; the cellb image comes from the `cellb`
-   key, so the same file deploys to celld unchanged:
-
-   ```jsonc
-   "containers": [{ "class_name": "PyRunner", "image": "./Dockerfile", "instance_type": "basic" }],
-   "cellb": { "containers": { "PyRunner": {
-     "packages": ["python/python@=3.13.15"],
-     "files": { "server.py": "./server.py" },
-     "entrypoint": ["python", "/workspace/server.py"],
-     "mounts": [{ "path": "/data", "files": "workspace", "readOnly": false }]
-   } } }
-   ```
-
-   A class with an image is no longer reported as unsupported; one without stays reported, naming
-   the key.
-3. **`ctx.container`.** `DurableObjectState` gets `container = createContainer(engine, image, {
-   label })` for objects of a container class, so project code is the same as on celld.
-4. **Lifecycle, as celld.** The container runs where the cell's lease is. An idle eviction keeps it
-   for the inactivity window (`setInactivityTimeout`, 10 minutes by default) and the next
-   activation on the same node reconnects; a lease handover, a tab close or a node stop destroys it.
-   `max_instances` counts per node.
-5. **Mounts.** Named host FilesApis (`"files": "workspace"`) resolve to `HostMounts` ids that the
-   host registered, with the policy built by the host, never by the project.
-6. **Images.** `cellb build` resolves packages to WEBC bytes and stores them with the build (and in
-   the fleet bucket, as celld stores image tarballs), so nodes never contact the registry.
+- **The port.** `loadProject(…, { containers: engine })`, `ProjectHost.containers` or
+  `createCellRuntime({ containers: { engine, images } })`. The engine can be in-process
+  (`wasmerContainerEngine`) or in a worker (`connectEngine(port)`), which keeps Wasmer's core off
+  the cells' thread.
+- **The manifest.** `containers` keeps celld's keys; cellb's image comes from
+  `cellb.containers.<class>` (`packages`, `files`, `entrypoint`, `env`), which celld and wrangler
+  do not read. File references (`"./server.py"`) are read when the project is loaded from its
+  sources, and `cellb build` writes their content into the built `wrangler.json`. A class without
+  an image, or a host without an engine, is reported in `unsupported`, saying which is missing.
+- **Lifecycle.** One container per cell, kept by the runtime across the object's instances
+  (hibernation, resets), as celld keeps it across idle evictions. A container with no call for its
+  inactivity timeout (10 minutes by default) is destroyed; `project.close()` destroys them all.
+- **Not yet:** named host mounts in the manifest (a FilesApi is mounted from the host's code, see
+  the pools), images stored as WEBC with a build (packages come from the registry and its cache),
+  `max_instances`.
 
 ## Measured
 

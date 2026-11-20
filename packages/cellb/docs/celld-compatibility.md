@@ -25,7 +25,7 @@ identical, how it is checked, and where the two still differ. The pinned celld v
 | Module rules (`.wasm`, `rules`: `CompiledWasm`, `Data`, `Text`) | wrangler bundles them | yes, inlined in the bundle | yes, from `cellb build` (not with `compile`, the site path or `cellbHostModule`) | `p42-module-rules`, `load-project.spec` |
 | Workers AI (`ai` binding) | no binding (the `pi` example builds its own adapter) | yes, on an OpenAI-compatible endpoint the host names | yes | `p14-workers-ai`, Flue's `cloud` agent |
 | Python Workers (Pyodide) | supported | no, out of scope ([Gaps](gaps.md)) | no | not run |
-| Containers | experimental (Docker or Podman) | experimental: WASIX software in Wasmer sandboxes with `@statewalker/cellb-containers` ([Containers](services/containers.md)); the runtime still reports `containers` in `unsupported` | experimental, the same, in workers | `packages/containers` tests and Chromium e2e; celld's `container` example as `examples/python` |
+| Containers | experimental (Docker or Podman) | experimental: `ctx.container` on the host's engine (Wasmer or Lifo, `@statewalker/cellb-containers`) with an image under `cellb.containers` ([Containers](services/containers.md)); reported without either | experimental, the same, in workers | `packages/containers` tests and Chromium e2e; celld's `container` example as `examples/python` |
 | Agent frameworks: Flue, pi, opencode | examples (`pi`, `opencode` need the network) | yes, offline against a fake model | Flue | `examples/flue`, `examples/agents` |
 
 ## The same request gets the same answer
