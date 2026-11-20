@@ -53,6 +53,8 @@ packages/platform/     the webrun apps as Durable Object apps (ESM CDN, user cod
                        (Node and browsers), with its per-host builds and end-to-end checks (see its README)
 packages/platform-core/, esm-cdn/, bundler/, astro-builder/, notebooks/
                        the platform's packages (private)
+packages/containers/   containers for cellb (experimental): ctx.container backed by Wasmer (WASIX)
+                       sandboxes in browsers and Node, FilesApi mounts, examples (see its README)
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
 examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
