@@ -1,0 +1,41 @@
+{
+  "date": "2026-11-20",
+  "machine": {
+    "cpus": 4,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.30GHz",
+    "totalMB": 16088,
+    "node": "v22.23.5"
+  },
+  "test": "cells logged to the host's FilesApi, re-sharded",
+  "write": {
+    "tasks": 2048,
+    "ms": 17693,
+    "tasksPerSec": 116,
+    "mbPerSec": 28.9,
+    "workersUsed": 4,
+    "errors": [],
+    "errorCount": 0
+  },
+  "writeMs": 46814,
+  "before": {
+    "rows": 2048,
+    "bytes": 536870912,
+    "movedObjects": 0
+  },
+  "hostMB": 517,
+  "reopenMs": 53681,
+  "after": {
+    "rows": 2048,
+    "bytes": 536870912,
+    "movedObjects": 0
+  },
+  "more": {
+    "tasks": 64,
+    "ms": 259,
+    "tasksPerSec": 247,
+    "mbPerSec": 1,
+    "workersUsed": 8,
+    "errors": [],
+    "errorCount": 0
+  }
+}

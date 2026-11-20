@@ -1,0 +1,93 @@
+{
+  "date": "2026-11-20",
+  "machine": {
+    "cpus": 4,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.30GHz",
+    "totalMB": 16088,
+    "node": "v22.23.5"
+  },
+  "test": "how many threads",
+  "stopped": "machine memory: 13101 MB left before 384 threads",
+  "rows": [
+    {
+      "threads": 16,
+      "ok": true,
+      "startMs": 360,
+      "run": {
+        "tasks": 128,
+        "ms": 556,
+        "tasksPerSec": 230,
+        "mbPerSec": 0.2,
+        "workersUsed": 14,
+        "errors": [],
+        "errorCount": 0
+      },
+      "rssMB": 483,
+      "availableMB": 14049
+    },
+    {
+      "threads": 32,
+      "ok": true,
+      "startMs": 643,
+      "run": {
+        "tasks": 256,
+        "ms": 1173,
+        "tasksPerSec": 218,
+        "mbPerSec": 0.2,
+        "workersUsed": 31,
+        "errors": [],
+        "errorCount": 0
+      },
+      "rssMB": 915,
+      "availableMB": 13653
+    },
+    {
+      "threads": 64,
+      "ok": true,
+      "startMs": 1407,
+      "run": {
+        "tasks": 512,
+        "ms": 2940,
+        "tasksPerSec": 174,
+        "mbPerSec": 0.2,
+        "workersUsed": 60,
+        "errors": [],
+        "errorCount": 0
+      },
+      "rssMB": 1738,
+      "availableMB": 12859
+    },
+    {
+      "threads": 128,
+      "ok": true,
+      "startMs": 2595,
+      "run": {
+        "tasks": 1024,
+        "ms": 11247,
+        "tasksPerSec": 91,
+        "mbPerSec": 0.1,
+        "workersUsed": 126,
+        "errors": [],
+        "errorCount": 0
+      },
+      "rssMB": 4152,
+      "availableMB": 10493
+    },
+    {
+      "threads": 256,
+      "ok": true,
+      "startMs": 6080,
+      "run": {
+        "tasks": 2048,
+        "ms": 21989,
+        "tasksPerSec": 93,
+        "mbPerSec": 0.1,
+        "workersUsed": 255,
+        "errors": [],
+        "errorCount": 0
+      },
+      "rssMB": 8017,
+      "availableMB": 6574
+    }
+  ]
+}

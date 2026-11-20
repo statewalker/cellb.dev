@@ -1,0 +1,570 @@
+{
+  "date": "2026-11-20",
+  "test": "stored volume",
+  "workers": 4,
+  "stopped": "reached 6144 MB",
+  "before": {
+    "quota": 10737418240,
+    "usage": 0,
+    "usageDetails": {}
+  },
+  "stats": {
+    "rows": 6144,
+    "bytes": 6442450944,
+    "movedObjects": 0
+  },
+  "rows": [
+    {
+      "writtenMB": 256,
+      "round": 0,
+      "run": {
+        "tasks": 256,
+        "ms": 1623,
+        "tasksPerSec": 158,
+        "mbPerSec": 157.7,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 11608853138,
+        "usage": 871434898,
+        "usageDetails": {
+          "fileSystem": 871434898
+        }
+      },
+      "chromiumPssMB": 1513,
+      "rendererPssMB": 792,
+      "availableMB": 13078
+    },
+    {
+      "writtenMB": 512,
+      "round": 1,
+      "run": {
+        "tasks": 256,
+        "ms": 1490,
+        "tasksPerSec": 172,
+        "mbPerSec": 171.8,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 12145724050,
+        "usage": 1408305810,
+        "usageDetails": {
+          "fileSystem": 1408305810
+        }
+      },
+      "chromiumPssMB": 2097,
+      "rendererPssMB": 1375,
+      "availableMB": 12505
+    },
+    {
+      "writtenMB": 768,
+      "round": 2,
+      "run": {
+        "tasks": 256,
+        "ms": 1361,
+        "tasksPerSec": 188,
+        "mbPerSec": 188.1,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 12145724050,
+        "usage": 1408305810,
+        "usageDetails": {
+          "fileSystem": 1408305810
+        }
+      },
+      "chromiumPssMB": 2668,
+      "rendererPssMB": 1948,
+      "availableMB": 11946
+    },
+    {
+      "writtenMB": 1024,
+      "round": 3,
+      "run": {
+        "tasks": 256,
+        "ms": 1368,
+        "tasksPerSec": 187,
+        "mbPerSec": 187.2,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 13219465874,
+        "usage": 2482047634,
+        "usageDetails": {
+          "fileSystem": 2482047634
+        }
+      },
+      "chromiumPssMB": 3229,
+      "rendererPssMB": 2511,
+      "availableMB": 11391
+    },
+    {
+      "writtenMB": 1280,
+      "round": 4,
+      "run": {
+        "tasks": 256,
+        "ms": 1362,
+        "tasksPerSec": 188,
+        "mbPerSec": 188,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 13219465874,
+        "usage": 2482047634,
+        "usageDetails": {
+          "fileSystem": 2482047634
+        }
+      },
+      "chromiumPssMB": 3538,
+      "rendererPssMB": 2821,
+      "availableMB": 11152
+    },
+    {
+      "writtenMB": 1536,
+      "round": 5,
+      "run": {
+        "tasks": 256,
+        "ms": 1354,
+        "tasksPerSec": 189,
+        "mbPerSec": 189,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 13219465874,
+        "usage": 2482047634,
+        "usageDetails": {
+          "fileSystem": 2482047634
+        }
+      },
+      "chromiumPssMB": 3820,
+      "rendererPssMB": 3103,
+      "availableMB": 10861
+    },
+    {
+      "writtenMB": 1792,
+      "round": 6,
+      "run": {
+        "tasks": 256,
+        "ms": 1304,
+        "tasksPerSec": 196,
+        "mbPerSec": 196.3,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 13219465874,
+        "usage": 2482047634,
+        "usageDetails": {
+          "fileSystem": 2482047634
+        }
+      },
+      "chromiumPssMB": 4102,
+      "rendererPssMB": 3385,
+      "availableMB": 10581
+    },
+    {
+      "writtenMB": 2048,
+      "round": 7,
+      "run": {
+        "tasks": 256,
+        "ms": 1366,
+        "tasksPerSec": 187,
+        "mbPerSec": 187.4,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 15366949522,
+        "usage": 4629531282,
+        "usageDetails": {
+          "fileSystem": 4629531282
+        }
+      },
+      "chromiumPssMB": 4413,
+      "rendererPssMB": 3696,
+      "availableMB": 10254
+    },
+    {
+      "writtenMB": 2304,
+      "round": 8,
+      "run": {
+        "tasks": 256,
+        "ms": 1344,
+        "tasksPerSec": 191,
+        "mbPerSec": 190.5,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 15366949522,
+        "usage": 4629531282,
+        "usageDetails": {
+          "fileSystem": 4629531282
+        }
+      },
+      "chromiumPssMB": 4700,
+      "rendererPssMB": 3983,
+      "availableMB": 9966
+    },
+    {
+      "writtenMB": 2560,
+      "round": 9,
+      "run": {
+        "tasks": 256,
+        "ms": 1336,
+        "tasksPerSec": 192,
+        "mbPerSec": 191.7,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 15366949522,
+        "usage": 4629531282,
+        "usageDetails": {
+          "fileSystem": 4629531282
+        }
+      },
+      "chromiumPssMB": 4999,
+      "rendererPssMB": 4282,
+      "availableMB": 9673
+    },
+    {
+      "writtenMB": 2816,
+      "round": 10,
+      "run": {
+        "tasks": 256,
+        "ms": 1234,
+        "tasksPerSec": 208,
+        "mbPerSec": 207.5,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 15366949522,
+        "usage": 4629531282,
+        "usageDetails": {
+          "fileSystem": 4629531282
+        }
+      },
+      "chromiumPssMB": 5281,
+      "rendererPssMB": 4564,
+      "availableMB": 9432
+    },
+    {
+      "writtenMB": 3072,
+      "round": 11,
+      "run": {
+        "tasks": 256,
+        "ms": 1245,
+        "tasksPerSec": 206,
+        "mbPerSec": 205.7,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 15366949522,
+        "usage": 4629531282,
+        "usageDetails": {
+          "fileSystem": 4629531282
+        }
+      },
+      "chromiumPssMB": 5568,
+      "rendererPssMB": 4851,
+      "availableMB": 9144
+    },
+    {
+      "writtenMB": 3328,
+      "round": 12,
+      "run": {
+        "tasks": 256,
+        "ms": 1276,
+        "tasksPerSec": 201,
+        "mbPerSec": 200.6,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 15366949522,
+        "usage": 4629531282,
+        "usageDetails": {
+          "fileSystem": 4629531282
+        }
+      },
+      "chromiumPssMB": 5849,
+      "rendererPssMB": 5132,
+      "availableMB": 8841
+    },
+    {
+      "writtenMB": 3584,
+      "round": 13,
+      "run": {
+        "tasks": 256,
+        "ms": 1273,
+        "tasksPerSec": 201,
+        "mbPerSec": 201.1,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 15366949522,
+        "usage": 4629531282,
+        "usageDetails": {
+          "fileSystem": 4629531282
+        }
+      },
+      "chromiumPssMB": 6128,
+      "rendererPssMB": 5411,
+      "availableMB": 8564
+    },
+    {
+      "writtenMB": 3840,
+      "round": 14,
+      "run": {
+        "tasks": 256,
+        "ms": 1325,
+        "tasksPerSec": 193,
+        "mbPerSec": 193.3,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 15366949522,
+        "usage": 4629531282,
+        "usageDetails": {
+          "fileSystem": 4629531282
+        }
+      },
+      "chromiumPssMB": 6419,
+      "rendererPssMB": 5702,
+      "availableMB": 8264
+    },
+    {
+      "writtenMB": 4096,
+      "round": 15,
+      "run": {
+        "tasks": 256,
+        "ms": 1393,
+        "tasksPerSec": 184,
+        "mbPerSec": 183.8,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 19661916818,
+        "usage": 8924498578,
+        "usageDetails": {
+          "fileSystem": 8924498578
+        }
+      },
+      "chromiumPssMB": 6729,
+      "rendererPssMB": 6012,
+      "availableMB": 7949
+    },
+    {
+      "writtenMB": 4352,
+      "round": 16,
+      "run": {
+        "tasks": 256,
+        "ms": 1292,
+        "tasksPerSec": 198,
+        "mbPerSec": 198.1,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 19661916818,
+        "usage": 8924498578,
+        "usageDetails": {
+          "fileSystem": 8924498578
+        }
+      },
+      "chromiumPssMB": 7010,
+      "rendererPssMB": 6293,
+      "availableMB": 7626
+    },
+    {
+      "writtenMB": 4608,
+      "round": 17,
+      "run": {
+        "tasks": 256,
+        "ms": 1362,
+        "tasksPerSec": 188,
+        "mbPerSec": 188,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 19661916818,
+        "usage": 8924498578,
+        "usageDetails": {
+          "fileSystem": 8924498578
+        }
+      },
+      "chromiumPssMB": 7284,
+      "rendererPssMB": 6567,
+      "availableMB": 7347
+    },
+    {
+      "writtenMB": 4864,
+      "round": 18,
+      "run": {
+        "tasks": 256,
+        "ms": 1224,
+        "tasksPerSec": 209,
+        "mbPerSec": 209.1,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 19661916818,
+        "usage": 8924498578,
+        "usageDetails": {
+          "fileSystem": 8924498578
+        }
+      },
+      "chromiumPssMB": 7569,
+      "rendererPssMB": 6852,
+      "availableMB": 7069
+    },
+    {
+      "writtenMB": 5120,
+      "round": 19,
+      "run": {
+        "tasks": 256,
+        "ms": 1311,
+        "tasksPerSec": 195,
+        "mbPerSec": 195.3,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 19661916818,
+        "usage": 8924498578,
+        "usageDetails": {
+          "fileSystem": 8924498578
+        }
+      },
+      "chromiumPssMB": 7854,
+      "rendererPssMB": 7137,
+      "availableMB": 6780
+    },
+    {
+      "writtenMB": 5376,
+      "round": 20,
+      "run": {
+        "tasks": 256,
+        "ms": 1380,
+        "tasksPerSec": 186,
+        "mbPerSec": 185.5,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 19661916818,
+        "usage": 8924498578,
+        "usageDetails": {
+          "fileSystem": 8924498578
+        }
+      },
+      "chromiumPssMB": 8134,
+      "rendererPssMB": 7416,
+      "availableMB": 6501
+    },
+    {
+      "writtenMB": 5632,
+      "round": 21,
+      "run": {
+        "tasks": 256,
+        "ms": 1385,
+        "tasksPerSec": 185,
+        "mbPerSec": 184.9,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 19661916818,
+        "usage": 8924498578,
+        "usageDetails": {
+          "fileSystem": 8924498578
+        }
+      },
+      "chromiumPssMB": 8413,
+      "rendererPssMB": 7696,
+      "availableMB": 6222
+    },
+    {
+      "writtenMB": 5888,
+      "round": 22,
+      "run": {
+        "tasks": 256,
+        "ms": 1384,
+        "tasksPerSec": 185,
+        "mbPerSec": 184.9,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 19661916818,
+        "usage": 8924498578,
+        "usageDetails": {
+          "fileSystem": 8924498578
+        }
+      },
+      "chromiumPssMB": 8698,
+      "rendererPssMB": 7980,
+      "availableMB": 5939
+    },
+    {
+      "writtenMB": 6144,
+      "round": 23,
+      "run": {
+        "tasks": 256,
+        "ms": 1231,
+        "tasksPerSec": 208,
+        "mbPerSec": 208,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "estimate": {
+        "quota": 19661916818,
+        "usage": 8924498578,
+        "usageDetails": {
+          "fileSystem": 8924498578
+        }
+      },
+      "chromiumPssMB": 8979,
+      "rendererPssMB": 8261,
+      "availableMB": 5655
+    }
+  ]
+}

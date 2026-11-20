@@ -1,0 +1,124 @@
+{
+  "date": "2026-11-20",
+  "machine": {
+    "cpus": 4,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.30GHz",
+    "totalMB": 16088,
+    "node": "v22.23.5"
+  },
+  "test": "tasks shared by threads",
+  "rows": [
+    {
+      "threads": 1,
+      "startMs": 88,
+      "cpu": {
+        "tasks": 512,
+        "ms": 2839,
+        "tasksPerSec": 180,
+        "mbPerSec": 0.7,
+        "workersUsed": 1,
+        "errors": [],
+        "errorCount": 0
+      },
+      "io": {
+        "tasks": 256,
+        "ms": 953,
+        "tasksPerSec": 269,
+        "mbPerSec": 67.2,
+        "workersUsed": 1,
+        "errors": [],
+        "errorCount": 0
+      },
+      "stats": {
+        "rows": 768,
+        "bytes": 69206016,
+        "movedObjects": 0
+      },
+      "rssMB": 148
+    },
+    {
+      "threads": 2,
+      "startMs": 60,
+      "cpu": {
+        "tasks": 512,
+        "ms": 2060,
+        "tasksPerSec": 249,
+        "mbPerSec": 1,
+        "workersUsed": 2,
+        "errors": [],
+        "errorCount": 0
+      },
+      "io": {
+        "tasks": 256,
+        "ms": 797,
+        "tasksPerSec": 321,
+        "mbPerSec": 80.3,
+        "workersUsed": 2,
+        "errors": [],
+        "errorCount": 0
+      },
+      "stats": {
+        "rows": 768,
+        "bytes": 69206016,
+        "movedObjects": 0
+      },
+      "rssMB": 204
+    },
+    {
+      "threads": 4,
+      "startMs": 79,
+      "cpu": {
+        "tasks": 512,
+        "ms": 1325,
+        "tasksPerSec": 386,
+        "mbPerSec": 1.5,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "io": {
+        "tasks": 256,
+        "ms": 520,
+        "tasksPerSec": 492,
+        "mbPerSec": 123,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "stats": {
+        "rows": 768,
+        "bytes": 69206016,
+        "movedObjects": 0
+      },
+      "rssMB": 239
+    },
+    {
+      "threads": 8,
+      "startMs": 137,
+      "cpu": {
+        "tasks": 512,
+        "ms": 1252,
+        "tasksPerSec": 409,
+        "mbPerSec": 1.6,
+        "workersUsed": 8,
+        "errors": [],
+        "errorCount": 0
+      },
+      "io": {
+        "tasks": 256,
+        "ms": 471,
+        "tasksPerSec": 543,
+        "mbPerSec": 135.9,
+        "workersUsed": 8,
+        "errors": [],
+        "errorCount": 0
+      },
+      "stats": {
+        "rows": 768,
+        "bytes": 69206016,
+        "movedObjects": 0
+      },
+      "rssMB": 223
+    }
+  ]
+}
