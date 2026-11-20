@@ -1,46 +1,49 @@
 packages:
-  - packages/*
-  - site
-  - apps/*
+  - "packages/*"
+  - "site"
+  - "apps/*"
 
 catalog:
-  '@astrojs/compiler-rs': 0.5.3
-  '@biomejs/biome': 2.6.7
-  '@changesets/cli': ^3.0.3
-  '@emnapi/core': 1.11.3
-  '@emnapi/runtime': 1.11.3
-  '@napi-rs/wasm-runtime': 1.2.7
-  '@statewalker/notebook-build': ^0.3.0
-  '@statewalker/notebook-site': ^0.3.0
-  '@statewalker/webrun-builder': ^0.5.0
-  '@statewalker/webrun-bundler': ^0.2.0
-  '@statewalker/webrun-files': ^0.12.0
-  '@statewalker/webrun-files-mem': ^0.12.0
-  '@statewalker/webrun-files-node': ^0.12.0
-  '@statewalker/webrun-http-browser': ^0.17.0
-  '@statewalker/webrun-modules': ^0.4.0
-  '@statewalker/webrun-site-builder': ^0.3.0
-  '@statewalker/webrun-site-host': ^0.6.0
-  '@types/node': ^26.6.6
-  '@types/ws': ^8.18.2
+  "@changesets/cli": "^3.0.3"
+  "@biomejs/biome": 2.6.7
+  "@statewalker/webrun-http-browser": "^0.17.0"
+  "@statewalker/webrun-modules": ^0.4.0
+  "@statewalker/webrun-site-builder": "^0.3.0"
+  "@statewalker/webrun-site-host": "^0.6.0"
+  "@types/node": ^26.6.6
+  "@types/ws": ^8.18.2
+  turbo: ^2.11.11
+  typescript: ^7.0.2
+  vite: ^8.3.8
+  vitest: ^5.1.0
+  ws: ^8.22.2
+  # The platform packages (packages/platform*, esm-cdn, bundler, astro-builder, notebooks)
+  "@statewalker/webrun-bundler": ^0.2.0
+  "@statewalker/webrun-files": ^0.12.0
+  "@statewalker/webrun-files-mem": ^0.12.0
+  "@statewalker/webrun-files-node": ^0.12.0
+  "@statewalker/webrun-builder": ^0.5.0
+  "@statewalker/notebook-build": ^0.3.0
+  "@statewalker/notebook-site": ^0.3.0
+  "@astrojs/compiler-rs": 0.5.3
+  "@emnapi/core": 1.11.3
+  "@emnapi/runtime": 1.11.3
+  "@napi-rs/wasm-runtime": 1.2.7
   cjs-module-lexer: ^2.3.0
   esbuild: 0.28.2
   esbuild-wasm: 0.28.2
   lightningcss-wasm: ^1.33.0
   linkedom: ^0.18.15
   tsx: ^4.23.15
-  turbo: ^2.11.11
-  typescript: ^7.0.2
   urlpattern-polyfill: ^10.1.0
-  vite: ^8.3.8
-  vitest: ^5.1.0
   wrangler: ^4.161.0
-  ws: ^8.22.2
 
 overrides:
-  '@earendil-works/pi-agent-core': ~1.4.0
-  '@modelcontextprotocol/client@<2.2.0': ^2.2.0
-  undici@<7.29.1: ^7.30.0
+  "@earendil-works/pi-agent-core": ~1.4.0
+  "@modelcontextprotocol/client@<2.2.0": ^2.2.0
+  "undici@<7.29.1": ^7.30.0
 
+# @wasmer/sdk: public ports.fetch/connect, mounts, and the host-filesystem bridge in Node
+# workers (packages/containers; regenerate with packages/containers/scripts/patch-wasmer-sdk.mjs).
 patchedDependencies:
-  '@wasmer/sdk@0.19.1': patches/@wasmer__sdk@0.19.1.patch
+  "@wasmer/sdk@0.19.1": patches/@wasmer__sdk@0.19.1.patch
