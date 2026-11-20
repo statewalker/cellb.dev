@@ -17,6 +17,8 @@
     "./rpc": "./src/rpc.ts",
     "./files": "./src/files/index.ts",
     "./pool": "./src/pool.ts",
+    "./lifo": "./src/lifo-engine.ts",
+    "./worker": "./src/worker.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -36,6 +38,15 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "@playwright/test": "^1.65.0"
+    "@playwright/test": "^1.65.0",
+    "@lifo-sh/core": "0.10.36"
+  },
+  "peerDependencies": {
+    "@lifo-sh/core": ">=0.10.36"
+  },
+  "peerDependenciesMeta": {
+    "@lifo-sh/core": {
+      "optional": true
+    }
   }
 }

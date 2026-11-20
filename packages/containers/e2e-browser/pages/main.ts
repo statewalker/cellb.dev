@@ -10,6 +10,7 @@ import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { createContainer } from "../../src/container.ts";
 import { HostMounts, serveHostFiles } from "../../src/files/bridge.ts";
 import { connectEngine } from "../../src/rpc.ts";
+import "./worker-pool.ts";
 
 const files = new MemFilesApi();
 const mounts = new HostMounts();
