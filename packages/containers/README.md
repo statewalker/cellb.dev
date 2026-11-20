@@ -19,7 +19,9 @@ runs. The same class runs on celld with its Dockerfile; each example ships both.
 | `engine` | The `ContainerEngine` port and `wasmerContainerEngine(wasmer)`: containers with or without a main process, no egress, a localhost of their own, host mounts, `exec`, `spawn` with streamed stdio, `close()` destroying every container |
 | `container` | `createContainer(engine, image)`: `ctx.container` as Cloudflare and celld define it (`start`, `running`, `monitor`, `destroy`, `signal`, `exec`, `getTcpPort(p).fetch()` / `.connect()`), plus `waitForPort`, `spawn`. `provideContainerEngine()` / `containerFor()` connect a project's objects to the node's engine |
 | `rpc` | `serveEngine(port, engine)` / `connectEngine(port)`: the engine in a worker, the cells holding a proxy with the same interface |
-| `files` | `FilesVolume`: Wasmer's host-filesystem protocol served by any `FilesApi`. `HostMounts`, `installHostFiles`, `forwardHostFiles`, `serveHostFiles`: route a guest's filesystem calls to the thread that owns the FilesApi |
+| `files` | `FilesVolume`: Wasmer's host-filesystem protocol served by any `FilesApi`. `HostMounts` (`add`, `reserve`, `bind`, `remove`), `installHostFiles`, `forwardHostFiles`, `serveHostFiles`: route a guest's filesystem calls to the thread that owns the FilesApi |
+| `pool` | `createContainerPool(engine, mounts, { image, size })`: runs custom code, each run in a fresh sandbox with its own FilesApi, env and timeout. `provideContainerPool()` / `containerPool()` reach it from Durable Objects |
+| `recycle` | `recyclableEngine(spawn)`: an engine whose instance (a Wasmer client in a worker of its own) is replaced when a guest will not stop |
 
 ```js
 import { Wasmer } from "@wasmer/sdk/node"; // or "@wasmer/sdk/browser"
@@ -46,6 +48,7 @@ Each is a cellb project with the Dockerfile celld would build from the same sour
 | [`examples/php`](examples/php) | PHP's built-in server (`php/php-32`) | Node 22+, Chromium |
 | [`examples/node`](examples/node) | A `node:http` server in `wasmer/edgejs`, Node-compatible JavaScript in WASIX | Node 24+, Chromium 137+ (WebAssembly JSPI) |
 | [`examples/files`](examples/files) | A host script: a composite FilesApi (read-only, filtered `/input`, writable `/output`) mounted for a Python analysis | Node 22+ |
+| [`examples/pool`](examples/pool) | A Durable Object per workspace runs code it is sent on the host's pool, against its own FilesApi | Node 22+, Chromium |
 
 In a project:
 
@@ -72,6 +75,86 @@ const project = await loadProject(dir);
 Packages known to run with the SDK 0.19.1: `python/python`, `php/php-32`, `php/php`, `wasmer/bash`,
 `wasmer/edgejs` (JSPI). Packages published as zstd-compressed WEBC (`sharrattj/coreutils`,
 `wasmer/winterjs`, `sqlite/sqlite`) fail to load with this SDK.
+
+## Running custom code: the pool
+
+A pool runs code it is given (an agent's tool call, a user's script) in containers, each run
+against a FilesApi chosen for that run:
+
+```js
+import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import { createContainerPool, HostMounts, installHostFiles, wasmerContainerEngine } from "@statewalker/cellb-containers";
+
+const mounts = new HostMounts();
+installHostFiles(mounts); // on the engine's thread; or forwardHostFiles(port) to the FilesApis' thread
+const pool = createContainerPool(wasmerContainerEngine(new Wasmer()), mounts, {
+  image: { packages: ["python/python"] },
+  size: 4, // sandboxes kept started, and the most runs at once
+});
+
+const files = new MemFilesApi(); // any FilesApi: a composite view, a durable store, ...
+const result = await pool.run({
+  argv: ["python", "-c", code],
+  files, // at /data in the guest, for this run only
+  env: { USER_ID: "u-42" },
+  timeoutMs: 10_000,
+});
+// { exitCode, stdout, stderr, timedOut, ms }
+```
+
+From a Durable Object, through a pool the host provided by name
+([`examples/pool`](examples/pool)):
+
+```js
+import { containerPool } from "@statewalker/cellb-containers/pool";
+
+export class Workspace extends DurableObject {
+  files = new MemFilesApi(); // this cell's files
+  async fetch(request) {
+    const result = await containerPool("python").run({
+      argv: ["python", "-c", await request.text()],
+      files: this.files,
+      timeoutMs: 10_000,
+    });
+    return Response.json(result);
+  }
+}
+```
+
+What a run cannot see, by construction rather than by cleaning up:
+
+- **Another run's guest state.** Every run gets a sandbox nobody used before, started ahead of
+  time, and the sandbox is destroyed when the run ends: nothing a run leaves in `/workspace`,
+  `/tmp`, its environment or its processes reaches the next run.
+- **Another run's files.** A run's FilesApi is bound to its sandbox's mount only while the run
+  lasts, through a fresh volume (no host-side buffers carry over), and unbound when it ends.
+- Tested: run A writes to `/workspace`, `/tmp` and its FilesApi with `SECRET` in its env; run B,
+  with another FilesApi, sees none of it, and neither FilesApi gets the other's files; in
+  `examples/pool`, two cells never see each other's files (Node and Chromium).
+
+A warm sandbox costs about 100 MB (Python), so `size` is a memory budget too.
+
+### Runaway code
+
+A timeout kills the run. A guest that makes system calls (I/O, `sleep`) stops then. A guest in a
+pure compute loop (`while True: pass`) never yields to the runtime: kill() does not reach it, its
+thread keeps a Wasmer worker at 100% CPU after its sandbox is destroyed, and `wasmer.close()`
+never returns (measured). For untrusted code, give the pool a recyclable engine: the Wasmer client
+runs in a worker of its own, and on a timeout the pool replaces it; the old worker is terminated,
+runaway thread included, once its other runs end.
+
+```js
+const engine = recyclableEngine(() => {
+  const worker = new Worker(new URL("./engine-worker.js", import.meta.url)); // serveEngine + forwardHostFiles
+  // ...pass it a port for the engine and one for files (serveHostFiles(port, mounts) here)
+  return { engine: connectEngine(enginePort), terminate: () => worker.terminate() };
+});
+const pool = createContainerPool(engine, mounts, { image, size: 4 });
+```
+
+Tested: after a runaway loop times out, the process's CPU over the next 2 seconds is back to idle
+(under 600 ms, against about 2,000 ms while the loop spins) and the next run is served
+(`test/pool-recycle.test.ts`).
 
 ## Threads: where each part runs
 
@@ -154,6 +237,8 @@ times are reported from `lastModified` and `setTimes` is accepted but not stored
   egress, and two containers cannot reach each other (tested). `enableInternet: true` is refused
   until an egress policy exists (a fenced WISP relay in browsers, an egress hook in Node).
 - **Files:** only what the mounts' FilesApi allows (above).
+- **Runaway guests:** a guest in a compute loop is not stopped by `kill()` or `destroy()`; only
+  terminating its Wasmer client's worker stops it (`recyclableEngine`, above).
 - **Failure domain:** a guest that crashes the runtime (`WORKER_FAILED`) stops the Wasmer client's
   whole worker pool, and every later start on that client fails ("Scheduler is dead"). Use one
   client per trust domain (per extension or tenant), and recreate the engine after `WORKER_FAILED`.
@@ -195,15 +280,15 @@ call `containerFor(ctx, image)`. Built into cellb, it becomes:
 
 ## Measured
 
-| | Node 22 | Chromium 157 |
+| | Node 22 | Chromium |
 | --- | --- | --- |
 | First Python container, empty cache / cached | 3.4 s / 2.0 s | 5.3 s / 2.2 s |
 | Next container, or restart | ~0.4 s | ~0.4 s |
-| A request through `getTcpPort().fetch()` | 2–4 ms | 18–32 ms |
-| Memory, two Python containers | process 590–625 MB | renderer 560–590 MB |
+| A request through `getTcpPort().fetch()` | 2–4 ms | 15–30 ms |
+| Memory per Python container | 99 MB | 73 MB (renderer) |
+| Python containers one node ran, all answering | **132** (stopped by the 2 GB reserve, 16 GB machine) | **123** (then the renderer could not allocate WebAssembly memory) |
 
-About 200–250 MB per Python container, and Wasmer starts one worker per guest thread (2 for the
-first container, then 1 per container and per `exec`): plan for a few containers per tab.
+[Containers per node](docs/capacity.md) has the method, PHP, threads and the cost of closing a node.
 
 ## The @wasmer/sdk patch
 
@@ -227,6 +312,13 @@ pnpm --filter @statewalker/cellb-containers e2e
 `test` runs in Node (the Node example is skipped without JSPI, that is before Node 24). `e2e` runs
 Chromium through Playwright; `PW_CHROMIUM` picks the binary. The first run downloads the WASIX
 packages into `.wasmer/`.
+
+Capacity runs are opt-in (Linux; minutes to an hour each):
+
+```bash
+CONTAINERS_CAPACITY=1 CAPACITY_EXAMPLES=python pnpm vitest run test/capacity.test.ts
+CONTAINERS_CAPACITY=1 CAPACITY_EXAMPLES=python pnpm e2e capacity
+```
 
 Not covered yet: Firefox and Safari, `enableInternet`, `storage` (a FilesApi as `/workspace`),
 recovery after `WORKER_FAILED`.

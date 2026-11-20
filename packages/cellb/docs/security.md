@@ -43,7 +43,9 @@ What that realm does **not** take away:
 
 Running untrusted code needs more than CellB gives: an opaque-origin iframe or a separate origin in
 a browser (out of CellB's scope, [Gaps](gaps.md#out-of-scope-on-purpose)), a separate process
-or container on a server.
+or container on a server. Code that is not JavaScript (Python, PHP, shell) can run in a
+[container](services/containers.md): a WASIX sandbox with no network out and only the files its
+mounts' FilesApi allows.
 
 ### Which entry points isolate loaded Workers
 

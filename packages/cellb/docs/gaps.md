@@ -70,7 +70,8 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   own, and these go with it.
 - **Configuration CellB does not support** is reported in `createProjectRuntime(...).unsupported`,
   instead of being silently ignored: `migrations.renamed_classes`,
-  `durable_objects.bindings[].script_name`, `containers`, service bindings to other scripts, the
+  `durable_objects.bindings[].script_name`, `containers` (run with `@statewalker/cellb-containers`
+  until built in: [Containers](services/containers.md)), service bindings to other scripts, the
   Workers AI binding (`ai`) when the host names no OpenAI-compatible endpoint for it, queue
   consumers without a `queue()` handler, cron triggers without a `scheduled()` handler, and
   compatibility flags it does not know. Renaming a Flue agent renames its class, so it needs
@@ -170,7 +171,9 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
   does not, and what celld does there is not recorded.
 - **Some celld examples are not run.** These are `python` (Pyodide Python Workers, and CellB runs
   no Python), `wasm` (it needs the Rust toolchain to build), and `container` and `sandbox` (they
-  need Docker or Podman; a `containers` config is reported in `unsupported`). As celld ships them,
+  need Docker or Podman; a `containers` config is reported in `unsupported`, and
+  `packages/containers` runs WASIX versions of the container example instead: [Containers](services/containers.md);
+  `@cloudflare/sandbox` needs its Docker image). As celld ships them,
   `pi` and `opencode` need a model on the network. `examples/agents` runs both against a fake
   OpenAI-compatible model, adapted to take their model from an endpoint in their vars.
 - **The LTX store's room check is a hint.** Before a compaction it compares the cell's size with
