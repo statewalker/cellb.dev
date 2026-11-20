@@ -95,10 +95,11 @@ describe("createContainer (unit)", () => {
     expect(c.running).toBe(false);
   });
 
-  it("refuses enableInternet until an egress policy exists", async () => {
-    const { engine } = fakeEngine();
+  it("passes enableInternet to the engine, which decides (an engine without egress refuses)", async () => {
+    const { engine, starts } = fakeEngine();
     const c = createContainer(engine, IMAGE);
-    await expect(c.start({ enableInternet: true })).rejects.toThrow(/enableInternet/);
+    await c.start({ enableInternet: true });
+    expect(starts[0].enableInternet).toBe(true);
   });
 });
 
@@ -181,6 +182,11 @@ describe("wasmerContainerEngine + createContainer (Python in WASIX)", () => {
       new Promise((r) => setTimeout(() => r("still running"), 5000)),
     ]);
     expect(settled).not.toBe("still running");
+  });
+
+  it("refuses enableInternet unless the engine was given an egress policy", async () => {
+    const c = createContainer(engine, { packages: ["python/python"] });
+    await expect(c.start({ enableInternet: true })).rejects.toThrow(/egress/);
   });
 
   it("close() destroys every container of the engine", async () => {

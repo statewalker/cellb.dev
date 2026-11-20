@@ -23,6 +23,12 @@ export type {
 } from "@statewalker/cellb/container";
 
 export interface WasmerEngineOptions {
+  /**
+   * Lets containers ask for `enableInternet: true`. "host" (Node only) gives them the host's
+   * network with NO fence (the node, private ranges, the Internet): for trusted build steps such
+   * as installing dependencies, never for code you did not write. Default: no egress.
+   */
+  egress?: "host";
   log?: (event: string, data?: Record<string, unknown>) => void;
 }
 

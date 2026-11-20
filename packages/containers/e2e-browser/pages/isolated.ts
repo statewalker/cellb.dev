@@ -80,3 +80,51 @@ Object.assign(window, {
     };
   },
 });
+
+// Start times of one-run containers in this browser (slots = 1, worker terminated after the run).
+const startImages = {
+  quickjs: {
+    image: { packages: ["wasmer/quickjs"] },
+    warmup: ["qjs", "-e", "1"],
+    argv: ["qjs", "-e", "print(6*7)"],
+  },
+  python: {
+    image: { packages: ["python/python"] },
+    warmup: ["python", "-c", "pass"],
+    argv: ["python", "-c", "print(6*7)"],
+  },
+  edgejs: {
+    image: { packages: ["wasmer/edgejs"] },
+    warmup: ["node", "-e", "1"],
+    argv: ["node", "-e", "console.log(6*7)"],
+  },
+};
+Object.assign(window, {
+  async __isolatedStart(name: keyof typeof startImages, runs = 8) {
+    const im = startImages[name];
+    const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+    const pool = createIsolatedPool({
+      spawn: runtimes.wasmer.spawn,
+      image: im.image,
+      size: 2,
+      warmup: im.warmup,
+    });
+    let t = performance.now();
+    await pool.ready();
+    const cold = Math.round(performance.now() - t);
+    const ready: number[] = [];
+    const refill: number[] = [];
+    for (let i = 0; i < runs; i++) {
+      await pool.ready();
+      t = performance.now();
+      const r = await pool.run({ argv: im.argv });
+      ready.push(Math.round(performance.now() - t));
+      if (r.stdout.trim() !== "42") throw new Error(`${name}: ${r.stdout} ${r.stderr}`);
+      t = performance.now();
+      await pool.ready();
+      refill.push(Math.round(performance.now() - t));
+    }
+    await pool.close();
+    return { cold, readyMs: median(ready), refillMs: median(refill) };
+  },
+});
