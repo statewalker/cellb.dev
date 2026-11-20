@@ -12,3 +12,12 @@ description = "local RustFS test credentials in interop-env.sh"
 condition = "AND"
 paths = ['''^packages/cellb/scripts/interop-env\.sh$''']
 regexes = ['''rustfsadmin:rustfssecret''']
+
+# packages/containers/test/lifo-websocket.test.ts sends a WebSocket handshake by hand; its
+# Sec-WebSocket-Key is the sample nonce of RFC 6455 section 1.3 (base64 of "the sample nonce"),
+# a public example value that guards nothing.
+[[allowlists]]
+description = "RFC 6455's sample Sec-WebSocket-Key in a WebSocket test"
+condition = "AND"
+paths = ['''^packages/containers/test/lifo-websocket\.test\.ts$''']
+regexes = ['''dGhlIHNhbXBsZSBub25jZQ==''']
