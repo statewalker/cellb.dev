@@ -33,6 +33,7 @@ export default defineConfig({
       "capacity-worker.ts",
       "isolated-wasmer-worker.ts",
       "isolated-lifo-worker.ts",
+      "isolated-lifo-egress-worker.ts",
     ],
   },
 });

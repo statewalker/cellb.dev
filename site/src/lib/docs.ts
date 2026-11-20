@@ -49,6 +49,11 @@ export const referencePages: RepoPage[] = [
     slug: "containers-layered-files",
     label: "Layered container files",
   },
+  {
+    file: "packages/containers/docs/observable-framework.md",
+    slug: "containers-observable-framework",
+    label: "Observable Framework in containers",
+  },
   { file: "packages/cellb/CONTEXT.md", slug: "glossary", label: "Glossary" },
   { file: "packages/cellb/bench/README.md", slug: "benchmarks", label: "Benchmarks" },
 ];

@@ -6,7 +6,9 @@ FilesApi then becomes a read-only **base layer** under every **run**, each run a
 layer of its own. The base never changes, the runs never see each other's files, and the run
 containers have no network.
 
-Tested in `test/layers.test.ts` (Node 24, `wasmer/edgejs`, the npm registry).
+Tested in Node (`test/layers.test.ts`: Wasmer `wasmer/edgejs`, Node 24) and in Chromium
+(`e2e-browser/layers.spec.ts`: Lifo, the build step through the page's network). Both need the npm
+registry. [Observable Framework](observable-framework.md) is built the same way.
 
 ## Step 1: build
 
@@ -70,15 +72,50 @@ The pool here is an ordinary isolated pool of edgejs containers with no egress; 
 layered files took about 0.43 s, the pool included. The base is shared by all runs and read
 through each run's mount, so it is installed once, not per run.
 
+## In a browser: a Lifo build step
+
+Wasmer containers in a browser have no network (egress there would need a WISP relay). Lifo's
+`npm` fetches through its worker's `fetch`, which in a page is the page's network, so a Lifo
+container is the build step in a browser; the npm registry answers cross-origin requests. Its
+engine has no network unless created with `egress: "host"`, and the run containers come from an
+engine without it:
+
+```ts
+// build-worker.ts: the only worker with egress
+serveContainerWorker(self, ({ files }) => lifoContainerEngine(lifo, { files, egress: "host" }));
+// run-worker.ts
+serveContainerWorker(self, ({ files }) => lifoContainerEngine(lifo, { files }));
+
+// the page: the layer is a FilesApi on this thread
+const build = createIsolatedPool({
+  spawn: () => new Worker(new URL("./build-worker.ts", import.meta.url), { type: "module" }),
+  image: { packages: [], enableInternet: true },
+  size: 1,
+});
+await build.run({ argv: ["npm", "install"], files: deps, cwd: "/data" }); // node_modules → deps
+await build.close();
+
+const runs = createIsolatedPool({ spawn: () => new Worker(new URL("./run-worker.ts", import.meta.url), { type: "module" }), image: { packages: [] }, size: 2 });
+await runs.run({ argv: ["node", "-e", "…require('/data/node_modules/ms')…"], files: cow(readOnly(deps), new MemFilesApi()) });
+```
+
+- Lifo mounts a FilesApi directly as the working directory (Wasmer cannot), and writes plain
+  folders: no `.npmrc` needed.
+- Lifo's `npm` exits 0 when a package cannot be fetched and only warns: check what it installed.
+- In Chromium the install of `ms` took about 1.1 s; the runs refuse writes to the read-only base
+  with `EACCES` (Lifo passes the volume's code through), keep copy-on-write changes in their own
+  layer, and have no network (their `fetch` is refused).
+
+The same Lifo flow runs in Node (`test/observable-framework.test.ts` builds Framework this way).
+
 ## What else fits (not tested)
 
 - **Other installers** should work the same way, since they only write files: `pip install
-  --target /app/site-packages` in a Python image, a build script writing `dist/`. Only `npm
-  install` in edgejs is tested here.
-- **Lifo** has `npm` (it fetches through the host's `fetch`) and mounts a FilesApi through the
-  same bridge, so it could run either step; not tried.
+  --target /app/site-packages` in a Python image, a build script writing `dist/`.
+- **Mixed engines.** A layer is a FilesApi, so a Lifo build step can serve Wasmer runs and the
+  reverse; each test here uses one engine for both steps.
 - **Durable layers.** `deps` can be any FilesApi (a folder on disk, OPFS, a bucket), so a base
   built once could serve every node.
 
-Not covered yet: the build step in a browser (egress there needs a WISP relay), and pinning a
-base layer's content (a content hash per built layer, as Docker image digests).
+Not covered yet: pinning a base layer's content (a content hash per built layer, as Docker image
+digests).
