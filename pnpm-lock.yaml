@@ -665,6 +665,9 @@ importers:
       '@statewalker/webrun-files':
         specifier: 'catalog:'
         version: 0.12.0
+      '@statewalker/webrun-files-mem':
+        specifier: 'catalog:'
+        version: 0.12.0
       '@wasmer/sdk':
         specifier: 0.19.1
         version: 0.19.1(patch_hash=0932d73adc901b4872a84caf29b20966f66232c591d5abe61af0e2101979ac6a)
@@ -677,9 +680,6 @@ importers:
         version: link:../cellb
       '@statewalker/webrun-files-composite':
         specifier: ^0.12.0
-        version: 0.12.0
-      '@statewalker/webrun-files-mem':
-        specifier: 'catalog:'
         version: 0.12.0
       '@types/node':
         specifier: 'catalog:'

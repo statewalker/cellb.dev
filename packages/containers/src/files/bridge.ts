@@ -82,6 +82,21 @@ export class HostMounts implements HostFilesHandler {
     this.#volumes.delete(id);
   }
 
+  /** Mounts with a FilesApi bound. */
+  get size(): number {
+    throw new Error("not implemented");
+  }
+
+  /** An id with nothing bound yet: its calls answer ENOENT until bind(). */
+  reserve(): number {
+    throw new Error("not implemented");
+  }
+
+  /** Binds a FilesApi to a reserved id (a fresh volume: nothing carries over from before). */
+  bind(_id: number, _files: FilesApi, _opts: { readOnly?: boolean } = {}): void {
+    throw new Error("not implemented");
+  }
+
   handle(request: HostFileSystemRequest): void {
     const entry = this.#volumes.get(request.mount);
     if (!entry) {

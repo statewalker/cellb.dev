@@ -3,7 +3,14 @@ import { fileURLToPath } from "node:url";
 import { loadProject } from "@statewalker/cellb/node";
 import { Wasmer } from "@wasmer/sdk/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { provideContainerEngine, wasmerContainerEngine } from "../src/index.ts";
+import {
+  createContainerPool,
+  HostMounts,
+  installHostFiles,
+  provideContainerEngine,
+  provideContainerPool,
+  wasmerContainerEngine,
+} from "../src/index.ts";
 
 const example = (name: string) => fileURLToPath(new URL(`../examples/${name}`, import.meta.url));
 // wasmer/edgejs (Node-compatible JS in WASIX) needs WebAssembly JSPI: Node 24+ or Chromium 137+.
@@ -68,5 +75,45 @@ describe("examples", () => {
       writeToInput: "PermissionError",
     });
     expect(r.hostOutput).toContain("words: 9");
+  });
+
+  it("pool: each cell runs its own code on its own FilesApi; nothing leaks between cells", async () => {
+    const mounts = new HostMounts();
+    const uninstall = installHostFiles(mounts);
+    const pool = createContainerPool(wasmerContainerEngine(wasmer), mounts, {
+      image: { packages: ["python/python"] },
+      size: 2,
+    });
+    const unprovide = provideContainerPool("python", pool);
+    const project = await loadProject(example("pool"));
+    const run = async (cell: string, code: string) =>
+      (
+        await project.fetch(
+          new Request(`http://localhost/run?cell=${cell}`, { method: "POST", body: code }),
+        )
+      ).json();
+    const files = async (cell: string) =>
+      (await project.fetch(new Request(`http://localhost/files?cell=${cell}`))).json();
+    try {
+      const a1 = await run(
+        "alpha",
+        "import os\nopen('/data/note.txt','w').write('alpha was here')\nopen('/workspace/scratch','w').write('x')\nprint(os.environ['CELL'])",
+      );
+      expect(a1).toMatchObject({ exitCode: 0, stdout: "alpha\n" });
+      const b1 = await run(
+        "beta",
+        "import os, json\nprint(json.dumps([sorted(os.listdir('/data')), os.path.exists('/workspace/scratch')]))",
+      );
+      expect(JSON.parse(b1.stdout)).toEqual([[], false]);
+      const a2 = await run("alpha", "print(open('/data/note.txt').read())");
+      expect(a2.stdout).toBe("alpha was here\n");
+      expect(await files("alpha")).toEqual(["/note.txt"]);
+      expect(await files("beta")).toEqual([]);
+    } finally {
+      await project.close();
+      unprovide();
+      await pool.close();
+      uninstall();
+    }
   });
 });
