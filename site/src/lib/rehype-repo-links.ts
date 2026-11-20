@@ -1,5 +1,6 @@
 import path from "node:path";
 import { docHref, repoPages } from "./docs";
+import { REPO } from "./site";
 
 interface Node {
   type: string;
@@ -14,7 +15,8 @@ interface Node {
  * another rendered file (or to a directory whose README.md is rendered) goes to its page; any
  * other file of the repository goes to GitHub, as the relative link would not exist on the site.
  * A link to a rendered page whose text is a file name (`[gaps.md](gaps.md)`) reads as the page's
- * title (`Gaps`): the reader of the site sees pages, not files.
+ * title (`Gaps`): the reader of the site sees pages, not files. A relative image shows the
+ * repository's file from GitHub.
  */
 export function rehypeRepoLinks({ root }: { root: string }) {
   const rendered = new Set(repoPages.map((page) => page.file));
@@ -47,6 +49,12 @@ export function rehypeRepoLinks({ root }: { root: string }) {
     const from = vfile.path && path.relative(root, vfile.path).split(path.sep).join("/");
     if (!from || !rendered.has(from)) return;
     const visit = (node: Node) => {
+      // an image of the repository: its raw file on GitHub (the site does not copy it)
+      const src = node.tagName === "img" ? node.properties?.src : undefined;
+      if (node.properties && typeof src === "string") {
+        const file = fileOf(from, src);
+        if (file) node.properties.src = `${REPO}/raw/HEAD/${file}`;
+      }
       const href = node.tagName === "a" ? node.properties?.href : undefined;
       if (node.properties && typeof href === "string") {
         const file = fileOf(from, href);

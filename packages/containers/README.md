@@ -174,7 +174,9 @@ Docker builds and runs images. [Layered files](docs/layered-files.md).
 
 [Observable Framework](docs/observable-framework.md) installs and builds sites this way in Node
 and in Chromium: one build step with egress, then site builds with no network, about 5 to 6 s
-each. Its preview runs with live reload, through a WebSocket into the container.
+each. Its preview runs with live reload, through a WebSocket into the container; the
+[notebook example](examples/observable-framework/notebook) edits and previews a notebook in one
+browser tab.
 
 ### Runaway code
 

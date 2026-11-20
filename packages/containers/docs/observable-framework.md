@@ -55,8 +55,9 @@ into `dist/observable.lifo.mjs`, working around:
   addons). `css-tree` reads `../data/patch.json` relative to its file, now the bundle: the file is
   copied next to it.
 - **Lifo's esbuild** resolves every import through its own VFS plugin: it ignores `external`, and
-  resolves a cwd-relative alias as a package. A wrapper turns Framework's style aliases into a
-  plugin. In browsers it is esbuild-wasm, which has no filesystem to fall back on: an import Lifo
+  resolves a cwd-relative alias or entry point as a package. A wrapper turns Framework's style
+  aliases into a plugin and makes its entry points absolute (`inputs.css`, when a page uses
+  Inputs). In browsers it is esbuild-wasm, which has no filesystem to fall back on: an import Lifo
   cannot resolve fails the build (debug's optional `supports-color` is kept external).
 - **Lifo's `import()`** keeps a query string in the path, and Framework imports its config file
   with a cache-busting query: no `observablehq.config.js`; the defaults apply (`root: "src"`).
@@ -109,9 +110,25 @@ an edit through a command in the container is seen, through the mount included. 
 FilesApi from outside the container is not (the FilesApi has no change events): it shows on the
 next request, without a push.
 
-Not done: serving the preview to a real browser page. The page's own live-reload client would need
-`containerWebSocket` as its `WebSocket` and the page served from the container, e.g. through
-`@statewalker/webrun-site-host`'s ServiceWorker.
+## An interactive notebook in the browser
+
+[`examples/observable-framework/notebook`](../examples/observable-framework/notebook) puts it
+together in one tab: an editor, and Framework's preview in a frame, served from a Lifo container
+with no network through webrun-http-browser's ServiceWorker, with live reload. Tested by
+`e2e-browser/notebook.spec.ts`, which takes these screenshots in Chromium.
+
+The notebook, served from the container (about 40 s from a cold start, the layer's build included):
+
+![The notebook loaded: two sliders, a sine wave, a computed value](images/notebook-1-loaded.png)
+
+Moving a slider re-runs the cells that depend on it, in the frame:
+
+![The frequency slider at 6: the wave and the value follow](images/notebook-2-slider.png)
+
+An edit in the editor is written into the container; Framework pushes the change, and the frame
+updates in place (the same document, the slider still at 6):
+
+![After an edit: a new title, a crimson line, a new computed line](images/notebook-3-edited.png)
 
 ## In Wasmer (edgejs): blocked
 

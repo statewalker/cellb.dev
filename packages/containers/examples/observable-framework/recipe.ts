@@ -11,7 +11,8 @@
 // - Lifo lacks node:path/posix (its path is POSIX), node:timers/promises and util.parseArgs /
 //   util.deprecate: shims below;
 // - Lifo's esbuild resolves through its own VFS plugin, which ignores `external` and resolves a
-//   cwd-relative alias as a package: a wrapper turns Framework's style aliases into a plugin;
+//   cwd-relative alias or entry point as a package: a wrapper turns Framework's style aliases
+//   into a plugin and makes its entry points absolute;
 // - Framework fetches its client's npm modules during a build, resolving versions from its cache
 //   (src/.observablehq/cache) first: the build step builds a page once to fill it;
 // - Lifo's import() keeps a query string in the path: no observablehq.config.js (Framework imports
@@ -20,7 +21,16 @@
 export const FRAMEWORK_VERSION = "1.13.4";
 
 /** The base layer's starting files: package.json and the adaptation (all under `dir` in the guest). */
-export function frameworkLayerFiles(dir: string): Record<string, string> {
+export function frameworkLayerFiles(
+  dir: string,
+  options: {
+    /**
+     * The page built once to fill Framework's npm cache: import there what the sites built on
+     * the layer use (npm:@observablehq/plot, d3, ...), so they need no network.
+     */
+    warmup?: string;
+  } = {},
+): Record<string, string> {
   const pkg = {
     name: "observable-framework-layer",
     private: true,
@@ -52,6 +62,7 @@ export function frameworkLayerFiles(dir: string): Record<string, string> {
     "    b.onResolve({ filter: /.*/ }, (a) => (a.path in o.alias ? { path: abs(o.alias[a.path]), namespace: 'file' } : null));",
     "  } }] : [])],",
     "  ...(o.stdin && { stdin: { resolveDir: process.cwd(), ...o.stdin } }),",
+    "  ...(Array.isArray(o.entryPoints) && { entryPoints: o.entryPoints.map((e) => (typeof e === 'string' ? abs(e) : e)) }),",
     "});",
     "const out = Object.create(real);",
     "out.build = (o) => real.build(fix(o));",
@@ -92,7 +103,7 @@ console.log("prepared", r.errors.length ? "with errors" : "ok");
     "prepare.mjs": prepare,
     // a page built once in the build step: Framework downloads its client's npm modules
     // into src/.observablehq/cache, where builds without network find them
-    "src/index.md": "# Warm-up\n",
+    "src/index.md": options.warmup ?? "# Warm-up\n",
   };
 }
 
