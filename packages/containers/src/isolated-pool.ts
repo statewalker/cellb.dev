@@ -24,6 +24,21 @@ export interface IsolatedPoolOptions {
   warmup?: string[];
   /** Gives up on a container that is not ready after this long (default 120 s). */
   createTimeoutMs?: number;
+  /**
+   * Scripts one container (worker) runs at once (default 1: a container per run, terminated
+   * after it). Lifo: 1 (a box runs one command at a time, and boxes in one worker share console).
+   */
+  slots?: number;
+  /**
+   * With slots > 1: "sandbox" gives each script a fresh sandbox in the worker's engine (its own
+   * files, /tmp, /workspace, env; verified for Wasmer); "shared" runs a container's scripts in one
+   * sandbox, so a container is bound to one capabilities key.
+   */
+  isolation?: "sandbox" | "shared";
+  /** A container with slots is retired after this many runs (default 200). */
+  maxRunsPerContainer?: number;
+  /** After a timeout, how long a retiring container's other scripts may take (default 30 s). */
+  drainMs?: number;
 }
 
 export interface AcquireOptions {
@@ -33,12 +48,20 @@ export interface AcquireOptions {
   readOnly?: boolean;
 }
 
+export interface IsolatedRunOptions extends RunOptions {
+  acquireTimeoutMs?: number;
+  /** With isolation "shared": the key a container is bound to (same key, same FilesApi view). */
+  capabilities?: string;
+}
+
 export interface IsolatedPool {
   readonly idle: number;
   readonly creating: number;
   ready(): Promise<void>;
   acquire(options?: AcquireOptions): Promise<Container>;
-  run(options: RunOptions & { acquireTimeoutMs?: number }): Promise<RunResult>;
+  run(options: IsolatedRunOptions): Promise<RunResult>;
+  /** Containers in use (with slots: serving runs or bound to a key). */
+  readonly containers: number;
   close(): Promise<void>;
 }
 
@@ -156,6 +179,9 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
     },
     get creating() {
       return pool.creating;
+    },
+    get containers() {
+      return 0; // not implemented yet
     },
     ready: () => pool.ready(),
     async acquire(options = {}) {
