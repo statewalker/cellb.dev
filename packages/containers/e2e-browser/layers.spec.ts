@@ -44,3 +44,17 @@ test("Observable Framework: install and adapt with egress, build sites without n
   expect(about.dist).not.toContain("index.html");
   expect(r.layerDist).toBe(false);
 });
+
+test("Observable Framework preview: live reload through a WebSocket into the container", async ({
+  page,
+}) => {
+  test.setTimeout(900_000);
+  const r = await page.evaluate(() => (window as any).__preview());
+  console.log(`preview up in ${r.startMs} ms; update ${r.updateMs} ms after the edit`);
+  expect(r.pageHasVersionOne).toBe(true);
+  expect(r.hash).toBeTruthy();
+  expect(r.welcome).toBe(true);
+  expect(r.edit).toBe(0);
+  expect(r.update).toContain("version two");
+  expect(r.topHasEdit).toBe(true);
+});
