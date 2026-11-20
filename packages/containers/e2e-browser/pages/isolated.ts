@@ -58,7 +58,13 @@ Object.assign(window, {
     await pool.run({ argv: rt.upper, files });
     const upper = await readText(files, "/out.txt");
     await pool.run({ argv: rt.leave, files: new MemFilesApi() });
-    const probe = JSON.parse((await pool.run({ argv: rt.probe, files: new MemFilesApi() })).stdout);
+    const probeRun = await pool.run({ argv: rt.probe, files: new MemFilesApi() });
+    let probe: unknown;
+    try {
+      probe = JSON.parse(probeRun.stdout);
+    } catch {
+      probe = { raw: probeRun.stdout, stderr: probeRun.stderr };
+    }
     const queued = await Promise.all([1, 2, 3, 4].map(() => pool.run({ argv: rt.print })));
     const spin = await pool.run({ argv: rt.spin, timeoutMs: 1500 });
     const after = await pool.run({ argv: rt.print });

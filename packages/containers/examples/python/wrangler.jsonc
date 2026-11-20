@@ -6,5 +6,15 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PyRunner"] }],
   // celld builds ./Dockerfile; cellb runs the same server.py in a Wasmer (WASIX) sandbox.
   "containers": [{ "class_name": "PyRunner", "image": "./Dockerfile", "instance_type": "basic" }],
-  "rules": [{ "type": "Text", "globs": ["**/*.py"] }]
+  // cellb's image for the same class: WASIX packages, the project's files, the entrypoint.
+  // celld ignores this key; cellb gives objects of the class ctx.container with it.
+  "cellb": {
+    "containers": {
+      "PyRunner": {
+        "packages": ["python/python"],
+        "files": { "server.py": "./server.py" },
+        "entrypoint": ["python", "/workspace/server.py"]
+      }
+    }
+  }
 }

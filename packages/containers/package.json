@@ -29,10 +29,10 @@
   "dependencies": {
     "@statewalker/webrun-files": "catalog:",
     "@wasmer/sdk": "0.19.1",
-    "@statewalker/webrun-files-mem": "catalog:"
+    "@statewalker/webrun-files-mem": "catalog:",
+    "@statewalker/cellb": "workspace:*"
   },
   "devDependencies": {
-    "@statewalker/cellb": "workspace:*",
     "@statewalker/webrun-files-composite": "^0.12.0",
     "@types/node": "catalog:",
     "typescript": "catalog:",

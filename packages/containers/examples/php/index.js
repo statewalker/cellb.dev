@@ -1,18 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
-import { containerFor } from "@statewalker/cellb-containers/container";
-import INDEX from "./www/index.php";
-
-// PHP's built-in web server, one per cell, with the site's files.
-const IMAGE = {
-  packages: ["php/php-32"],
-  files: { "www/index.php": INDEX },
-  entrypoint: ["php", "-S", "0.0.0.0:8080", "-t", "/workspace/www", "/workspace/www/index.php"],
-};
 
 export class PhpSite extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.container = ctx.container ?? containerFor(ctx, IMAGE);
+    this.container = ctx.container; // celld: Docker; cellb: the engine its host gives it
   }
 
   async fetch(request) {

@@ -1,17 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
-import { containerFor } from "@statewalker/cellb-containers/container";
-import SERVER from "./server.js";
-
-const IMAGE = {
-  packages: ["wasmer/edgejs"],
-  files: { "server.js": SERVER },
-  entrypoint: ["node", "/workspace/server.js"],
-};
 
 export class NodeApp extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.container = ctx.container ?? containerFor(ctx, IMAGE);
+    this.container = ctx.container; // celld: Docker; cellb: the engine its host gives it
   }
 
   async fetch(request) {

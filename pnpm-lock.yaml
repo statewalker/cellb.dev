@@ -662,6 +662,9 @@ importers:
 
   packages/containers:
     dependencies:
+      '@statewalker/cellb':
+        specifier: workspace:*
+        version: link:../cellb
       '@statewalker/webrun-files':
         specifier: 'catalog:'
         version: 0.12.0
@@ -678,9 +681,6 @@ importers:
       '@playwright/test':
         specifier: ^1.65.0
         version: 1.65.0
-      '@statewalker/cellb':
-        specifier: workspace:*
-        version: link:../cellb
       '@statewalker/webrun-files-composite':
         specifier: ^0.12.0
         version: 0.12.0

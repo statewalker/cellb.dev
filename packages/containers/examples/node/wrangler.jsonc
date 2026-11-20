@@ -7,5 +7,15 @@
   // celld builds ./Dockerfile; cellb runs the same server.js in wasmer/edgejs (Node-compatible
   // JavaScript in WASIX), which needs WebAssembly JSPI: Node 24+ or Chromium 137+.
   "containers": [{ "class_name": "NodeApp", "image": "./Dockerfile", "instance_type": "basic" }],
-  "rules": [{ "type": "Text", "globs": ["**/server.js"] }]
+  // cellb's image for the same class: WASIX packages, the project's files, the entrypoint.
+  // celld ignores this key; cellb gives objects of the class ctx.container with it.
+  "cellb": {
+    "containers": {
+      "NodeApp": {
+        "packages": ["wasmer/edgejs"],
+        "files": { "server.js": "./server.js" },
+        "entrypoint": ["node", "/workspace/server.js"]
+      }
+    }
+  }
 }

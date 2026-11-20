@@ -1,19 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
-import { containerFor } from "@statewalker/cellb-containers/container";
-import SERVER from "./server.py";
-
-// The image for cellb: WASIX packages plus files, in place of celld's Dockerfile.
-const IMAGE = {
-  packages: ["python/python"],
-  files: { "server.py": SERVER },
-  entrypoint: ["python", "/workspace/server.py"],
-};
 
 export class PyRunner extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    // On celld this is ctx.container; on cellb the node's engine provides it.
-    this.container = ctx.container ?? containerFor(ctx, IMAGE);
+    this.container = ctx.container; // celld: Docker; cellb: the engine its host gives it
   }
 
   async fetch(request) {
