@@ -33,6 +33,12 @@ export const referencePages: RepoPage[] = [
   { file: "packages/cellb/docs/conformance.md", slug: "conformance", label: "Conformance" },
   { file: "packages/cellb/docs/security.md", slug: "security", label: "Security & isolation" },
   { file: "packages/cellb/docs/gaps.md", slug: "gaps", label: "Gaps" },
+  { file: "packages/containers/README.md", slug: "containers", label: "Containers package" },
+  {
+    file: "packages/containers/docs/capacity.md",
+    slug: "containers-capacity",
+    label: "Containers per node",
+  },
   { file: "packages/cellb/CONTEXT.md", slug: "glossary", label: "Glossary" },
   { file: "packages/cellb/bench/README.md", slug: "benchmarks", label: "Benchmarks" },
 ];
@@ -82,6 +88,11 @@ export const servicePages: RepoPage[] = [
     file: "packages/cellb/docs/services/workers-ai.md",
     slug: "services/workers-ai",
     label: "Workers AI",
+  },
+  {
+    file: "packages/cellb/docs/services/containers.md",
+    slug: "services/containers",
+    label: "Containers",
   },
 ];
 

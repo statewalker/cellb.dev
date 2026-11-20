@@ -80,6 +80,16 @@ const { runtime, unsupported } = await loadNodeProject(dir, {
 console.log(unsupported); // configuration CellB does not support, e.g. []
 await runtime.fetch(new Request("http://localhost/increment?name=a"));
 await runtime.close(); // releases the cells, so celld can take them at once`;
+const containersCode = `import { loadProject } from "@statewalker/cellb/node";
+import { provideContainerEngine, wasmerContainerEngine } from "@statewalker/cellb-containers";
+import { Wasmer } from "@wasmer/sdk/node";
+
+// One engine per node: every cell's container is a Wasmer (WASIX) sandbox
+const withdraw = provideContainerEngine(wasmerContainerEngine(new Wasmer()));
+const project = await loadProject("./python"); // its objects call containerFor(ctx, image)
+await project.fetch(new Request("http://localhost/hello?cell=alpha")); // starts alpha's container
+await withdraw(); // destroys the node's containers
+await project.close();`;
 ---
 
 <Docs title="Getting started" description="Run a Worker and its Durable Objects with CellB in Node and in a browser, with one loadProject call.">
@@ -205,6 +215,20 @@ await runtime.close(); // releases the cells, so celld can take them at once`;
     the same <code>celldBucket(…)</code>.
   </p>
   <CodeBlock lang="ts" title="fleet.ts" code={fleetCode} />
+
+  <h2>Containers (experimental)</h2>
+  <p>
+    A Durable Object can run a Python, PHP, shell or Node-compatible program beside it, through
+    Cloudflare's container API. celld runs containers with Docker; with
+    <code>@statewalker/cellb-containers</code>, CellB runs WASIX builds of them in
+    <a href="https://docs.wasmer.io/runtime/js/">Wasmer</a> sandboxes, in Node and in browser
+    workers, with no network out and only the host files a FilesApi allows. The
+    <a href={docHref("packages/cellb/docs/services/containers.md")}>Containers</a> page has the API
+    and the differences from celld, and
+    <a href={docHref("packages/containers/docs/capacity.md")}>Containers per node</a> how many one
+    node runs.
+  </p>
+  <CodeBlock lang="ts" title="containers.ts" code={containersCode} />
 
   <h2>Next steps</h2>
   <ul>
