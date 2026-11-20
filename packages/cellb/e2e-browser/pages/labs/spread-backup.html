@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>cellb — spread shards with cells on the host's FilesApi</title>
+<body>
+  <!-- Under /labs/: cross-origin isolated, as the LTX VFS needs SharedArrayBuffer. -->
+  <script type="module">
+    import * as spread from "../spread/spread.ts";
+
+    window.__spread = spread;
+    // The host's folder: a File System Access directory handle in an app (showDirectoryPicker);
+    // here an OPFS directory, the same FileSystemDirectoryHandle type, which a probe can open
+    // without a picker. Every shard's LTX store builds a BrowserFilesApi on it.
+    window.__hostFolder = async (name) =>
+      (await navigator.storage.getDirectory()).getDirectoryHandle(name, { create: true });
+    window.__workerUrl = new URL("./spread-shard-worker.ts", import.meta.url).href;
+    window.__filesModule = new URL("./ltx-files-module.ts", import.meta.url).href;
+    window.__folderBytes = async (dir) => {
+      let bytes = 0;
+      let files = 0;
+      const walk = async (d) => {
+        for await (const h of d.values()) {
+          if (h.kind === "directory") await walk(h);
+          else {
+            files++;
+            bytes += (await h.getFile()).size;
+          }
+        }
+      };
+      await walk(dir);
+      return { files, bytes };
+    };
+    document.body.dataset.ready = "true";
+  </script>
+</body>

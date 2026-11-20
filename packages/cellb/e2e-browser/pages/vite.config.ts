@@ -115,6 +115,9 @@ export default defineConfig({
   server: {
     // The port: Vite's default (5173) for `pnpm browser:dev`; Playwright passes a free one.
     strictPort: true,
+    // The spread probe's frames run on names under .test, mapped to this server by Chromium's
+    // --host-resolver-rules (e2e-browser/probes/spread.probe.spec.ts).
+    allowedHosts: [".test"],
     fs: { allow: allowedRoots() },
     // A local S3 (RustFS) reached from pages through the dev server: requests are signed for
     // the real endpoint (s3ObjectStore's signAs), the proxy forwards them unchanged. The
