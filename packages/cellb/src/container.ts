@@ -112,18 +112,13 @@ export function createContainer(
         touch();
         return Promise.resolve();
       }
-      if (options.enableInternet)
-        return Promise.reject(
-          new Error(
-            "enableInternet: true needs an egress policy, which cellb containers do not have yet",
-          ),
-        );
+      // Egress is the engine's decision: one without an egress policy refuses enableInternet.
       starting ??= engine
         .start({
           ...image,
           entrypoint: options.entrypoint ?? image.entrypoint,
           env: { ...image.env, ...options.env },
-          enableInternet: false,
+          enableInternet: options.enableInternet ?? false,
           label: opts.label ?? image.label,
         })
         .then((h) => {

@@ -110,9 +110,9 @@ export function wasmerContainerEngine(
       await Promise.all([...handles].map((h) => h.destroy().catch(() => {})));
     },
     async start(spec) {
-      if (spec.enableInternet)
+      if (spec.enableInternet && opts.egress !== "host")
         throw new Error(
-          "enableInternet: true needs an egress policy, which this engine does not have yet",
+          'enableInternet: true needs an egress policy: wasmerContainerEngine(wasmer, { egress: "host" }) for trusted build steps',
         );
       const t0 = performance.now();
       const pkgs = await Promise.all(spec.packages.map(load));
@@ -122,7 +122,8 @@ export function wasmerContainerEngine(
         env: spec.env,
         mounts: spec.mounts,
         // No egress, and a virtual localhost of its own: two containers cannot reach each other.
-        network: { mode: "http", peers: [] },
+        // With egress (a trusted build step, Node): the host's network, unfenced.
+        network: spec.enableInternet ? { mode: "host" } : { mode: "http", peers: [] },
       })) as WasmerSandbox;
       live++;
       let running = true;

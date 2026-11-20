@@ -60,7 +60,9 @@ describe.skipIf(!hasJspi)("layered files: install once, run read-only", () => {
           : undefined,
       });
       await build.start({ enableInternet: true });
-      const r = await build.exec(["npm", "install"], { cwd: "/app" });
+      // a host mount cannot be the working directory (Wasmer checks it before any call reaches
+      // the host): install into it with --dir
+      const r = await build.exec(["npm", "install", "--dir", "/app"]);
       expect(r.exitCode, r.stderr).toBe(0);
       await build.destroy();
     } finally {
@@ -88,7 +90,10 @@ describe.skipIf(!hasJspi)("layered files: install once, run read-only", () => {
       files: a,
     });
     expect(first.exitCode, first.stderr).toBe(0);
-    expect(JSON.parse(first.stdout)).toEqual({ result: "2m", refused: "EACCES" });
+    const out = JSON.parse(first.stdout);
+    expect(out.result).toBe("2m");
+    // the volume answers EACCES; the guest sees Wasmer's mapping of a permission refusal
+    expect(["EACCES", "EPERM"]).toContain(out.refused);
     expect(await readText(a, "/out.txt")).toBe("2m");
     // the next run: a fresh writable layer over the same base
     const second = await pool.run({
@@ -120,12 +125,13 @@ describe.skipIf(!hasJspi)("layered files: install once, run read-only", () => {
   });
 
   it("the run containers have no egress", async () => {
+    // (edgejs's fetch() without a network never settles; a socket fails at once: no DNS)
     const r = await pool.run({
       argv: node(
-        `fetch("https://registry.npmjs.org/ms").then(() => console.log("reached"), () => console.log("blocked"))`,
+        `require("net").connect(443, "registry.npmjs.org").on("connect", () => { console.log("reached"); process.exit(0) }).on("error", (e) => console.log("blocked", e.code))`,
       ),
       timeoutMs: 30_000,
     });
-    expect(r.stdout.trim()).toBe("blocked");
+    expect(r.stdout.trim()).toBe("blocked ENOTFOUND");
   });
 });
