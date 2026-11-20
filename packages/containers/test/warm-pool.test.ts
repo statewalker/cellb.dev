@@ -96,6 +96,15 @@ describe("WarmPool", () => {
     await pool.close();
   });
 
+  it("rejects waiting requests with the cause after `failAfter` failed creates in a row", async () => {
+    const f = factory({ failFirst: 1_000, createMs: 1 });
+    const pool = new WarmPool(f, { size: 1, backoffMs: 5, failAfter: 3 });
+    const r = await pool.acquire({ timeoutMs: 5_000 }).catch((e: Error) => e);
+    expect(r).toBeInstanceOf(Error);
+    expect((r as Error).message).toMatch(/3 failed attempts.*create failed/);
+    await pool.close();
+  });
+
   it("starts at most `maxCreating` instances at once", async () => {
     const f = factory({ createMs: 30 });
     const pool = new WarmPool(f, { size: 4, maxCreating: 2 });
