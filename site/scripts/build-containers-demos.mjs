@@ -35,4 +35,6 @@ for (const page of ["index.html", "python/index.html", "notebook/index.html", "s
   if (!existsSync(`${out}/${page}`)) throw new Error(`browser-demos: ${page} is missing`);
 rmSync(target, { recursive: true, force: true });
 cpSync(out, target, { recursive: true });
+// the screenshots the /containers page shows
+cpSync(`${pkg}docs/images`, `${target}images`, { recursive: true });
 console.log(`containers demos: examples/browser-demos/dist copied to dist${DEMOS_BASE}`);

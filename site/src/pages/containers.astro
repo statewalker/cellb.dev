@@ -4,12 +4,13 @@ import Icon from "@/components/Icon.astro";
 import Button from "@/components/ui/Button.astro";
 import Docs from "@/layouts/Docs.astro";
 import { docHref } from "@/lib/docs";
-import { CONTAINER_DEMOS, REPO, repoFile } from "@/lib/site";
+import { CONTAINER_DEMOS, repoFile } from "@/lib/site";
 
 // /containers/: CellB's containers (packages/containers), and the live demos built into the site
 // at /demos/containers/ (scripts/build-containers-demos.mjs).
 
-const shot = (name: string) => `${REPO}/raw/HEAD/packages/containers/docs/images/${name}.png`;
+// copies of packages/containers/docs/images, next to the demos (scripts/build-containers-demos.mjs)
+const shot = (name: string) => `${CONTAINER_DEMOS.index}images/${name}.png`;
 
 const objectCode = `import { DurableObject } from "cloudflare:workers";
 
@@ -147,7 +148,7 @@ const examples: [string, string, string][] = [
     A Durable Object can run a program that is not JavaScript next to it: a Python or PHP server, a
     shell, Node-compatible JavaScript. celld runs these containers with Docker. CellB runs them in
     browser tabs and in Node with <code>@statewalker/cellb-containers</code>, through Cloudflare's
-    <code>ctx.container</code> API, on two engines: <a href="https://docs.wasmer.io/runtime/js/">Wasmer</a>
+    <code>ctx.container</code> API, on two engines: <a href="https://docs.wasmer.io/runtime/js/">Wasmer</a>{" "}
     WASIX sandboxes, and <a href="https://lifo.sh">Lifo</a>, a Linux-like OS written in TypeScript.
     There is no daemon and no image registry at run time, and the object's code is the same as on
     celld.

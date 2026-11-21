@@ -37,7 +37,7 @@ export const CONTAINER_DEMOS = {
     href: "/demos/containers/notebook/",
     engine: "Lifo",
     title: "A notebook in Lifo containers",
-    body: "An Observable Framework notebook, edited and previewed in the tab: a build container installs Framework with npm through the page's network (about 30 s), then `observable preview` runs in a container with no network, with live reload over a WebSocket into it.",
+    body: "An Observable Framework notebook, edited and previewed in the tab: a build container installs Framework with npm through the page's network (about 30 s), then observable preview runs in a container with no network, with live reload over a WebSocket into it.",
   },
 } as const;
 
