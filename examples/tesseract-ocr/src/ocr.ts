@@ -27,13 +27,11 @@ export type OcrResult = {
 
 export type Engine = { engine: OCREngine; probe: WasmProbe };
 
-/** Bytes the library is handed as `wasmBinary`: any will do, the shim answers from the module. */
-const PLACEHOLDER = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]);
-
 export async function createEngine(wasm: WebAssembly.Module, model: Uint8Array): Promise<Engine> {
   const probe: WasmProbe = {};
-  const engine = await withPrecompiledWasm(wasm, probe, () =>
-    createOCREngine({ wasmBinary: PLACEHOLDER }),
+  // The library is handed marker bytes as `wasmBinary`; the shim answers them from the module.
+  const engine = await withPrecompiledWasm(wasm, probe, (wasmBinary) =>
+    createOCREngine({ wasmBinary }),
   );
   engine.loadModel(model);
   return { engine, probe };

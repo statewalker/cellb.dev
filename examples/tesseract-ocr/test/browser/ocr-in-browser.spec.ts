@@ -155,12 +155,16 @@ test("the OCR app runs on cellb in a browser", async ({ page, request }) => {
       "/api/pdf/jobs?lang=deu&maxPages=20&throttleMs=1000&pageConcurrency=1&name=g.pdf",
       "GeoTopo.pdf",
     );
+    const deadline = Date.now() + 120_000;
     for (;;) {
       const s = (await json(page, `/api/pdf/jobs/${body.id}`)).body;
       if (s.pagesDone >= 2) {
         pending = { id: body.id, pagesDone: s.pagesDone };
         break;
       }
+      if (s.status !== "queued" && s.status !== "running")
+        throw new Error(`the job ended before 2 pages: ${JSON.stringify(s)}`);
+      if (Date.now() > deadline) throw new Error("the job did not reach 2 pages");
       await page.waitForTimeout(100);
     }
     await page.evaluate(() => (window as any).__app.stop());

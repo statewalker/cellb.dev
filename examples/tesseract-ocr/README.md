@@ -47,7 +47,7 @@ cells' SQLite in a temporary directory):
 
 1. The project loads with nothing in `unsupported`.
 2. A JPEG book page is read in the `ocr-eng` cell; a 2550×3300 two-column scan is read in bands and
-   matches its transcript (99%); a Dutch page goes to the `ocr-nld` cell with the Dutch model; the
+   matches its transcript (≥ 98% of its words); a Dutch page goes to the `ocr-nld` cell with the Dutch model; the
    same OCR runs in a Worker Loader isolate.
 3. Bad input is refused: not an image (400), a PNG declaring 60000×60000 (413, before decoding),
    one-row bands (400).
@@ -58,6 +58,10 @@ cells' SQLite in a temporary directory):
    served by the job; a 34 MB upload streamed in, of which pdf.js reads under a tenth.
 6. After a restart on the same data: the Dutch model comes from the cell's SQLite (no download),
    and a throttled job left half-way resumes and finishes all its pages in order.
+
+What `test/wasm-shim.test.ts` proves: three engines created at the same time (cells share their
+realm's globals) leave `URL` and `WebAssembly.instantiate` as they were, each engine's wasm memory
+is recorded, and a marker another library holds (pdf.js's decoders) still gets its own module.
 
 What `test/browser/ocr-in-browser.spec.ts` proves in Chromium: `cellb build` writes the project to
 `browser/public/app`, a Dedicated Worker (`browser/app-worker.ts`) loads it with `loadProject` from
@@ -89,7 +93,9 @@ differs is around it:
   apply `define` (neither `cellb build` nor `loadProject`). On Node that does not matter (the
   bundle has a `file:` URL), but in a browser CellB runs the bundle from a `blob:` URL, and a
   relative URL cannot resolve against it. `withPrecompiledWasm` therefore lets `URL` fall back to a
-  placeholder `file:` base while an engine is created. The `define` stays for wrangler.
+  placeholder `file:` base during the (synchronous) call that creates an engine; the wasm itself
+  is answered by a permanent marker-keyed `WebAssembly.instantiate`, so nothing global is swapped
+  across an await. The `define` stays for wrangler.
 - **One event loop on Node.** CellB runs the cells on the process's event loop, and recognition
   holds it for seconds. A server in the same process (the test's model server) then needs a
   keep-alive longer than Node's 5 s default, or a model download that reuses an idle socket right

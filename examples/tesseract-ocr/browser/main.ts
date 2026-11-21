@@ -25,6 +25,9 @@ function call<T>(message: unknown, transfer: Transferable[] = []): Promise<T> {
 const app = {
   /** Loads the app in a new worker; `data` names its OPFS storage (the same name: a reload). */
   async start(data: string) {
+    // Calls still waiting on the old worker are failed, not left hanging.
+    for (const fail of pending) fail("the app was restarted");
+    pending.clear();
     worker?.terminate();
     worker = new Worker(new URL("./app-worker.ts", import.meta.url), { type: "module" });
     // A worker that fails to load or throws at the top level answers nothing: report it.

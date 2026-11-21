@@ -36,7 +36,15 @@ export async function startModelServer() {
   server.headersTimeout = 125_000;
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const { port } = server.address() as { port: number };
-  return { baseUrl: `http://127.0.0.1:${port}/`, hits, close: () => server.close() };
+  return {
+    baseUrl: `http://127.0.0.1:${port}/`,
+    hits,
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.closeAllConnections();
+        server.close(() => resolve());
+      }),
+  };
 }
 
 /**
@@ -51,7 +59,13 @@ export async function loadApp(data: string, modelBaseUrl: string) {
   config.vars = { MODEL_BASE_URL: modelBaseUrl, WASM_URL: `${modelBaseUrl}tesseract-core.wasm` };
   const dir = mkdtempSync(join(tmpdir(), "tesseract-ocr-config-"));
   writeFileSync(join(dir, "wrangler.json"), JSON.stringify(config));
-  const project = await loadProject(dir, { data });
+  let project: Awaited<ReturnType<typeof loadProject>>;
+  try {
+    project = await loadProject(dir, { data });
+  } catch (e) {
+    rmSync(dir, { recursive: true, force: true });
+    throw e;
+  }
   return {
     project,
     async fetch(path: string, init?: RequestInit) {
@@ -112,5 +126,18 @@ export async function waitForJob(app: App, id: string, timeoutMs = 300_000) {
     if (body.status !== "queued" && body.status !== "running") return body;
     if (Date.now() > deadline) throw new Error(`job ${id}: still ${body.status}`);
     await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+/** Polls a PDF job until it has `n` pages done; fails if it ends (or stalls) before that. */
+export async function waitForPages(app: App, id: string, n: number, timeoutMs = 120_000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const { body } = await app.json(`/api/pdf/jobs/${id}`);
+    if (body.pagesDone >= n) return body;
+    if (body.status !== "queued" && body.status !== "running")
+      throw new Error(`job ${id} ended before ${n} pages: ${JSON.stringify(body)}`);
+    if (Date.now() > deadline) throw new Error(`job ${id}: fewer than ${n} pages`);
+    await new Promise((r) => setTimeout(r, 100));
   }
 }

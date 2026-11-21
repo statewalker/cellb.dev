@@ -2,14 +2,16 @@
 // models into fixtures/ (not committed). Runtimes under test get the models from a local server,
 // so no runtime needs outbound network access.
 //   node scripts/fetch-fixtures.mjs
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dir = fileURLToPath(new URL("../fixtures", import.meta.url));
 mkdirSync(join(dir, "models"), { recursive: true });
 
-const OCRMYPDF = "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources";
+// Pinned commits, so the files (and the tests' exact expectations) do not move with `main`.
+const OCRMYPDF =
+  "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/86a5e723ea2b612e8df4a647056b0ebf3b3c97a5/tests/resources";
 const TESSDATA = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0";
 
 // Licenses: https://github.com/ocrmypdf/OCRmyPDF/blob/main/REUSE.toml
@@ -42,7 +44,8 @@ export const IMAGES = [
     attribution: "Project Gutenberg, Adventures of Huckleberry Finn, page 29",
   },
 ];
-const PYPDF = "https://raw.githubusercontent.com/py-pdf/sample-files/main";
+const PYPDF =
+  "https://raw.githubusercontent.com/py-pdf/sample-files/80d67b91f3e28909756ca7807bbe8f43b599d12f";
 // PDFs for the /api/pdf scenario (licenses as in the pdf-portabletext corpus manifest).
 export const PDFS = [
   { file: "linn.pdf", url: `${OCRMYPDF}/linn.pdf`, license: "GFDL-1.2-or-later OR CC-BY-SA-3.0" },
@@ -75,7 +78,10 @@ async function download(url, path) {
   if (existsSync(path)) return;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-  writeFileSync(path, new Uint8Array(await res.arrayBuffer()));
+  // Written whole, then renamed: an interrupted download leaves no partial file behind that a
+  // later run would take as done.
+  writeFileSync(`${path}.part`, new Uint8Array(await res.arrayBuffer()));
+  renameSync(`${path}.part`, path);
   console.log(`fetched ${url}`);
 }
 

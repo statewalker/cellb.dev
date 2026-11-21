@@ -12,6 +12,7 @@ import {
   recall,
   startModelServer,
   waitForJob,
+  waitForPages,
 } from "./app.ts";
 
 const data = mkdtempSync(join(tmpdir(), "tesseract-ocr-data-"));
@@ -29,12 +30,12 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app?.close();
-  models?.close();
+  await models?.close();
   rmSync(data, { recursive: true, force: true });
 });
 
 describe("OCR in Durable Objects", () => {
-  it("loads with nothing unsupported; wasm comes as modules", async () => {
+  it("loads with nothing unsupported, Worker Loader offered", async () => {
     expect(app.project.unsupported).toEqual([]);
     const { body } = await app.json("/api/runtime");
     expect(body.workerLoader).toBe(true);
@@ -172,14 +173,8 @@ describe("PDF jobs: a PdfJob Durable Object per document", () => {
       throttleMs: "1000",
       pageConcurrency: "1",
     });
-    for (;;) {
-      const s = (await app.json(`/api/pdf/jobs/${body.id}`)).body;
-      if (s.pagesDone >= 2) {
-        pending = { id: body.id, pagesDone: s.pagesDone };
-        break;
-      }
-      await new Promise((r) => setTimeout(r, 100));
-    }
+    const s = await waitForPages(app, body.id, 2);
+    pending = { id: body.id, pagesDone: s.pagesDone };
   });
 });
 

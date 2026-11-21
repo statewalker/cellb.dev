@@ -1,14 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
     "strict": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
     "types": ["node"],
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "tesseract-wasm": ["./node_modules/tesseract-wasm/dist/index.d.ts"]
+    }
   },
   "include": ["test", "browser", "playwright.config.ts", "vitest.config.ts"]
 }
