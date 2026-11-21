@@ -9,7 +9,10 @@ import CodeBlock from "@/components/CodeBlock.astro";
 import Docs from "@/layouts/Docs.astro";
 import { recordedOf } from "@/lib/builders";
 import { docHref } from "@/lib/docs";
-import { LIVE_DEMOS, repoFile } from "@/lib/site";
+import { entry } from "@/lib/showcase";
+import { repoFile } from "@/lib/site";
+
+const astroLive = entry("astro-live");
 
 const rec = recordedOf("astro");
 const f = rec.facts;
@@ -60,7 +63,7 @@ const runSteps = rec.steps.filter((s) => !s.request.url.includes(":8787"));
     </li>
     <li>
       <strong>Astro in a browser tab.</strong> The same builder runs in the visitor's tab: try{" "}
-      <a href={LIVE_DEMOS.astro.href}>{LIVE_DEMOS.astro.title}</a>, which builds an Astro app, or
+      <a href={astroLive.try}>{astroLive.title}</a>, which builds an Astro app, or
       EmDash, in your browser and runs it there on CellB.
     </li>
     <li>
