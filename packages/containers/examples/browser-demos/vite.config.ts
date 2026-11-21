@@ -1,14 +1,21 @@
 // The browser demos: a landing page, notebook/ (Lifo) and python/ (Wasmer).
 //   dev:   vite --config examples/browser-demos/vite.config.ts
-//   build: DEMOS_BASE=/demos/containers/ vite build --config …   (a static site in dist/)
+//   build: vite build --config …   (a static site in dist/)
+//     DEMOS_BASE           the path it is served under (default /)
+//     DEMOS_PAGES          the demos to build (default: python,notebook)
+//     DEMOS_NOTEBOOK_HREF  where the landing page links the notebook (default ./notebook/): the
+//                          cellb.dev site builds python only, and links the notebook on its own
+//                          origin (it runs npm packages: see README.md)
 import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, extname, join } from "node:path";
+import { dirname, extname, join, relative } from "node:path";
 import { defineConfig, searchForWorkspaceRoot } from "vite";
 
 const require = createRequire(import.meta.url);
 const base = process.env.DEMOS_BASE ?? "/";
 const page = (path: string) => `${import.meta.dirname}/${path}`;
+const pages = (process.env.DEMOS_PAGES ?? "python,notebook").split(",").map((p) => p.trim());
+const notebookHref = process.env.DEMOS_NOTEBOOK_HREF ?? "./notebook/";
 
 // The page's ServiceWorker, at <base>sw-worker.js (its scope is the app's folder): webrun-http-browser's
 // runtime, which routes <base>nb/… to the page, inside a shim that gives every response of its
@@ -78,7 +85,7 @@ export default defineConfig({
           const path = req.url?.split("?")[0] ?? "";
           if (path.startsWith(`${base}wasmer-sdk/`)) {
             const file = join(wasmerSdk, path.slice(`${base}wasmer-sdk/`.length));
-            if (!file.startsWith(wasmerSdk)) return next();
+            if (relative(wasmerSdk, file).startsWith("..")) return next(); // stays in the SDK
             try {
               res.setHeader("Content-Type", SDK_TYPES[extname(file)] ?? "application/octet-stream");
               res.end(readFileSync(file));
@@ -95,6 +102,7 @@ export default defineConfig({
           next();
         });
       },
+      transformIndexHtml: (html) => html.replaceAll("__NOTEBOOK_HREF__", notebookHref),
       generateBundle() {
         this.emitFile({ type: "asset", fileName: "sw-worker.js", source: swWorker() });
         for (const file of [...sdkFiles("dist"), ...sdkFiles("pkg")])
@@ -114,11 +122,10 @@ export default defineConfig({
     emptyOutDir: true,
     target: "es2022",
     rollupOptions: {
-      input: {
-        index: page("index.html"),
-        notebook: page("notebook/index.html"),
-        python: page("python/index.html"),
-      },
+      input: Object.fromEntries([
+        ["index", page("index.html")],
+        ...pages.map((p) => [p, page(`${p}/index.html`)]),
+      ]),
     },
   },
   optimizeDeps: {

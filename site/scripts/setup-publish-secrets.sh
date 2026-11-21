@@ -18,7 +18,7 @@
 #   HTTPEERS_SSH   default kotelnikov@163.172.46.87
 #   REPO           default statewalker/cellb.dev
 #   SITE_DOMAIN    default cellb.httpeers.net   (where the workflow publishes)
-#   SITE_DOMAINS   default: cellb.httpeers.net cellb.dev and the examples' three hosts
+#   SITE_DOMAINS   default: cellb.httpeers.net cellb.dev and the examples' four hosts
 #                  (prefixes the user may write)
 #   SITE_USER      default cellb-site            (the RustFS user's access key)
 set -euo pipefail
@@ -26,7 +26,7 @@ set -euo pipefail
 HTTPEERS_SSH=${HTTPEERS_SSH:-kotelnikov@163.172.46.87}
 REPO=${REPO:-statewalker/cellb.dev}
 SITE_DOMAIN=${SITE_DOMAIN:-cellb.httpeers.net}
-SITE_DOMAINS=${SITE_DOMAINS:-cellb.httpeers.net cellb.dev cellb-examples.httpeers.net cellb-emdash.httpeers.net cellb-astro.httpeers.net}
+SITE_DOMAINS=${SITE_DOMAINS:-cellb.httpeers.net cellb.dev cellb-examples.httpeers.net cellb-emdash.httpeers.net cellb-astro.httpeers.net cellb-containers.httpeers.net}
 SITE_USER=${SITE_USER:-cellb-site}
 ENDPOINT=https://s3.httpeers.net
 RC_IMAGE=rustfs/rc:v0.1.37  # RustFS's own client; MinIO no longer publishes mc images

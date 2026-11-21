@@ -1,23 +1,26 @@
-// Checks the containers demos as the site publishes them (dist/demos/containers/, built by
-// scripts/build-containers-demos.mjs from packages/containers/examples/browser-demos), served by a
+// Checks the containers demos (packages/containers/examples/browser-demos) as published, served by a
 // plain file server that sends no COOP/COEP headers, as the static host does: the demos'
 // ServiceWorker must give each page cross-origin isolation.
 //   - python/ (Wasmer): a script runs in a fresh Python container against the page's files, with
 //     no network, and the next run sees nothing of it;
-//   - notebook/ (Lifo): a build container installs Observable Framework through the page's network,
-//     and the preview updates live when the notebook is edited.
+//   - notebook/ (Lifo), when the build has it: a build container installs Observable Framework
+//     through the page's network, and the preview updates live when the notebook is edited.
 //
-//   pnpm build && pnpm check:containers            (serves dist/ on a port of its own)
-//   DEMOS_DIST=<dir> pnpm check:containers         (serves <dir> at /demos/containers/)
+//   pnpm build && pnpm check:containers     the site's copy (dist/demos/containers/: python only)
+//   DEMOS_DIST=<dir> DEMOS_PATH=/ pnpm check:containers
+//                                           a build of the demos at the root of their own origin
+//                                           (.github/workflows/examples-publish.yml: both demos)
 //
-// Needs the Wasmer registry, the npm registry, jsDelivr and unpkg, and Chromium (PW_CHROMIUM to use
-// a given one).
+// Needs the Wasmer registry (and for the notebook the npm registry, jsDelivr and unpkg), and
+// Chromium (PW_CHROMIUM to use a given one).
+
+import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
-import { extname, join, normalize } from "node:path";
+import { extname, join, relative, resolve } from "node:path";
 import { chromium } from "playwright";
 
-const APP = "/demos/containers/";
+const APP = process.env.DEMOS_PATH ?? "/demos/containers/";
 const SITE = new URL("..", import.meta.url).pathname;
 const ROOT = process.env.DEMOS_DIST ?? join(SITE, "dist", APP);
 const TYPES = {
@@ -36,7 +39,8 @@ const TYPES = {
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, "http://x").pathname;
   if (!path.startsWith(APP)) return void res.writeHead(404).end();
-  let file = join(ROOT, normalize(decodeURIComponent(path.slice(APP.length))));
+  let file = resolve(ROOT, `.${decodeURIComponent(path.slice(APP.length - 1))}`);
+  if (relative(ROOT, file).startsWith("..")) return void res.writeHead(404).end(); // stays in ROOT
   try {
     if ((await stat(file)).isDirectory()) file = join(file, "index.html");
     const body = await readFile(file);
@@ -66,8 +70,8 @@ try {
   await landing.goto(url);
   const links = await landing.$$eval(".card h2 a", (as) => as.map((a) => a.getAttribute("href")));
   check(
-    JSON.stringify(links) === JSON.stringify(["./python/", "./notebook/"]),
-    "the landing page links both demos",
+    links.length === 2 && links[0] === "./python/" && /notebook\/$/.test(links[1]),
+    `the landing page links both demos (${links.join(", ")})`,
   );
   await landing.close();
 
@@ -119,44 +123,51 @@ try {
   );
   await py.close();
 
-  // Lifo: the notebook
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  page.on("pageerror", (e) => console.log("pageerror (notebook):", e.message));
-  await page.goto(`${url}notebook/`);
-  await page.waitForFunction(
-    () => ["ready", "error"].includes(document.body.dataset.state ?? ""),
-    null,
-    { timeout: 300_000 },
-  );
-  const status = await page.textContent("#status");
-  console.log("notebook:", status);
-  console.log((await page.textContent("#log")).trim());
-  check(
-    await page.evaluate(() => crossOriginIsolated),
-    "notebook: the page is cross-origin isolated",
-  );
-  check((await page.getAttribute("body", "data-state")) === "ready", `notebook: ready (${status})`);
+  // Lifo: the notebook, when this build has it
+  if (!existsSync(join(ROOT, "notebook", "index.html")))
+    console.log("(no notebook/ in this build: it is published on an origin of its own)");
+  else {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    page.on("pageerror", (e) => console.log("pageerror (notebook):", e.message));
+    await page.goto(`${url}notebook/`);
+    await page.waitForFunction(
+      () => ["ready", "error"].includes(document.body.dataset.state ?? ""),
+      null,
+      { timeout: 300_000 },
+    );
+    const status = await page.textContent("#status");
+    console.log("notebook:", status);
+    console.log((await page.textContent("#log")).trim());
+    check(
+      await page.evaluate(() => crossOriginIsolated),
+      "notebook: the page is cross-origin isolated",
+    );
+    check(
+      (await page.getAttribute("body", "data-state")) === "ready",
+      `notebook: ready (${status})`,
+    );
 
-  const frame = page.frameLocator("#preview");
-  await frame.locator("h1").waitFor({ timeout: 30_000 });
-  check(
-    (await frame.locator("h1").textContent()) === "Wave explorer",
-    "notebook: the preview shows the notebook",
-  );
-  await frame.locator('input[type="range"]').first().fill("6");
-  await frame.getByText(Math.sin(6).toFixed(3)).waitFor({ timeout: 15_000 });
-  check(true, "notebook: a slider drives the notebook");
+    const frame = page.frameLocator("#preview");
+    await frame.locator("h1").waitFor({ timeout: 30_000 });
+    check(
+      (await frame.locator("h1").textContent()) === "Wave explorer",
+      "notebook: the preview shows the notebook",
+    );
+    await frame.locator('input[type="range"]').first().fill("6");
+    await frame.getByText(Math.sin(6).toFixed(3)).waitFor({ timeout: 15_000 });
+    check(true, "notebook: a slider drives the notebook");
 
-  const edited = (await page.inputValue("#editor")).replace(
-    "# Wave explorer",
-    "# Wave explorer, edited live",
-  );
-  await page.fill("#editor", edited);
-  await frame.getByText("Wave explorer, edited live").waitFor({ timeout: 30_000 });
-  check(
-    (await frame.locator('input[type="range"]').first().inputValue()) === "6",
-    "notebook: an edit updates the preview in place (the slider keeps its value)",
-  );
+    const edited = (await page.inputValue("#editor")).replace(
+      "# Wave explorer",
+      "# Wave explorer, edited live",
+    );
+    await page.fill("#editor", edited);
+    await frame.getByText("Wave explorer, edited live").waitFor({ timeout: 30_000 });
+    check(
+      (await frame.locator('input[type="range"]').first().inputValue()) === "6",
+      "notebook: an edit updates the preview in place (the slider keeps its value)",
+    );
+  }
 } catch (e) {
   check(false, String(e));
 } finally {

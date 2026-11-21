@@ -20,8 +20,9 @@ export const LIVE_DEMOS = {
 } as const;
 
 /**
- * The containers demos (packages/containers/examples/browser-demos), built into this site at
- * /demos/containers/ (scripts/build-containers-demos.mjs): one per engine.
+ * The containers demos (packages/containers/examples/browser-demos), one per engine: the Wasmer
+ * one built into this site at /demos/containers/ (scripts/build-containers-demos.mjs), the Lifo
+ * one on an origin of its own.
  */
 export const CONTAINER_DEMOS = {
   index: "/demos/containers/",
@@ -34,7 +35,9 @@ export const CONTAINER_DEMOS = {
     body: "Run a Python script against files from the page. Each run gets a fresh Python container (WASIX, from the Wasmer registry) in a worker of its own, terminated after the run: it sees only its files at /data, and has no network.",
   },
   notebook: {
-    href: "/demos/containers/notebook/",
+    // an origin of its own: it installs and runs npm packages in the page's realm (Lifo is no
+    // sandbox), so it must not share cellb.dev's storage (examples-publish.yml publishes it)
+    href: "https://cellb-containers.httpeers.net/notebook/",
     engine: "Lifo",
     title: "A notebook in Lifo containers",
     body: "An Observable Framework notebook, edited and previewed in the tab: a build container installs Framework with npm through the page's network (about 30 s), then observable preview runs in a container with no network, with live reload over a WebSocket into it.",

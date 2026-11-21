@@ -115,10 +115,10 @@ next request, without a push.
 ## An interactive notebook in the browser
 
 [`examples/browser-demos`](../examples/browser-demos) (its `notebook/` page, live at
-[cellb.dev/demos/containers/notebook/](https://cellb.dev/demos/containers/notebook/)) puts it
+[cellb-containers.httpeers.net/notebook/](https://cellb-containers.httpeers.net/notebook/)) puts it
 together in one tab: an editor, and Framework's preview in a frame, served from a Lifo container
 with no network through webrun-http-browser's ServiceWorker, with live reload. Tested by
-`e2e-browser/notebook.spec.ts`, which takes these screenshots in Chromium.
+`e2e-browser/demos.spec.ts`, which takes these screenshots in Chromium.
 
 The notebook, served from the container (about 40 s from a cold start, the layer's build included):
 

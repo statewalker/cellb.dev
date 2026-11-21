@@ -51,28 +51,37 @@ async function main() {
     run.addEventListener("click", async () => {
       run.disabled = true;
       setStatus("running…");
-      const files = new MemFilesApi(); // this run's files: nothing else is visible at /data
-      await writeText(files, "/temperatures.csv", dataEl.value);
-      const r = await pool.run({
-        argv: ["python", "-c", code.value],
-        files,
-        timeoutMs: 30_000,
-      });
-      runs++;
-      output.textContent = r.stdout + (r.stderr ? `\n${r.stderr}` : "");
-      output.dataset.exit = String(r.exitCode);
-      const listed: string[] = [];
-      for await (const e of files.list("/")) {
-        if (e.kind !== "file") continue;
-        const text = await readText(files, e.path);
-        listed.push(
-          `${e.path} (${text.length} bytes)${e.path.endsWith(".csv") ? "" : `\n${text}`}`,
-        );
+      try {
+        const files = new MemFilesApi(); // this run's files: nothing else is visible at /data
+        await writeText(files, "/temperatures.csv", dataEl.value);
+        const r = await pool.run({
+          argv: ["python", "-c", code.value],
+          files,
+          timeoutMs: 30_000,
+        });
+        runs++;
+        output.textContent = r.stdout + (r.stderr ? `\n${r.stderr}` : "");
+        output.dataset.exit = String(r.exitCode);
+        const listed: string[] = [];
+        for await (const e of files.list("/")) {
+          if (e.kind !== "file") continue;
+          const text = await readText(files, e.path);
+          listed.push(
+            `${e.path} (${text.length} bytes)${e.path.endsWith(".csv") ? "" : `\n${text}`}`,
+          );
+        }
+        filesEl.textContent = listed.join("\n");
+        log(`run ${runs}: exit ${r.exitCode}${r.timedOut ? " (timed out)" : ""} in ${r.ms} ms`);
+        setStatus(`ran in ${r.ms} ms · a fresh container is ready for the next run`, "ready");
+      } catch (e) {
+        // no container could be prepared (the registry unreachable, a worker that crashed...)
+        output.textContent = String((e as Error).message ?? e);
+        output.dataset.exit = "error";
+        log(`run failed: ${(e as Error).message ?? e}`);
+        setStatus("the run failed: try again", "ready");
+      } finally {
+        run.disabled = false;
       }
-      filesEl.textContent = listed.join("\n");
-      log(`run ${runs}: exit ${r.exitCode}${r.timedOut ? " (timed out)" : ""} in ${r.ms} ms`);
-      setStatus(`ran in ${r.ms} ms · a fresh container is ready for the next run`, "ready");
-      run.disabled = false;
     });
     setStatus("ready · run the script", "ready");
     Object.assign(window, { __python: { pool } });

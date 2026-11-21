@@ -1,12 +1,14 @@
 # Containers in a browser tab
 
-Two live demos of `@statewalker/cellb-containers`, one per engine, served as a static site:
-[cellb.dev/demos/containers/](https://cellb.dev/demos/containers/).
+Two live demos of `@statewalker/cellb-containers`, one per engine, served as static sites:
+the Wasmer one at [cellb.dev/demos/containers/](https://cellb.dev/demos/containers/), the Lifo one
+at [cellb-containers.httpeers.net](https://cellb-containers.httpeers.net/), an origin of its own
+(see [Where they are published](#where-they-are-published)).
 
 | Demo | Engine | What it shows |
 | --- | --- | --- |
 | [Python in Wasmer containers](https://cellb.dev/demos/containers/python/) (`python/`) | Wasmer (WASIX sandboxes) | a script runs in a fresh Python container per run, against files from the page, with no network |
-| [Notebook in a Lifo container](https://cellb.dev/demos/containers/notebook/) (`notebook/`) | Lifo (a Linux-like OS in TypeScript) | Observable Framework installed by `npm` in the tab, then `observable preview` with live reload |
+| [Notebook in a Lifo container](https://cellb-containers.httpeers.net/notebook/) (`notebook/`) | Lifo (a Linux-like OS in TypeScript) | Observable Framework installed by `npm` in the tab, then `observable preview` with live reload |
 
 ![Python in Wasmer containers: the script's output and the file it wrote back to the page](../../docs/images/python-1-run.png)
 
@@ -18,8 +20,9 @@ pnpm --filter @statewalker/cellb-containers exec vite --config examples/browser-
 
 Open the printed URL in Chrome or another Chromium-based browser (tested there; both demos need
 cross-origin isolation, which the dev server and, on a static host, the ServiceWorker provide).
-`DEMOS_BASE=/demos/containers/ vite build --config …` builds the static site the cellb.dev site
-publishes (`site/scripts/build-containers-demos.mjs`).
+`vite build --config examples/browser-demos/vite.config.ts` builds the static site (`DEMOS_BASE`,
+`DEMOS_PAGES` and `DEMOS_NOTEBOOK_HREF` set where it is served, which demos it holds, and where
+the landing page links the notebook).
 
 ## Python in Wasmer containers (`python/`)
 
@@ -60,7 +63,22 @@ reload pushes every edit to the preview without reloading it.
    values.
 
 Lifo is not a security boundary (guest JS runs in its worker's realm): the notebook is code you
-trust, and the no-network rule is a guard for it, not a sandbox.
+trust, and the no-network rule is a guard for it, not a sandbox. Its build step installs npm
+packages (with their dependencies, resolved on each visit) and runs them in the page's realm, and
+the preview frame runs Framework's client and the npm modules it loads: all of that code has the
+rights of the page's origin. That is why this demo has an origin of its own.
+
+## Where they are published
+
+| Demo | Where | Published by |
+| --- | --- | --- |
+| landing page and `python/` | `https://cellb.dev/demos/containers/` | the site (`site/scripts/build-containers-demos.mjs`, `DEMOS_PAGES=python`), on every site deploy |
+| landing page, `python/` and `notebook/` | `https://cellb-containers.httpeers.net/` | `.github/workflows/examples-publish.yml` (run by hand), after testing the build |
+
+The Python demo can share cellb.dev's origin: its page runs this repository's code only, and the
+Python a visitor types runs inside Wasmer's sandbox, which has no access to the page's JavaScript.
+The notebook cannot (above): code from npm would have the rights of cellb.dev, whose other pages
+keep data in the browser (the sandbox can remember an API key).
 
 ## The ServiceWorker
 
@@ -75,4 +93,5 @@ controlled by it (`service-worker.ts`).
 - `e2e-browser/demos.spec.ts`: both demos from the dev server (`UPDATE_SCREENSHOTS=1` retakes the
   screenshots in `docs/images/`).
 - `site/scripts/check-containers.mjs` (`pnpm --filter @statewalker/cellb-site check:containers`):
-  the built site's copy, served by a plain file server with no COOP/COEP headers, as published.
+  a build served by a plain file server with no COOP/COEP headers, as published: the site's copy
+  (python) in the site workflow, the whole build in `examples-publish.yml` before it is published.

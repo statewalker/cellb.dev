@@ -150,8 +150,8 @@ const examples: [string, string, string][] = [
     browser tabs and in Node with <code>@statewalker/cellb-containers</code>, through Cloudflare's
     <code>ctx.container</code> API, on two engines: <a href="https://docs.wasmer.io/runtime/js/">Wasmer</a>{" "}
     WASIX sandboxes, and <a href="https://lifo.sh">Lifo</a>, a Linux-like OS written in TypeScript.
-    There is no daemon and no image registry at run time, and the object's code is the same as on
-    celld.
+    There is no Docker daemon: Wasmer's packages come from the Wasmer registry when a container
+    first starts (and are cached), and the object's code is the same as on celld.
   </p>
   <div class="my-6 flex flex-wrap gap-3">
     <Button href={CONTAINER_DEMOS.index} size="lg">
@@ -163,7 +163,11 @@ const examples: [string, string, string][] = [
   </div>
 
   <h2>Live demos: one per engine</h2>
-  <p>Both run in your tab, served as static files; Chrome or another Chromium-based browser.</p>
+  <p>
+    Both run in your tab, served as static files; Chrome or another Chromium-based browser. The
+    notebook is served from an origin of its own: it installs and runs npm packages in its page's
+    realm (Lifo is not a sandbox), and must not share this site's storage.
+  </p>
   {[CONTAINER_DEMOS.python, CONTAINER_DEMOS.notebook].map((d, i) => (
     <div>
       <h3>

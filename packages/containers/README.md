@@ -7,7 +7,7 @@ that runs Python, PHP, bash or Node-compatible JavaScript next to it, in a tab o
 process, with no Docker daemon.
 
 **Live demos** (both engines, in your browser): [Python in Wasmer containers](https://cellb.dev/demos/containers/python/)
-and [an Observable Framework notebook in Lifo containers](https://cellb.dev/demos/containers/notebook/)
+and [an Observable Framework notebook in Lifo containers](https://cellb-containers.httpeers.net/notebook/)
 ([examples/browser-demos](examples/browser-demos)).
 
 ## Two engines: Wasmer and Lifo
@@ -26,7 +26,7 @@ work the same on either; each runs in a worker of its own.
 | Memory | ~265 MB per Python container in its own worker | ~31 MB per box in its own worker |
 | WebSockets into it | — | `getTcpPort().fetch()` upgrades, `containerWebSocket()` |
 | Tested in | Node and Chromium | Node and Chromium |
-| Demo | [Python in Wasmer containers](https://cellb.dev/demos/containers/python/) | [a notebook in Lifo containers](https://cellb.dev/demos/containers/notebook/) |
+| Demo | [Python in Wasmer containers](https://cellb.dev/demos/containers/python/) | [a notebook in Lifo containers](https://cellb-containers.httpeers.net/notebook/) |
 
 Use Wasmer for code you do not trust and for WASIX software (Python, PHP); use Lifo for your own
 JavaScript tooling (`npm install`, build steps, a dev server such as Observable Framework's).

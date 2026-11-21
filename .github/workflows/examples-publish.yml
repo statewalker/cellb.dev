@@ -3,10 +3,14 @@ name: examples-publish
 # The browser examples as static sites on the httpeers host, one host each, since each one's
 # ServiceWorker takes its whole origin:
 #
-#   cellb-examples.httpeers.net   examples/landing: links to the two below
+#   cellb-examples.httpeers.net   examples/landing: links to the others
 #   cellb-emdash.httpeers.net     examples/emdash's static build (EmDash built by Astro on Node)
 #   cellb-astro.httpeers.net      examples/astro-in-browser's static build (Astro and EmDash built
 #                                 in the tab)
+#   cellb-containers.httpeers.net packages/containers/examples/browser-demos: Python in Wasmer
+#                                 containers and the notebook in Lifo containers (the notebook runs
+#                                 npm packages in its page's realm: an origin of its own, apart
+#                                 from cellb.dev's storage)
 #
 # Run by hand ("Run workflow", or `gh workflow run examples-publish.yml`). Each build is tested in
 # Chromium behind a plain file server before anything is published. The *.httpeers.net names need
@@ -71,3 +75,42 @@ jobs:
           publish emdash/dist/static cellb-emdash.httpeers.net
           publish astro-in-browser/dist/static cellb-astro.httpeers.net
           publish landing cellb-examples.httpeers.net
+
+  # The containers demos (packages/containers/examples/browser-demos), from the root workspace:
+  # built for the root of their host, tested in Chromium behind a plain file server (both demos:
+  # they need the Wasmer registry, the npm registry, jsDelivr and unpkg), then published.
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Chromium
+        run: bash .github/scripts/install-chromium.sh pnpm --filter @statewalker/cellb-site exec playwright
+      - name: The containers demos' static build, tested
+        run: |
+          pnpm --filter @statewalker/cellb-containers exec vite build --config examples/browser-demos/vite.config.ts
+          DEMOS_DIST="$GITHUB_WORKSPACE/packages/containers/examples/browser-demos/dist" DEMOS_PATH=/ \
+            pnpm --filter @statewalker/cellb-site check:containers
+      - name: Publish
+        env:
+          RCLONE_CONFIG_HTTPEERS_TYPE: s3
+          RCLONE_CONFIG_HTTPEERS_PROVIDER: Other
+          RCLONE_CONFIG_HTTPEERS_ENDPOINT: https://s3.httpeers.net
+          RCLONE_CONFIG_HTTPEERS_FORCE_PATH_STYLE: "true"
+          RCLONE_CONFIG_HTTPEERS_ACCESS_KEY_ID: ${{ secrets.HTTPEERS_S3_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_HTTPEERS_SECRET_ACCESS_KEY: ${{ secrets.HTTPEERS_S3_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          bash .github/scripts/install-rclone.sh
+          dir=packages/containers/examples/browser-demos/dist
+          test -f "$dir/notebook/index.html" || { echo "::error::$dir/notebook/index.html is missing."; exit 1; }
+          rclone sync "$dir" httpeers:sites/cellb-containers.httpeers.net --checksum --stats-one-line -v
+          echo "::notice::Published https://cellb-containers.httpeers.net (the host may serve old files for up to 60 s)."
