@@ -169,6 +169,8 @@ export class ObjectHost {
     this.#opts = opts;
     this.#open = () => {
       this.#db = opts.openSql(opts.cellKey);
+      // Storage that takes no pages: the driver need not record them (statewalker/cellb.dev#194).
+      this.#db.recordPages?.(!!opts.durability.capturePages);
       for (const ext of opts.sqlExtensions ?? []) this.#db.loadExtension(ext);
     };
     this.#open();

@@ -42,6 +42,7 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   readonly #capi?: { sqlite3_get_autocommit(db: number): number };
   #pageHook?: ReturnType<typeof installPageHook>;
   readonly #pageHookOn: boolean;
+  #recording = true;
   constructor(
     db: Oo1Db,
     hooks?: WasmImageHooks,
@@ -100,6 +101,7 @@ export class WasmSqliteDriver implements SyncSqlDriver {
       this.#pageHook = installPageHook(
         this.#sqlite3,
         (this.#db as unknown as { pointer: number }).pointer,
+        () => this.#recording,
       );
     } catch {
       this.#pageHook = undefined;
@@ -114,6 +116,11 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   }
   discardDirtyPages(): void {
     this.#pageHook?.discard();
+  }
+  /** Whether the page hook records writes (see SyncSqlDriver.recordPages). */
+  recordPages(on: boolean): void {
+    this.#recording = on;
+    if (!on) this.#pageHook?.discard();
   }
   /**
    * WASM builds cannot load extensions at run time; an extension must be compiled into the

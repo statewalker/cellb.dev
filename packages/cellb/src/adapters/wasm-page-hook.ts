@@ -16,7 +16,12 @@ export interface DirtyPages {
   pages: Map<number, Uint8Array>;
 }
 
-export function installPageHook(sqlite3: { capi: any; wasm: any }, dbPointer: number) {
+export function installPageHook(
+  sqlite3: { capi: any; wasm: any },
+  dbPointer: number,
+  /** While this returns false, writes are passed on without being recorded. */
+  recording: () => boolean = () => true,
+) {
   const { capi, wasm } = sqlite3;
   const stack = wasm.pstack.pointer;
   let pFile = 0;
@@ -40,7 +45,8 @@ export function installPageHook(sqlite3: { capi: any; wasm: any }, dbPointer: nu
   const fnPtr = wasm.installFunction(
     "i(ppij)",
     (pF: number, pBuf: number, iAmt: number, iOfst: bigint) => {
-      if (pF === pFile) written.set(Number(iOfst), wasm.heap8u().slice(pBuf, pBuf + iAmt));
+      if (pF === pFile && recording())
+        written.set(Number(iOfst), wasm.heap8u().slice(pBuf, pBuf + iAmt));
       return xWrite(pF, pBuf, iAmt, iOfst);
     },
   );

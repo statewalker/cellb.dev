@@ -49,6 +49,12 @@ export interface SyncSqlDriver {
     | { pageSize: number; pageCount: number; pages: Map<number, Uint8Array> }
     | undefined;
   discardDirtyPages?(): void;
+  /**
+   * Whether the driver records the pages it writes for `takeDirtyPages()`. The object host
+   * turns it off when its storage takes no pages, so writes are not copied only to be dropped
+   * (statewalker/cellb.dev#194). A driver records by default.
+   */
+  recordPages?(on: boolean): void;
   /** Consistent image of the whole database (no transaction may be open). Needed for backups. */
   image?(): Uint8Array;
   /** Replaces the whole database with an image produced by `image()`. Needed for restores. */
