@@ -12,14 +12,11 @@ on:
   workflow_dispatch:
 
 # A newer push cancels a pull request's run. Every other run (a push to main, a manual run) has a
-# group of its own and finishes: a release is never cut short, and a run whose `publish` waits for
-# approval holds up no later run. (With one group for main, that waiting run kept every later push
-# pending, and each new push cancelled the one before.) Only `version` has a group of its own
+# group of its own and finishes: a release is never cut short, and a slow run holds up no later
+# run. Only `version` has a group of its own
 # (`release-<repository>`: one runs at a time, and a newer waiting one replaces an older one);
 # `pack` and `publish` of several runs may overlap. A version already on npm is skipped, and an
-# older one never takes `latest` (see `publish`). Two runs can still hold the same version packed
-# from different commits: approve the oldest waiting `publish` first, so a version is published
-# from the commit that released it.
+# older one never takes `latest` (see `publish`).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -52,6 +49,72 @@ jobs:
       - name: The published package (pack, install, Node, types, Vite + Chromium)
         run: node scripts/pack-check.mjs
 
+  # The statewalker CI baseline checks this repository's own CI does not run otherwise, taken from
+  # statewalker/statewalker-ci as its shared ci.yml runs them: the secret scan (gitleaks over the
+  # files and the commits of the pull request, before the install; false positives in
+  # .gitleaks.toml), the release path (no publish step outside `publish` below), the required
+  # baseline (root scripts, every test typechecked, the whole workspace and the examples' tests
+  # typechecked), publint + attw on every packed public package, and the API diff against npm.
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # The secret scan reads the commits of the pull request (or push): it needs their history.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check scripts
+        uses: actions/checkout@v7
+        with:
+          repository: statewalker/statewalker-ci
+          ref: main
+          path: .statewalker-ci
+      # Out of the repository, so linting and packing never see them.
+      - name: Move the check scripts out of the workspace
+        run: mv .statewalker-ci "$RUNNER_TEMP/statewalker-ci"
+      # Before the install, so only the repository's own files are scanned.
+      - name: Install gitleaks
+        run: bash "$RUNNER_TEMP/statewalker-ci/scripts/install-gitleaks.sh"
+      - name: Secret scan
+        env:
+          SECRET_SCAN_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node "$RUNNER_TEMP/statewalker-ci/scripts/check-secrets.mjs"
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # publint, attw, TypeScript (API diff) and yaml (release path), pinned by statewalker-ci's
+      # lockfile.
+      - name: Install the check tools
+        run: pnpm install --frozen-lockfile --dir "$RUNNER_TEMP/statewalker-ci"
+      - name: Release path
+        run: node "$RUNNER_TEMP/statewalker-ci/scripts/check-release-path.mjs"
+      # The examples are a workspace of their own (on cellb from npm); root `typecheck:tests`
+      # compiles their tests, so their dependencies must be there.
+      - name: Install the examples
+        run: pnpm --dir examples install --frozen-lockfile
+      # The required baseline (`library`): lint:check, format:check, build, typecheck and test
+      # exist at the root and run something, and every TypeScript test file is typechecked.
+      - name: Required scripts and typechecked tests
+        run: node "$RUNNER_TEMP/statewalker-ci/scripts/check-scripts.mjs" library
+      - name: Format
+        run: pnpm run format:check
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Typecheck tests
+        run: pnpm run typecheck:tests
+      - name: Build
+        run: pnpm run build
+      - name: publint and attw
+        run: node "$RUNNER_TEMP/statewalker-ci/scripts/check-package-tools.mjs" --attw-profile esm-only
+      # Each public package's declarations against npm's `latest`: a breaking change (an entry
+      # point, export or public member removed) fails unless a changeset or the version declares
+      # the bump it needs (minor on 0.x).
+      - name: API diff against npm
+        run: node "$RUNNER_TEMP/statewalker-ci/scripts/check-api-diff.mjs"
+
   # The platform packages (packages/platform*, esm-cdn, bundler, astro-builder, notebooks): lint,
   # typecheck, unit tests and the per-host builds. Their end-to-end checks need celld, wrangler
   # and Chromium and take minutes per host; they run by hand (packages/platform/README.md).
@@ -82,19 +145,38 @@ jobs:
           pnpm run build:browser
 
   # Releases to npm in three jobs: `version` opens the version pull request, `pack` packs what
-  # npm lacks once it is merged, `publish` uploads the tarballs after a maintainer approves.
+  # npm lacks once it is merged, `publish` uploads the tarballs. Nobody approves the upload:
+  # merging the version pull request is the release decision.
   #
   # No npm token is stored in GitHub: `publish` authenticates with trusted publishing (OIDC),
   # and its provenance attestation ties each tarball to this commit. npm's trusted publishers
-  # name this file (ci.yml) and the `npm` environment, so a run that skips the approval cannot
-  # publish. Only `publish` may request an identity token, and it never checks out, installs or
-  # builds: no build tool or dependency runs where a publish token can be obtained.
+  # name this file (ci.yml) and the `npm` environment, which admits only `main`, so a run from
+  # another branch cannot publish. Only `publish` may request an identity token, and it never
+  # checks out, installs or builds: no build tool or dependency runs where a publish token can
+  # be obtained.
   #
   # A trusted publisher can only be added to a package that exists, so a package's first
-  # version is published by hand, with the maintainer's 2FA, before `publish` is approved; `pack`
-  # or `publish` then skips it.
+  # version is published by hand, with the maintainer's 2FA, before the version pull request
+  # that releases it merges; `pack` or `publish` then skips it.
 
-  # Writes the changesets nobody wrote by hand (statewalker/.github's
+  # The lockfile-only pull request that .github/workflows/statewalker-update.yml opens: merged
+  # once every other check on it passes (interop.yml and site.yml included; examples.yml runs by hand only), after checking it
+  # changes pnpm-lock.yaml alone (statewalker/statewalker-ci's merge-lockfile.yml;
+  # statewalker-root docs/process/merging.md).
+  lockfile:
+    needs: [cellb, platform, checks]
+    # !cancelled(): also after a failed check job, so the pull request gets a comment saying why.
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.head_ref == 'deps/statewalker-lockfile' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      statuses: read
+      actions: read
+    uses: statewalker/statewalker-ci/.github/workflows/merge-lockfile.yml@main
+    secrets: inherit
+
+  # Writes the changesets nobody wrote by hand (statewalker/statewalker-ci's
   # scripts/release-changesets.mjs: a patch for every package whose packed files or published
   # manifest differ from npm's `latest`, a minor (0.x) / major when a dependency moved to another
   # breaking line), then opens or updates the "chore: version packages" pull request. Never
@@ -107,8 +189,7 @@ jobs:
       group: release-${{ github.repository }}
       cancel-in-progress: false
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     outputs:
       pending: ${{ steps.changesets.outputs.has-changesets }}
     steps:
@@ -119,7 +200,7 @@ jobs:
       - name: Release scripts
         uses: actions/checkout@v7
         with:
-          repository: statewalker/.github
+          repository: statewalker/statewalker-ci
           ref: main
           path: .statewalker-ci
 
@@ -142,10 +223,28 @@ jobs:
       - name: Changesets for unreleased changes
         run: node "$RUNNER_TEMP/statewalker-ci/scripts/release-changesets.mjs"
 
+      # The version pull request is opened and pushed with the statewalker-release GitHub App's
+      # installation token, not GITHUB_TOKEN: GitHub does not run CI on what GITHUB_TOKEN pushes
+      # (the run waits as "action_required" until a maintainer approves it), so the pull request
+      # would have no checks for the merge gate or a required status check. The App (Contents and
+      # Pull requests: read & write) is installed on each publishing repository; its client id is
+      # the organization variable RELEASE_APP_CLIENT_ID and its private key the organization secret
+      # RELEASE_APP_KEY, both visible only to those repositories. The token is scoped to this
+      # repository and revoked when the job ends.
+      - name: Release token
+        id: release-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Version pull request
         id: changesets
         uses: changesets/action@v2
         with:
+          github-token: ${{ steps.release-token.outputs.token }}
           version-script: pnpm exec changeset version
           commit-message: "chore: version packages"
           pr-title: "chore: version packages"
@@ -195,8 +294,8 @@ jobs:
           name: packages
           path: ${{ runner.temp }}/out/*.tgz
 
-  # Waits for a maintainer's approval (the `npm` environment), then publishes the tarballs packed
-  # above with OIDC and tags each one as a GitHub release.
+  # Runs in the `npm` environment (only `main`, no approval) and publishes the tarballs packed
+  # above with OIDC, tagging each one as a GitHub release.
   publish:
     needs: pack
     if: needs.pack.outputs.any == 'true'
@@ -221,9 +320,9 @@ jobs:
           name: packages
           path: packages
 
-      # Skips a version already on npm: a first version published by hand while this job waited
-      # for approval, or what an earlier attempt of a re-run job published. A version older than
-      # npm's `latest` (an old run approved after a newer release) is published under the
+      # Skips a version already on npm: a first version published by hand after the tarballs were
+      # packed, or what an earlier attempt of a re-run job published. A version older than
+      # npm's `latest` (an old run re-run after a newer release) is published under the
       # `backport` dist-tag, and a prerelease under `next`, so `latest` never moves backwards.
       # Only npm's "not found" (E404) counts as no `latest`; any other failure to read it stops
       # the step rather than publish blind.
@@ -259,3 +358,14 @@ jobs:
             gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && continue
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --notes "Published to npm."
           done
+
+  # What this run published reaches the other repositories of the statewalker-release App's
+  # installation as a `statewalker-published` dispatch; each dependent then moves its lockfile
+  # within its ranges (statewalker/statewalker-ci's notify-dependents.yml, which reads the
+  # published tarballs from the `packages` artifact). Also after a partly failed publish.
+  notify:
+    needs: publish
+    if: ${{ !cancelled() && needs.publish.result != 'skipped' }}
+    permissions: {}
+    uses: statewalker/statewalker-ci/.github/workflows/notify-dependents.yml@main
+    secrets: inherit

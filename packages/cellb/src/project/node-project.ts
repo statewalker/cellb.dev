@@ -40,6 +40,7 @@ import { type ModuleRule, moduleRulesPlugin } from "./module-rules.js";
 import { ownModule } from "./own-module.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import {
+  containerFileText,
   createProjectRuntime,
   hasNodeCompat,
   loadProjectBindings,
@@ -48,6 +49,7 @@ import {
   type ProjectRuntime,
   populatesProcessEnv,
   processEnvOf,
+  readContainerFiles,
   WRANGLER_FILES,
   type WranglerConfig,
 } from "./wrangler.js";
@@ -56,7 +58,11 @@ import {
 export function readWranglerConfig(dir: string): WranglerConfig {
   for (const name of WRANGLER_FILES) {
     const p = join(dir, name);
-    if (existsSync(p)) return parseJsonc(readFileSync(p, "utf8")) as WranglerConfig;
+    if (existsSync(p))
+      // Container images may name files of the project: read them now (celld builds Docker images instead).
+      return readContainerFiles(parseJsonc(readFileSync(p, "utf8")) as WranglerConfig, (file) =>
+        containerFileText(file, readFileSync(resolve(dir, file))),
+      );
   }
   throw new Error(`no wrangler.jsonc or wrangler.json in ${dir}`);
 }

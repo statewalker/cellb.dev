@@ -1,0 +1,91 @@
+{
+  "date": "2026-11-20",
+  "test": "frames (cross-site)",
+  "perFrame": 40,
+  "stopped": "all frames started",
+  "hostDirectoryHandleInFrame": "refused: messageerror: the frame could not read the message",
+  "base": {
+    "chromiumPssMB": 755,
+    "rendererPssMB": 116,
+    "renderers": 4
+  },
+  "rows": [
+    {
+      "frames": 1,
+      "workers": 40,
+      "ok": true,
+      "startMs": 7239,
+      "handle": "refused: messageerror: the frame could not read the message",
+      "run": {
+        "tasks": 80,
+        "ms": 617,
+        "tasksPerSec": 130,
+        "mbPerSec": 0.1,
+        "workersUsed": 34,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 2143,
+      "rendererPssMB": 1303,
+      "renderers": 5,
+      "availableMB": 12442
+    },
+    {
+      "frames": 2,
+      "workers": 80,
+      "ok": true,
+      "startMs": 7374,
+      "run": {
+        "tasks": 160,
+        "ms": 1001,
+        "tasksPerSec": 160,
+        "mbPerSec": 0.2,
+        "workersUsed": 72,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 3551,
+      "rendererPssMB": 1330,
+      "renderers": 6,
+      "availableMB": 11013
+    },
+    {
+      "frames": 3,
+      "workers": 120,
+      "ok": true,
+      "startMs": 5933,
+      "run": {
+        "tasks": 240,
+        "ms": 950,
+        "tasksPerSec": 253,
+        "mbPerSec": 0.2,
+        "workersUsed": 107,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 4987,
+      "rendererPssMB": 1352,
+      "renderers": 7,
+      "availableMB": 9537
+    },
+    {
+      "frames": 4,
+      "workers": 160,
+      "ok": true,
+      "startMs": 6446,
+      "run": {
+        "tasks": 320,
+        "ms": 1485,
+        "tasksPerSec": 216,
+        "mbPerSec": 0.2,
+        "workersUsed": 143,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 6356,
+      "rendererPssMB": 1345,
+      "renderers": 8,
+      "availableMB": 8135
+    }
+  ]
+}

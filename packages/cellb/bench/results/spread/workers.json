@@ -1,0 +1,92 @@
+{
+  "date": "2026-11-20",
+  "test": "how many workers",
+  "stopped": "a project shard did not start: RangeError: WebAssembly.Memory(): could not allocate memory\n    at initMemory (http://localhost:42069/@fs/home/user/cellb.dev/node_modules/.pnpm/@sqlite.org+sqlite-wasm@3.54.1-build1/node_modules/@sqlite.org/sqlite-wasm/dist/index.mjs?v=da7db085:92:17)\n    at sqlite3In",
+  "base": {
+    "chromiumPssMB": 338,
+    "rendererPssMB": 86
+  },
+  "rows": [
+    {
+      "workers": 16,
+      "ok": true,
+      "startMs": 2440,
+      "run": {
+        "tasks": 128,
+        "ms": 712,
+        "tasksPerSec": 180,
+        "mbPerSec": 0.2,
+        "workersUsed": 14,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 940,
+      "rendererPssMB": 643,
+      "renderers": 2,
+      "availableMB": 14345
+    },
+    {
+      "workers": 32,
+      "ok": true,
+      "startMs": 4339,
+      "run": {
+        "tasks": 256,
+        "ms": 1045,
+        "tasksPerSec": 245,
+        "mbPerSec": 0.2,
+        "workersUsed": 31,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 1547,
+      "rendererPssMB": 1204,
+      "renderers": 2,
+      "availableMB": 13737
+    },
+    {
+      "workers": 64,
+      "ok": true,
+      "startMs": 8751,
+      "run": {
+        "tasks": 512,
+        "ms": 2291,
+        "tasksPerSec": 223,
+        "mbPerSec": 0.2,
+        "workersUsed": 60,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 2737,
+      "rendererPssMB": 2294,
+      "renderers": 2,
+      "availableMB": 12523
+    },
+    {
+      "workers": 96,
+      "ok": true,
+      "startMs": 14677,
+      "run": {
+        "tasks": 768,
+        "ms": 3266,
+        "tasksPerSec": 235,
+        "mbPerSec": 0.2,
+        "workersUsed": 94,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 3929,
+      "rendererPssMB": 3361,
+      "renderers": 2,
+      "availableMB": 11273
+    },
+    {
+      "workers": 128,
+      "ok": false,
+      "error": "a project shard did not start: RangeError: WebAssembly.Memory(): could not allocate memory\n    at initMemory (http://localhost:42069/@fs/home/user/cellb.dev/node_modules/.pnpm/@sqlite.org+sqlite-wasm@3.54.1-build1/node_modules/@sqlite.org/sqlite-wasm/dist/index.mjs?v=da7db085:92:17)\n    at sqlite3In",
+      "chromiumPssMB": 4636,
+      "rendererPssMB": 3981,
+      "renderers": 2,
+      "availableMB": 10536
+    }
+  ]
+}

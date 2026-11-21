@@ -1,0 +1,355 @@
+{
+  "date": "2026-11-20",
+  "machine": {
+    "cpus": 4,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.30GHz",
+    "totalMB": 16088,
+    "node": "v22.23.5"
+  },
+  "test": "stored volume",
+  "threads": 4,
+  "stopped": "reached 6144 MB",
+  "stats": {
+    "rows": 6144,
+    "bytes": 6442450944,
+    "movedObjects": 0
+  },
+  "rows": [
+    {
+      "writtenMB": 256,
+      "run": {
+        "tasks": 256,
+        "ms": 1205,
+        "tasksPerSec": 212,
+        "mbPerSec": 212.4,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 257,
+      "rssMB": 403
+    },
+    {
+      "writtenMB": 512,
+      "run": {
+        "tasks": 256,
+        "ms": 1195,
+        "tasksPerSec": 214,
+        "mbPerSec": 214.3,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 513,
+      "rssMB": 457
+    },
+    {
+      "writtenMB": 768,
+      "run": {
+        "tasks": 256,
+        "ms": 1145,
+        "tasksPerSec": 224,
+        "mbPerSec": 223.7,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 770,
+      "rssMB": 497
+    },
+    {
+      "writtenMB": 1024,
+      "run": {
+        "tasks": 256,
+        "ms": 1066,
+        "tasksPerSec": 240,
+        "mbPerSec": 240.2,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 1026,
+      "rssMB": 519
+    },
+    {
+      "writtenMB": 1280,
+      "run": {
+        "tasks": 256,
+        "ms": 1268,
+        "tasksPerSec": 202,
+        "mbPerSec": 201.8,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 1282,
+      "rssMB": 540
+    },
+    {
+      "writtenMB": 1536,
+      "run": {
+        "tasks": 256,
+        "ms": 1041,
+        "tasksPerSec": 246,
+        "mbPerSec": 245.9,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 1539,
+      "rssMB": 554
+    },
+    {
+      "writtenMB": 1792,
+      "run": {
+        "tasks": 256,
+        "ms": 1010,
+        "tasksPerSec": 253,
+        "mbPerSec": 253.4,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 1795,
+      "rssMB": 561
+    },
+    {
+      "writtenMB": 2048,
+      "run": {
+        "tasks": 256,
+        "ms": 986,
+        "tasksPerSec": 260,
+        "mbPerSec": 259.7,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 2051,
+      "rssMB": 565
+    },
+    {
+      "writtenMB": 2304,
+      "run": {
+        "tasks": 256,
+        "ms": 952,
+        "tasksPerSec": 269,
+        "mbPerSec": 268.9,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 2308,
+      "rssMB": 567
+    },
+    {
+      "writtenMB": 2560,
+      "run": {
+        "tasks": 256,
+        "ms": 1005,
+        "tasksPerSec": 255,
+        "mbPerSec": 254.7,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 2564,
+      "rssMB": 565
+    },
+    {
+      "writtenMB": 2816,
+      "run": {
+        "tasks": 256,
+        "ms": 1042,
+        "tasksPerSec": 246,
+        "mbPerSec": 245.7,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 2820,
+      "rssMB": 566
+    },
+    {
+      "writtenMB": 3072,
+      "run": {
+        "tasks": 256,
+        "ms": 948,
+        "tasksPerSec": 270,
+        "mbPerSec": 270.2,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 3077,
+      "rssMB": 567
+    },
+    {
+      "writtenMB": 3328,
+      "run": {
+        "tasks": 256,
+        "ms": 951,
+        "tasksPerSec": 269,
+        "mbPerSec": 269.1,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 3333,
+      "rssMB": 566
+    },
+    {
+      "writtenMB": 3584,
+      "run": {
+        "tasks": 256,
+        "ms": 927,
+        "tasksPerSec": 276,
+        "mbPerSec": 276.1,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 3589,
+      "rssMB": 567
+    },
+    {
+      "writtenMB": 3840,
+      "run": {
+        "tasks": 256,
+        "ms": 905,
+        "tasksPerSec": 283,
+        "mbPerSec": 283,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 3846,
+      "rssMB": 565
+    },
+    {
+      "writtenMB": 4096,
+      "run": {
+        "tasks": 256,
+        "ms": 1000,
+        "tasksPerSec": 256,
+        "mbPerSec": 256,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 4102,
+      "rssMB": 565
+    },
+    {
+      "writtenMB": 4352,
+      "run": {
+        "tasks": 256,
+        "ms": 947,
+        "tasksPerSec": 270,
+        "mbPerSec": 270.2,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 4358,
+      "rssMB": 566
+    },
+    {
+      "writtenMB": 4608,
+      "run": {
+        "tasks": 256,
+        "ms": 1124,
+        "tasksPerSec": 228,
+        "mbPerSec": 227.8,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 4615,
+      "rssMB": 566
+    },
+    {
+      "writtenMB": 4864,
+      "run": {
+        "tasks": 256,
+        "ms": 1111,
+        "tasksPerSec": 230,
+        "mbPerSec": 230.4,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 4871,
+      "rssMB": 566
+    },
+    {
+      "writtenMB": 5120,
+      "run": {
+        "tasks": 256,
+        "ms": 1058,
+        "tasksPerSec": 242,
+        "mbPerSec": 242.1,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 5127,
+      "rssMB": 567
+    },
+    {
+      "writtenMB": 5376,
+      "run": {
+        "tasks": 256,
+        "ms": 970,
+        "tasksPerSec": 264,
+        "mbPerSec": 264,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 5384,
+      "rssMB": 568
+    },
+    {
+      "writtenMB": 5632,
+      "run": {
+        "tasks": 256,
+        "ms": 914,
+        "tasksPerSec": 280,
+        "mbPerSec": 280,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 5640,
+      "rssMB": 567
+    },
+    {
+      "writtenMB": 5888,
+      "run": {
+        "tasks": 256,
+        "ms": 942,
+        "tasksPerSec": 272,
+        "mbPerSec": 271.7,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 5896,
+      "rssMB": 567
+    },
+    {
+      "writtenMB": 6144,
+      "run": {
+        "tasks": 256,
+        "ms": 935,
+        "tasksPerSec": 274,
+        "mbPerSec": 273.7,
+        "workersUsed": 4,
+        "errors": [],
+        "errorCount": 0
+      },
+      "diskMB": 6153,
+      "rssMB": 573
+    }
+  ]
+}

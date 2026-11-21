@@ -404,21 +404,25 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 
 Releases are made by CI, the same pipeline as the other statewalker monorepos
 (`.github/workflows/ci.yml`). A change to the package carries a changeset (`pnpm changeset` at
-the repository root); without one, the release planner (statewalker/.github's
+the repository root); without one, the release planner (statewalker/statewalker-ci's
 `scripts/release-changesets.mjs`) writes a patch for a package whose published contents changed.
 On every push to `main`, after the `cellb` checks pass:
 
 1. `version` applies the pending changesets in a "chore: version packages" pull request
-   (versions, `CHANGELOG.md`). It never publishes.
+   (versions, `CHANGELOG.md`). It never publishes. It opens the pull request with the
+   `statewalker-release` GitHub App's token (organization variable `RELEASE_APP_CLIENT_ID`,
+   secret `RELEASE_APP_KEY`), not `GITHUB_TOKEN`, so the checks run on it: GitHub does not run
+   CI on what `GITHUB_TOKEN` pushes until a maintainer approves the run.
 2. Once that pull request is merged, `pack` packs every public package whose version npm lacks
    (`pnpm pack`: `prepack` builds `dist/`, and `catalog:` ranges are resolved).
-3. `publish` waits for a maintainer's approval (the `npm` GitHub environment), then publishes
-   the tarballs with npm trusted publishing (OIDC, with provenance) and creates a GitHub release
-   per package. No npm token is stored in GitHub.
+3. `publish` runs in the `npm` GitHub environment (only `main`, no approval) and publishes the
+   tarballs at once with npm trusted publishing (OIDC, with provenance), creating a GitHub
+   release per package. No npm token is stored in GitHub.
 
 One-time setup on npm: `@statewalker/cellb` → Settings → Trusted publishing → GitHub Actions,
 repository `statewalker/cellb.dev`, workflow `ci.yml`, environment `npm`. On GitHub: an
-environment named `npm` with required reviewers. A new package's first version is published by
+environment named `npm` whose deployment branch policy admits only `main`, with no required
+reviewers. A new package's first version is published by
 hand (`pnpm publish` in its directory, with the maintainer's 2FA), since a trusted publisher can
 only be added to a package that exists.
 

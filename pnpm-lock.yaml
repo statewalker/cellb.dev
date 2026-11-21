@@ -25,38 +25,38 @@ catalogs:
       specifier: 1.2.7
       version: 1.2.7
     '@statewalker/notebook-build':
-      specifier: ^0.2.0
-      version: 0.2.0
-    '@statewalker/notebook-site':
-      specifier: ^0.1.2
-      version: 0.1.2
-    '@statewalker/webrun-builder':
-      specifier: ^0.4.1
-      version: 0.4.1
-    '@statewalker/webrun-bundler':
-      specifier: ^0.1.2
-      version: 0.1.2
-    '@statewalker/webrun-files':
-      specifier: ^0.10.4
-      version: 0.10.4
-    '@statewalker/webrun-files-mem':
-      specifier: ^0.10.4
-      version: 0.10.4
-    '@statewalker/webrun-files-node':
-      specifier: ^0.10.4
-      version: 0.10.4
-    '@statewalker/webrun-http-browser':
-      specifier: ^0.13.0
-      version: 0.13.0
-    '@statewalker/webrun-modules':
-      specifier: ^0.3.6
-      version: 0.3.6
-    '@statewalker/webrun-site-builder':
-      specifier: ^0.2.2
-      version: 0.2.2
-    '@statewalker/webrun-site-host':
       specifier: ^0.3.0
       version: 0.3.0
+    '@statewalker/notebook-site':
+      specifier: ^0.3.0
+      version: 0.3.0
+    '@statewalker/webrun-builder':
+      specifier: ^0.5.0
+      version: 0.5.0
+    '@statewalker/webrun-bundler':
+      specifier: ^0.2.0
+      version: 0.2.0
+    '@statewalker/webrun-files':
+      specifier: ^0.12.0
+      version: 0.12.0
+    '@statewalker/webrun-files-mem':
+      specifier: ^0.12.0
+      version: 0.12.0
+    '@statewalker/webrun-files-node':
+      specifier: ^0.12.0
+      version: 0.12.0
+    '@statewalker/webrun-http-browser':
+      specifier: ^0.17.0
+      version: 0.17.2
+    '@statewalker/webrun-modules':
+      specifier: ^0.4.0
+      version: 0.4.0
+    '@statewalker/webrun-site-builder':
+      specifier: ^0.3.0
+      version: 0.3.0
+    '@statewalker/webrun-site-host':
+      specifier: ^0.6.0
+      version: 0.6.0
     '@types/node':
       specifier: ^26.6.6
       version: 26.6.6
@@ -107,6 +107,11 @@ overrides:
   '@earendil-works/pi-agent-core': ~1.4.0
   '@modelcontextprotocol/client@<2.2.0': ^2.2.0
   undici@<7.29.1: ^7.30.0
+
+patchedDependencies:
+  '@wasmer/sdk@0.19.1':
+    hash: 0932d73adc901b4872a84caf29b20966f66232c591d5abe61af0e2101979ac6a
+    path: patches/@wasmer__sdk@0.19.1.patch
 
 importers:
 
@@ -234,67 +239,67 @@ importers:
         version: link:../../packages/platform-core
       '@statewalker/httpeers-access':
         specifier: ^0.1.4
-        version: 0.1.4
+        version: 0.1.5
       '@statewalker/httpeers-core':
         specifier: ^0.1.3
-        version: 0.1.3
+        version: 0.1.4
       '@statewalker/httpeers-member':
         specifier: ^0.3.2
-        version: 0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.13.0)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
+        version: 0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.17.2)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
       '@statewalker/notebook-build':
         specifier: 'catalog:'
-        version: 0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 0.3.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@statewalker/notebook-site':
         specifier: 'catalog:'
-        version: 0.1.2(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4))
+        version: 0.3.0(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-site-builder@0.3.0(@statewalker/webrun-files@0.12.0))
       '@statewalker/vcs-commands':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.4.0
+        version: 0.4.0
       '@statewalker/vcs-core':
-        specifier: ^0.3.4
-        version: 0.3.4
+        specifier: ^0.4.0
+        version: 0.4.0
       '@statewalker/vcs-store-files':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.4.0
+        version: 0.4.0
       '@statewalker/vcs-working-tree':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.4.0
+        version: 0.4.0
       '@statewalker/webrun-biscuit':
         specifier: ^0.2.3
         version: 0.2.3
       '@statewalker/webrun-builder':
         specifier: 'catalog:'
-        version: 0.4.1
+        version: 0.5.0
       '@statewalker/webrun-bundler':
-        specifier: ^0.1.2
-        version: 0.1.2(esbuild-wasm@0.28.2)
+        specifier: ^0.2.0
+        version: 0.2.0(esbuild-wasm@0.28.2)
       '@statewalker/webrun-files':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-files-browser':
-        specifier: ^0.10.3
-        version: 0.10.3
+        specifier: ^0.12.0
+        version: 0.12.0
       '@statewalker/webrun-files-composite':
-        specifier: ^0.10.3
-        version: 0.10.4
+        specifier: ^0.12.0
+        version: 0.12.0
       '@statewalker/webrun-files-mem':
-        specifier: ^0.10.4
-        version: 0.10.4
+        specifier: ^0.12.0
+        version: 0.12.0
       '@statewalker/webrun-files-s3':
-        specifier: ^0.10.3
-        version: 0.10.4(@aws-sdk/client-s3@3.1168.0)
+        specifier: ^0.12.0
+        version: 0.12.0(@aws-sdk/client-s3@3.1168.0)
       '@statewalker/webrun-http-browser':
         specifier: 'catalog:'
-        version: 0.13.0
+        version: 0.17.2
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
-        version: 0.3.6
+        version: 0.4.0
       '@statewalker/webrun-site-builder':
         specifier: 'catalog:'
-        version: 0.2.2(@statewalker/webrun-files@0.10.4)
+        version: 0.3.0(@statewalker/webrun-files@0.12.0)
       '@statewalker/webrun-site-host':
         specifier: 'catalog:'
-        version: 0.3.0(@statewalker/webrun-files@0.10.4)
+        version: 0.6.0(@statewalker/webrun-files@0.12.0)
       '@tailwindcss/vite':
         specifier: ^4.3.5
         version: 4.3.5(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
@@ -309,7 +314,7 @@ importers:
         version: 2.3.1(@codemirror/autocomplete@6.20.4)(@codemirror/lint@6.9.8)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)
       '@wasmer/sdk':
         specifier: 0.19.1
-        version: 0.19.1
+        version: 0.19.1(patch_hash=0932d73adc901b4872a84caf29b20966f66232c591d5abe61af0e2101979ac6a)
       astro:
         specifier: ^7.4.11
         version: 7.4.11(@astrojs/markdown-remark@7.3.8)(@types/node@26.6.6)(aws4fetch@1.0.20)(esbuild@0.28.2)(idb-keyval@6.3.0)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -364,7 +369,7 @@ importers:
         version: 4.20260702.1
       '@statewalker/webrun-files-node':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -418,13 +423,13 @@ importers:
         version: link:../../packages/cellb
       '@statewalker/httpeers-access':
         specifier: ^0.1.4
-        version: 0.1.4
+        version: 0.1.5
       '@statewalker/httpeers-core':
         specifier: ^0.1.3
-        version: 0.1.3
+        version: 0.1.4
       '@statewalker/httpeers-hub':
         specifier: ^0.1.4
-        version: 0.1.4(@statewalker/webrun-files@0.10.4)
+        version: 0.1.6(@statewalker/webrun-files@0.12.0)
       '@statewalker/httpeers-libp2p':
         specifier: ^0.3.2
         version: 0.3.2(bufferutil@4.2.0)
@@ -464,16 +469,16 @@ importers:
         version: link:../platform-core
       '@statewalker/webrun-bundler':
         specifier: 'catalog:'
-        version: 0.1.2(esbuild-wasm@0.28.2)
+        version: 0.2.0(esbuild-wasm@0.28.2)
       '@statewalker/webrun-files':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-files-mem':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
-        version: 0.3.6
+        version: 0.4.0
       esbuild-wasm:
         specifier: 'catalog:'
         version: 0.28.2
@@ -504,19 +509,19 @@ importers:
         version: link:../platform-core
       '@statewalker/webrun-bundler':
         specifier: 'catalog:'
-        version: 0.1.2(esbuild-wasm@0.28.2)
+        version: 0.2.0(esbuild-wasm@0.28.2)
       '@statewalker/webrun-files':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-files-mem':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-files-node':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
-        version: 0.3.6
+        version: 0.4.0
       esbuild:
         specifier: 'catalog:'
         version: 0.28.2
@@ -546,29 +551,29 @@ importers:
         specifier: ^3.54.1-build1
         version: 3.54.1-build1
       '@statewalker/webrun-files':
-        specifier: ^0.10.4
-        version: 0.10.4
+        specifier: ^0.12.0
+        version: 0.12.0
       '@statewalker/webrun-files-browser':
-        specifier: ^0.10.3
-        version: 0.10.3
+        specifier: ^0.12.0
+        version: 0.12.0
       '@statewalker/webrun-files-mem':
-        specifier: ^0.10.4
-        version: 0.10.4
+        specifier: ^0.12.0
+        version: 0.12.0
       '@statewalker/webrun-files-node':
-        specifier: ^0.10.4
-        version: 0.10.4
+        specifier: ^0.12.0
+        version: 0.12.0
       '@statewalker/webrun-http-browser':
         specifier: 'catalog:'
-        version: 0.13.0
+        version: 0.17.2
       '@statewalker/webrun-http-streams':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.8.0
+        version: 0.8.2
       '@statewalker/webrun-rpc':
-        specifier: ^0.11.0
-        version: 0.11.0
+        specifier: ^0.15.0
+        version: 0.15.2
       '@statewalker/webrun-streams':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.6.0
+        version: 0.6.2
       acorn:
         specifier: ^8.19.0
         version: 8.19.0
@@ -604,17 +609,17 @@ importers:
         specifier: ^153.0.0
         version: 153.0.0(bare-buffer@3.7.2)
       '@statewalker/webrun-bundler':
-        specifier: ^0.1.2
-        version: 0.1.2(esbuild-wasm@0.28.2)
+        specifier: ^0.2.0
+        version: 0.2.0(esbuild-wasm@0.28.2)
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
-        version: 0.3.6
+        version: 0.4.0
       '@statewalker/webrun-site-builder':
         specifier: 'catalog:'
-        version: 0.2.2(@statewalker/webrun-files@0.10.4)
+        version: 0.3.0(@statewalker/webrun-files@0.12.0)
       '@statewalker/webrun-site-host':
         specifier: 'catalog:'
-        version: 0.3.0(@statewalker/webrun-files@0.10.4)
+        version: 0.6.0(@statewalker/webrun-files@0.12.0)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -655,6 +660,46 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
 
+  packages/containers:
+    dependencies:
+      '@statewalker/cellb':
+        specifier: workspace:*
+        version: link:../cellb
+      '@statewalker/webrun-files':
+        specifier: 'catalog:'
+        version: 0.12.0
+      '@statewalker/webrun-files-mem':
+        specifier: 'catalog:'
+        version: 0.12.0
+      '@statewalker/webrun-http-browser':
+        specifier: 'catalog:'
+        version: 0.17.2
+      '@wasmer/sdk':
+        specifier: 0.19.1
+        version: 0.19.1(patch_hash=0932d73adc901b4872a84caf29b20966f66232c591d5abe61af0e2101979ac6a)
+    devDependencies:
+      '@lifo-sh/core':
+        specifier: 0.10.36
+        version: 0.10.36(bufferutil@4.2.0)
+      '@playwright/test':
+        specifier: ^1.65.0
+        version: 1.65.0
+      '@statewalker/webrun-files-composite':
+        specifier: ^0.12.0
+        version: 0.12.0
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@26.1.0(bufferutil@4.2.0))(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/esm-cdn:
     dependencies:
       '@statewalker/cellb-platform-core':
@@ -662,10 +707,10 @@ importers:
         version: link:../platform-core
       '@statewalker/webrun-files':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
-        version: 0.3.6
+        version: 0.4.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -699,25 +744,25 @@ importers:
         version: link:../platform-core
       '@statewalker/notebook-build':
         specifier: 'catalog:'
-        version: 0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 0.3.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@statewalker/notebook-db':
-        specifier: ^0.1.1
-        version: 0.1.1(@statewalker/db-api@0.1.4)(@statewalker/webrun-files@0.10.4)
+        specifier: ^0.2.0
+        version: 0.2.0(@statewalker/db-api@0.1.4)(@statewalker/webrun-files@0.12.0)
       '@statewalker/notebook-site':
         specifier: 'catalog:'
-        version: 0.1.2(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4))
+        version: 0.3.0(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-site-builder@0.3.0(@statewalker/webrun-files@0.12.0))
       '@statewalker/webrun-builder':
         specifier: 'catalog:'
-        version: 0.4.1
+        version: 0.5.0
       '@statewalker/webrun-files':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-files-mem':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-modules':
         specifier: 'catalog:'
-        version: 0.3.6
+        version: 0.4.0
       acorn:
         specifier: ^8.19.0
         version: 8.19.0
@@ -806,10 +851,10 @@ importers:
     dependencies:
       '@statewalker/webrun-files':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       '@statewalker/webrun-files-mem':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.12.0
       esbuild-wasm:
         specifier: 'catalog:'
         version: 0.28.2
@@ -819,7 +864,7 @@ importers:
     devDependencies:
       '@statewalker/webrun-bundler':
         specifier: 'catalog:'
-        version: 0.1.2(esbuild-wasm@0.28.2)
+        version: 0.2.0(esbuild-wasm@0.28.2)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -848,11 +893,11 @@ importers:
         specifier: workspace:*
         version: link:../packages/cellb
       '@statewalker/webrun-bundler':
-        specifier: ^0.1.2
-        version: 0.1.2(esbuild-wasm@0.28.2)
+        specifier: ^0.2.0
+        version: 0.2.0(esbuild-wasm@0.28.2)
       '@statewalker/webrun-files-mem':
-        specifier: ^0.10.4
-        version: 0.10.4
+        specifier: ^0.12.0
+        version: 0.12.0
       '@tailwindcss/vite':
         specifier: ^4.3.5
         version: 4.3.5(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
@@ -2119,6 +2164,14 @@ packages:
   '@libp2p/websockets@10.1.25':
     resolution: {integrity: sha512-3jeTNh8Tgz2LGPapH/hlHSnfRATJdv83qGnQ2H4YDXOJQ20iToIC4unn5MD/wQB5zjhGY5Q7rM/2HSRNIDwSlg==}
 
+  '@lifo-sh/core@0.10.36':
+    resolution: {integrity: sha512-/BG52nKujW6awjeSoCBdh4mYI+3uixxMtqS2x/DpEU0/gRvdhjaVKEQs0IFU7toYOVNEfq/XjGhFOfElMhuvuw==}
+    peerDependencies:
+      '@lifo-sh/ui': 0.10.4
+    peerDependenciesMeta:
+      '@lifo-sh/ui':
+        optional: true
+
   '@manypkg/find-root@3.1.0':
     resolution: {integrity: sha512-BcSqCyKhBVZ5YkSzOiheMCV41kqAFptW6xGqYSTjkVTl9XQpr+pqHhwgGCOHQtjDCv7Is6EFyA14Sm5GVbVABA==}
     engines: {node: '>=20.0.0'}
@@ -2781,19 +2834,19 @@ packages:
   '@statewalker/db-api@0.1.4':
     resolution: {integrity: sha512-XqyQRE1CvJ8Ijv99u0eW8l/syARfuzhL3BGIFYC1375/KlvDJx+o4D4LNnMqCh97ScU/hERQaaJ0MeXYAngmvA==}
 
-  '@statewalker/httpeers-access@0.1.4':
-    resolution: {integrity: sha512-7Gdp5ZfRwLEJftYtAkV3rEPyyAIAHEIjE2K0YmDRwthkBdt4ori62bMpng34zG2GtuZj6bHF5QX6R6vygfjccw==}
+  '@statewalker/httpeers-access@0.1.5':
+    resolution: {integrity: sha512-2bhBckKxGVFfxHVGkxHQcMJIg1VyBQdDa98y4gvLPMRY8bZjbzXZwyUvU5EUnAWjzWVnEdMYvPDEujR8SqnibA==}
 
   '@statewalker/httpeers-bridge@0.2.1':
     resolution: {integrity: sha512-VLqgj2l4JTU22hrjX+p5lQvhrORdpswt+6gYpUIFmmEw+L8IxFdvmaZuItn8dqUIOVLdvgTQFmrhscuWyN6i7A==}
 
-  '@statewalker/httpeers-core@0.1.3':
-    resolution: {integrity: sha512-C5M/KrTTvQQwW7v4RuyqEjwPTifEbmLO9evMFm1GbUh8zpJof6TXKM1uP65e13SMq93Qh3Lz2NlvHoxCgOfn/g==}
+  '@statewalker/httpeers-core@0.1.4':
+    resolution: {integrity: sha512-PsZBkw4nem/JECkbNuzJfroH4M+N1Ohgz3LpwCyAkJcBkUrwtp1H4L9RrfvFe7OHKGjsR+sjhxLTGfjcF5BISA==}
 
-  '@statewalker/httpeers-hub@0.1.4':
-    resolution: {integrity: sha512-mfNBdysO9v2UDEXeG1fGc/8JzZ66m4vNmfMGNtsK823kgLL5qH9p0tPdKg9sTOfbDltff+gJo11IlC0OxPlZGQ==}
+  '@statewalker/httpeers-hub@0.1.6':
+    resolution: {integrity: sha512-z/PRDe0n05NICN68Jxd8SuFQ2xR+ovJ2wTScMEMfCwl5+tR7oioK581w5EdjK+aTU/y40BcrQmpJqB7Qdl8jQw==}
     peerDependencies:
-      '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
+      '@statewalker/webrun-files': ^0.9.0 || ^0.10.0 || ^0.12.0
     peerDependenciesMeta:
       '@statewalker/webrun-files':
         optional: true
@@ -2836,116 +2889,116 @@ packages:
       libp2p:
         optional: true
 
-  '@statewalker/notebook-build@0.2.0':
-    resolution: {integrity: sha512-w7yFwzCF2x1d2++SUNs9/RO6CHN0ld/3JtaBM4yOlH87D4psFK8T4OigeVbQphzqPpYuL6RK4WO+71hedFvFyw==}
+  '@statewalker/notebook-build@0.3.0':
+    resolution: {integrity: sha512-X4ugHsN/CmhUnTVO46B593STty7nKqqlsvCA6/mCx3FF7lKoGz2sKx/h7hG2V51O2lRug/w5MN5czythSAryuA==}
     peerDependencies:
-      '@statewalker/webrun-builder': ^0.3.1
-      '@statewalker/webrun-files': ^0.10.0
-      '@statewalker/webrun-modules': ^0.2.1 || ^0.3.0
+      '@statewalker/webrun-builder': ^0.5.0
+      '@statewalker/webrun-files': ^0.12.0
+      '@statewalker/webrun-modules': ^0.4.0
 
-  '@statewalker/notebook-db@0.1.1':
-    resolution: {integrity: sha512-qraRAamTLxKLuJWNclu6TaDy0spUkR8bVj+8E8x1hJopByeJ3bm7Uq3D1fCenpxxYQNqaRaBCgKrt9iOOybcTQ==}
+  '@statewalker/notebook-db@0.2.0':
+    resolution: {integrity: sha512-nmffFkXHqNBkixYg4CC10VxrxvK3YvCfwPq+4roHEFRA60sSpWSR5aT1vt++IjX6560xplzSYxdfUdlbaSCHlg==}
     peerDependencies:
       '@statewalker/db-api': ^0.1.1
-      '@statewalker/webrun-files': ^0.10.0
+      '@statewalker/webrun-files': ^0.12.0
 
-  '@statewalker/notebook-site@0.1.2':
-    resolution: {integrity: sha512-fPX2kvu3U2i+Z7AhWAcpsWLj2A4X9h+HbbZU/V4A9uYnJe8wWeEII8jvZ0jigE/NDXepwGPw7pku2+oZuX5nDQ==}
+  '@statewalker/notebook-site@0.3.0':
+    resolution: {integrity: sha512-hg+dtD7KrUy0EafUDM28qt0WR6J57ygvIRnzTrB3p162VOlPL0+G8FIMdRYEnws1ioKTF1XaEi80DX3wReubHg==}
     peerDependencies:
-      '@statewalker/webrun-files': ^0.10.0
-      '@statewalker/webrun-site-builder': ^0.2.0
+      '@statewalker/webrun-files': ^0.12.0
+      '@statewalker/webrun-site-builder': ^0.3.0
 
-  '@statewalker/vcs-commands@0.3.2':
-    resolution: {integrity: sha512-OhZbuNy4SXLuRREX3Qta/jdzE4U4oiwwLXu4htca62snmOO9IabwmCi7po/aSGieHl0gR5Oj+ETY7hv0wgr8Dw==}
+  '@statewalker/vcs-commands@0.4.0':
+    resolution: {integrity: sha512-J23uFmce8eW0G1RZSozJdxlBnEnIsiP5Z3zDfM+aOZ+p+qE/VGC/oUxHcOwR+6+L8asyW2M/S1NQ7svl01y85A==}
 
-  '@statewalker/vcs-core@0.3.4':
-    resolution: {integrity: sha512-sZrPrhJ5UcuS7qcToHXaHuRPRKedaYonAgvhAMzAsiT76RD1zFN8m4q6ZKu6FppkZCGcGyrGA9Id7xZKTgJF9Q==}
+  '@statewalker/vcs-core@0.4.0':
+    resolution: {integrity: sha512-m3xbYwkFBA6gUTMLb2SeJyzrlPNNMBv0nLoqHY9IGeRrnhmNt5JpOwWbCQ2katBztSLFRsIyRkRzms7aSc/IsA==}
 
-  '@statewalker/vcs-store-files@0.3.2':
-    resolution: {integrity: sha512-2dorNiqy8Xjr5qRJZlPsd9PFcFX3w/GjF1bTVpv/eT3QRD0TjruN9TCH3k19Rqq9Q9Z0sYIXTgtfc7CQ8jHkhQ==}
+  '@statewalker/vcs-store-files@0.4.0':
+    resolution: {integrity: sha512-V/JxW3gvhapSWimTXP/imFm7jJm+2Ftm7oAjWZcFbwCszUZ75x/OE2JkbDHeR5tuBCZzhqg5e1ZtdesVqUbg/A==}
 
-  '@statewalker/vcs-store-mem@0.3.2':
-    resolution: {integrity: sha512-Zr3Wn0Mims/7nU6tqUrLRBlPmjfKBhP2DijQs/KAz25zPI33+fSiHJQy3pK4jg8SbbxH33v69D7mK2SAIpZ2yg==}
+  '@statewalker/vcs-store-mem@0.4.0':
+    resolution: {integrity: sha512-X6ycTe2lYcdlzUJvwzcMQrCc5gJdnfafHV7XtkVRQQ9vJe0dGiE0KikDMGEQiZ37IjpkyCXStmZ6tn+vPOVg4g==}
 
-  '@statewalker/vcs-transport@0.3.3':
-    resolution: {integrity: sha512-5DtDmvv78PtrQfLgW018ejX+tVowAeAtHuEeGrGBdcz3WD25/4VrFigshybLlyqi6RBmGOhDfvhwP/D+ElxOYA==}
+  '@statewalker/vcs-transport@0.4.0':
+    resolution: {integrity: sha512-c28h6G2TVgSO8tWpooNYKBi1AaooFMDjdv0kKyDxWkwoPTiAtRqFM1CMwMTmzyFjHAlsWlNWqzL1yUzMpAUnrQ==}
 
-  '@statewalker/vcs-utils@0.3.3':
-    resolution: {integrity: sha512-PkqUMeWc0hxQnwq3hKvQETpaPDOXw/N3bIzQUIJifUflGWwru8mCa9hJqVAa+LHpf6NwWgOVw4rR71S26qty/Q==}
+  '@statewalker/vcs-utils@0.4.0':
+    resolution: {integrity: sha512-JShO/XqT+Vrs4vNWouGW/Ds4e68jExYClWYSikAhKiyuUirNld57cwZqwgLgNDeOo2hQHmzr64vZlXg4Lb/HPg==}
 
-  '@statewalker/vcs-working-tree@0.3.2':
-    resolution: {integrity: sha512-GlalgmUPX1q9nA+gA/scpxkI09EKcMonQmgUxiBE75T9zbQnSa7D57IGPd2rXheB/411iaX89//NajAhkA0Apg==}
+  '@statewalker/vcs-working-tree@0.4.0':
+    resolution: {integrity: sha512-t9nBI9oPDZqwBAARyy8ZlElLBkapHwzPBUNTaDtrQpT6/lR0rqJ+L+O/ZJaR0qvQTyfWGeF56GfbqZnw9dim1g==}
 
   '@statewalker/webrun-biscuit@0.2.3':
     resolution: {integrity: sha512-OgdQqAzzmDI2OQd8Mt1pWlEkAbshIbql0lbRitBqCVAZG0zuGtAS+K2qSoTEczdDGWUrAH+hm/cD9UdoDOXfJA==}
 
-  '@statewalker/webrun-builder@0.4.1':
-    resolution: {integrity: sha512-32iTLau4woJdSkG94apZ41n2XnfiExrbPRfXA59Xy7DDLGtR55HCvKytRrut9iw2QdQrjk3yGNe+6U2z8dDcaA==}
+  '@statewalker/webrun-builder@0.5.0':
+    resolution: {integrity: sha512-980UYXm+KDHX9jROnKKxBdcOZgusyjO5aF2iYQY4TEKFW6HriLa6DQfEhRFgLSWY7bnpV/fBpP8PBWzQ8lXCbQ==}
 
-  '@statewalker/webrun-bundler@0.1.2':
-    resolution: {integrity: sha512-DrPllJChQvgXwIFQRDJEK4AlDxEHmN200dR2ZgEqqPbuL13jEvZPin8sbO+J1PCmHKemc0yHXClmdu6EC0MSmw==}
+  '@statewalker/webrun-bundler@0.2.0':
+    resolution: {integrity: sha512-uSZRik5cqA8YC94psLJChrXdslPR25NWi63ynsJb9jjOCajH4ga04rcmNsLCf1mzJgCHaOlzrn3QTR2TF1h3yQ==}
     peerDependencies:
       esbuild-wasm: ^0.28.0
 
-  '@statewalker/webrun-files-browser@0.10.3':
-    resolution: {integrity: sha512-O5ZOp3uqJuoRyit3VWz66rtfwpEXdTuXTb6k/WcOGjkqGBtOKTGznYSVMz4HSPNl/nLZYOeokdEBtyBnIxQPuA==}
+  '@statewalker/webrun-files-browser@0.12.0':
+    resolution: {integrity: sha512-HZhkQAHM3qGE77VlKvRdFxA5xHx4Do+4gOTF7Jm0omi6OHDNyUYpDKEmSKXweWFtMtmpqHtuP2r9qjW6w1PAbg==}
 
-  '@statewalker/webrun-files-composite@0.10.4':
-    resolution: {integrity: sha512-jftPbIUKasipMSz9h+h0PjvqNSMiBh84x4vyDOxvX6WCCw5j+HEVlhqeXMUEF/mqydqeEgB6h2veg/twUQpqfQ==}
+  '@statewalker/webrun-files-composite@0.12.0':
+    resolution: {integrity: sha512-scqOp+4wilxgJvVGB+e5aAMATmSkMS6U38nIf9qavTwWW4+wPlWvhlw7HjwAoZf6fyZzFdeBjxiK05pdeDvLVQ==}
 
-  '@statewalker/webrun-files-mem@0.10.4':
-    resolution: {integrity: sha512-TFUQRnDhpTrIV3T5C7V00MZvI0Lo5tjfq5H0Od1IxsIjccKgOLqJzNKrPynbybtJPpVbnhdk1+DB03HM9dPo1w==}
+  '@statewalker/webrun-files-mem@0.12.0':
+    resolution: {integrity: sha512-q8UZAUs3YIvJDPkYKHFvOhBTas0IKP41SJKDVQwxJbmcGrMyH2AbNRltX086VfA6PhO5TXoQW/UQNAEhUOGGUA==}
 
-  '@statewalker/webrun-files-node@0.10.4':
-    resolution: {integrity: sha512-jV09BIYaYwUoBIyis9B9CwHIV7M41VkeqrB9eH2nlmyVpSP/y2Z3aQTobyz49U2unavYKNnrqWZFz5DOQtWDeA==}
+  '@statewalker/webrun-files-node@0.12.0':
+    resolution: {integrity: sha512-csbL7FFDwvizDTLEEYEBQmCzRinlX5MI32RJjmxuzCzz5i49qkVkc/znbYwZ4Zm13R+baQ9yqbR2RsnhCjq9EA==}
 
-  '@statewalker/webrun-files-s3@0.10.4':
-    resolution: {integrity: sha512-y0+XB8rGpHpDyxEkxqivwqkK1fY+iPz3zI/dPOho+mOlq0ZpuhdtUCME3gY2gmxfVMkl+6gyJtpVuGFWDbvXjA==}
+  '@statewalker/webrun-files-s3@0.12.0':
+    resolution: {integrity: sha512-gjPYYADPB0WTtpB96b7L2lW+nC/Amu6Ox5KZQkihi2esdFQg9DaT+MIH2b5ImifbKc5A+XpEcWcMWW4aO9InmA==}
     peerDependencies:
       '@aws-sdk/client-s3': ^3.1032.0
 
-  '@statewalker/webrun-files@0.10.4':
-    resolution: {integrity: sha512-8+i8e3TYX5fAzJySDUBXRxC9S2kSC229Va6sI3LcmBm2OS9OF1IKXBcXNhLXo/zNMzjUFesZ9iX23KaGBFJNKw==}
+  '@statewalker/webrun-files@0.12.0':
+    resolution: {integrity: sha512-8Ygw0JjouDAJ2nNXx8plZkZQ/Pesfdmdtrsyi97sArvjAmzyZ4xZ2e3eyqXEt4MUlc6oG4Q7bVnOvzzQpVWMaA==}
 
-  '@statewalker/webrun-http-browser@0.13.0':
-    resolution: {integrity: sha512-/Glv+XWWljJ8slqlkZYntTlWAwDkK8/t4XQTtcyEOqWeOWzdG+Qmkk9NgcudNsRdeGC0fjPqdTsknwMI9sgoQQ==}
+  '@statewalker/webrun-http-browser@0.17.2':
+    resolution: {integrity: sha512-3KMqiP2RtOhQsJJntzw+8de+ANJBXONzu6JbMYtSVRv4cND5GltjbOVU9G0LIf+B5j6eoFGwq+c5WcZevBYeyg==}
 
   '@statewalker/webrun-http-browser@0.7.1':
     resolution: {integrity: sha512-MxRTSu1QXQ6N8QuXYXxJFKTJADZUjmJXDF7gzqrjFhkYZt37BQXZkk0gZvY94p/WsbZSyTST1QONMJsk3ShNAQ==}
 
-  '@statewalker/webrun-http-events@0.1.1':
-    resolution: {integrity: sha512-yBSM3z4PEhxC2Zf3tXI/FcpvYVovgy6uR9oqwC6Ni2byW2WGSNqexPQ3bJ/TuidaERcl/J/gPpA9Snfu47lcRw==}
-
-  '@statewalker/webrun-http-streams@0.2.5':
-    resolution: {integrity: sha512-1O9pDWRQA9JOK1yhsXPnXtlhQKKV/DtVsHD1iuy4AjKBk6+pdglHeXCkLxyhAEQdlk9HZNF29V28ZVDbblROaA==}
+  '@statewalker/webrun-http-events@0.2.1':
+    resolution: {integrity: sha512-s6yNKGPXJwcBngsKt2EnEJm+lyoJCnwEZX7Jlu3cl7BHSczcfcoqGNXXlr+qhyX3OmfiSd2OO+snRWPfIaKTVg==}
 
   '@statewalker/webrun-http-streams@0.3.2':
     resolution: {integrity: sha512-hbpnb4TCHYTE8UoFbPE3BGjInPVGrRZzFdGazdfAHjABSDqJrvEzSr9WmqfI7tgp3ss+UnD3bEEBl9Za5mo37Q==}
 
-  '@statewalker/webrun-http-streams@0.5.0':
-    resolution: {integrity: sha512-3/dNpuDTffRsvYp2tLgag7J6pOcuvuUoIXS+aiV86FgHMw9iwxBmJYhHI/ZN3E3YoEp/ObhysJWQySrd6RafjA==}
+  '@statewalker/webrun-http-streams@0.6.0':
+    resolution: {integrity: sha512-3ljLxGIxwOQkxMIEhgutCRbQOzhhlHojM4ojbf9gwqJKO6Im50qGH8PS3yF/1aVeWfNdk5pAHJ7p3K8l5bjTNQ==}
 
-  '@statewalker/webrun-modules@0.3.6':
-    resolution: {integrity: sha512-WRkePPCfKIGM63cEnmC32HRQSsbP2y0hPJayB6ugTtKN0VXr5lnQ33wjCc1W8sLh0GuBad0vevfD2kKlbWK4pQ==}
+  '@statewalker/webrun-http-streams@0.8.2':
+    resolution: {integrity: sha512-bCEmDUSmXJmduNsn6eLj0Yv7HmfBNpNR3DUqA2Zndtd4Ct+WYVWlcxtblTQXH/eBRDoekRj8xyR1sJo5O3SRYw==}
 
-  '@statewalker/webrun-rpc@0.11.0':
-    resolution: {integrity: sha512-SBxXrUfYgJMM8FkkXt1pFJ288dvOHuS/4PdcDSq0vIUIt11S5pE10hXVjDD2KiWafykRpGsWceJKcb4rEIiDmA==}
+  '@statewalker/webrun-modules@0.4.0':
+    resolution: {integrity: sha512-F0h6bHGQwxXiXBayjeWzMddf+5C9VGHfW8sRZCKGLeZB4Q71Dv2Jg+GOzz9zmwCDrNoEVZFk3G4UlskHFpqY8Q==}
+
+  '@statewalker/webrun-rpc@0.15.2':
+    resolution: {integrity: sha512-BfgZKmF5bdGpulZ1BSizM3R52m7Zq2iQR3/Iehc2wk37nqyGoeUmu76gbRaF9fBniADDnjqGSKekVISgKy/d4A==}
 
   '@statewalker/webrun-rpc@0.5.1':
     resolution: {integrity: sha512-DpnT0dJ0KpdL5QKqKTmN75CnGc1w24iHdZqYfJQLVpSKEIR/GjPb3Vzbzb4NIu9tCHsroW+Dq1CO84Jp6YCXzw==}
 
-  '@statewalker/webrun-site-builder@0.2.2':
-    resolution: {integrity: sha512-+qIRtF3DujfjMLKViSiDgpwUruPL3SQUvXOqSAw7CLL/YoVFE/KgRlnup299Fd2yW/5FiPvdKEFYvVbTv8ATFA==}
+  '@statewalker/webrun-site-builder@0.3.0':
+    resolution: {integrity: sha512-c63MTkT19blI34gaN70omEtP0rhM160Ln9irZXLp6NjzKsRJvLTG4YiO0SST14MBYSPHK4JrFA2+dRDK32Pzhw==}
     peerDependencies:
-      '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
+      '@statewalker/webrun-files': ^0.12.0
 
-  '@statewalker/webrun-site-host@0.3.0':
-    resolution: {integrity: sha512-8FmuWAC76Xqx9FKAZsU7KcJoUX9scpGxg/TppSD39XITj33TCB6jC7hbYZh6NENVvyy9PVXvPNABeMX3pBHCbg==}
+  '@statewalker/webrun-site-host@0.6.0':
+    resolution: {integrity: sha512-tSIg2HaWZ7VCJWCwt1q6rzwEoF9ICyBK3YaeUc6M8keqnL6RSqwgPflIqofzE36P/6FEYosB+aTc0vlF0iA4YA==}
     peerDependencies:
-      '@statewalker/webrun-files': ^0.9.0 || ^0.10.0
+      '@statewalker/webrun-files': ^0.12.0
 
-  '@statewalker/webrun-storage@0.2.2':
-    resolution: {integrity: sha512-O14peslfjR0XV09jAdKkHNp9p5mnslkLVL3oLqqKHe9J0x9FLntQgZn9FZht/bguDqJzPGj7udOhf4qfjhGAXQ==}
+  '@statewalker/webrun-storage@0.3.0':
+    resolution: {integrity: sha512-wesw3JZy4CAe3iaZESPAPPlfqhQOZ4gN2OGeD0jG9gU+6a+LU+mg0xN3HmDaM0ZBKUWDrVP+1BPEJnASgGvJHQ==}
 
   '@statewalker/webrun-streams-libp2p@0.1.8':
     resolution: {integrity: sha512-5a9IKOgCNZsBakENmyZnjyyEfgeSIuh5IwUg0vlbLB8QpfhH1e2eMt/0Kw6/9tyRdKFduJ84mgzCh4I4wdK8Aw==}
@@ -2960,8 +3013,11 @@ packages:
   '@statewalker/webrun-streams@0.2.3':
     resolution: {integrity: sha512-v4+32VDLjt8HzAhjgd7K3bgiasQosU7FooXhLaTU2dQzYyNZ6NbNMOI/24SL0bdmTHkSU3bxktASn0hO3sCwng==}
 
-  '@statewalker/webrun-streams@0.3.0':
-    resolution: {integrity: sha512-yA2tPT5N/IAvkXK9i8cfknKEP44KheFfjWNvTa//rC6mcKhG7MWF/z2oa0Hlkes7pvXkAOoCL3qGk1Nnfxu+bg==}
+  '@statewalker/webrun-streams@0.4.0':
+    resolution: {integrity: sha512-7KTDwUH29KKfwInIQUnsCKXMUUGijeOZ8ITxUIm8Jl9c97y6ouD0eSApGLix9ToUTtSs6DQhhwTkNf288OnLmA==}
+
+  '@statewalker/webrun-streams@0.6.2':
+    resolution: {integrity: sha512-MF3gqrjPi5wdgvgtWHd4IuTgjPr0vEU23Mugf4pL+nw3ufYFT58HgT8o86bPAyuvtM8KcDavyCE24iBhjqiMjg==}
 
   '@sveltejs/acorn-typescript@1.0.13':
     resolution: {integrity: sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ==}
@@ -3510,6 +3566,9 @@ packages:
 
   broker-factory@3.1.15:
     resolution: {integrity: sha512-ko+aWvgNuP49meGrdjUu7rC+Y+Wai3cCPxP3xWwHsHfehFjOh5ZQM2yC4gEB2UddeZ/YXhm0K1eG/L6fxym2Og==}
+
+  browser-metro@1.5.22:
+    resolution: {integrity: sha512-nNYzYMVngIx1ec/jqn1WQFPIeTkp94t3W/e+TQFPqYiBTdM4v+9oW2PkcwVn5Yp5aBa1atdFTAiMGn4eOyTcEw==}
 
   buffer-equal-constant-time@1.0.1:
     resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
@@ -7523,6 +7582,17 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
+  '@lifo-sh/core@0.10.36(bufferutil@4.2.0)':
+    dependencies:
+      acorn: 8.19.0
+      browser-metro: 1.5.22
+      ws: 8.23.0(bufferutil@4.2.0)
+    optionalDependencies:
+      esbuild: 0.28.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@manypkg/find-root@3.1.0':
     dependencies:
       '@manypkg/tools': 2.1.2
@@ -8233,28 +8303,28 @@ snapshots:
 
   '@statewalker/db-api@0.1.4': {}
 
-  '@statewalker/httpeers-access@0.1.4':
+  '@statewalker/httpeers-access@0.1.5':
     dependencies:
-      '@statewalker/httpeers-core': 0.1.3
+      '@statewalker/httpeers-core': 0.1.4
       '@statewalker/webrun-biscuit': 0.2.3
       multiformats: 14.0.5
 
   '@statewalker/httpeers-bridge@0.2.1':
     dependencies:
-      '@statewalker/httpeers-core': 0.1.3
+      '@statewalker/httpeers-core': 0.1.4
       '@statewalker/webrun-http-streams': 0.3.2
       '@statewalker/webrun-rpc': 0.5.1
       '@statewalker/webrun-streams': 0.2.3
 
-  '@statewalker/httpeers-core@0.1.3': {}
+  '@statewalker/httpeers-core@0.1.4': {}
 
-  '@statewalker/httpeers-hub@0.1.4(@statewalker/webrun-files@0.10.4)':
+  '@statewalker/httpeers-hub@0.1.6(@statewalker/webrun-files@0.12.0)':
     dependencies:
-      '@statewalker/httpeers-access': 0.1.4
-      '@statewalker/httpeers-core': 0.1.3
+      '@statewalker/httpeers-access': 0.1.5
+      '@statewalker/httpeers-core': 0.1.4
       hono: 4.13.18
     optionalDependencies:
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
   '@statewalker/httpeers-libp2p@0.3.2(bufferutil@4.2.0)':
     dependencies:
@@ -8271,7 +8341,7 @@ snapshots:
       '@libp2p/websockets': 10.1.25(bufferutil@4.2.0)
       '@multiformats/multiaddr': 13.0.3
       '@statewalker/httpeers-bridge': 0.2.1
-      '@statewalker/httpeers-core': 0.1.3
+      '@statewalker/httpeers-core': 0.1.4
       '@statewalker/webrun-http-streams': 0.3.2
       '@statewalker/webrun-streams': 0.2.3
       '@statewalker/webrun-streams-libp2p': 0.1.8(@libp2p/interface@3.4.0)(@multiformats/multiaddr@13.0.3)(libp2p@3.5.1)
@@ -8281,14 +8351,14 @@ snapshots:
       - react-native-webrtc
       - utf-8-validate
 
-  '@statewalker/httpeers-member@0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.13.0)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)':
+  '@statewalker/httpeers-member@0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.17.2)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)':
     dependencies:
       '@libp2p/crypto': 5.2.0
       '@libp2p/interface': 3.4.0
       '@libp2p/peer-id': 6.0.18
       '@multiformats/multiaddr': 13.0.3
-      '@statewalker/httpeers-access': 0.1.4
-      '@statewalker/httpeers-core': 0.1.3
+      '@statewalker/httpeers-access': 0.1.5
+      '@statewalker/httpeers-core': 0.1.4
       '@statewalker/httpeers-libp2p': 0.3.2(bufferutil@4.2.0)
     optionalDependencies:
       '@chainsafe/libp2p-noise': 17.0.0
@@ -8298,7 +8368,7 @@ snapshots:
       '@libp2p/tcp': 11.0.32
       '@libp2p/webrtc': 7.0.2
       '@libp2p/websockets': 10.1.25(bufferutil@4.2.0)
-      '@statewalker/webrun-http-browser': 0.13.0
+      '@statewalker/webrun-http-browser': 0.17.2
       idb-keyval: 6.3.0
       libp2p: 3.5.1
     transitivePeerDependencies:
@@ -8312,8 +8382,8 @@ snapshots:
       '@libp2p/interface': 3.4.0
       '@libp2p/peer-id': 6.0.18
       '@multiformats/multiaddr': 13.0.3
-      '@statewalker/httpeers-access': 0.1.4
-      '@statewalker/httpeers-core': 0.1.3
+      '@statewalker/httpeers-access': 0.1.5
+      '@statewalker/httpeers-core': 0.1.4
       '@statewalker/httpeers-libp2p': 0.3.2(bufferutil@4.2.0)
     optionalDependencies:
       '@chainsafe/libp2p-noise': 17.0.0
@@ -8331,12 +8401,12 @@ snapshots:
       - react-native-webrtc
       - utf-8-validate
 
-  '@statewalker/notebook-build@0.2.0(@statewalker/webrun-builder@0.4.1)(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-modules@0.3.6)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
+  '@statewalker/notebook-build@0.3.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
     dependencies:
       '@observablehq/notebook-kit': 2.11.0(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
-      '@statewalker/webrun-builder': 0.4.1
-      '@statewalker/webrun-files': 0.10.4
-      '@statewalker/webrun-modules': 0.3.6
+      '@statewalker/webrun-builder': 0.5.0
+      '@statewalker/webrun-files': 0.12.0
+      '@statewalker/webrun-modules': 0.4.0
       markdown-it: 15.0.3
     transitivePeerDependencies:
       - '@databricks/sql'
@@ -8362,105 +8432,106 @@ snapshots:
       - utf-8-validate
       - yaml
 
-  '@statewalker/notebook-db@0.1.1(@statewalker/db-api@0.1.4)(@statewalker/webrun-files@0.10.4)':
+  '@statewalker/notebook-db@0.2.0(@statewalker/db-api@0.1.4)(@statewalker/webrun-files@0.12.0)':
     dependencies:
       '@statewalker/db-api': 0.1.4
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/notebook-site@0.1.2(@statewalker/webrun-files@0.10.4)(@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4))':
+  '@statewalker/notebook-site@0.3.0(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-site-builder@0.3.0(@statewalker/webrun-files@0.12.0))':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
-      '@statewalker/webrun-http-events': 0.1.1
-      '@statewalker/webrun-site-builder': 0.2.2(@statewalker/webrun-files@0.10.4)
+      '@statewalker/webrun-files': 0.12.0
+      '@statewalker/webrun-http-events': 0.2.1
+      '@statewalker/webrun-site-builder': 0.3.0(@statewalker/webrun-files@0.12.0)
 
-  '@statewalker/vcs-commands@0.3.2':
+  '@statewalker/vcs-commands@0.4.0':
     dependencies:
-      '@statewalker/vcs-core': 0.3.4
-      '@statewalker/vcs-store-files': 0.3.2
-      '@statewalker/vcs-store-mem': 0.3.2
-      '@statewalker/vcs-transport': 0.3.3
-      '@statewalker/vcs-utils': 0.3.3
-      '@statewalker/vcs-working-tree': 0.3.2
+      '@statewalker/vcs-core': 0.4.0
+      '@statewalker/vcs-store-files': 0.4.0
+      '@statewalker/vcs-store-mem': 0.4.0
+      '@statewalker/vcs-transport': 0.4.0
+      '@statewalker/vcs-utils': 0.4.0
+      '@statewalker/vcs-working-tree': 0.4.0
 
-  '@statewalker/vcs-core@0.3.4':
+  '@statewalker/vcs-core@0.4.0':
     dependencies:
-      '@statewalker/vcs-utils': 0.3.3
-      '@statewalker/webrun-storage': 0.2.2
+      '@statewalker/vcs-utils': 0.4.0
+      '@statewalker/webrun-storage': 0.3.0
 
-  '@statewalker/vcs-store-files@0.3.2':
+  '@statewalker/vcs-store-files@0.4.0':
     dependencies:
-      '@statewalker/vcs-core': 0.3.4
-      '@statewalker/vcs-utils': 0.3.3
-      '@statewalker/vcs-working-tree': 0.3.2
+      '@statewalker/vcs-core': 0.4.0
+      '@statewalker/vcs-utils': 0.4.0
+      '@statewalker/vcs-working-tree': 0.4.0
 
-  '@statewalker/vcs-store-mem@0.3.2':
+  '@statewalker/vcs-store-mem@0.4.0':
     dependencies:
-      '@statewalker/vcs-core': 0.3.4
-      '@statewalker/vcs-utils': 0.3.3
-      '@statewalker/vcs-working-tree': 0.3.2
+      '@statewalker/vcs-core': 0.4.0
+      '@statewalker/vcs-utils': 0.4.0
+      '@statewalker/vcs-working-tree': 0.4.0
 
-  '@statewalker/vcs-transport@0.3.3':
+  '@statewalker/vcs-transport@0.4.0':
     dependencies:
-      '@statewalker/vcs-core': 0.3.4
-      '@statewalker/vcs-utils': 0.3.3
-      '@statewalker/webrun-http-streams': 0.2.5
-      '@statewalker/webrun-streams': 0.2.3
+      '@statewalker/vcs-core': 0.4.0
+      '@statewalker/vcs-utils': 0.4.0
+      '@statewalker/webrun-http-streams': 0.6.0
+      '@statewalker/webrun-streams': 0.4.0
 
-  '@statewalker/vcs-utils@0.3.3':
+  '@statewalker/vcs-utils@0.4.0':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
-      '@statewalker/webrun-files-mem': 0.10.4
+      '@noble/hashes': 2.4.0
+      '@statewalker/webrun-files': 0.12.0
+      '@statewalker/webrun-files-mem': 0.12.0
       pako: 3.0.3
 
-  '@statewalker/vcs-working-tree@0.3.2':
+  '@statewalker/vcs-working-tree@0.4.0':
     dependencies:
-      '@statewalker/vcs-core': 0.3.4
-      '@statewalker/vcs-utils': 0.3.3
+      '@statewalker/vcs-core': 0.4.0
+      '@statewalker/vcs-utils': 0.4.0
 
   '@statewalker/webrun-biscuit@0.2.3':
     dependencies:
       '@noble/curves': 2.4.0
       '@noble/hashes': 2.4.0
 
-  '@statewalker/webrun-builder@0.4.1':
+  '@statewalker/webrun-builder@0.5.0':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/webrun-bundler@0.1.2(esbuild-wasm@0.28.2)':
+  '@statewalker/webrun-bundler@0.2.0(esbuild-wasm@0.28.2)':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
-      '@statewalker/webrun-modules': 0.3.6
+      '@statewalker/webrun-files': 0.12.0
+      '@statewalker/webrun-modules': 0.4.0
       esbuild-wasm: 0.28.2
       resolve.exports: 2.0.4
 
-  '@statewalker/webrun-files-browser@0.10.3':
+  '@statewalker/webrun-files-browser@0.12.0':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/webrun-files-composite@0.10.4':
+  '@statewalker/webrun-files-composite@0.12.0':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/webrun-files-mem@0.10.4':
+  '@statewalker/webrun-files-mem@0.12.0':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/webrun-files-node@0.10.4':
+  '@statewalker/webrun-files-node@0.12.0':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/webrun-files-s3@0.10.4(@aws-sdk/client-s3@3.1168.0)':
+  '@statewalker/webrun-files-s3@0.12.0(@aws-sdk/client-s3@3.1168.0)':
     dependencies:
       '@aws-sdk/client-s3': 3.1168.0
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/webrun-files@0.10.4': {}
+  '@statewalker/webrun-files@0.12.0': {}
 
-  '@statewalker/webrun-http-browser@0.13.0':
+  '@statewalker/webrun-http-browser@0.17.2':
     dependencies:
-      '@statewalker/webrun-http-streams': 0.5.0
-      '@statewalker/webrun-rpc': 0.11.0
-      '@statewalker/webrun-streams': 0.3.0
+      '@statewalker/webrun-http-streams': 0.8.2
+      '@statewalker/webrun-rpc': 0.15.2
+      '@statewalker/webrun-streams': 0.6.2
       idb-keyval: 6.3.0
 
   '@statewalker/webrun-http-browser@0.7.1':
@@ -8469,26 +8540,27 @@ snapshots:
       '@statewalker/webrun-rpc': 0.5.1
       '@statewalker/webrun-streams': 0.2.3
       idb-keyval: 6.3.0
+    optional: true
 
-  '@statewalker/webrun-http-events@0.1.1': {}
-
-  '@statewalker/webrun-http-streams@0.2.5':
-    dependencies:
-      '@statewalker/webrun-streams': 0.2.3
+  '@statewalker/webrun-http-events@0.2.1': {}
 
   '@statewalker/webrun-http-streams@0.3.2':
     dependencies:
       '@statewalker/webrun-streams': 0.2.3
 
-  '@statewalker/webrun-http-streams@0.5.0':
+  '@statewalker/webrun-http-streams@0.6.0':
     dependencies:
-      '@statewalker/webrun-streams': 0.3.0
+      '@statewalker/webrun-streams': 0.4.0
 
-  '@statewalker/webrun-modules@0.3.6':
+  '@statewalker/webrun-http-streams@0.8.2':
+    dependencies:
+      '@statewalker/webrun-streams': 0.6.2
+
+  '@statewalker/webrun-modules@0.4.0':
     dependencies:
       '@jspm/core': 2.1.0
-      '@statewalker/webrun-files': 0.10.4
-      '@statewalker/webrun-files-mem': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
+      '@statewalker/webrun-files-mem': 0.12.0
       acorn: 8.19.0
       acorn-globals: 7.0.1
       cjs-module-lexer: 2.3.0
@@ -8499,28 +8571,28 @@ snapshots:
       semver: 7.8.6
       sucrase: 3.35.1
 
-  '@statewalker/webrun-rpc@0.11.0':
+  '@statewalker/webrun-rpc@0.15.2':
     dependencies:
-      '@statewalker/webrun-streams': 0.3.0
+      '@statewalker/webrun-streams': 0.6.2
 
   '@statewalker/webrun-rpc@0.5.1':
     dependencies:
       '@statewalker/webrun-streams': 0.2.3
 
-  '@statewalker/webrun-site-builder@0.2.2(@statewalker/webrun-files@0.10.4)':
+  '@statewalker/webrun-site-builder@0.3.0(@statewalker/webrun-files@0.12.0)':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/webrun-site-host@0.3.0(@statewalker/webrun-files@0.10.4)':
+  '@statewalker/webrun-site-host@0.6.0(@statewalker/webrun-files@0.12.0)':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
-      '@statewalker/webrun-files-mem': 0.10.4
-      '@statewalker/webrun-http-browser': 0.7.1
-      '@statewalker/webrun-site-builder': 0.2.2(@statewalker/webrun-files@0.10.4)
+      '@statewalker/webrun-files': 0.12.0
+      '@statewalker/webrun-files-mem': 0.12.0
+      '@statewalker/webrun-http-browser': 0.17.2
+      '@statewalker/webrun-site-builder': 0.3.0(@statewalker/webrun-files@0.12.0)
 
-  '@statewalker/webrun-storage@0.2.2':
+  '@statewalker/webrun-storage@0.3.0':
     dependencies:
-      '@statewalker/webrun-files': 0.10.4
+      '@statewalker/webrun-files': 0.12.0
 
   '@statewalker/webrun-streams-libp2p@0.1.8(@libp2p/interface@3.4.0)(@multiformats/multiaddr@13.0.3)(libp2p@3.5.1)':
     dependencies:
@@ -8532,7 +8604,9 @@ snapshots:
 
   '@statewalker/webrun-streams@0.2.3': {}
 
-  '@statewalker/webrun-streams@0.3.0': {}
+  '@statewalker/webrun-streams@0.4.0': {}
+
+  '@statewalker/webrun-streams@0.6.2': {}
 
   '@sveltejs/acorn-typescript@1.0.13(acorn@8.19.0)':
     dependencies:
@@ -8801,7 +8875,7 @@ snapshots:
 
   '@vitest/spy@5.1.0': {}
 
-  '@wasmer/sdk@0.19.1':
+  '@wasmer/sdk@0.19.1(patch_hash=0932d73adc901b4872a84caf29b20966f66232c591d5abe61af0e2101979ac6a)':
     dependencies:
       '@mercuryworkshop/wisp-js': 0.4.1
     transitivePeerDependencies:
@@ -9032,6 +9106,12 @@ snapshots:
       fast-unique-numbers: 9.0.27
       tslib: 2.9.1
       worker-factory: 7.0.50
+
+  browser-metro@1.5.22:
+    dependencies:
+      '@sveltejs/acorn-typescript': 1.0.13(acorn@8.19.0)
+      acorn: 8.19.0
+      sucrase: 3.35.1
 
   buffer-equal-constant-time@1.0.1: {}
 

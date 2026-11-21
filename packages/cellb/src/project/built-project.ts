@@ -11,6 +11,7 @@
 import type { FilesApi } from "@statewalker/webrun-files";
 import type { AssetFiles } from "../bindings/assets.js";
 import type { WorkersAiOptions } from "../bindings/workers-ai.js";
+import type { ContainerEngine } from "../container.js";
 import type { CellRuntime } from "../core/runtime.js";
 import { parseJsonc } from "./jsonc.js";
 import type { WranglerConfig } from "./wrangler.js";
@@ -69,6 +70,8 @@ export interface LoadProjectOptions<Bucket = unknown> {
   ai?: WorkersAiOptions;
   /** Browser only: an initialized SQLite WASM module (default: loads `@sqlite.org/sqlite-wasm`). */
   sqlite3?: unknown;
+  /** The container engine for the project's `containers` (e.g. Wasmer, from @statewalker/cellb-containers). */
+  containers?: ContainerEngine;
 }
 
 /** A running project. */

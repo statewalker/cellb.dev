@@ -120,7 +120,9 @@ describe("P13 modules the Agents SDK imports", () => {
     const p = await project("containers", {
       containers: [{ class_name: "Box", image: "./Dockerfile" }],
     });
-    expect(p.unsupported).toEqual(["containers[Box] (cellb runs no containers)"]);
+    expect(p.unsupported).toEqual([
+      "containers[Box] (no image for cellb: add cellb.containers.Box)",
+    ]);
     await p.runtime.close();
   });
 });

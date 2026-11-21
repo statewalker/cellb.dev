@@ -1,5 +1,42 @@
 # @statewalker/cellb
 
+## 0.11.1
+
+### Patch Changes
+
+- aab4dda: A node whose cells were fenced (a lease renewal that failed or landed after the local deadline) takes its cells again on their next event, at the next epoch. The fenced object's lease release no longer races the new object's claim on `own.json`, which refused the cell as "owned by another node" and left it released for celld to take. Every lapse fences the cells holding the current fence, so a cell taken again is fenced by the next lapse; a node claims no cell while its lease has lapsed; and the node keeps renewing after a failed renewal instead of stopping for good.
+
+## 0.11.0
+
+### Minor Changes
+
+- bf5a11b: Moves to webrun-wire's current lines (statewalker/statewalker-root#69): `@statewalker/webrun-rpc`
+  ^0.11.0 -> ^0.15.0, `@statewalker/webrun-streams` ^0.3.0 -> ^0.6.0,
+  `@statewalker/webrun-http-streams` ^0.5.0 -> ^0.8.0 and `@statewalker/webrun-http-browser`
+  ^0.13.0 -> ^0.17.0; the optional peer `@statewalker/webrun-site-host` ^0.4.0 -> ^0.6.0. These are
+  breaking lines: webrun-rpc's port wire changed across them, so a page hosting sites with cellb
+  must serve the ServiceWorker script (`/sw-worker.js`) from `@statewalker/webrun-http-browser`
+  0.17 too. No API change in cellb. An error a loaded Worker's `fetch` throws in its isolate still
+  reaches the caller with the stack where it was thrown (webrun-http-streams 0.6 leaves it out of
+  its error header unless asked); an error of the host's `globalOutbound` Fetcher now reaches the
+  loaded code without the host's stack.
+
+## 0.10.0
+
+### Minor Changes
+
+- cf34cc4: **Move to `@statewalker/webrun-files` 0.12, with the webrun-sites releases built on it.** The dependency ranges move:
+  - webrun-files, -browser, -mem and -node go to ^0.12.0;
+  - the optional peers move to webrun-bundler ^0.2.0, webrun-modules ^0.4.0, webrun-site-builder ^0.3.0 and webrun-site-host ^0.4.0.
+  
+  These are breaking lines. webrun-files 0.12 resolves `..` segments before any filter, guard or mount sees a path, and throws `Path climbs above the root` above the root. Consumers must use the same lines, so a single copy of the webrun-files core is installed. webrun-site-builder 0.3 uses the global `URLPattern` (Node 24 or newer, or a browser).
+
+## 0.9.2
+
+### Patch Changes
+
+- d3aa0a5: `installProjectRouter(self)` typechecks with TypeScript's WebWorker lib: `ServiceWorkerScope.addEventListener` takes a listener of `Event` instead of `never`, which a real `ServiceWorkerGlobalScope` was not assignable to.
+
 ## 0.9.1
 
 ### Patch Changes

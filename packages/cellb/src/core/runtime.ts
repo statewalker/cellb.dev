@@ -1,4 +1,10 @@
 import {
+  type Container,
+  type ContainerEngine,
+  type ContainerSpec,
+  createContainer,
+} from "../container.js";
+import {
   type CellDurability,
   type CellStorage,
   type Clock,
@@ -49,6 +55,12 @@ export interface CellRuntimeOptions {
   worker: WorkerModule;
   /** Durable Object bindings: env name → exported class name (wrangler `durable_objects.bindings`). */
   durableObjects?: Record<string, { className: string }>;
+  /**
+   * Containers (wrangler `containers`): objects of a class in `images` get `ctx.container`, a
+   * container of that image on `engine` (one per cell, kept across the object's instances,
+   * destroyed after its inactivity timeout or by `close()`).
+   */
+  containers?: { engine: ContainerEngine; images: Record<string, ContainerSpec> };
   /** Plain vars / other bindings merged into env. */
   vars?: Record<string, unknown>;
   openSql: OpenCellSql;
@@ -167,6 +179,26 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   // V8 serialization: storage values in celld's (and workerd's) format.
   const codec = opts.codec ?? v8Codec;
   const hosts = new Map<string, ObjectHost>();
+  // A retired host's close() hands its cell lease back (own.json → released) with a
+  // compare-and-swap. The cell's next host claims it with one too, and must not start before
+  // that release lands: the two would race on the record, the claim could lose, and the cell
+  // would be refused as "owned by another node" (statewalker/statewalker-root#51).
+  const releasing = new Map<string, Promise<void>>();
+  const retire = (cellKey: string, h = hosts.get(cellKey)) => {
+    if (!h) return;
+    if (hosts.get(cellKey) === h) hosts.delete(cellKey);
+    const prior = releasing.get(cellKey);
+    const done: Promise<void> = Promise.all([prior, h.close()]).then(() => {
+      if (releasing.get(cellKey) === done) releasing.delete(cellKey);
+    });
+    releasing.set(cellKey, done);
+  };
+  const acquireAfterRelease = ownership
+    ? async (key: string) => {
+        await releasing.get(key);
+        return ownership.tryAcquire(key);
+      }
+    : undefined;
   const background = new Set<Promise<unknown>>();
   // Events start in the context the runtime was made in, not their caller's (Cloudflare).
   // …and in a scope that keeps the Worker's unhandled rejections its own (Node).
@@ -243,8 +275,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     } catch (err) {
       // Owned by another node (celld or cellb): its owner fires the alarm.
       if (isOwnedElsewhere(err)) {
-        hosts.get(e.cellKey)?.close();
-        hosts.delete(e.cellKey);
+        retire(e.cellKey);
         // A live owner fires it. A stopped one's lease expires within its TTL: look again a
         // few times before leaving it to the next poll of the wake index.
         const n = (ownedRetries.get(e.cellKey) ?? 0) + 1;
@@ -258,6 +289,27 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     }
   }
 
+  // ctx.container: one container per cell, kept here (not on the object), so an object's next
+  // instance (after hibernation or a reset) gets the same running container, as on celld.
+  const containers = new Map<string, Container>();
+  const containerOf = (className: string, cellKey: string, id: DurableObjectId) => {
+    const image = opts.containers?.images[className];
+    if (!image || !opts.containers) return undefined;
+    const engine = opts.containers.engine;
+    return () => {
+      let c = containers.get(cellKey);
+      if (!c) {
+        c = createContainer(engine, image, {
+          label: id.name ?? id.toString(),
+          // a closing runtime starts no container: close() would not destroy it
+          refuse: () => (closed ? "the runtime is closing" : undefined),
+        });
+        containers.set(cellKey, c);
+      }
+      return c;
+    };
+  };
+
   for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {
     const cls = opts.worker[className] as DurableObjectClass | undefined;
     if (typeof cls !== "function")
@@ -269,7 +321,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       if (cellsClosed) throw new ObjectClosedError(cellKey);
       let h = hosts.get(cellKey);
       if (!h || h.broken) {
-        h?.close();
+        if (h) retire(cellKey, h);
         h = new ObjectHost({
           cellKey,
           id: opts.ctxIdOf?.(cellKey) ?? id,
@@ -284,9 +336,10 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           exports: exportsObj,
           facet: opts.facets,
           asyncRoot: eventsRoot,
-          acquire: ownership ? (key) => ownership.tryAcquire(key) : undefined,
+          acquire: acquireAfterRelease,
           sqlExtensions: opts.sqlExtensions,
           deleteAllPreservesAlarm: opts.deleteAllPreservesAlarm,
+          container: containerOf(className, cellKey, id),
         });
         hosts.set(cellKey, h);
       }
@@ -334,8 +387,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
               return await l.fetch(req);
             } catch (e) {
               if (!elsewhere(e)) throw e;
-              hosts.get(cellKey)?.close();
-              hosts.delete(cellKey);
+              retire(cellKey);
               return (await viaOwner()).fetch(spare);
             }
           },
@@ -344,8 +396,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
               return await l.call(method, args);
             } catch (e) {
               if (!elsewhere(e)) throw e;
-              hosts.get(cellKey)?.close();
-              hosts.delete(cellKey);
+              retire(cellKey);
               return (await viaOwner()).call(method, args);
             }
           },
@@ -496,11 +547,18 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           break;
       }
       cellsClosed = true;
+      // A node stop destroys its containers (celld does the same): after the grace period, as
+      // work in flight may still use them; none starts once closing began.
+      const containersDestroyed = Promise.allSettled(
+        [...containers.values()].map((c) => c.destroy()),
+      );
+      containers.clear();
       await backupAll("close");
       // The releases reach the store before it closes.
-      await Promise.all([...hosts.values()].map((h) => h.close()));
-      hosts.clear();
+      for (const key of [...hosts.keys()]) retire(key);
+      await Promise.all([...releasing.values()]);
       alarms.close(); // every database of the runtime is closed now
+      await containersDestroyed;
       await storage.close?.();
     },
     async fetch(req) {
@@ -535,8 +593,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     },
     runEvent: (fn) => rejections(fn),
     evictAll() {
-      for (const h of hosts.values()) h.close();
-      hosts.clear();
+      for (const key of [...hosts.keys()]) retire(key);
     },
     async drain() {
       while (background.size) await Promise.all([...background]);

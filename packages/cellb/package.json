@@ -1,6 +1,6 @@
 {
   "name": "@statewalker/cellb",
-  "version": "0.9.1",
+  "version": "0.11.1",
   "description": "cellb: isomorphic Durable Objects runtime (celld/Cloudflare-compatible surface) for browsers and servers",
   "type": "module",
   "license": "MIT",
@@ -24,7 +24,8 @@
     "./site": "./src/site.ts",
     "./bundle": "./src/bundle.ts",
     "./host-modules": "./src/project/host-modules.ts",
-    "./isolate-worker": "./src/isolate/isolate-worker.ts"
+    "./isolate-worker": "./src/isolate/isolate-worker.ts",
+    "./container": "./src/container.ts"
   },
   "files": [
     "dist",
@@ -67,6 +68,10 @@
       "./isolate-worker": {
         "types": "./dist/isolate/isolate-worker.d.ts",
         "default": "./dist/isolate/isolate-worker.js"
+      },
+      "./container": {
+        "types": "./dist/container.d.ts",
+        "default": "./dist/container.js"
       }
     }
   },
@@ -78,7 +83,7 @@
     "bench:browser": "PW_CHROMIUM=\"${PW_CHROMIUM:-$(node scripts/npm-chromium.mjs)}\" playwright test --config playwright.probes.config.ts --reporter=line bench",
     "test:unit": "vitest run test/",
     "test:e2e": "vitest run e2e/",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e-browser/pages/tsconfig.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e-browser/pages/tsconfig.json && tsc --noEmit -p e2e-browser/tsconfig.json",
     "mutate": "node scripts/mutate.mjs",
     "browser:prepare": "mkdir -p e2e-browser/pages/public/vendor && cp node_modules/@statewalker/webrun-http-browser/dist/sw-worker.js e2e-browser/pages/public/vendor/webrun-http-sw-worker.js",
     "browser:dev": "pnpm run browser:prepare && vite e2e-browser/pages --config e2e-browser/pages/vite.config.ts",
@@ -92,19 +97,20 @@
     "mutate:browser": "node scripts/mutate-browser.mjs",
     "mutate:check": "node scripts/mutate.mjs --check && node scripts/mutate-browser.mjs --check",
     "probes:browser": "PW_CHROMIUM=\"${PW_CHROMIUM:-$(node scripts/npm-chromium.mjs)}\" playwright test --config playwright.probes.config.ts --reporter=line",
-    "probes:node": "node --no-warnings probes/sqlite-lock.probe.mjs"
+    "probes:node": "node --no-warnings probes/sqlite-lock.probe.mjs",
+    "probes:spread-node": "node probes/spread/run-node.mjs"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",
     "@sqlite.org/sqlite-wasm": "^3.54.1-build1",
-    "@statewalker/webrun-files": "^0.10.4",
-    "@statewalker/webrun-files-browser": "^0.10.3",
-    "@statewalker/webrun-files-mem": "^0.10.4",
-    "@statewalker/webrun-files-node": "^0.10.4",
+    "@statewalker/webrun-files": "^0.12.0",
+    "@statewalker/webrun-files-browser": "^0.12.0",
+    "@statewalker/webrun-files-mem": "^0.12.0",
+    "@statewalker/webrun-files-node": "^0.12.0",
     "@statewalker/webrun-http-browser": "catalog:",
-    "@statewalker/webrun-http-streams": "^0.5.0",
-    "@statewalker/webrun-rpc": "^0.11.0",
-    "@statewalker/webrun-streams": "^0.3.0",
+    "@statewalker/webrun-http-streams": "^0.8.0",
+    "@statewalker/webrun-rpc": "^0.15.0",
+    "@statewalker/webrun-streams": "^0.6.0",
     "acorn": "^8.19.0",
     "assert": "^2.1.0",
     "buffer": "^6.0.3",
@@ -116,7 +122,7 @@
     "ws": "catalog:"
   },
   "peerDependencies": {
-    "@statewalker/webrun-bundler": "^0.1.1",
+    "@statewalker/webrun-bundler": "^0.2.0",
     "@statewalker/webrun-modules": "catalog:",
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",
@@ -142,7 +148,7 @@
   "devDependencies": {
     "@playwright/test": "^1.65.0",
     "@sparticuz/chromium": "^153.0.0",
-    "@statewalker/webrun-bundler": "^0.1.2",
+    "@statewalker/webrun-bundler": "^0.2.0",
     "@statewalker/webrun-modules": "catalog:",
     "@statewalker/webrun-site-builder": "catalog:",
     "@statewalker/webrun-site-host": "catalog:",

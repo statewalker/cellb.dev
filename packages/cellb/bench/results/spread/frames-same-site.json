@@ -1,0 +1,82 @@
+{
+  "date": "2026-11-20",
+  "test": "frames (same-site)",
+  "perFrame": 40,
+  "stopped": "a project shard did not start: RangeError: WebAssembly.Memory(): could not allocate memory\n    at initMemory (http://f3.spread.test:40767/@fs/home/user/cellb.dev/node_modules/.pnpm/@sqlite.org+sqlite-wasm@3.54.1-build1/node_modules/@sqlite.org/sqlite-wasm/dist/index.mjs?v=da7db085:92:17)\n    at sqli",
+  "hostDirectoryHandleInFrame": "refused: messageerror: the frame could not read the message",
+  "base": {
+    "chromiumPssMB": 1581,
+    "rendererPssMB": 939,
+    "renderers": 4
+  },
+  "rows": [
+    {
+      "frames": 1,
+      "workers": 40,
+      "ok": true,
+      "startMs": 6454,
+      "handle": "refused: messageerror: the frame could not read the message",
+      "run": {
+        "tasks": 80,
+        "ms": 520,
+        "tasksPerSec": 154,
+        "mbPerSec": 0.2,
+        "workersUsed": 34,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 2143,
+      "rendererPssMB": 1352,
+      "renderers": 4,
+      "availableMB": 12429
+    },
+    {
+      "frames": 2,
+      "workers": 80,
+      "ok": true,
+      "startMs": 6475,
+      "run": {
+        "tasks": 160,
+        "ms": 925,
+        "tasksPerSec": 173,
+        "mbPerSec": 0.2,
+        "workersUsed": 72,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 3517,
+      "rendererPssMB": 2637,
+      "renderers": 4,
+      "availableMB": 11021
+    },
+    {
+      "frames": 3,
+      "workers": 120,
+      "ok": true,
+      "startMs": 6168,
+      "run": {
+        "tasks": 240,
+        "ms": 1326,
+        "tasksPerSec": 181,
+        "mbPerSec": 0.2,
+        "workersUsed": 107,
+        "errors": [],
+        "errorCount": 0
+      },
+      "chromiumPssMB": 4900,
+      "rendererPssMB": 3934,
+      "renderers": 4,
+      "availableMB": 9644
+    },
+    {
+      "frames": 4,
+      "workers": 160,
+      "ok": false,
+      "error": "a project shard did not start: RangeError: WebAssembly.Memory(): could not allocate memory\n    at initMemory (http://f3.spread.test:40767/@fs/home/user/cellb.dev/node_modules/.pnpm/@sqlite.org+sqlite-wasm@3.54.1-build1/node_modules/@sqlite.org/sqlite-wasm/dist/index.mjs?v=da7db085:92:17)\n    at sqli",
+      "chromiumPssMB": 5107,
+      "rendererPssMB": 4106,
+      "renderers": 4,
+      "availableMB": 9424
+    }
+  ]
+}

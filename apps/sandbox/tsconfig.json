@@ -1,11 +1,14 @@
 {
   "extends": "astro/tsconfigs/strict",
-  "include": [".astro/types.d.ts", "**/*"],
+  "include": [".astro/types.d.ts", "**/*", "../../packages/cellb/src/node-compat/shims.d.ts"],
   "exclude": ["dist", "sample", "templates", "studio"],
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]
     },
+    // cellb's sources (imported through the workspace) mark their vendored JS imports with
+    // @ts-expect-error, which allowJs would leave unused.
+    "allowJs": false,
     "jsx": "react-jsx",
     "jsxImportSource": "react"
   }
