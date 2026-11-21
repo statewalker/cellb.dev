@@ -31,4 +31,4 @@ the preview starts (about 6 s). Edit the notebook on the left.
    sees them and sends an `update`: the frame patches the changed blocks, and the inputs keep their
    values.
 
-Tested by `e2e-browser/notebook.spec.ts`, which takes the screenshots in `docs/images/`.
+Tested by `e2e-browser/notebook.spec.ts` (`UPDATE_SCREENSHOTS=1` retakes the screenshots in `docs/images/`).

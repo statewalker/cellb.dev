@@ -1,11 +1,15 @@
 // The interactive notebook example (examples/observable-framework/notebook): Observable Framework's
 // preview in a Lifo container, shown in a frame through webrun-http-browser's ServiceWorker, live
-// reload over a WebSocket into the container. Screenshots go to docs/images/. Needs the npm
+// reload over a WebSocket into the container. UPDATE_SCREENSHOTS=1 retakes docs/images/. Needs the npm
 // registry and jsDelivr (the build step).
 import { expect, test } from "@playwright/test";
 
 const url = `http://localhost:${Number(process.env.PW_NOTEBOOK_PORT ?? 5198)}/`;
-const shot = (name: string) => `docs/images/notebook-${name}.png`;
+// UPDATE_SCREENSHOTS=1 writes them into docs/images; otherwise into the test's output folder
+const shot = (name: string) =>
+  process.env.UPDATE_SCREENSHOTS
+    ? `docs/images/notebook-${name}.png`
+    : test.info().outputPath(`notebook-${name}.png`);
 
 test.use({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
 
