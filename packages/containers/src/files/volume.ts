@@ -84,12 +84,12 @@ class Buffer {
   size: number;
   dirty = false;
   refs = 0;
-  constructor(
-    initial: Uint8Array,
-    readonly maxBytes = DEFAULT_MAX_FILE_BYTES,
-  ) {
+  // a plain field, not a parameter property: workers load this file with Node's type stripping
+  readonly maxBytes: number;
+  constructor(initial: Uint8Array, maxBytes = DEFAULT_MAX_FILE_BYTES) {
     this.data = initial;
     this.size = initial.length;
+    this.maxBytes = maxBytes;
   }
   ensure(capacity: number) {
     if (capacity <= this.data.length) return;
