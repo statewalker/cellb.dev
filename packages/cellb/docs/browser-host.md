@@ -296,6 +296,31 @@ one's. All three ways are tested
 in Chromium (`e2e-browser/ltx-files.spec.ts`) and, with the shared buffer awaited instead of
 blocked on, in Node (`test/p39-files-rpc.test.ts`, `test/p40-ltx-store-files.test.ts`).
 
+**Several shards on one FilesApi.** A port serves one runtime, so `startProjectShards` takes
+`bucket` as a function too: each shard gets its own bucket, node name included, and the ports
+in it (`files: { port }`, `ltxStore.port`) travel with that shard's init:
+
+```ts
+const ports: { close(): void }[] = [];
+const app = await startProjectShards({
+  shards: 4, spawn, config, code, name: "my-project",
+  bucket: (shard) => {
+    const p = filesApiPort(files); // a port of its own for each shard
+    ports.push(p);
+    return { ltx: "my-project", node: `tab-s${shard}`, files: { port: p.port } };
+  },
+});
+// …
+await app.close();
+for (const p of ports) p.close();
+```
+
+The cells then belong to the FilesApi, not to a shard: a different number of shards opens them
+where the last ones left off (`e2e-browser/shards-files.spec.ts`). With more than one shard on
+one `ltx` storage, each runtime keeps its own databases apart, as `__cellb/s<shard>/alarms`
+(and `…/cron`). A single runtime keeps the plain `__cellb/alarms`, so its stored data stays
+where it was.
+
 #### A project at the origin's root: `root`
 
 An app that builds absolute paths (EmDash's admin calls `/_emdash/…`) cannot live under
