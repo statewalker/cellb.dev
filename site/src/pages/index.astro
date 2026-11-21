@@ -12,7 +12,8 @@ import Tabs from "@/components/ui/Tabs.astro";
 import Base from "@/layouts/Base.astro";
 import { docHref } from "@/lib/docs";
 import { exampleByName, exampleHref } from "@/lib/examples";
-import { CELLD, LIVE_DEMOS, REPO, repoFile } from "@/lib/site";
+import { entry } from "@/lib/showcase";
+import { CELLD, REPO, repoFile } from "@/lib/site";
 import counterCode from "../demo/counter/project/src/index.ts?raw";
 import counterWrangler from "../demo/counter/project/wrangler.jsonc?raw";
 import counterNode from "../demo/counter/serve-node.ts?raw";
@@ -259,7 +260,7 @@ const rows: Row[] = [
       { label: "Python in Wasmer (live)", href: "/demos/containers/python/" },
       {
         label: "A notebook in Lifo (live)",
-        href: "https://cellb-containers.httpeers.net/notebook/",
+        href: "https://containers.cellb.dev/notebook/",
       },
       { label: "Containers per node", href: docHref("packages/containers/docs/capacity.md") },
     ],
@@ -338,7 +339,7 @@ const useCases = [
     icon: "wifiOff",
     title: "Local-first apps",
     body: "Cells answer from OPFS inside the tab, with no network and no server. Configure a fleet bucket and the same cells are logged in celld's format, so a server node can serve them when the tab is closed.",
-    link: { href: LIVE_DEMOS.emdash.href, label: "Try EmDash in your tab" },
+    link: { href: entry("emdash-live").try ?? "", label: "Try EmDash in your tab" },
   },
   {
     icon: "globe",
@@ -635,12 +636,15 @@ const lifecycle = [
           The examples install CellB from npm as its users do (they use its current release). A CI job, started by hand, also runs
           them on CellB as the next release would publish it. Running them found gaps in CellB,
           which are now closed. The first two are published as{" "}
-          <a href="/examples#live-demos" class="text-primary hover:underline">live demos</a>: open
+          <a href="/examples#try" class="text-primary hover:underline">live demos</a>: open
           one and the app runs in your tab.
         </p>
       </div>
       <div class="mt-10">
         <Showcase />
+        <div class="mt-8">
+          <Button href="/examples" variant="outline">All examples and demos <Icon name="arrowRight" /></Button>
+        </div>
       </div>
     </div>
   </section>

@@ -123,15 +123,20 @@ Setup, once (repository → Settings → Secrets and variables → Actions):
 | Kind | Name | Value |
 | --- | --- | --- |
 | secret | `HTTPEERS_S3_ACCESS_KEY_ID`, `HTTPEERS_S3_SECRET_ACCESS_KEY` | credentials that can write the site's prefix in the `sites` bucket |
-| variable | `SITE_DOMAIN` | optional; `cellb.httpeers.net` when unset |
+| variable | `SITE_DOMAIN` | optional; `cellb.dev` when unset |
 
 Use credentials of their own, not the pair in `/opt/httpeers/.env` on the httpeers server: that
 pair is RustFS's own and is kept in that one file (statewalker/httpeers
 `tools/publish/README.md`), and it can rewrite or delete every site in the bucket. A RustFS user
 whose policy allows `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:ListBucket` on
-`sites/cellb.httpeers.net/*` and `sites/cellb.dev/*` only is what this workflow needs; the same
-key also publishes the browser examples (`.github/workflows/examples-publish.yml`), so the policy
-adds `cellb-examples.httpeers.net`, `cellb-emdash.httpeers.net` and `cellb-astro.httpeers.net`.
+`sites/cellb.dev/*` only is what this workflow needs; the same key also publishes the browser
+examples (`.github/workflows/examples-publish.yml`), so the policy adds `examples.cellb.dev`,
+`emdash.cellb.dev`, `astro.cellb.dev` and `containers.cellb.dev`, and the hosts they moved from
+(`cellb.httpeers.net`, `cellb-<name>.httpeers.net`), which now serve redirects (`cellb.httpeers.net`: a
+301 from the server; `cellb-<name>.httpeers.net`: pages published by `examples-publish.yml`). A redirect cannot carry browser storage across origins: posts a visitor
+wrote in EmDash on its old host stay in that host's storage and do not appear on
+`emdash.cellb.dev`. The redirect sites also replace the old demos' `/cellb-sw.js` with a worker
+that unregisters itself, so a returning visitor is not kept on the old app by its ServiceWorker.
 
 `site/scripts/setup-publish-secrets.sh` does all of it: it reads the root pair over ssh
 (`kotelnikov@163.172.46.87`, `HTTPEERS_SSH` to change), creates or re-keys that user (`cellb-site`)
@@ -143,16 +148,82 @@ GitHub.
 Without the secrets the workflow builds the site and notes that it did not publish. Run it by hand
 with "Run workflow" (`workflow_dispatch`).
 
-`cellb.httpeers.net` needs nothing else: the zone has a wildcard DNS record and Caddy a wildcard
-certificate. To move the site to `cellb.dev`:
+### Domains
 
-1. In statewalker/httpeers, add a site block to `deploy/Caddyfile` that sends the name to the
-   same host as the wildcard, and deploy it: `cellb.dev { reverse_proxy sites:3000 }` (Caddy gets
-   its certificate over HTTP-01, as the name is not a wildcard).
-2. Point `cellb.dev` at the httpeers server (an A record, and AAAA if the server has IPv6). `.dev` is HTTPS-only in every
-   browser, so the site loads once Caddy has the certificate.
-3. Set the variable `SITE_DOMAIN` to `cellb.dev` and run the workflow. The old prefix,
-   `cellb.httpeers.net/`, stays served until it is removed (`httpeers-publish --delete-site`).
+Everything is served from cellb.dev:
+
+| Host | What | Published by |
+| --- | --- | --- |
+| `cellb.dev` | the site (with CellB sandbox at `/sandbox/app/` and the Wasmer containers demo at `/demos/containers/`) | `site.yml` |
+| `examples.cellb.dev` | the examples' landing page | `examples-publish.yml` |
+| `emdash.cellb.dev` | EmDash, served from a tab | `examples-publish.yml` |
+| `astro.cellb.dev` | Astro (and EmDash) built in the tab | `examples-publish.yml` |
+| `containers.cellb.dev` | both containers demos (the Lifo notebook runs npm code: an origin of its own) | `examples-publish.yml` |
+
+The examples are subdomains, not paths of cellb.dev: EmDash and the Astro builder take their whole
+origin (a ServiceWorker at `/`, absolute paths, cookies with `Path=/`), and a demo that runs code
+from npm must not share cellb.dev's storage (the sandbox can keep an API key there). Each
+subdomain is its own origin (its own storage, ServiceWorkers and permissions); they are one *site*
+for the browser (cookies without `Domain` stay on their host, so this matters only for cookies set
+with `Domain=cellb.dev`, which nothing here sets).
+
+What the server has, and what a new name needs:
+
+- **DNS** (Gandi): `cellb.dev` and a wildcard `*.cellb.dev`, both an A record to the httpeers
+  server (163.172.46.87). A DNS wildcard matches names at any depth (`a.b.cellb.dev` too), so no
+  record is needed for a new host.
+- **Certificates** (Caddy, in statewalker/httpeers `deploy/Caddyfile`): `cellb.dev` and
+  `*.cellb.dev`, both in front of the sites host. A wildcard certificate covers one level only:
+  `emdash.cellb.dev` yes, `emdash.s.cellb.dev` no (its TLS handshake fails today).
+- **The publishing key** must be allowed to write the host's prefix: add the name to
+  `SITE_DOMAINS` in `scripts/setup-publish-secrets.sh` and run it again.
+
+So a new demo at `<name>.cellb.dev` needs only the key's policy, then a publish to
+`sites/<name>.cellb.dev`.
+
+#### A deeper wildcard (`*.s.cellb.dev`), if one level is not enough
+
+For many generated hosts (one per user or per session, say) under their own zone such as
+`*.s.cellb.dev`, Caddy needs a second wildcard certificate. A wildcard certificate can only be
+issued over the DNS-01 challenge, so Caddy needs an API key for the DNS provider:
+
+1. **A Gandi token.** In Gandi's admin, Organizations → *your org* → Sharing → Personal Access
+   Tokens: create one with the "Manage domain name technical configurations" permission, limited to
+   the cellb.dev domain. Keep it as a secret on the server (e.g. `GANDI_BEARER_TOKEN` in the
+   environment of the Caddy container, from the server's `.env`).
+2. **Caddy with the Gandi DNS module.** The stock image has no DNS providers; build one with
+   [caddy-dns/gandi](https://github.com/caddy-dns/gandi):
+   ```Dockerfile
+   FROM caddy:2-builder AS builder
+   RUN xcaddy build --with github.com/caddy-dns/gandi
+   FROM caddy:2
+   COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+   ```
+   (If the httpeers Caddy already issues `*.cellb.dev` over DNS-01, it has a DNS module and token:
+   reuse them.)
+3. **A site block** in `deploy/Caddyfile`, next to the `*.cellb.dev` one:
+   ```caddyfile
+   *.s.cellb.dev {
+     tls {
+       dns gandi {env.GANDI_BEARER_TOKEN}
+     }
+     reverse_proxy sites:3000
+   }
+   ```
+   then deploy (`docker compose up -d caddy`, or the httpeers deploy script). Caddy logs
+   `certificate obtained successfully` for `*.s.cellb.dev`.
+4. **DNS**: nothing to add, the `*.cellb.dev` record already answers for `x.s.cellb.dev`. (To
+   point the zone elsewhere later, add an explicit `*.s.cellb.dev` record.)
+5. **Check**: `curl -sI https://test.s.cellb.dev/` answers (`404 not found` from the sites host
+   until something is published there), and `openssl s_client -connect test.s.cellb.dev:443
+   -servername test.s.cellb.dev </dev/null | openssl x509 -noout -subject` shows
+   `CN = *.s.cellb.dev`.
+
+Without a wildcard, Caddy can also get one certificate per name over HTTP-01: list the names in a
+site block (`a.s.cellb.dev, b.s.cellb.dev { reverse_proxy sites:3000 }`), or use Caddy's
+on-demand TLS with an `ask` endpoint that allows only the published hosts. Both avoid the DNS
+token; both issue a certificate per host (Let's Encrypt allows 50 new ones per registered domain
+per week).
 
 ## Updating the numbers
 
