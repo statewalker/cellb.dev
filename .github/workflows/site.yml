@@ -35,6 +35,7 @@ on:
       - "examples/platform-demos/notebooks/**"
       # CellB sandbox, built into the site at /sandbox/app/ (site/scripts/build-sandbox.mjs).
       - "apps/sandbox/**"
+      - "packages/containers/**"
       - "package.json"
       - ".nvmrc"
       - "pnpm-lock.yaml"
@@ -56,6 +57,7 @@ on:
       - "examples/platform-astro/**"
       - "examples/platform-demos/notebooks/**"
       - "apps/sandbox/**"
+      - "packages/containers/**"
       - "package.json"
       - ".nvmrc"
       - "pnpm-lock.yaml"
@@ -100,6 +102,8 @@ jobs:
       # site copied, served under the same path as on the site, over http and over https (as the
       # site is served: a request's scheme once got lost on its way to the page, and only https
       # showed it).
+      - name: Containers demos (Wasmer and Lifo, as published)
+        run: pnpm --filter @statewalker/cellb-site check:containers
       - name: CellB sandbox
         run: |
           pnpm --filter @statewalker/cellb-sandbox test

@@ -19,6 +19,28 @@ export const LIVE_DEMOS = {
   },
 } as const;
 
+/**
+ * The containers demos (packages/containers/examples/browser-demos), built into this site at
+ * /demos/containers/ (scripts/build-containers-demos.mjs): one per engine.
+ */
+export const CONTAINER_DEMOS = {
+  index: "/demos/containers/",
+  about: "/containers",
+  readme: "packages/containers/examples/browser-demos/README.md",
+  python: {
+    href: "/demos/containers/python/",
+    engine: "Wasmer",
+    title: "Python in Wasmer containers",
+    body: "Run a Python script against files from the page. Each run gets a fresh Python container (WASIX, from the Wasmer registry) in a worker of its own, terminated after the run: it sees only its files at /data, and has no network.",
+  },
+  notebook: {
+    href: "/demos/containers/notebook/",
+    engine: "Lifo",
+    title: "A notebook in Lifo containers",
+    body: "An Observable Framework notebook, edited and previewed in the tab: a build container installs Framework with npm through the page's network (about 30 s), then observable preview runs in a container with no network, with live reload over a WebSocket into it.",
+  },
+} as const;
+
 /** CellB sandbox (apps/sandbox), built into this site (scripts/build-sandbox.mjs). */
 export const SANDBOX = {
   href: "/sandbox/app/",

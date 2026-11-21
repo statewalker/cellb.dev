@@ -1,0 +1,243 @@
+---
+import CodeBlock from "@/components/CodeBlock.astro";
+import Icon from "@/components/Icon.astro";
+import Button from "@/components/ui/Button.astro";
+import Docs from "@/layouts/Docs.astro";
+import { docHref } from "@/lib/docs";
+import { CONTAINER_DEMOS, repoFile } from "@/lib/site";
+
+// /containers/: CellB's containers (packages/containers), and the live demos built into the site
+// at /demos/containers/ (scripts/build-containers-demos.mjs).
+
+// copies of packages/containers/docs/images, next to the demos (scripts/build-containers-demos.mjs)
+const shot = (name: string) => `${CONTAINER_DEMOS.index}images/${name}.png`;
+
+const objectCode = `import { DurableObject } from "cloudflare:workers";
+
+// The same class runs on celld (Docker) and on CellB (a WASIX sandbox)
+export class PyRunner extends DurableObject {
+  async fetch(request) {
+    const container = this.ctx.container;
+    if (!container.running) {
+      await container.start({ env: { CELL: this.ctx.id.name } });
+      await container.waitForPort?.(8080);
+    }
+    return container.getTcpPort(8080).fetch(request);
+  }
+}`;
+
+const wranglerCode = `{
+  "durable_objects": { "bindings": [{ "name": "PY", "class_name": "PyRunner" }] },
+  "containers": [{ "class_name": "PyRunner", "image": "./Dockerfile" }], // what celld builds
+  "cellb": {
+    "containers": {
+      "PyRunner": {
+        "packages": ["python/python"],          // from the Wasmer registry
+        "files": { "server.py": "./server.py" }, // a file of the project
+        "entrypoint": ["python", "/workspace/server.py"]
+      }
+    }
+  }
+}`;
+
+const hostCode = `import { loadProject } from "@statewalker/cellb/node"; // or /browser, in a worker
+import { wasmerContainerEngine } from "@statewalker/cellb-containers";
+import { Wasmer } from "@wasmer/sdk/node"; // or /browser
+
+const project = await loadProject("./python", { containers: wasmerContainerEngine(new Wasmer()) });
+await project.fetch(new Request("http://localhost/hello?cell=alpha")); // starts alpha's container
+await project.close(); // destroys the project's containers`;
+
+const poolCode = `import { createIsolatedPool } from "@statewalker/cellb-containers";
+
+// Untrusted code: a fresh Wasmer container per run, in a worker of its own, terminated after it
+const pool = createIsolatedPool({
+  spawn: () => new Worker(new URL("./wasmer-worker.ts", import.meta.url), { type: "module" }),
+  image: { packages: ["python/python"] },
+  size: 2,
+});
+const files = new MemFilesApi(); // this run's files, at /data in the container
+const r = await pool.run({ argv: ["python", "-c", code], files, timeoutMs: 10_000 });
+
+// wasmer-worker.ts
+serveContainerWorker(self, ({ files }) => wasmerWorkerEngine(new Wasmer(), files));
+// or a Lifo box (shell, node, npm), for code you trust:
+serveContainerWorker(self, ({ files }) => lifoContainerEngine(lifo, { files }));`;
+
+const engines: [string, string, string][] = [
+  ["What it is", "WASIX sandboxes (@wasmer/sdk)", "a Linux-like OS in TypeScript (@lifo-sh/core)"],
+  [
+    "What runs",
+    "WASIX packages from the Wasmer registry: Python, PHP, bash, QuickJS, Node-compatible JS (wasmer/edgejs), your own Rust or C",
+    "its shell and commands, Node-compatible JS (node, npm)",
+  ],
+  [
+    "Isolation",
+    "a sandbox: no system calls outside WASIX, no access to the page's or the process's JavaScript",
+    "not a sandbox: guest JS runs in its worker's realm, for code you trust",
+  ],
+  [
+    "Network",
+    "none (a build step may get the host's, in Node)",
+    "none unless the engine allows egress and the container asks for it",
+  ],
+  ["Files", "FilesApi mounts", "FilesApi mounts"],
+  ["Start, with a warm worker", "~0.2 s (Python)", "~0.1 s"],
+  ["Memory per container in its own worker", "~265 MB (Python)", "~31 MB"],
+  ["Tested in", "Node and Chromium", "Node and Chromium"],
+];
+
+const docs: [string, string, string][] = [
+  [
+    "Containers",
+    "packages/cellb/docs/services/containers.md",
+    "ctx.container in CellB: the API, the manifest, the differences from celld",
+  ],
+  [
+    "Containers package",
+    "packages/containers/README.md",
+    "the engines, pools, FilesApi mounts, isolation, measurements",
+  ],
+  [
+    "Isolated pools",
+    "packages/containers/docs/isolated-pools.md",
+    "a container per worker for untrusted code; Wasmer and Lifo; start times",
+  ],
+  [
+    "Layered files",
+    "packages/containers/docs/layered-files.md",
+    "install once with egress, run read-only without it, as Docker layers",
+  ],
+  [
+    "Observable Framework in containers",
+    "packages/containers/docs/observable-framework.md",
+    "installing, building and previewing sites in Lifo containers",
+  ],
+  [
+    "Containers per node",
+    "packages/containers/docs/capacity.md",
+    "how many containers one node runs, in Node and Chromium",
+  ],
+];
+
+const examples: [string, string, string][] = [
+  ["python", "packages/containers/examples/python", "a stdlib HTTP server per object (Wasmer)"],
+  ["php", "packages/containers/examples/php", "PHP's built-in server per object (Wasmer)"],
+  ["node", "packages/containers/examples/node", "node:http in wasmer/edgejs (Wasmer, JSPI)"],
+  [
+    "pool",
+    "packages/containers/examples/pool",
+    "custom code on a pool, against each cell's own files",
+  ],
+  ["files", "packages/containers/examples/files", "a host FilesApi mounted into a container"],
+  [
+    "browser-demos",
+    "packages/containers/examples/browser-demos",
+    "the two live demos below (Wasmer and Lifo)",
+  ],
+];
+---
+
+<Docs
+  title="Containers"
+  description="Containers in CellB: Cloudflare's ctx.container API in browsers and Node, on Wasmer WASIX sandboxes and on Lifo. Live demos of both engines."
+>
+  <p class="font-mono text-sm text-primary">// containers (experimental)</p>
+  <h1>Containers in a tab and in Node</h1>
+  <p>
+    A Durable Object can run a program that is not JavaScript next to it: a Python or PHP server, a
+    shell, Node-compatible JavaScript. celld runs these containers with Docker. CellB runs them in
+    browser tabs and in Node with <code>@statewalker/cellb-containers</code>, through Cloudflare's
+    <code>ctx.container</code> API, on two engines: <a href="https://docs.wasmer.io/runtime/js/">Wasmer</a>{" "}
+    WASIX sandboxes, and <a href="https://lifo.sh">Lifo</a>, a Linux-like OS written in TypeScript.
+    There is no daemon and no image registry at run time, and the object's code is the same as on
+    celld.
+  </p>
+  <div class="my-6 flex flex-wrap gap-3">
+    <Button href={CONTAINER_DEMOS.index} size="lg">
+      Open the live demos <Icon name="arrowRight" />
+    </Button>
+    <Button href={repoFile("packages/containers/README.md")} variant="outline" size="lg">
+      <Icon name="github" /> Source: packages/containers
+    </Button>
+  </div>
+
+  <h2>Live demos: one per engine</h2>
+  <p>Both run in your tab, served as static files; Chrome or another Chromium-based browser.</p>
+  {[CONTAINER_DEMOS.python, CONTAINER_DEMOS.notebook].map((d, i) => (
+    <div>
+      <h3>
+        <a href={d.href}>{d.title}</a> <span class="text-sm font-normal text-muted-foreground">({d.engine})</span>
+      </h3>
+      <p>{d.body}</p>
+      <a href={d.href}>
+        <img
+          src={shot(i === 0 ? "python-1-run" : "notebook-3-edited")}
+          alt={i === 0 ? "The Python demo after a run: the script's output and the file it wrote" : "The notebook demo after a live edit"}
+          loading="lazy"
+          class="rounded-lg border"
+        />
+      </a>
+    </div>
+  ))}
+  <p>
+    <a href={docHref(CONTAINER_DEMOS.readme)}>How the demos are wired</a>: the isolated pool, the
+    ServiceWorker that serves the notebook's preview and gives the pages cross-origin isolation, and
+    the WebSocket for live reload.
+  </p>
+
+  <h2>Two engines: Wasmer and Lifo</h2>
+  <p>
+    Both implement the same engine port, so <code>ctx.container</code>, the pools and the FilesApi
+    mounts work the same on either. Use Wasmer for code you do not trust and for WASIX software;
+    use Lifo for your own JavaScript tooling (an <code>npm install</code>, a build step, a dev
+    server).
+  </p>
+  <table>
+    <thead>
+      <tr><th></th><th>Wasmer</th><th>Lifo</th></tr>
+    </thead>
+    <tbody>
+      {engines.map(([what, wasmer, lifo]) => (
+        <tr><td>{what}</td><td>{wasmer}</td><td>{lifo}</td></tr>
+      ))}
+    </tbody>
+  </table>
+
+  <h2>ctx.container in a project</h2>
+  <p>
+    An object of a <code>containers</code> class gets <code>ctx.container</code> when the host gives
+    the runtime an engine and the class has an image under <code>cellb.containers</code> in its
+    wrangler config. celld reads <code>containers</code> and builds the Dockerfile; CellB reads
+    <code>cellb.containers</code>.
+  </p>
+  <CodeBlock lang="js" title="index.js" code={objectCode} />
+  <CodeBlock lang="jsonc" title="wrangler.jsonc" code={wranglerCode} />
+  <CodeBlock lang="ts" title="host.ts" code={hostCode} />
+
+  <h2>Running custom code</h2>
+  <p>
+    For code an object receives (an agent's tool call, a user's script), a pool of containers fits
+    better than a container per object. Each run gets its own FilesApi at <code>/data</code>, and
+    an isolated pool gives every run a fresh container in a worker of its own.
+  </p>
+  <CodeBlock lang="ts" title="pool.ts" code={poolCode} />
+
+  <h2>Documentation</h2>
+  <ul>
+    {docs.map(([label, file, about]) => (
+      <li><a href={docHref(file)}>{label}</a>: {about}</li>
+    ))}
+  </ul>
+
+  <h2>Examples</h2>
+  <ul>
+    {examples.map(([name, dir, about]) => (
+      <li><a href={repoFile(dir)}><code>{name}</code></a>: {about}</li>
+    ))}
+  </ul>
+  <p>
+    Containers are experimental: only software built for WASI/WASIX (Wasmer) or written for Lifo
+    runs, not arbitrary Docker images; CPU and memory limits are not enforced.
+  </p>
+</Docs>

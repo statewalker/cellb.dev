@@ -140,6 +140,11 @@ export const examplePages: RepoPage[] = [
     label: "Apps built by the tools",
   },
   {
+    file: "packages/containers/examples/browser-demos/README.md",
+    slug: "examples/containers-demos",
+    label: "Containers in a tab",
+  },
+  {
     file: "examples/platform-astro/README.md",
     slug: "examples/platform-astro",
     label: "A small Astro app",
