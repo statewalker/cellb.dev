@@ -137,6 +137,14 @@ export interface BrowserProjectOptions {
    * one runtime per worker and `shardOf` as the placement, cells run in parallel threads.
    */
   route?: CellRuntimeOptions["route"];
+  /**
+   * On an `ltx` bucket shared by several runtimes (the shards of one project): a name that keeps
+   * this runtime's own databases (`__cellb/alarms`, `__cellb/cron`) apart from the other
+   * runtimes', which would otherwise wait on one another's cell locks
+   * (statewalker/cellb.dev#185). The shard launchers set it when there is more than one shard;
+   * a single runtime keeps the plain names, so its stored data stays where it was.
+   */
+  ownDatabasesScope?: string;
   /** The OpenAI-compatible endpoint behind the project's `ai` binding (Workers AI). */
   ai?: WorkersAiOptions;
   /** The container engine for the project's `containers` (e.g. Wasmer, from @statewalker/cellb-containers). */
@@ -223,6 +231,14 @@ export async function ltxOpener(
   });
 }
 
+/** Renames the runtime's own databases (`__cellb/<name>` → `__cellb/<scope>/<name>`). */
+function scopeOwnDatabases<T extends (cellKey: string) => unknown>(open: T, scope?: string): T {
+  if (!scope) return open;
+  const scoped = (cellKey: string) =>
+    open(cellKey.startsWith("__cellb/") ? `__cellb/${scope}/${cellKey.slice(8)}` : cellKey);
+  return Object.assign(scoped, open) as T;
+}
+
 /** Installs the Workers globals the code reads, then imports its `main`. */
 async function importWorkerCode(
   config: WranglerConfig,
@@ -302,12 +318,15 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
   // With an IndexedDB bucket, cells live in memory and in the bucket's logs (no OPFS pool).
   const openSql =
     opts.bucket && "ltx" in opts.bucket
-      ? await ltxOpener(
-          opts.sqlite3,
-          opts.bucket.ltx,
-          opts.bucket.compactAfter,
-          opts.bucket.files,
-          opts.bucket.ltxStore,
+      ? scopeOwnDatabases(
+          await ltxOpener(
+            opts.sqlite3,
+            opts.bucket.ltx,
+            opts.bucket.compactAfter,
+            opts.bucket.files,
+            opts.bucket.ltxStore,
+          ),
+          opts.ownDatabasesScope,
         )
       : opts.bucket && "idb" in opts.bucket
         ? Object.assign(wasmMemoryOpener(opts.sqlite3 as never), {
