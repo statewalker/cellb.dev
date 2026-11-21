@@ -5,7 +5,7 @@ import Card from "@/components/ui/Card.astro";
 import Base from "@/layouts/Base.astro";
 import { docHref, examplePages, pageHref } from "@/lib/docs";
 import { type Example, exampleHref, examples } from "@/lib/examples";
-import { LIVE_DEMOS, SANDBOX } from "@/lib/site";
+import { CONTAINER_DEMOS, LIVE_DEMOS, SANDBOX } from "@/lib/site";
 
 const groups: { origin: Example["origin"]; title: string; body: string }[] = [
   {
@@ -75,6 +75,26 @@ const apps = examplePages.filter((p) => p.slug in APPS_ABOUT);
           <p class="mt-2 flex-1 text-sm text-muted-foreground">{SANDBOX.body}</p>
           <a href={SANDBOX.about} class="mt-3 text-sm text-primary hover:underline">How it is wired</a>
         </Card>
+      </div>
+    </div>
+    <div id="containers" class="mt-12 scroll-mt-20">
+      <h2 class="text-2xl font-semibold tracking-tight">Live demos: containers in a tab</h2>
+      <p class="mt-2 max-w-3xl text-sm text-muted-foreground">
+        Programs that are not JavaScript, run next to the page in containers: one demo per engine of
+        <code>@statewalker/cellb-containers</code>.{" "}
+        <a href={CONTAINER_DEMOS.about} class="text-primary hover:underline">About containers</a>
+      </p>
+      <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {[CONTAINER_DEMOS.python, CONTAINER_DEMOS.notebook].map((d) => (
+          <Card class="flex h-full flex-col p-5">
+            <a href={d.href} class="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+              {d.title} <Icon name="arrowRight" class="size-3" />
+            </a>
+            <span class="mt-1 text-xs uppercase tracking-wide text-muted-foreground">{d.engine}</span>
+            <p class="mt-2 flex-1 text-sm text-muted-foreground">{d.body}</p>
+            <a href={docHref(CONTAINER_DEMOS.readme)} class="mt-3 text-sm text-primary hover:underline">How it is wired</a>
+          </Card>
+        ))}
       </div>
     </div>
     {groups.map((g) => {

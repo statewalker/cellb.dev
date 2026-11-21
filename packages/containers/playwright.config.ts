@@ -30,7 +30,7 @@ export default defineConfig({
     },
     {
       // the interactive notebook example (e2e-browser/notebook.spec.ts)
-      command: `vite --config examples/observable-framework/notebook/vite.config.ts --port ${notebookPort} --strictPort`,
+      command: `vite --config examples/browser-demos/vite.config.ts --port ${notebookPort} --strictPort`,
       url: `http://localhost:${notebookPort}/`,
       reuseExistingServer: !!process.env.PW_REUSE_NOTEBOOK,
     },

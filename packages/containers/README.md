@@ -1,9 +1,35 @@
 # @statewalker/cellb-containers
 
 Containers for cellb in browsers and in Node: Cloudflare's `ctx.container` API, as celld runs it
-with Docker, backed here by [Wasmer](https://docs.wasmer.io/runtime/js/) WASIX sandboxes. A
-Durable Object of a `containers` class gets a container that runs Python, PHP, bash or
-Node-compatible JavaScript next to it, in a tab or in a Node process, with no Docker daemon.
+with Docker, backed here by two engines, [Wasmer](https://docs.wasmer.io/runtime/js/) WASIX
+sandboxes and [Lifo](https://lifo.sh). A Durable Object of a `containers` class gets a container
+that runs Python, PHP, bash or Node-compatible JavaScript next to it, in a tab or in a Node
+process, with no Docker daemon.
+
+**Live demos** (both engines, in your browser): [Python in Wasmer containers](https://cellb.dev/demos/containers/python/)
+and [an Observable Framework notebook in Lifo containers](https://cellb.dev/demos/containers/notebook/)
+([examples/browser-demos](examples/browser-demos)).
+
+## Two engines: Wasmer and Lifo
+
+Both implement the same `ContainerEngine` port, so `ctx.container`, the pools and FilesApi mounts
+work the same on either; each runs in a worker of its own.
+
+| | Wasmer (`wasmerContainerEngine`) | Lifo (`lifoContainerEngine`, `/lifo`) |
+| --- | --- | --- |
+| What it is | WASIX sandboxes ([`@wasmer/sdk`](https://docs.wasmer.io/runtime/js/)) | a Linux-like OS in TypeScript ([`@lifo-sh/core`](https://lifo.sh)) |
+| What runs | WASIX packages from the Wasmer registry: Python, PHP, bash, `wasmer/quickjs`, Node-compatible JS (`wasmer/edgejs`, needs JSPI), your own Rust or C | its shell and commands, Node-compatible JS (`node`, `npm`) |
+| Isolation | **a sandbox**: no system calls outside WASIX, no access to the page's or the process's JavaScript | **not a sandbox**: guest JS runs in the worker's realm; for code you trust |
+| Network | none (or the host's, for a build step, in Node: `egress: "host"`) | none unless `egress: "host"` and `enableInternet` (through the worker's `fetch`: the page's network in a browser) |
+| Files | FilesApi mounts (asynchronous host-filesystem bridge) | FilesApi mounts (synchronous client, `Atomics.wait`) |
+| Start | ~0.2 s for Python with its worker warm; 0.8–1.5 s for a new worker | ~0.1 s |
+| Memory | ~265 MB per Python container in its own worker | ~31 MB per box in its own worker |
+| WebSockets into it | — | `getTcpPort().fetch()` upgrades, `containerWebSocket()` |
+| Tested in | Node and Chromium | Node and Chromium |
+| Demo | [Python in Wasmer containers](https://cellb.dev/demos/containers/python/) | [a notebook in Lifo containers](https://cellb.dev/demos/containers/notebook/) |
+
+Use Wasmer for code you do not trust and for WASIX software (Python, PHP); use Lifo for your own
+JavaScript tooling (`npm install`, build steps, a dev server such as Observable Framework's).
 
 Status: experimental. `ctx.container` is built into cellb: give `loadProject` an engine from this
 package and objects of a `containers` class with an image under `cellb.containers` get their
@@ -177,7 +203,7 @@ Docker builds and runs images. [Layered files](docs/layered-files.md).
 [Observable Framework](docs/observable-framework.md) installs and builds sites this way in Node
 and in Chromium: one build step with egress, then site builds with no network, about 5 to 6 s
 each. Its preview runs with live reload, through a WebSocket into the container; the
-[notebook example](examples/observable-framework/notebook) edits and previews a notebook in one
+[notebook demo](examples/browser-demos) edits and previews a notebook in one
 browser tab.
 
 ### Runaway code
