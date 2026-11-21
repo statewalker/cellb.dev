@@ -37,7 +37,7 @@ worker is started that way (checked with a Vite build, see `scripts/pack-check.m
 | Import | What it gives |
 |---|---|
 | `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime` with `loadProjectBindings`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes (and `withUpgrade`, for an upgrade request a browser can make), and the errors embedders catch |
-| `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
+| `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `startProjectShards` (a project over worker threads), `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
 | `@statewalker/cellb/browser` | `loadProject` (a `cellb build` folder by URL, or sources with a compiler), `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
 | `@statewalker/cellb/tabs` | the tab side and the ServiceWorker side of a project shared by the tabs (`joinProjectShards`, `installProjectRouter`, `shardOwner`) without the shard runtime: what a page and its ServiceWorker import |
 | `@statewalker/cellb/site` | `createProjectSite`: a project's sources compiled in the browser and served by an in-browser HTTP server (`browserProjectRuntime({ site })`); `siteCompiler` for `loadProject`, and `siteHostOverPort` / `hostSitesForWorker` to host a worker's site from its page. Needs the optional peer dependencies `@statewalker/webrun-modules`, `@statewalker/webrun-site-builder` and `@statewalker/webrun-site-host` (the ServiceWorker host) |
@@ -161,6 +161,27 @@ const runtime = createCellRuntime({
 const res = await runtime.fetch(new Request("http://local/counter/a")); // {"n":1}
 await runtime.close();
 ```
+
+### A wrangler project over several worker threads
+
+```ts
+import { startProjectShards } from "@statewalker/cellb/node";
+import { NodeFilesApi } from "@statewalker/webrun-files-node";
+
+const app = await startProjectShards({
+  shards: 4, // worker threads; each owns the cells shardOf(id, 4) gives it
+  dir: "./counter", // wrangler.jsonc and its `main`, as loadNodeProject takes
+  data: "./data", // thread i keeps its SQLite files in ./data/s<i>; memory without it
+  files: new NodeFilesApi({ rootDir: "./backup" }), // optional: the cells' LTX log, on this thread
+});
+const res = await app.fetch(new Request("http://local/?name=a")); // round robin over the threads
+await app.close();
+```
+
+A Durable Object call from any thread runs in the owner's, over a port between every two threads.
+With `files`, the cells belong to that FilesApi (a folder, S3, memory): a later run with another
+number of threads, or empty data directories, opens each cell where the last run left it. Each
+thread's own databases (the alarm index, cron) stay in its data directory.
 
 ### A wrangler project on a bucket shared with celld
 
