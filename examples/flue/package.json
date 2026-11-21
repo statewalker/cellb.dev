@@ -12,14 +12,14 @@
     "test:browser": "vite build && playwright test"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "1.4.0",
-    "@flue/runtime": "2.3.0",
+    "@earendil-works/pi-ai": "1.5.2",
+    "@flue/runtime": "2.3.1",
     "hono": "^4.13.18"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.69.1",
-    "@flue/sdk": "2.3.0",
-    "@flue/vite": "2.3.0",
+    "@flue/sdk": "2.3.1",
+    "@flue/vite": "2.3.1",
     "@playwright/test": "^1.65.0",
     "@sparticuz/chromium": "^153.0.0",
     "@sqlite.org/sqlite-wasm": "^3.54.1-build1",
