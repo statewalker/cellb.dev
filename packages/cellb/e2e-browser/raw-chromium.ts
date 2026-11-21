@@ -24,6 +24,25 @@ export async function rawChromium() {
     // Its own process group, so close() can stop the helper processes with it.
     { stdio: ["ignore", "ignore", "pipe"], detached: true },
   );
+  // Out of the terminal's group, Chromium no longer gets its Ctrl-C: if the test process ends
+  // without close() (an interrupted run), kill Chromium's group and remove its profile on the
+  // way out.
+  const killGroup = () => {
+    try {
+      if (proc.pid) process.kill(-proc.pid, "SIGKILL");
+    } catch {
+      // none left
+    }
+  };
+  const onExit = () => {
+    killGroup();
+    try {
+      rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch {
+      // left in the temp directory
+    }
+  };
+  process.once("exit", onExit);
   const wsUrl = await new Promise<string>((resolve, reject) => {
     let err = "";
     proc.stderr?.on("data", (d: Buffer) => {
@@ -96,11 +115,8 @@ export async function rawChromium() {
         proc.kill("SIGKILL");
       await exited;
       ws.close();
-      try {
-        if (proc.pid) process.kill(-proc.pid, "SIGKILL"); // the group: helpers still running
-      } catch {
-        // none left
-      }
+      process.off("exit", onExit);
+      killGroup(); // the group: helpers still running
       rmSync(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
     },
   };
