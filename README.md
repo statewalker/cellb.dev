@@ -57,6 +57,8 @@ packages/containers/   containers for cellb (experimental): ctx.container backed
                        sandboxes in browsers and Node, FilesApi mounts, examples (see its README)
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
+examples/tesseract-ocr/  Tesseract OCR and PDF → PortableText in Durable Objects (wasm modules, alarms as a
+                       job queue, Worker Loader) on cellb, in Node and Chromium
 examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
                        (live: https://cellb-emdash.httpeers.net)
 examples/astro-in-browser/  Astro apps, EmDash included, built from their sources in a browser tab and run there on cellb
@@ -116,6 +118,9 @@ The examples, in `examples/` (`pnpm install` there: they have their own lockfile
    static site in Chromium.
 4. `cd astro-in-browser && pnpm test`: the in-browser builder on Node;
    `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab.
+5. `cd tesseract-ocr && pnpm fixtures && pnpm test`: Tesseract OCR and PDF conversion in Durable
+   Objects on cellb in Node; `pnpm test:browser` builds it with `cellb build` and runs it in
+   Chromium.
 
 To try the examples on cellb as it is in this checkout, before a release: pack it
 (`pnpm --dir packages/cellb pack`) and add to `examples/pnpm-workspace.yaml`

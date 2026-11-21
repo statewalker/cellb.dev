@@ -1,0 +1,35 @@
+{
+  "name": "@statewalker/tesseract-ocr-example",
+  "version": "0.0.1",
+  "description": "Tesseract OCR and PDF → PortableText in Durable Objects, run on cellb in Node and in a browser",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "fixtures": "node scripts/fetch-fixtures.mjs",
+    "build:isolate": "node scripts/build-isolate.mjs",
+    "build": "node scripts/build-isolate.mjs && cellb build . --out browser/public/app",
+    "test": "node scripts/build-isolate.mjs && vitest run",
+    "test:browser": "pnpm run build && playwright test",
+    "typecheck": "node scripts/build-isolate.mjs && tsc --noEmit"
+  },
+  "dependencies": {
+    "fast-png": "^8.0.0",
+    "franc-all": "^7.2.0",
+    "jpeg-js": "^0.4.4",
+    "pdfjs-dist": "^6.5.438",
+    "tesseract-wasm": "^0.11.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "@playwright/test": "^1.65.0",
+    "@sparticuz/chromium": "^153.0.0",
+    "@statewalker/cellb": "~0.11.1",
+    "@types/node": "catalog:",
+    "esbuild": "0.28.2",
+    "pdf-lib": "^1.17.1",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

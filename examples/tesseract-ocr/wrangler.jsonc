@@ -1,0 +1,24 @@
+{
+  // One Worker project, unmodified across runtimes: cellb in Node and in browsers, and (in
+  // statewalker-sandbox, where it comes from) wrangler and celld.
+  "name": "tesseract-ocr",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [
+      { "name": "OCR", "class_name": "OcrCell" },
+      { "name": "PDF_JOB", "class_name": "PdfJob" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["OcrCell"] },
+    { "tag": "v2", "new_sqlite_classes": ["PdfJob"] }
+  ],
+  "worker_loaders": [{ "binding": "LOADER" }],
+  // tesseract-wasm's Emscripten glue computes `new URL("tesseract-core.wasm", import.meta.url)`
+  // at load, which throws where a bundled Worker has no import.meta.url. The URL is never
+  // fetched (the wasm comes as a module), so any absolute URL does. cellb does not apply
+  // `define`: src/wasm-shim.ts covers it there (in a browser the bundle runs from a blob: URL).
+  "define": { "import.meta.url": "\"file:///tesseract-ocr/worker.js\"" },
+  "vars": {}
+}

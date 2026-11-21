@@ -1,0 +1,6 @@
+fixtures
+src/isolate/program.gen.js
+browser/public/app
+.data
+test-results
+playwright-report
