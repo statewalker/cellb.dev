@@ -173,7 +173,8 @@ export function wasmerContainerEngine(
         async exec(argv, options = {}) {
           const [cmd, ...args] = argv;
           const out = await sandbox
-            .command(cmd, args, { cwd: spec.workdir, ...options })
+            // an explicit `cwd: undefined` (pools pass run.cwd as is) keeps the image's workdir
+            .command(cmd, args, { env: options.env, cwd: options.cwd ?? spec.workdir })
             .run({ check: false });
           return { exitCode: out.exitCode, stdout: out.stdout.text(), stderr: out.stderr.text() };
         },

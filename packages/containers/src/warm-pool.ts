@@ -14,8 +14,8 @@ export interface WarmPoolOptions {
   /** First delay after a failed create; doubles on each consecutive failure, up to 30 s. */
   backoffMs?: number;
   /**
-   * Consecutive failed creates after which waiting requests are rejected with the last error
-   * (the pool keeps retrying for later requests). Default: 5.
+   * Consecutive failed creates after which waiting requests are rejected with the last error, and
+   * new ones at once, until a create succeeds (the pool keeps retrying). Default: 5.
    */
   failAfter?: number;
 }
@@ -44,6 +44,8 @@ export class WarmPool<T> {
   readonly #readyListeners: (() => void)[] = [];
   #creating = 0;
   #failures = 0;
+  /** Why the pool is failing: set after `failAfter` failed creates in a row, cleared by a success. */
+  #failing?: Error;
   #backoff?: ReturnType<typeof setTimeout>;
   #closed = false;
 
@@ -77,6 +79,9 @@ export class WarmPool<T> {
     if (this.#closed) return Promise.reject(new Error("the pool is closed"));
     if (opts.signal?.aborted) return Promise.reject(new Error("aborted"));
     const ready = this.#idle.shift();
+    // creates keep failing: say so now rather than after `failAfter` more attempts (the pool
+    // keeps retrying, and a success ends this)
+    if (ready === undefined && this.#failing) return Promise.reject(this.#failing);
     const result = ready !== undefined ? Promise.resolve(ready) : this.#wait(opts);
     this.#fill(); // replace it now: the pool is warm again when the work ends
     return result;
@@ -161,19 +166,20 @@ export class WarmPool<T> {
         (instance) => {
           this.#creating--;
           this.#failures = 0;
+          this.#failing = undefined;
           this.#offer(instance);
           this.#fill();
         },
         (error: unknown) => {
           this.#creating--;
           this.#failures++;
-          if (this.#failures % this.#failAfter === 0) {
+          if (this.#failures >= this.#failAfter) {
             const cause = error instanceof Error ? error.message : String(error);
-            const e = new Error(
+            this.#failing = new Error(
               `no instance could be created (${this.#failures} failed attempts): ${cause}`,
               { cause: error },
             );
-            for (const w of this.#waiters.splice(0)) this.#settle(w).reject(e);
+            for (const w of this.#waiters.splice(0)) this.#settle(w).reject(this.#failing);
           }
           const delay = Math.min(30_000, this.#backoffMs * 2 ** (this.#failures - 1));
           clearTimeout(this.#backoff);

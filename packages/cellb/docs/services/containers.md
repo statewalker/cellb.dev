@@ -95,12 +95,19 @@ on celld. CellB's `ctx.container` (`@statewalker/cellb/container`) implements:
   raw socket (a readable and a writable stream).
 - `exec()` runs a process to completion; `spawn()` runs one with streamed stdin, stdout and stderr.
 - `waitForPort(port)`, not in Cloudflare's API (its `Container` class polls with `fetch`).
-- `setInactivityTimeout()`: a container with no call for that long (10 minutes by default, as on
-  Cloudflare) is destroyed; the next `start()` starts a fresh one.
+- `setInactivityTimeout()`: a container with no activity for that long (10 minutes by default, as
+  on Cloudflare) is destroyed; the next `start()` starts a fresh one. Every call is activity, and
+  so is a call still running (an `exec()`, a request through a port until its response, an open
+  `connect()` socket); a WebSocket after its 101 is not, so keep a long-lived one alive with calls.
+- A `destroy()` during a `start()` destroys what that start brings up, and a closing runtime
+  starts no container: `project.close()` destroys every container of the project after its grace
+  period.
 
-An image is a set of WASIX packages from the Wasmer registry (`python/python`, `php/php-32`,
-`wasmer/bash`, `wasmer/edgejs`) or package bytes, files written under `/workspace`, an entrypoint
-(none for an exec-only container), environment variables and host mounts.
+An image in `cellb.containers` is a set of WASIX packages from the Wasmer registry
+(`python/python`, `php/php-32`, `wasmer/bash`, `wasmer/edgejs`), text files written under
+`/workspace` (inline, or `./` references to files of the project, which must stay inside it), an
+entrypoint (none for an exec-only container), a `workdir` and environment variables. Package bytes
+and host mounts are for code that calls `createContainer` or the pools directly.
 
 ## Running custom code
 
@@ -143,8 +150,9 @@ first start, so put the engine in a worker: `serveEngine(port, engine)` there, a
 browser, the node's Dedicated Worker is a worker already; Wasmer's own pool workers then start as
 nested workers. A browser node needs cross-origin isolation (COOP/COEP), as CellB's LTX store does.
 
-A container runs on the node that owns the cell. Destroying the engine (`withdraw()`, a tab close,
-a process exit) destroys its containers, as a celld node stop does.
+A container runs on the node that owns the cell. `project.close()` destroys the project's
+containers, and closing the engine (`engine.close()`, a tab close, a process exit) destroys all of
+its containers, as a celld node stop does.
 
 How many containers one node runs is in [Containers per node](../../../containers/docs/capacity.md).
 

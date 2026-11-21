@@ -74,6 +74,8 @@ interface Slot {
   engine: ContainerEngine;
   handle: ContainerHandle;
   mountId: number;
+  /** The mounts this worker's files port answers: its container's, and its runs' sandboxes'. */
+  allowed: Set<number>;
   ports: { close?(): void }[];
 }
 
@@ -101,13 +103,20 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
         const worker = opts.spawn();
         const engineChannel = new MessageChannel();
         const filesChannel = new MessageChannel();
-        serveHostFiles(filesChannel.port1, mounts);
+        const allowed = new Set<number>();
+        serveHostFiles(filesChannel.port1, mounts, { allow: (id) => allowed.has(id) });
         worker.postMessage({ engine: engineChannel.port2, files: filesChannel.port2 }, [
           engineChannel.port2,
           filesChannel.port2,
         ]);
         const mountId = mounts.reserve();
-        const partial = { worker, mountId, ports: [engineChannel.port1, filesChannel.port1] };
+        allowed.add(mountId);
+        const partial = {
+          worker,
+          mountId,
+          allowed,
+          ports: [engineChannel.port1, filesChannel.port1],
+        };
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           const engine = connectEngine(engineChannel.port1);
@@ -283,6 +292,7 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
         ownSandbox = true;
       } else {
         mountId = mounts.reserve();
+        slot.allowed.add(mountId);
         handle = await slot.engine.start({
           ...opts.image,
           mounts: [{ path: mountPath, id: mountId }],
@@ -311,7 +321,11 @@ export function createIsolatedPool(opts: IsolatedPoolOptions): IsolatedPool {
       return { ...out, timedOut: false, ms };
     } finally {
       clearTimeout(timer);
-      if (isolation === "sandbox" && mountId !== undefined) mounts.remove(mountId);
+      if (isolation === "sandbox" && mountId !== undefined) {
+        mounts.remove(mountId);
+        if (ownSandbox && mountId !== (await a.slot).mountId)
+          (await a.slot).allowed.delete(mountId);
+      }
       if (timedOut) {
         // The guest may ignore kill(): the worker goes, once its other scripts had their time.
         a.inflight--;

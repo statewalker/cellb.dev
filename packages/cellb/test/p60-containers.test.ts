@@ -5,11 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ContainerEngine, ContainerHandle, ContainerSpec } from "../src/container.js";
+import { createContainer } from "../src/container.js";
 import { createCellRuntime, DurableObject } from "../src/index.js";
 import { buildProject, loadNodeProject, nodeSqliteOpener } from "../src/node.js";
 
 /** An engine whose containers answer HTTP with what they were started with. */
-function fakeEngine() {
+function fakeEngine(delays: { startMs?: number; execMs?: number } = {}) {
   const starts: ContainerSpec[] = [];
   const destroyed: string[] = [];
   let live = 0;
@@ -19,6 +20,7 @@ function fakeEngine() {
     },
     async start(spec) {
       starts.push(spec);
+      if (delays.startMs) await new Promise((r) => setTimeout(r, delays.startMs));
       live++;
       let running = true;
       let exit!: (r: { exitCode: number; reason: string }) => void;
@@ -43,7 +45,10 @@ function fakeEngine() {
           writable: new WritableStream(),
           close() {},
         }),
-        exec: async (argv) => ({ exitCode: 0, stdout: argv.join(" "), stderr: "" }),
+        exec: async (argv) => {
+          if (delays.execMs) await new Promise((r) => setTimeout(r, delays.execMs));
+          return { exitCode: 0, stdout: argv.join(" "), stderr: "" };
+        },
         signal: async () => {},
         destroy: async () => {
           if (!running) return;
@@ -242,6 +247,22 @@ describe("containers in a project (wrangler `containers` + `cellb.containers`)",
     expect(noEngine.unsupported.join()).toMatch(/containers\[Runner\].*engine/);
   });
 
+  it("a file reference outside the project, or a file that is not text, is refused", async () => {
+    const outside = project(true);
+    const cfg = JSON.parse(readFileSync(join(outside, "wrangler.json"), "utf8"));
+    cfg.cellb.containers.Runner.files = { "secret.txt": "../../etc/hostname" };
+    writeFileSync(join(outside, "wrangler.json"), JSON.stringify(cfg));
+    await expect(
+      loadNodeProject(outside, { openSql: nodeSqliteOpener(), files: undefined as never }),
+    ).rejects.toThrow(/outside the project/);
+
+    const binary = project(true);
+    writeFileSync(join(binary, "app", "server.py"), new Uint8Array([0xff, 0xfe, 0x00, 0x80]));
+    await expect(
+      loadNodeProject(binary, { openSql: nodeSqliteOpener(), files: undefined as never }),
+    ).rejects.toThrow(/not UTF-8 text/);
+  });
+
   it("cellb build puts the image's files into the built wrangler.json", async () => {
     const out = mkdtempSync(join(tmpdir(), "cellb-containers-built-"));
     await buildProject(project(true), out);
@@ -250,5 +271,54 @@ describe("containers in a project (wrangler `containers` + `cellb.containers`)",
       "server.py": "print('hello from a file')",
       "inline.txt": "inline",
     });
+  });
+});
+
+describe("createContainer: lifecycle edges", () => {
+  it("a destroy() while start() is pending destroys what the start brings up", async () => {
+    const { engine, destroyed } = fakeEngine({ startMs: 40 });
+    const c = createContainer(engine, { ...image, label: "racy" });
+    const started = c.start().catch((e: Error) => e);
+    await c.destroy();
+    expect(String(await started)).toMatch(/destroyed while it started/);
+    expect(c.running).toBe(false);
+    expect(engine.running).toBe(0);
+    expect(destroyed).toEqual(["racy"]);
+  });
+
+  it("a call still running is activity: the inactivity timer waits for it", async () => {
+    const { engine, destroyed } = fakeEngine({ execMs: 150 });
+    const c = createContainer(engine, { ...image, label: "busy" });
+    await c.start();
+    c.setInactivityTimeout(50);
+    const r = await c.exec(["sleep"]); // 150 ms, three timeouts long
+    expect(r.exitCode).toBe(0);
+    expect(destroyed).toEqual([]);
+    await new Promise((res) => setTimeout(res, 120));
+    expect(destroyed).toEqual(["busy"]);
+  });
+
+  it("calls on a stopped container reject (no synchronous throw)", async () => {
+    const { engine } = fakeEngine();
+    const c = createContainer(engine, image);
+    for (const call of [
+      () => c.signal(15),
+      () => c.monitor(),
+      () => c.exec(["x"]),
+      () => c.waitForPort(1),
+    ]) {
+      let p: Promise<unknown> | undefined;
+      expect(() => {
+        p = call();
+      }).not.toThrow();
+      await expect(p).rejects.toThrow(/not running/);
+    }
+  });
+
+  it("a refused start (a closing runtime) rejects and starts nothing", async () => {
+    const { engine, starts } = fakeEngine();
+    const c = createContainer(engine, image, { refuse: () => "the runtime is closing" });
+    await expect(c.start()).rejects.toThrow(/the runtime is closing/);
+    expect(starts).toEqual([]);
   });
 });

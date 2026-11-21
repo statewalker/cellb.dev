@@ -3,6 +3,8 @@
 [Observable Framework](https://observablehq.com/framework/) installs and builds sites in Lifo
 containers, in Node and in Chromium, as [layers](layered-files.md): one build step with egress
 installs Framework into a FilesApi, and site builds run on that layer, read-only, with no network.
+This is for sites you trust (your own notebooks): Lifo's no-network rule is a guard for cooperative
+code, not a sandbox ([Isolation](../README.md#isolation)).
 
 Tested in `test/observable-framework.test.ts` (Node) and `e2e-browser/layers.spec.ts` (Chromium),
 with the recipe in [`examples/observable-framework/recipe.ts`](../examples/observable-framework/recipe.ts).

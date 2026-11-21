@@ -72,7 +72,7 @@ export class HostMounts implements HostFilesHandler {
   #next = 1;
 
   /** Registers a FilesApi; pass the returned id as a container mount's `id`. */
-  add(files: FilesApi, opts: { readOnly?: boolean } = {}): number {
+  add(files: FilesApi, opts: { readOnly?: boolean; maxFileBytes?: number } = {}): number {
     const id = this.#next++;
     this.#volumes.set(id, { volume: new FilesVolume(files, opts), queue: Promise.resolve() });
     return id;
@@ -93,7 +93,11 @@ export class HostMounts implements HostFilesHandler {
   }
 
   /** Binds a FilesApi to a reserved id (a fresh volume: nothing carries over from before). */
-  bind(id: number, files: FilesApi, opts: { readOnly?: boolean } = {}): void {
+  bind(
+    id: number,
+    files: FilesApi,
+    opts: { readOnly?: boolean; maxFileBytes?: number } = {},
+  ): void {
     this.#volumes.set(id, { volume: new FilesVolume(files, opts), queue: Promise.resolve() });
   }
 
@@ -143,10 +147,25 @@ export function forwardHostFiles(port: PortLike): HostFilesHandler {
   return { handle: (request) => port.postMessage(request) };
 }
 
-/** Answers the requests that arrive on `port` from `mounts` (on the thread that owns the FilesApi). */
-export function serveHostFiles(port: PortLike, mounts: HostMounts): void {
+/**
+ * Answers the requests that arrive on `port` from `mounts` (on the thread that owns the FilesApi).
+ * `allow` limits the port to the mounts its peer was given: one HostMounts can serve several
+ * workers, and mount ids are small integers a guest could guess.
+ */
+export function serveHostFiles(
+  port: PortLike,
+  mounts: HostMounts,
+  opts: { allow?: (mount: number) => boolean } = {},
+): void {
   onMessage(port, (data) => {
-    if (isHostFileSystemRequest(data)) mounts.handle(data);
+    if (!isHostFileSystemRequest(data)) return;
+    if (opts.allow && !opts.allow(data.mount)) {
+      respondToHostFileSystem(data, {
+        error: { code: "EACCES", message: `mount ${data.mount} is not this port's` },
+      });
+      return;
+    }
+    mounts.handle(data);
   });
 }
 

@@ -74,6 +74,7 @@ serveContainerWorker(self, ({ files }) => wasmerWorkerEngine(new Wasmer(), files
 
 // node-worker.ts
 import * as lifo from "@lifo-sh/core";
+import { serveContainerWorker } from "@statewalker/cellb-containers";
 import { lifoContainerEngine } from "@statewalker/cellb-containers/lifo";
 serveContainerWorker(self, ({ files }) => lifoContainerEngine(lifo, { files }));
 ```
@@ -87,6 +88,9 @@ engine created with `egress: "host"` gives it to a container started with `enabl
 (a build step). The guard covers the whole worker, which is why a Lifo engine needs a worker of
 its own. Lifo's own runtime files (esbuild-wasm from unpkg, in browsers) stay reachable. Lifo's
 `npm` exits 0 when a package cannot be fetched (it warns on stderr): check what it installed.
+
+The guard keeps cooperative code off the network; it is not a sandbox. Lifo is not a security boundary: guest JS runs in the worker's JavaScript realm and can reach its real globals (`Function('return globalThis')()`), so the egress guard and the mounts constrain cooperative code, not hostile code; in Node such code reaches `process` and from there the host's network and filesystem. Run untrusted code in Wasmer. The
+worker-per-container pool still gives Lifo runs a fresh realm each, and frees them at once.
 
 WebSockets cross the worker both ways. Into the box: `getTcpPort(port).fetch()` of an upgrade
 request answers 101 with the socket's `MessagePort` (`containerWebSocket(container, port)` is a

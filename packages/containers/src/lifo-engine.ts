@@ -1,6 +1,9 @@
 // A ContainerEngine on Lifo (https://lifo.sh): a Linux-like OS in TypeScript (kernel, shell, VFS,
-// Node-compatible JS). Run it inside a worker of its own (serveContainerWorker): Lifo's in-realm
-// Sandbox is not a security boundary, and terminating the worker is what frees it. Keep that
+// Node-compatible JS). Run it inside a worker of its own (serveContainerWorker): terminating the
+// worker is what frees it. Lifo is NOT a security boundary: guest JS runs in this realm and can
+// reach its real globals (Function("return globalThis")()), so the egress guard below and the
+// mounts constrain cooperative code (a build step, your own tools), not hostile code; in Node such
+// code reaches `process` (the host's network, filesystem, processes). Untrusted code: Wasmer. Keep that
 // worker dedicated: Lifo takes everything its realm writes to `console` while a command runs as
 // the command's output.
 
@@ -61,6 +64,13 @@ interface LifoVmSocket {
   onerror: ((e: Error) => void) | null;
 }
 
+/** `text` cut to at most `max` UTF-8 bytes, on a character boundary. */
+function truncateUtf8(text: string, max: number): string {
+  const bytes = new TextEncoder().encode(text);
+  if (bytes.length <= max) return text;
+  return new TextDecoder().decode(bytes.subarray(0, max)).replace(/\uFFFD$/, "");
+}
+
 /**
  * A WebSocket into the box: Lifo's in-box connection to the server on `port` (its http.Server's
  * `upgrade` event), bridged to the server end of a MessagePort socket, whose other port goes back
@@ -89,9 +99,13 @@ async function upgradeIntoBox(box: LifoSandbox, port: number, request: Request):
   vm.onclose = (e) => {
     if (!open) return;
     open = false;
+    // what an endpoint may send (RFC 6455 7.4), and a reason of at most 123 bytes
     const code =
-      e.code >= 3000 || (e.code >= 1000 && ![1004, 1005, 1006].includes(e.code)) ? e.code : 1000;
-    socket.close(code, e.reason);
+      (e.code >= 3000 && e.code <= 4999) ||
+      (e.code >= 1000 && e.code <= 1014 && ![1004, 1005, 1006].includes(e.code))
+        ? e.code
+        : 1000;
+    socket.close(code, truncateUtf8(e.reason ?? "", 123));
   };
   vm.onerror = () => {};
   socket.addEventListener("message", (e) => {
@@ -260,6 +274,7 @@ function asRealmWebSocket(Base: WebSocketClass): WebSocketClass {
 }
 
 /**
+ * A guard, not a sandbox (see the top of this file): code that means to can get around it.
  * Lifo reaches the network through its realm's fetch (npm, curl, a guest's fetch, node:http
  * clients), read at each call: guard it, and the realm's other ways out. The realm is the
  * engine's own (a dedicated worker), so its network is the engine's: with several containers in
@@ -328,17 +343,24 @@ export function lifoContainerEngine(
         cwd: "/workspace",
         files,
       })) as LifoSandbox;
-      await box.fs.mkdir("/workspace", { recursive: true });
-      for (const m of spec.mounts ?? []) {
-        if (!opts.files) throw new Error("mounts need the pool's files port");
-        box.kernel.vfs.mount(m.path, lifoMount(syncHostFiles(opts.files, m.id), lifo.VFSError));
-      }
       const id = {};
-      if (spec.enableInternet) online.add(id);
-      if (spec.entrypoint?.length)
-        await box.commands.run(`${quote(spec.entrypoint)} &`, {
-          cwd: spec.workdir ?? "/workspace",
-        });
+      try {
+        await box.fs.mkdir("/workspace", { recursive: true });
+        for (const m of spec.mounts ?? []) {
+          if (!opts.files) throw new Error("mounts need the pool's files port");
+          box.kernel.vfs.mount(m.path, lifoMount(syncHostFiles(opts.files, m.id), lifo.VFSError));
+        }
+        if (spec.enableInternet) online.add(id);
+        if (spec.entrypoint?.length)
+          await box.commands.run(`${quote(spec.entrypoint)} &`, {
+            cwd: spec.workdir ?? "/workspace",
+          });
+      } catch (e) {
+        // a container that did not start: neither its box nor its network outlives it
+        online.delete(id);
+        box.destroy();
+        throw e;
+      }
       let running = true;
       let exit!: (r: { exitCode: number; reason: string }) => void;
       const exited = new Promise<{ exitCode: number; reason: string }>((r) => {

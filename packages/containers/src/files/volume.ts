@@ -23,6 +23,7 @@ export type FsErrorCode =
   | "ENOTEMPTY"
   | "EINVAL"
   | "EBADF"
+  | "EFBIG"
   | "EIO";
 
 export class FsError extends Error {
@@ -83,13 +84,21 @@ class Buffer {
   size: number;
   dirty = false;
   refs = 0;
-  constructor(initial: Uint8Array) {
+  constructor(
+    initial: Uint8Array,
+    readonly maxBytes = DEFAULT_MAX_FILE_BYTES,
+  ) {
     this.data = initial;
     this.size = initial.length;
   }
   ensure(capacity: number) {
     if (capacity <= this.data.length) return;
-    const next = new Uint8Array(Math.max(capacity, this.data.length * 2, 4096));
+    // a guest's write at a huge offset (or ftruncate) would allocate that much on the FilesApi's
+    // thread: refuse past the cap
+    if (capacity > this.maxBytes) fail("EFBIG", `a file may hold at most ${this.maxBytes} bytes`);
+    const next = new Uint8Array(
+      Math.min(this.maxBytes, Math.max(capacity, this.data.length * 2, 4096)),
+    );
     next.set(this.data.subarray(0, this.size));
     this.data = next;
   }
@@ -119,16 +128,21 @@ interface Descriptor {
   buffer?: Buffer;
 }
 
+/** The largest file a guest may write through a volume, by default (256 MiB). */
+export const DEFAULT_MAX_FILE_BYTES = 256 * 1024 * 1024;
+
 export class FilesVolume {
   readonly #files: FilesApi;
   readonly #readOnly: boolean;
+  readonly #maxFileBytes: number;
   readonly #descriptors = new Map<number, Descriptor>();
   readonly #buffers = new Map<string, Buffer>();
   #next = 0;
 
-  constructor(files: FilesApi, opts: { readOnly?: boolean } = {}) {
+  constructor(files: FilesApi, opts: { readOnly?: boolean; maxFileBytes?: number } = {}) {
     this.#files = files;
     this.#readOnly = !!opts.readOnly;
+    this.#maxFileBytes = opts.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
   }
 
   /** One protocol call. Throws FsError (or an error with a POSIX `code`). */
@@ -308,7 +322,7 @@ export class FilesVolume {
       let buffer = this.#buffers.get(rel);
       if (!buffer) {
         const initial = existing && !truncate ? await this.#readAll(rel) : new Uint8Array(0);
-        buffer = new Buffer(initial);
+        buffer = new Buffer(initial, this.#maxFileBytes);
         this.#buffers.set(rel, buffer);
       } else if (truncate) buffer.setLen(0);
       // Write back at the first open for writing: a write the FilesApi refuses (a guard, a

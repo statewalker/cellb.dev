@@ -73,6 +73,8 @@ export interface CellbContainerImage {
   packages: string[];
   files?: Record<string, string>;
   entrypoint?: string[];
+  /** The working directory of the entrypoint and of exec() (Docker's WORKDIR). */
+  workdir?: string;
   env?: Record<string, string>;
 }
 
@@ -80,8 +82,37 @@ const isFileReference = (v: unknown): v is string =>
   typeof v === "string" && (v.startsWith("./") || v.startsWith("../"));
 
 /**
- * The config with its container images' file references read (`read(path)` gets the path as
- * written, relative to the project's root). Synchronous when `read` is.
+ * A file reference as a path relative to the project's root (`./app/server.py` → `app/server.py`).
+ * A reference that leaves the project is refused: its content would go into a built
+ * `wrangler.json`, and a browser load could not read it the same way.
+ */
+export function containerFilePath(ref: string): string {
+  const parts: string[] = [];
+  for (const part of ref.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") {
+      if (!parts.length)
+        throw new Error(
+          `cellb.containers: ${ref} is outside the project (a file reference stays in it)`,
+        );
+      parts.pop();
+    } else parts.push(part);
+  }
+  return parts.join("/");
+}
+
+/** The text of a referenced file: files in the manifest are UTF-8 text (binary ones are refused). */
+export function containerFileText(ref: string, bytes: Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(`cellb.containers: ${ref} is not UTF-8 text (files in the manifest are text)`);
+  }
+}
+
+/**
+ * The config with its container images' file references read: `read(path)` gets the path
+ * relative to the project's root (see containerFilePath). Synchronous when `read` is.
  */
 export function readContainerFiles(
   config: WranglerConfig,
@@ -102,7 +133,7 @@ export function readContainerFiles(
     for (const [name, value] of Object.entries(image.files ?? {}))
       if (isFileReference(value)) refs.push([cls, name, value]);
   if (!refs.length) return config;
-  const values = refs.map(([, , path]) => read(path));
+  const values = refs.map(([, , ref]) => read(containerFilePath(ref)));
   const assemble = (contents: string[]): WranglerConfig => {
     const out: Record<string, CellbContainerImage> = {};
     for (const [cls, image] of Object.entries(images))

@@ -11,7 +11,8 @@ container ([cellb in practice](#cellb-in-practice)). It runs on `@wasmer/sdk` 0.
 small patch, and on [Lifo](https://lifo.sh).
 
 It is an engine beside celld's Docker, not a replacement: only software compiled to WASI/WASIX
-runs. The same class runs on celld with its Dockerfile; each example ships both.
+runs. The same class runs on celld with its Dockerfile; the python, php and node examples ship
+both.
 
 ## What is in the package
 
@@ -26,7 +27,7 @@ runs. The same class runs on celld with its Dockerfile; each example ships both.
 | `isolated-pool` | `createIsolatedPool({ spawn, image, size })`: one worker per container, prepared ahead of time and terminated after use; `acquire()` returns `ctx.container`'s API, `run()` a one-call form |
 | `warm-pool` | `WarmPool<T>`: a dependency-free pool of single-use instances (keeps N ready, replaces on take, queues with timeouts, backs off) |
 | `worker` | `serveContainerWorker(endpoint, makeEngine)`: any engine served from a worker; `wasmerWorkerEngine(wasmer, files)` |
-| `lifo` | `lifoContainerEngine(lifo, { files, egress, webSocket })`: containers on [Lifo](https://lifo.sh) (shell, `npm`, Node-compatible JS) with no network unless `egress: "host"` and `enableInternet`; WebSockets into the box through `getTcpPort().fetch()`; `webSocket`: the WHATWG class the box's own sockets use; `syncHostFiles` mounts a FilesApi through synchronous hooks |
+| `lifo` | `lifoContainerEngine(lifo, { files, egress, webSocket })`: containers on [Lifo](https://lifo.sh) (shell, `npm`, Node-compatible JS) with no network unless `egress: "host"` and `enableInternet`; WebSockets into the box through `getTcpPort().fetch()`; `webSocket`: the WHATWG class the box's own sockets use; `syncHostFiles` mounts a FilesApi through synchronous hooks. For trusted code only: Lifo is not a security boundary (see Isolation) |
 | `websocket` | `containerWebSocket(container, port)`: a WHATWG `WebSocket` class whose sockets reach a container's server (an upgrade through `getTcpPort(port).fetch()`, answered with 101 and a `MessagePort`, as in `@statewalker/webrun-http-browser`); the Lifo engine supports it |
 
 ```js
@@ -46,7 +47,8 @@ const res = await c.getTcpPort(8080).fetch("http://container/hello");
 
 ## Examples
 
-Each is a cellb project with the Dockerfile celld would build from the same source.
+The python, php and node examples are cellb projects with the Dockerfile celld would build from
+the same source; pool is a cellb project without one, and files is a host script.
 
 | Example | Container | Runs on |
 | --- | --- | --- |
@@ -284,6 +286,7 @@ times are reported from `lastModified` and `setTimes` is accepted but not stored
   through their worker's `fetch`: `lifoContainerEngine` guards it (and `WebSocket`,
   `XMLHttpRequest`, `EventSource`) unless a running container was started with
   `enableInternet` (tested in Node and Chromium).
+- **Lifo is for trusted code.** Lifo is not a security boundary: guest JS runs in the worker's JavaScript realm and can reach its real globals (`Function('return globalThis')()`), so the egress guard and the mounts constrain cooperative code, not hostile code; in Node such code reaches `process` and from there the host's network and filesystem. Run untrusted code in Wasmer. The isolation above is Wasmer's.
 - **Files:** only what the mounts' FilesApi allows (above).
 - **Runaway guests:** a guest in a compute loop is not stopped by `kill()` or `destroy()`; only
   terminating its Wasmer client's worker stops it (`recyclableEngine`, above).
@@ -320,7 +323,7 @@ times are reported from `lastModified` and `setTimes` is accepted but not stored
 | Next container, or restart | ~0.4 s | ~0.4 s |
 | A request through `getTcpPort().fetch()` | 2–4 ms | 15–30 ms |
 | Memory per Python container | 99 MB | 73 MB (renderer) |
-| Python containers one node ran, all answering | **132** (stopped by the 2 GB reserve, 16 GB machine) | **123** (then the renderer could not allocate WebAssembly memory) |
+| Python containers one node ran, all answering | **132** (stopped by the 2 GB reserve, 16 GB machine) | **123** (then the 124th start failed: the result records a timeout waiting for the guest's port; the console showed `WebAssembly.Memory()` failing) |
 
 [Containers per node](docs/capacity.md) has the method, PHP, threads and the cost of closing a node.
 
@@ -351,8 +354,9 @@ Capacity runs are opt-in (Linux; minutes to an hour each):
 
 ```bash
 CONTAINERS_CAPACITY=1 CAPACITY_EXAMPLES=python pnpm vitest run test/capacity.test.ts
-CONTAINERS_CAPACITY=1 CAPACITY_EXAMPLES=python pnpm e2e capacity
+CONTAINERS_CAPACITY=1 CAPACITY_MAX=200 CAPACITY_EXAMPLES=python pnpm e2e capacity
 ```
 
-Not covered yet: Firefox and Safari, `enableInternet`, `storage` (a FilesApi as `/workspace`),
-recovery after `WORKER_FAILED`.
+Not covered yet: Firefox and Safari; egress for Wasmer containers in browsers (none exists);
+recovery after `WORKER_FAILED`. Not implemented: `storage` (a FilesApi as `/workspace`), which the
+patched SDK supports.

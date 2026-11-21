@@ -299,7 +299,11 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     return () => {
       let c = containers.get(cellKey);
       if (!c) {
-        c = createContainer(engine, image, { label: id.name ?? id.toString() });
+        c = createContainer(engine, image, {
+          label: id.name ?? id.toString(),
+          // a closing runtime starts no container: close() would not destroy it
+          refuse: () => (closed ? "the runtime is closing" : undefined),
+        });
         containers.set(cellKey, c);
       }
       return c;
@@ -518,11 +522,6 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       const grace = opts.closeGraceMs ?? 2_000;
       // Requests in flight, the Worker's and its objects', see their signal abort.
       closing.abort(new Error("the runtime is closing"));
-      // A node stop destroys its containers (celld does the same).
-      const containersDestroyed = Promise.allSettled(
-        [...containers.values()].map((c) => c.destroy()),
-      );
-      containers.clear();
       for (const h of hosts.values()) h.shutdown();
       // Work in flight may start more (a queue's delivery calls the consumer, which writes to
       // another object): wait until nothing runs, nor started while waiting, or the grace ends.
@@ -548,6 +547,12 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           break;
       }
       cellsClosed = true;
+      // A node stop destroys its containers (celld does the same): after the grace period, as
+      // work in flight may still use them; none starts once closing began.
+      const containersDestroyed = Promise.allSettled(
+        [...containers.values()].map((c) => c.destroy()),
+      );
+      containers.clear();
       await backupAll("close");
       // The releases reach the store before it closes.
       for (const key of [...hosts.keys()]) retire(key);

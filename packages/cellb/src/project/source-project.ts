@@ -10,6 +10,7 @@ import type { FilesApi } from "@statewalker/webrun-files";
 import type { AssetFiles } from "../bindings/assets.js";
 import { filesApiReader, readJson } from "./built-project.js";
 import {
+  containerFileText,
   hasNodeCompat,
   readContainerFiles,
   WRANGLER_FILES,
@@ -61,9 +62,9 @@ export async function readSourceProject(files: FilesApi): Promise<SourceProject 
   if (!config.main && !config.assets)
     throw new Error("wrangler config has neither `main` nor `assets`");
   config = await readContainerFiles(config, async (file) => {
-    const bytes = await reader.bytes(`/${file.replace(/^\.\//, "")}`);
+    const bytes = await reader.bytes(`/${file}`);
     if (!bytes) throw new Error(`cellb.containers: no file ${file} in the project`);
-    return new TextDecoder().decode(bytes);
+    return containerFileText(file, bytes);
   });
   if (!config.assets?.directory) return { config };
   const dir = folderPath(config.assets.directory);

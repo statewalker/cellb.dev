@@ -9,14 +9,15 @@ process, or a browser worker.
 One cellb project (the [Python](../examples/python) or [PHP](../examples/php) example) and one
 engine. Each step sends the first request to a new cell, which starts that cell's container (a
 Python or PHP HTTP server). Then every earlier cell is asked again and must answer from its own
-container, still running (`startedMs: 0`: not restarted). The run stops at `CAPACITY_MAX`, at the
+container, still running (`startedMs: 0`: not restarted). The run stops at `CAPACITY_MAX` (default
+200 in Node, 64 in Chromium: set it to 200 to reproduce the Chromium numbers), at the
 first failure, or before the machine has less than 2 GB left, as cellb's
 [browser capacity](../../cellb/docs/browser-capacity.md) probes do. Memory is PSS from `/proc`
 (shared pages divided among the processes sharing them): the Node process, or Chromium's renderer.
 
 ```sh
 CONTAINERS_CAPACITY=1 CAPACITY_EXAMPLES=python BENCH_JSON=bench/results pnpm vitest run test/capacity.test.ts
-CONTAINERS_CAPACITY=1 CAPACITY_EXAMPLES=python BENCH_JSON=bench/results pnpm e2e capacity
+CONTAINERS_CAPACITY=1 CAPACITY_MAX=200 CAPACITY_EXAMPLES=python BENCH_JSON=bench/results pnpm e2e capacity
 node bench/summarize.mjs
 ```
 
@@ -33,7 +34,7 @@ measured on one 4-vCPU Linux VM with 16 GB of memory, Node 22.23 and headless Ch
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Node 22 | Python 3.13 (`python/python`) | **132** | less than 2 GB left on the machine | 99 MB | 524 ms | 257 ms | 653 s |
 | Node 22 | PHP 8.3 (`php/php-32`) | **68** | less than 2 GB left on the machine | 194 MB | 308 ms | 84 ms | 28 s |
-| Chromium 153 | Python 3.13 | **123** | `WebAssembly.Memory(): could not allocate memory` at 124, with 5.7 GB still free | 73 MB | 439 ms | 2,070 ms | |
+| Chromium 153 | Python 3.13 | **123** | the 124th start failed (recorded: a timeout waiting for the guest's TCP port; the console: `WebAssembly.Memory(): could not allocate memory`), with 5.7 GB still free | 73 MB | 439 ms | 2,070 ms | |
 | Chromium 153 | PHP 8.3 | **72** | less than 2 GB left on the machine (renderer at 12.9 GB) | 178 MB | 310 ms | 1,558 ms | |
 
 Every container of a run kept answering until the run stopped: no cell lost its container and none
@@ -47,8 +48,10 @@ had to restart one.
   machine had 2 GB left. The first container also brings the engine: about 280 MB in Node (52 MB
   before it, 427 MB with one Python container), about 350 MB in the renderer.
 - **In Chromium, WebAssembly memories, not only memory.** Each guest has a WebAssembly memory of
-  its own. Creating the 124th Python guest failed with `RangeError: WebAssembly.Memory(): could not
-  allocate memory` at 9.1 GB of renderer memory, with 5.7 GB still free on the machine, while the
+  its own. Starting the 124th Python guest failed: the result
+  (`bench/results/chromium-capacity-python.json`) records a timeout waiting for the guest's TCP
+  listener, and the console showed `RangeError: WebAssembly.Memory(): could not allocate memory`, at
+  9.1 GB of renderer memory, with 5.7 GB still free on the machine, while the
   PHP run went on to 12.9 GB and 72 guests without that error. So the limit is not the renderer's
   memory alone; a limit on how many WebAssembly memories a renderer creates, or on the address space
   they reserve, is the likely cause (not confirmed). The failure stopped the Wasmer client's whole
@@ -60,7 +63,7 @@ had to restart one.
   was not reached first: Wasmer's pool workers are nested in the node's worker.
 - **Asking every cell.** In Node a request to a running container costs 2 ms; in Chromium about
   15 ms, so going through all 120 cells took 2 seconds there.
-- **Closing a node takes long with many containers.** Withdrawing the engine destroys its
+- **Closing a node takes long with many containers.** Closing the engine destroys its
   containers, and the Wasmer client then shuts its workers down: 28 s for 68 PHP containers, 653 s
   for 132 Python containers (198 s to destroy them, 443 s for the client to close). A node that
   runs that many should be stopped without waiting for it (end the process or the worker).

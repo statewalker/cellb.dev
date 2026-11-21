@@ -78,7 +78,8 @@ Wasmer containers in a browser have no network (egress there would need a WISP r
 `npm` fetches through its worker's `fetch`, which in a page is the page's network, so a Lifo
 container is the build step in a browser; the npm registry answers cross-origin requests. Its
 engine has no network unless created with `egress: "host"`, and the run containers come from an
-engine without it:
+engine without it (a guard for code you trust, such as your own build and site generators: Lifo
+is not a security boundary, and untrusted runs belong in Wasmer, as in the Node flow above):
 
 ```ts
 // build-worker.ts: the only worker with egress

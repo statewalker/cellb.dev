@@ -136,3 +136,32 @@ describe("FilesApi mounts in a container", () => {
     }
   });
 });
+
+describe("serveHostFiles: a port answers only the mounts it is allowed", () => {
+  it("a request for another mount id is refused", async () => {
+    const { MessageChannel, Worker } = await import("node:worker_threads");
+    const { HostMounts, serveHostFiles } = await import("../src/files/bridge.ts");
+    const { MemFilesApi } = await import("@statewalker/webrun-files-mem");
+    const { writeText } = await import("@statewalker/webrun-files");
+    const mine = new MemFilesApi();
+    const theirs = new MemFilesApi();
+    await writeText(mine, "/mine.txt", "a");
+    await writeText(theirs, "/theirs.txt", "b");
+    const mounts = new HostMounts();
+    const a = mounts.add(mine);
+    const b = mounts.add(theirs);
+    const channel = new MessageChannel();
+    serveHostFiles(channel.port1 as never, mounts, { allow: (id) => id === a });
+    const worker = new Worker(new URL("./fixtures/files-probe-worker.ts", import.meta.url), {
+      workerData: { port: channel.port2, ids: [a, b] },
+      transferList: [channel.port2],
+    });
+    const results = await new Promise((resolve) => worker.once("message", resolve));
+    await worker.terminate();
+    channel.port1.close();
+    expect(results).toEqual([
+      { id: a, names: ["mine.txt"] },
+      { id: b, error: "EACCES" },
+    ]);
+  });
+});

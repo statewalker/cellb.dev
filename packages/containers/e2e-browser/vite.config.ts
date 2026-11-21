@@ -23,9 +23,13 @@ export default defineConfig({
   optimizeDeps: {
     // Both find their .wasm and worker scripts next to their modules.
     exclude: ["@wasmer/sdk", "@statewalker/cellb", "@sqlite.org/sqlite-wasm"],
-    include: ["assert", "buffer", "events", "path-browserify", "util", "acorn"].map(
-      (d) => `@statewalker/cellb > ${d}`,
-    ),
+    include: [
+      ...["assert", "buffer", "events", "path-browserify", "util", "acorn"].map(
+        (d) => `@statewalker/cellb > ${d}`,
+      ),
+      // imported by the engine RPC, first in a worker
+      "@statewalker/webrun-http-browser",
+    ],
     entries: [
       "index.html",
       "engine-worker.ts",

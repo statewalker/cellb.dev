@@ -10,6 +10,9 @@ const swWorker = require.resolve("@statewalker/webrun-http-browser/sw-worker");
 
 export default defineConfig({
   root: import.meta.dirname,
+  // a cache of its own: the e2e server (same package) runs beside it under Playwright, and two
+  // servers optimizing into one cache directory break each other's dependencies
+  cacheDir: `${import.meta.dirname}/../../../node_modules/.vite-notebook`,
   plugins: [
     {
       name: "notebook-host",

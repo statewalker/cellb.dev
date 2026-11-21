@@ -185,4 +185,14 @@ describe("FilesVolume", () => {
     const fd = await volume.request("open", ["big.bin", true, false, false, false, false, false]);
     expect(((await volume.request("read", [fd, 0, 200_000])) as Uint8Array).length).toBe(65_536);
   });
+
+  it("refuses a write or a length past the cap with EFBIG, without allocating it", async () => {
+    const capped = new FilesVolume(files, { maxFileBytes: 1024 });
+    const fd = await capped.request("open", ["big.bin", false, true, true, false, true, false]);
+    expect(await code(capped.request("write", [fd, 2_000_000_000, new Uint8Array([1])]))).toBe(
+      "EFBIG",
+    );
+    expect(await code(capped.request("setLen", [fd, 2_000_000_000]))).toBe("EFBIG");
+    await capped.request("write", [fd, 0, new Uint8Array(1024)]); // up to the cap is fine
+  });
 });
