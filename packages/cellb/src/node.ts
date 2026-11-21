@@ -11,3 +11,8 @@ export type {
 } from "./project/built-project.js";
 export { loadProject, type NodeLoadProjectOptions } from "./project/node-load.js";
 export { applyNodeD1Migrations, loadNodeProject } from "./project/node-project.js";
+export {
+  type NodeProjectShards,
+  type NodeProjectShardsOptions,
+  startProjectShards,
+} from "./project/node-shards.js";
