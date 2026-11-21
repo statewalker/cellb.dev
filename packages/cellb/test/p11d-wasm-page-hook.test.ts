@@ -144,3 +144,43 @@ describe("P11d node:sqlite page capture: databases nobody logs, and temporary fi
     kept.close();
   });
 });
+
+describe("P11d page hook without page capture (statewalker/cellb.dev#184)", () => {
+  it("a runtime whose storage takes no pages keeps none, however much the cell writes", async () => {
+    const { createCellRuntime, DurableObject } = await import("../src/index.js");
+    class Notes extends DurableObject {
+      add() {
+        const sql = this.ctx.storage.sql;
+        sql.exec("CREATE TABLE IF NOT EXISTS notes (v TEXT)");
+        sql.exec("INSERT INTO notes VALUES (?)", "n".repeat(4000)); // about one 4 KiB page each
+        return sql.exec<{ n: number }>("SELECT count(*) AS n FROM notes").one().n;
+      }
+    }
+    const open = wasmMemoryOpener(await sqlite());
+    const drivers = new Map<string, ReturnType<typeof open>>();
+    // No storage (an OPFS pool in a browser): durability.capturePages is off, so no commit
+    // takes the pages the hook records. Before the fix the driver kept a copy of every page the
+    // cell had written (302 pages here), so a worker's memory grew with the data its cells stored.
+    const rt = createCellRuntime({
+      worker: { default: {}, Notes } as never,
+      durableObjects: { NOTES: { className: "Notes" } },
+      openSql: (key) => {
+        const d = open(key);
+        drivers.set(key, d);
+        return d;
+      },
+    });
+    const notes = (rt.env.NOTES as { getByName(n: string): { add(): Promise<number> } }).getByName(
+      "a",
+    );
+    for (let i = 1; i <= 300; i++) expect(await notes.add()).toBe(i);
+    const cell = [...drivers].find(([key]) => key.startsWith("Notes/"));
+    expect(cell).toBeDefined();
+    // Every driver holds nothing after the commits: the cell's (its pages dropped at each commit)
+    // and cellb's own __cellb/alarms (no page hook at all: takeDirtyPages() is undefined).
+    for (const [key, d] of drivers)
+      expect([key, d.takeDirtyPages()?.pages.size ?? 0]).toEqual([key, 0]);
+    expect(drivers.get("__cellb/alarms")?.takeDirtyPages()).toBeUndefined();
+    await rt.close();
+  });
+});
