@@ -14,4 +14,16 @@ cat > "$dir/index.html" <<HTML
 </head><body><p>This demo moved to <a href="${origin}/">${origin}</a>.</p></body></html>
 HTML
 cp "$dir/index.html" "$dir/404.html"
+# The moved demos registered a ServiceWorker at /cellb-sw.js for the whole origin; it would keep
+# answering returning visitors' page loads (its update check would fetch the 404 page and fail).
+# This version replaces it, unregisters itself and reloads the open pages, which then redirect.
+cat > "$dir/cellb-sw.js" <<'JS'
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    await self.registration.unregister();
+    for (const client of await self.clients.matchAll({ type: "window" })) client.navigate(client.url);
+  })());
+});
+JS
 printf '{ "notFound": "/404.html", "cacheControl": "public, no-cache" }\n' > "$dir/.site/config.json"

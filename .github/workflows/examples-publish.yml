@@ -84,6 +84,8 @@ jobs:
             bash "${{ github.workspace }}/cellb.dev/.github/scripts/redirect-site.sh" "$RUNNER_TEMP/moved-$name" "https://$name.cellb.dev"
             publish "$RUNNER_TEMP/moved-$name" "cellb-$name.httpeers.net"
           done
+          bash "${{ github.workspace }}/cellb.dev/.github/scripts/redirect-site.sh" "$RUNNER_TEMP/moved-site" "https://cellb.dev"
+          publish "$RUNNER_TEMP/moved-site" cellb.httpeers.net
 
   # The containers demos (packages/containers/examples/browser-demos), from the root workspace:
   # built for the root of their host, tested in Chromium behind a plain file server (both demos:
