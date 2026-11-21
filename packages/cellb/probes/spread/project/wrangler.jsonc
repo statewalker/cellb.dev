@@ -1,0 +1,9 @@
+// The project of the spread probes (e2e-browser/probes/spread.probe.spec.ts, probes/spread/node.ts):
+// one Durable Object class whose calls are the "tasks" shared between workers.
+{
+  "name": "spread",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": { "bindings": [{ "name": "TASK", "class_name": "Task" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Task"] }]
+}

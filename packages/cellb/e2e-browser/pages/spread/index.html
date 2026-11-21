@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>cellb — a project spread over workers and frames</title>
+<body>
+  <script type="module">
+    import * as spread from "./spread.ts";
+
+    window.__spread = spread;
+    document.body.dataset.ready = "true";
+  </script>
+</body>

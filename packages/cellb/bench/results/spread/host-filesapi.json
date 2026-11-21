@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-20",
+  "test": "cells on the host's FilesApi",
+  "crossOriginIsolated": true,
+  "write": {
+    "tasks": 2048,
+    "ms": 83268,
+    "tasksPerSec": 25,
+    "mbPerSec": 6.1,
+    "workersUsed": 4,
+    "errors": [],
+    "errorCount": 0
+  },
+  "writeMs": 104210,
+  "before": {
+    "rows": 2048,
+    "bytes": 536870912,
+    "movedObjects": 0
+  },
+  "folderAfterWrite": {
+    "files": 385,
+    "bytes": 543299552
+  },
+  "reopenMs": 26218,
+  "after": {
+    "rows": 2048,
+    "bytes": 536870912,
+    "movedObjects": 0
+  },
+  "more": {
+    "tasks": 64,
+    "ms": 259,
+    "tasksPerSec": 247,
+    "mbPerSec": 1,
+    "workersUsed": 8,
+    "errors": [],
+    "errorCount": 0
+  }
+}

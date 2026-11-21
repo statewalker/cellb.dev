@@ -1,0 +1,168 @@
+{
+  "date": "2026-11-20",
+  "test": "tasks shared by workers",
+  "rows": [
+    {
+      "workers": 1,
+      "startMs": 603,
+      "cpu": {
+        "tasks": 512,
+        "ms": 5630,
+        "tasksPerSec": 91,
+        "mbPerSec": 0.4,
+        "workersUsed": 1,
+        "perWorker": {
+          "n1-w0": 512
+        },
+        "errors": [],
+        "errorCount": 0
+      },
+      "io": {
+        "tasks": 256,
+        "ms": 10276,
+        "tasksPerSec": 25,
+        "mbPerSec": 6.2,
+        "workersUsed": 1,
+        "perWorker": {
+          "n1-w0": 256
+        },
+        "errors": [],
+        "errorCount": 0
+      },
+      "stats": {
+        "rows": 768,
+        "bytes": 69206016,
+        "movedObjects": 0
+      },
+      "chromiumPssMB": 580,
+      "rendererPssMB": 243
+    },
+    {
+      "workers": 2,
+      "startMs": 484,
+      "cpu": {
+        "tasks": 512,
+        "ms": 4576,
+        "tasksPerSec": 112,
+        "mbPerSec": 0.4,
+        "workersUsed": 2,
+        "perWorker": {
+          "n2-w1": 280,
+          "n2-w0": 232
+        },
+        "errors": [],
+        "errorCount": 0
+      },
+      "io": {
+        "tasks": 256,
+        "ms": 7957,
+        "tasksPerSec": 32,
+        "mbPerSec": 8,
+        "workersUsed": 2,
+        "perWorker": {
+          "n2-w0": 116,
+          "n2-w1": 140
+        },
+        "errors": [],
+        "errorCount": 0
+      },
+      "stats": {
+        "rows": 768,
+        "bytes": 69206016,
+        "movedObjects": 0
+      },
+      "chromiumPssMB": 818,
+      "rendererPssMB": 399
+    },
+    {
+      "workers": 4,
+      "startMs": 750,
+      "cpu": {
+        "tasks": 512,
+        "ms": 2881,
+        "tasksPerSec": 178,
+        "mbPerSec": 0.7,
+        "workersUsed": 4,
+        "perWorker": {
+          "n4-w1": 168,
+          "n4-w3": 120,
+          "n4-w0": 88,
+          "n4-w2": 136
+        },
+        "errors": [],
+        "errorCount": 0
+      },
+      "io": {
+        "tasks": 256,
+        "ms": 4986,
+        "tasksPerSec": 51,
+        "mbPerSec": 12.8,
+        "workersUsed": 4,
+        "perWorker": {
+          "n4-w2": 68,
+          "n4-w3": 60,
+          "n4-w0": 44,
+          "n4-w1": 84
+        },
+        "errors": [],
+        "errorCount": 0
+      },
+      "stats": {
+        "rows": 768,
+        "bytes": 69206016,
+        "movedObjects": 0
+      },
+      "chromiumPssMB": 949,
+      "rendererPssMB": 448
+    },
+    {
+      "workers": 8,
+      "startMs": 1055,
+      "cpu": {
+        "tasks": 512,
+        "ms": 2643,
+        "tasksPerSec": 194,
+        "mbPerSec": 0.8,
+        "workersUsed": 8,
+        "perWorker": {
+          "n8-w4": 56,
+          "n8-w3": 72,
+          "n8-w1": 112,
+          "n8-w5": 40,
+          "n8-w0": 48,
+          "n8-w7": 96,
+          "n8-w6": 56,
+          "n8-w2": 32
+        },
+        "errors": [],
+        "errorCount": 0
+      },
+      "io": {
+        "tasks": 256,
+        "ms": 5385,
+        "tasksPerSec": 48,
+        "mbPerSec": 11.9,
+        "workersUsed": 8,
+        "perWorker": {
+          "n8-w0": 24,
+          "n8-w4": 28,
+          "n8-w3": 36,
+          "n8-w6": 28,
+          "n8-w1": 56,
+          "n8-w7": 48,
+          "n8-w5": 20,
+          "n8-w2": 16
+        },
+        "errors": [],
+        "errorCount": 0
+      },
+      "stats": {
+        "rows": 768,
+        "bytes": 69206016,
+        "movedObjects": 0
+      },
+      "chromiumPssMB": 1262,
+      "rendererPssMB": 671
+    }
+  ]
+}
