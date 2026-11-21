@@ -1,21 +1,25 @@
 name: examples-publish
 
-# The browser examples as static sites on the httpeers host, one host each, since each one's
-# ServiceWorker takes its whole origin:
+# The browser examples as static sites on the httpeers host, on subdomains of cellb.dev, one host
+# each: each one's ServiceWorker takes its whole origin, and each keeps its data (EmDash's posts,
+# the notebook's npm code) apart from cellb.dev's and the others'.
 #
-#   cellb-examples.httpeers.net   examples/landing: links to the others
-#   cellb-emdash.httpeers.net     examples/emdash's static build (EmDash built by Astro on Node)
-#   cellb-astro.httpeers.net      examples/astro-in-browser's static build (Astro and EmDash built
-#                                 in the tab)
-#   cellb-containers.httpeers.net packages/containers/examples/browser-demos: Python in Wasmer
-#                                 containers and the notebook in Lifo containers (the notebook runs
-#                                 npm packages in its page's realm: an origin of its own, apart
-#                                 from cellb.dev's storage)
+#   examples.cellb.dev    examples/landing: links to the others
+#   emdash.cellb.dev      examples/emdash's static build (EmDash built by Astro on Node)
+#   astro.cellb.dev       examples/astro-in-browser's static build (Astro and EmDash built in the
+#                         tab)
+#   containers.cellb.dev  packages/containers/examples/browser-demos: Python in Wasmer containers
+#                         and the notebook in Lifo containers (the notebook runs npm packages in
+#                         its page's realm: an origin of its own, apart from cellb.dev's storage)
+#
+# They used to be cellb-<name>.httpeers.net: those hosts now get a page that sends every path to
+# the same path on the new host (.github/scripts/redirect-site.sh).
 #
 # Run by hand ("Run workflow", or `gh workflow run examples-publish.yml`). Each build is tested in
-# Chromium behind a plain file server before anything is published. The *.httpeers.net names need
-# nothing on the server (wildcard DNS and certificate); the HTTPEERS_S3_* key must be allowed to
-# write their prefixes (site/scripts/setup-publish-secrets.sh).
+# Chromium behind a plain file server before anything is published. One-level names under
+# cellb.dev need nothing on the server: the zone has a wildcard DNS record (*.cellb.dev) and Caddy
+# a wildcard certificate for *.cellb.dev in front of the sites host. The HTTPEERS_S3_* key must be
+# allowed to write each host's prefix (site/scripts/setup-publish-secrets.sh, site/README.md).
 on:
   workflow_dispatch:
 
@@ -72,9 +76,14 @@ jobs:
             rclone sync "$1" "httpeers:sites/$2" --checksum --stats-one-line -v
             echo "::notice::Published https://$2 (the host may serve old files for up to 60 s)."
           }
-          publish emdash/dist/static cellb-emdash.httpeers.net
-          publish astro-in-browser/dist/static cellb-astro.httpeers.net
-          publish landing cellb-examples.httpeers.net
+          publish emdash/dist/static emdash.cellb.dev
+          publish astro-in-browser/dist/static astro.cellb.dev
+          publish landing examples.cellb.dev
+          # the old hosts send their visitors to the new ones
+          for name in examples emdash astro containers; do
+            bash "${{ github.workspace }}/cellb.dev/.github/scripts/redirect-site.sh" "$RUNNER_TEMP/moved-$name" "https://$name.cellb.dev"
+            publish "$RUNNER_TEMP/moved-$name" "cellb-$name.httpeers.net"
+          done
 
   # The containers demos (packages/containers/examples/browser-demos), from the root workspace:
   # built for the root of their host, tested in Chromium behind a plain file server (both demos:
@@ -112,5 +121,5 @@ jobs:
           bash .github/scripts/install-rclone.sh
           dir=packages/containers/examples/browser-demos/dist
           test -f "$dir/notebook/index.html" || { echo "::error::$dir/notebook/index.html is missing."; exit 1; }
-          rclone sync "$dir" httpeers:sites/cellb-containers.httpeers.net --checksum --stats-one-line -v
-          echo "::notice::Published https://cellb-containers.httpeers.net (the host may serve old files for up to 60 s)."
+          rclone sync "$dir" httpeers:sites/containers.cellb.dev --checksum --stats-one-line -v
+          echo "::notice::Published https://containers.cellb.dev (the host may serve old files for up to 60 s)."

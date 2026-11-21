@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, rmSync } from "node:fs";
 
 export const DEMOS_BASE = "/demos/containers/";
-export const NOTEBOOK_ORIGIN = "https://cellb-containers.httpeers.net";
+export const NOTEBOOK_ORIGIN = "https://containers.cellb.dev";
 const pkg = new URL("../../packages/containers/", import.meta.url).pathname;
 const out = `${pkg}examples/browser-demos/dist`;
 const target = new URL(`../dist${DEMOS_BASE}`, import.meta.url).pathname;

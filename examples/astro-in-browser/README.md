@@ -9,9 +9,9 @@ template
 R2, KV and a cron trigger. The same builder runs on Node, and its output runs on CellB in Node too.
 The package is private, since it is a test of CellB and of webrun-bundler and not a library.
 
-**Live demo: <https://cellb-astro.httpeers.net>**: pick the small app or EmDash, and the tab
+**Live demo: <https://astro.cellb.dev>**: pick the small app or EmDash, and the tab
 builds it and runs it. EmDash built ahead of time and served from static files:
-<https://cellb-emdash.httpeers.net> ([emdash](../emdash/README.md)).
+<https://emdash.cellb.dev> ([emdash](../emdash/README.md)).
 
 ## How it fits together
 
@@ -76,7 +76,7 @@ pnpm serve:static             # python3 -m http.server on 127.0.0.1:8080
 STATIC=1 pnpm exec playwright test test/browser/build-in-browser.spec.ts   # a spec on dist/static
 ```
 
-The static build is what https://cellb-astro.httpeers.net serves: the chooser,
+The static build is what https://astro.cellb.dev serves: the chooser,
 `/__cellb/start.html`, links to the two host pages (`/__cellb/` for the small app,
 `/__cellb/emdash.html` for EmDash), each app's sources are files under `/__cellb/<app>-src/`, and
 the ServiceWorker is one file, `/cellb-sw.js` (`browser/vite.sw.config.ts`). Both apps run at the

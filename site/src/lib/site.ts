@@ -6,13 +6,13 @@ export const CELLD = "https://celld.dev";
 /** The examples published as live demos (`.github/workflows/examples-publish.yml`). */
 export const LIVE_DEMOS = {
   emdash: {
-    href: "https://cellb-emdash.httpeers.net/",
+    href: "https://emdash.cellb.dev/",
     title: "EmDash, served from a tab",
     body: "EmDash, the Astro CMS, as Astro builds it for Cloudflare, unchanged. Run the setup wizard at /_emdash/admin, sign in with a passkey, and write and publish posts; they stay in this browser.",
     readme: "examples/emdash/README.md",
   },
   astro: {
-    href: "https://cellb-astro.httpeers.net/",
+    href: "https://astro.cellb.dev/",
     title: "Astro, built in the tab",
     body: "An Astro app's sources built in the tab (esbuild and Astro's compiler as WebAssembly, packages from the npm registry), then run there on CellB: a small app in a few seconds, or EmDash in about 115 s the first time and 65–78 s after (Chrome on a 4-CPU machine).",
     readme: "examples/astro-in-browser/README.md",
@@ -37,7 +37,7 @@ export const CONTAINER_DEMOS = {
   notebook: {
     // an origin of its own: it installs and runs npm packages in the page's realm (Lifo is no
     // sandbox), so it must not share cellb.dev's storage (examples-publish.yml publishes it)
-    href: "https://cellb-containers.httpeers.net/notebook/",
+    href: "https://containers.cellb.dev/notebook/",
     engine: "Lifo",
     title: "A notebook in Lifo containers",
     body: "An Observable Framework notebook, edited and previewed in the tab: a build container installs Framework with npm through the page's network (about 30 s), then observable preview runs in a container with no network, with live reload over a WebSocket into it.",

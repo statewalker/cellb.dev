@@ -4,8 +4,8 @@
 builds it for Cloudflare, run unchanged on CellB: in Node, and entirely in a browser tab served by
 any static file server. The package is private, since it is a test of CellB and not a library.
 
-**Live demo: <https://cellb-emdash.httpeers.net>**, EmDash served from static files and run in your
-tab. The same app built from its sources in the tab: <https://cellb-astro.httpeers.net>
+**Live demo: <https://emdash.cellb.dev>**, EmDash served from static files and run in your
+tab. The same app built from its sources in the tab: <https://astro.cellb.dev>
 ([astro-in-browser](../astro-in-browser/README.md)).
 
 ## Why it exists
@@ -33,7 +33,7 @@ pnpm dev:browser          # builds the app and its ServiceWorker, then the host 
 ```
 
 Astro needs Node.js 22.23.4 or later (`engines`); the repository's `.nvmrc` and CI use Node 24.
-The static build is published at https://cellb-emdash.httpeers.net by
+The static build is published at https://emdash.cellb.dev by
 `.github/workflows/examples-publish.yml`, which is run by hand.
 
 Open `http://127.0.0.1:8080/` (`serve:static`) or the URL Vite prints (`dev:browser`,

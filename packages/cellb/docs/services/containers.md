@@ -10,7 +10,7 @@ Podman. CellB runs them in browsers and in Node with
 No daemon, no image registry at run time, the same object code.
 
 Try both in a tab: [Python in Wasmer containers](https://cellb.dev/demos/containers/python/) and
-[an Observable Framework notebook in Lifo containers](https://cellb-containers.httpeers.net/notebook/).
+[an Observable Framework notebook in Lifo containers](https://containers.cellb.dev/notebook/).
 [Two engines: Wasmer and Lifo](../../../containers/README.md#two-engines-wasmer-and-lifo) compares them.
 
 Containers are experimental in CellB. An object of a `containers` class gets `ctx.container` when
