@@ -181,6 +181,10 @@ export class ObjectHost {
         const d = this.#driver;
         const seq = ++this.#seq;
         const pages = opts.durability.capturePages ? d.takeDirtyPages() : undefined;
+        // Storage that takes no pages (an OPFS pool, a backup, a changeset log): drop what the
+        // driver's page hook recorded, or it keeps a copy of every page the cell ever wrote
+        // (statewalker/cellb.dev#184).
+        if (!opts.durability.capturePages) d.discardDirtyPages?.();
         const snap = () => d.pageImage?.() ?? d.image?.();
         // The log runs later, after the next event may have opened its transaction, and an
         // image cannot be taken inside one (VACUUM INTO). When the log will surely need it

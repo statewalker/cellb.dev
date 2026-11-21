@@ -92,9 +92,10 @@ The write-bound load runs 4 rounds of 256 KB per task.
   per task, at about 190 MB/s, without reaching its quota. `navigator.storage.estimate()`
   reported a quota of 19.7 GB and usage of 8.9 GB. The usage figure moves in steps and runs
   ahead of the data.
-  **Open question:** the renderer's PSS grew with the volume written, to 8.3 GB after 6 GiB.
-  Why, and whether it is released, was not measured. Until it is known, it may limit how much
-  one page can write.
+  In this run the renderer's PSS grew with the volume written, to 8.3 GB after 6 GiB. The cause
+  was the SQLite WASM page hook keeping a copy of every page written when no log takes them.
+  This was fixed in #184; after the fix the same run stays at about 1.7 GB
+  (`docs/browser-capacity.md`, "Memory while cells write").
 - **Node.** 4 threads wrote 6 GiB (6.0 GB on disk) at about 250 MB/s. RSS stayed at 570 MB.
 
 ### Cells on the host's FilesApi, then re-sharded
