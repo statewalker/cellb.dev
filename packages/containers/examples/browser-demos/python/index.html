@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Python in Wasmer containers</title>
+    <link rel="stylesheet" href="../demo.css" />
+  </head>
+  <body>
+    <header>
+      <a href="../" class="home">Containers demos</a>
+      <h1>Python in Wasmer containers</h1>
+      <span id="status">starting…</span>
+    </header>
+    <main>
+      <section>
+        <h2>script.py <button id="run" disabled>Run</button></h2>
+        <textarea id="code" spellcheck="false"></textarea>
+        <h2>/data/temperatures.csv (a FilesApi on this page)</h2>
+        <textarea id="data" class="short" spellcheck="false"></textarea>
+      </section>
+      <section>
+        <h2>Output</h2>
+        <pre id="output" class="output"></pre>
+        <h2>/data after the run</h2>
+        <pre id="files" class="output short"></pre>
+        <pre id="log"></pre>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

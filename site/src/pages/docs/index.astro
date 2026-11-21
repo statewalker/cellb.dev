@@ -221,14 +221,17 @@ await project.close(); // destroys the project's containers`;
     A Durable Object can run a Python, PHP, shell or Node-compatible program beside it, through
     Cloudflare's container API. celld runs containers with Docker; with
     <code>@statewalker/cellb-containers</code>, CellB runs WASIX builds of them in
-    <a href="https://docs.wasmer.io/runtime/js/">Wasmer</a> sandboxes, in Node and in browser
-    workers, with no network out and only the host files a FilesApi allows: objects of a
+    <a href="https://docs.wasmer.io/runtime/js/">Wasmer</a> sandboxes, or Node-compatible tooling
+    in <a href="https://lifo.sh">Lifo</a>, in Node and in browser workers, by default with no
+    network out and only the host files a FilesApi allows: objects of a
     <code>containers</code> class get <code>ctx.container</code> when <code>loadProject</code> gets
     an engine and the class an image under <code>cellb.containers</code>. The
     <a href={docHref("packages/cellb/docs/services/containers.md")}>Containers</a> page has the API
     and the differences from celld, and
     <a href={docHref("packages/containers/docs/capacity.md")}>Containers per node</a> how many one
-    node runs.
+    node runs. <a href="/containers">Containers</a> compares the two engines and links the live
+    demos: <a href="/demos/containers/python/">Python in Wasmer</a> and
+    <a href="https://cellb-containers.httpeers.net/notebook/">a notebook in Lifo</a>.
   </p>
   <CodeBlock lang="ts" title="containers.ts" code={containersCode} />
 

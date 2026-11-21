@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Containers in a browser tab</title>
+    <link rel="stylesheet" href="./demo.css" />
+  </head>
+  <body>
+    <header><h1>Containers in a browser tab</h1><span>@statewalker/cellb-containers · CellB</span></header>
+    <div class="cards">
+      <div class="card">
+        <div class="engine">Wasmer · WASIX sandboxes</div>
+        <h2><a href="./python/">Python in Wasmer containers</a></h2>
+        <p>Run a Python script against files from this page. Each run gets a fresh Python container
+          (Wasmer's <code>python/python</code>) in a worker of its own, terminated after the run. The
+          script sees only its files at <code>/data</code>, and has no network.</p>
+        <p>Wasmer is the isolation boundary: run code you do not trust here.</p>
+      </div>
+      <div class="card">
+        <div class="engine">Lifo · Linux-like OS in TypeScript</div>
+        <h2><a href="__NOTEBOOK_HREF__">Notebook in a Lifo container</a></h2>
+        <p>An Observable Framework notebook, edited and previewed in this tab: a build container
+          installs Framework through this page's network (about 30 s), then
+          <code>observable preview</code> runs in a container with live reload over a WebSocket.</p>
+        <p>Lifo runs Node-compatible JavaScript and <code>npm</code>, for code you trust.</p>
+      </div>
+    </div>
+  </body>
+</html>

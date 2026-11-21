@@ -35,6 +35,7 @@ on:
       - "examples/platform-demos/notebooks/**"
       # CellB sandbox, built into the site at /sandbox/app/ (site/scripts/build-sandbox.mjs).
       - "apps/sandbox/**"
+      - "packages/containers/**"
       - "package.json"
       - ".nvmrc"
       - "pnpm-lock.yaml"
@@ -56,6 +57,7 @@ on:
       - "examples/platform-astro/**"
       - "examples/platform-demos/notebooks/**"
       - "apps/sandbox/**"
+      - "packages/containers/**"
       - "package.json"
       - ".nvmrc"
       - "pnpm-lock.yaml"
@@ -105,6 +107,14 @@ jobs:
           pnpm --filter @statewalker/cellb-sandbox test
           SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox e2e
           SANDBOX_BASE=/sandbox/app/ HTTPS=1 pnpm --filter @statewalker/cellb-sandbox e2e
+
+      # The containers demo the site serves (Python in Wasmer containers, dist/demos/containers/),
+      # as published: behind a file server with no COOP/COEP headers. It needs the Wasmer registry:
+      # on main, an outage there does not hold back publishing the rest of the site.
+      - name: Containers demo (Wasmer)
+        timeout-minutes: 6
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+        run: pnpm --filter @statewalker/cellb-site check:containers
 
       - name: Publish to https://${{ env.SITE_DOMAIN }}
         if: github.event_name != 'pull_request'

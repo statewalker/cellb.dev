@@ -4,8 +4,14 @@ A container runs a program that is not JavaScript beside the Durable Object that
 Python or PHP server, a shell, Node-compatible JavaScript. celld runs containers with Docker or
 Podman. CellB runs them in browsers and in Node with
 [`@statewalker/cellb-containers`](../../../containers/README.md), which backs Cloudflare's
-`ctx.container` API with [Wasmer](https://docs.wasmer.io/runtime/js/) WASIX sandboxes: no daemon,
-no image registry at run time, the same object code.
+`ctx.container` API with two engines: [Wasmer](https://docs.wasmer.io/runtime/js/) WASIX sandboxes
+(Python, PHP, bash, your own WASI builds; the isolation boundary, for code you do not trust) and
+[Lifo](https://lifo.sh), a Linux-like OS in TypeScript (shell, `node`, `npm`; for code you trust).
+No daemon, no image registry at run time, the same object code.
+
+Try both in a tab: [Python in Wasmer containers](https://cellb.dev/demos/containers/python/) and
+[an Observable Framework notebook in Lifo containers](https://cellb-containers.httpeers.net/notebook/).
+[Two engines: Wasmer and Lifo](../../../containers/README.md#two-engines-wasmer-and-lifo) compares them.
 
 Containers are experimental in CellB. An object of a `containers` class gets `ctx.container` when
 the host gives the runtime a container engine and the class has an image for CellB in the
