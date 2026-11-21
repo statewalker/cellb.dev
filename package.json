@@ -22,7 +22,7 @@
     "test": "pnpm -r run test",
     "test:nightly": "bash .github/scripts/nightly.sh",
     "typecheck": "pnpm -r run typecheck",
-    "typecheck:tests": "tsc -p examples/agents && tsc -p examples/fake-openai && tsc -p examples/flue && tsc -p examples/emdash/tsconfig.test.json && tsc -p examples/astro-in-browser/tsconfig.test.json",
+    "typecheck:tests": "tsc -p examples/agents && tsc -p examples/fake-openai && tsc -p examples/flue && tsc -p examples/emdash/tsconfig.test.json && tsc -p examples/astro-in-browser/tsconfig.test.json && tsc -p examples/tesseract-ocr/tsconfig.test.json",
     "lint": "biome check --write .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
