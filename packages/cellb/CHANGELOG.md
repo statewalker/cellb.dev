@@ -1,5 +1,15 @@
 # @statewalker/cellb
 
+## 0.12.0
+
+### Minor Changes
+
+- bba1530: `ctx.container`: objects of a `containers` class get Cloudflare's container API when the host gives the runtime a container engine (`loadProject(…, { containers })`, `ProjectHost.containers`, `createCellRuntime({ containers })`) and the class has an image under the new `cellb.containers` key of its wrangler config (file references are read when loading and by `cellb build`). One container per cell, kept across the object's instances, destroyed after its inactivity timeout or by `close()`. The engine port and `createContainer` are exported from `@statewalker/cellb/container`. Without an engine or an image, the class is still reported in `unsupported`, now saying which is missing. `enableInternet` is passed to the engine, which decides whether a container may have egress. An image may set `workdir` (the working directory of its entrypoint and `exec()`), and `getTcpPort().fetch()` passes a `Request` through unchanged, so a WebSocket upgrade request (its headers as an own property, as `@statewalker/webrun-http-browser` builds it) reaches the engine intact. A container counts calls still running as activity; a `destroy()` during `start()` destroys what the start brings up; a closing runtime starts none and destroys them after its grace period. File references must stay inside the project and name UTF-8 text files.
+
+### Patch Changes
+
+- 6af4ca0: A browser worker's memory no longer grows with the data its cells write (#184). The SQLite WASM page hook kept a copy of every page a cell wrote until a log took them, but storage that takes no pages never did: an OPFS pool without a bucket, a backup, or a changeset log. A commit now drops those pages, and the runtime's own `__cellb/` databases get no page hook. In Chromium, one page whose 4 workers wrote 6 GiB stays at about 1.7 GB of renderer memory, against 8.3 GB before. `WasmSqliteDriver` takes a fifth argument, `{ pageHook: false }`, for a database whose pages no log takes.
+
 ## 0.11.1
 
 ### Patch Changes
