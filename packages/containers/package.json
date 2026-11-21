@@ -1,0 +1,53 @@
+{
+  "name": "@statewalker/cellb-containers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/statewalker/cellb.dev.git",
+    "directory": "packages/containers"
+  },
+  "description": "Containers for cellb in browsers and Node: ctx.container backed by Wasmer (WASIX) sandboxes, a worker-hosted engine, and FilesApi-backed mounts.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./engine": "./src/engine.ts",
+    "./container": "./src/container.ts",
+    "./rpc": "./src/rpc.ts",
+    "./files": "./src/files/index.ts",
+    "./pool": "./src/pool.ts",
+    "./lifo": "./src/lifo-engine.ts",
+    "./worker": "./src/worker.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@statewalker/webrun-files": "catalog:",
+    "@wasmer/sdk": "0.19.1",
+    "@statewalker/webrun-files-mem": "catalog:",
+    "@statewalker/cellb": "workspace:*",
+    "@statewalker/webrun-http-browser": "catalog:"
+  },
+  "devDependencies": {
+    "@statewalker/webrun-files-composite": "^0.12.0",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "@playwright/test": "^1.65.0",
+    "@lifo-sh/core": "0.10.36"
+  },
+  "peerDependencies": {
+    "@lifo-sh/core": ">=0.10.36"
+  },
+  "peerDependenciesMeta": {
+    "@lifo-sh/core": {
+      "optional": true
+    }
+  }
+}

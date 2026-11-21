@@ -1,3 +1,4 @@
+import type { Container } from "../container.js";
 import type { InputGate } from "./gates.js";
 import type { DurableObjectId } from "./id.js";
 import type { DurableObjectStorage } from "./storage.js";
@@ -46,6 +47,8 @@ export class DurableObjectState {
   exports: Record<string, unknown> = {};
   /** `ctx.props`: what a facet's class handle was given as `{ props }` (set by the host). */
   props: unknown;
+  /** `ctx.container`: the cell's container, for objects of a `containers` class (set by the host). */
+  container?: Container;
   /** `ctx.facets`: child objects with their own SQLite (set by the host). */
   facets!: {
     get(name: string, start: () => unknown): Record<string, any>;

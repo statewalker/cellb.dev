@@ -252,9 +252,12 @@ const rows: Row[] = [
   {
     feature: "Containers",
     celld: "experimental (Docker or Podman)",
-    node: "no; reported in unsupported",
-    browser: "no",
-    checks: [],
+    node: "experimental: WASIX software in Wasmer sandboxes",
+    browser: "experimental: the same, in workers",
+    checks: [
+      { label: "Containers", href: docHref("packages/cellb/docs/services/containers.md") },
+      { label: "Containers per node", href: docHref("packages/containers/docs/capacity.md") },
+    ],
   },
 ];
 

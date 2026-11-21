@@ -42,3 +42,8 @@ overrides:
   "@earendil-works/pi-agent-core": ~1.4.0
   "@modelcontextprotocol/client@<2.2.0": ^2.2.0
   "undici@<7.29.1": ^7.30.0
+
+# @wasmer/sdk: public ports.fetch/connect, mounts, and the host-filesystem bridge in Node
+# workers (packages/containers; regenerate with packages/containers/scripts/patch-wasmer-sdk.mjs).
+patchedDependencies:
+  "@wasmer/sdk@0.19.1": patches/@wasmer__sdk@0.19.1.patch

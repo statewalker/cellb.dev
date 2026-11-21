@@ -33,6 +33,27 @@ export const referencePages: RepoPage[] = [
   { file: "packages/cellb/docs/conformance.md", slug: "conformance", label: "Conformance" },
   { file: "packages/cellb/docs/security.md", slug: "security", label: "Security & isolation" },
   { file: "packages/cellb/docs/gaps.md", slug: "gaps", label: "Gaps" },
+  { file: "packages/containers/README.md", slug: "containers", label: "Containers package" },
+  {
+    file: "packages/containers/docs/capacity.md",
+    slug: "containers-capacity",
+    label: "Containers per node",
+  },
+  {
+    file: "packages/containers/docs/isolated-pools.md",
+    slug: "containers-isolated-pools",
+    label: "Isolated container pools",
+  },
+  {
+    file: "packages/containers/docs/layered-files.md",
+    slug: "containers-layered-files",
+    label: "Layered container files",
+  },
+  {
+    file: "packages/containers/docs/observable-framework.md",
+    slug: "containers-observable-framework",
+    label: "Observable Framework in containers",
+  },
   { file: "packages/cellb/CONTEXT.md", slug: "glossary", label: "Glossary" },
   { file: "packages/cellb/bench/README.md", slug: "benchmarks", label: "Benchmarks" },
 ];
@@ -82,6 +103,11 @@ export const servicePages: RepoPage[] = [
     file: "packages/cellb/docs/services/workers-ai.md",
     slug: "services/workers-ai",
     label: "Workers AI",
+  },
+  {
+    file: "packages/cellb/docs/services/containers.md",
+    slug: "services/containers",
+    label: "Containers",
   },
 ];
 

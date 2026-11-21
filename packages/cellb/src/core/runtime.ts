@@ -1,4 +1,10 @@
 import {
+  type Container,
+  type ContainerEngine,
+  type ContainerSpec,
+  createContainer,
+} from "../container.js";
+import {
   type CellDurability,
   type CellStorage,
   type Clock,
@@ -49,6 +55,12 @@ export interface CellRuntimeOptions {
   worker: WorkerModule;
   /** Durable Object bindings: env name → exported class name (wrangler `durable_objects.bindings`). */
   durableObjects?: Record<string, { className: string }>;
+  /**
+   * Containers (wrangler `containers`): objects of a class in `images` get `ctx.container`, a
+   * container of that image on `engine` (one per cell, kept across the object's instances,
+   * destroyed after its inactivity timeout or by `close()`).
+   */
+  containers?: { engine: ContainerEngine; images: Record<string, ContainerSpec> };
   /** Plain vars / other bindings merged into env. */
   vars?: Record<string, unknown>;
   openSql: OpenCellSql;
@@ -277,6 +289,27 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     }
   }
 
+  // ctx.container: one container per cell, kept here (not on the object), so an object's next
+  // instance (after hibernation or a reset) gets the same running container, as on celld.
+  const containers = new Map<string, Container>();
+  const containerOf = (className: string, cellKey: string, id: DurableObjectId) => {
+    const image = opts.containers?.images[className];
+    if (!image || !opts.containers) return undefined;
+    const engine = opts.containers.engine;
+    return () => {
+      let c = containers.get(cellKey);
+      if (!c) {
+        c = createContainer(engine, image, {
+          label: id.name ?? id.toString(),
+          // a closing runtime starts no container: close() would not destroy it
+          refuse: () => (closed ? "the runtime is closing" : undefined),
+        });
+        containers.set(cellKey, c);
+      }
+      return c;
+    };
+  };
+
   for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {
     const cls = opts.worker[className] as DurableObjectClass | undefined;
     if (typeof cls !== "function")
@@ -306,6 +339,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           acquire: acquireAfterRelease,
           sqlExtensions: opts.sqlExtensions,
           deleteAllPreservesAlarm: opts.deleteAllPreservesAlarm,
+          container: containerOf(className, cellKey, id),
         });
         hosts.set(cellKey, h);
       }
@@ -513,11 +547,18 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           break;
       }
       cellsClosed = true;
+      // A node stop destroys its containers (celld does the same): after the grace period, as
+      // work in flight may still use them; none starts once closing began.
+      const containersDestroyed = Promise.allSettled(
+        [...containers.values()].map((c) => c.destroy()),
+      );
+      containers.clear();
       await backupAll("close");
       // The releases reach the store before it closes.
       for (const key of [...hosts.keys()]) retire(key);
       await Promise.all([...releasing.values()]);
       alarms.close(); // every database of the runtime is closed now
+      await containersDestroyed;
       await storage.close?.();
     },
     async fetch(req) {
