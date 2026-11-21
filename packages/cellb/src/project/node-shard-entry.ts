@@ -61,7 +61,11 @@ parent.once("message", async (m: Wiring) => {
       files = new NodeFilesApi({ rootDir: join(data, "files") });
     }
     const { runtime } = await loadNodeProject(dir, {
-      openSql: nodeSqliteOpener(data, { pageCapture: !!storage }),
+      // With the main thread's FilesApi, its log is the cells' truth: they are restored into
+      // temporary files at each run. A cell file kept in `data` from an earlier run (another
+      // thread count) could be older than the log, and without a lease the object host would
+      // take a local file over the log, rolling the cell back.
+      openSql: nodeSqliteOpener(storage ? undefined : data, { pageCapture: !!storage }),
       files,
       storage,
       route: (_key, id) => {

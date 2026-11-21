@@ -43,7 +43,7 @@ describe("P49 startProjectShards on Node", () => {
       const threadOf = new Map<string, number>();
       for (const name of names) threadOf.set(name, (await hit(app, `name=${name}`)).thread);
       const [a] = names;
-      const b = names.find((n) => threadOf.get(n) !== threadOf.get(a))!;
+      const b = names.find((n) => threadOf.get(n) !== threadOf.get(a)) ?? "";
       const r = await hit(app, `name=${a}&bump=${b}`);
       expect(r.me).toBe(threadOf.get(a));
       expect(r.other).toBe(threadOf.get(b));
@@ -82,6 +82,43 @@ describe("P49 startProjectShards on Node", () => {
       for (const name of names) expect((await hit(second, `name=${name}`)).n).toBe(3);
     } finally {
       await second.close();
+    }
+  });
+
+  it("with files, a reused data directory never rolls a cell back across thread counts", async () => {
+    // Merge-gate finding on #203: a thread opened a cell file left by an earlier run in place of
+    // the FilesApi's newer log, so 2 → 3 → 2 threads over one data directory lost run 2's writes,
+    // and the stale copy's next commits went into the log.
+    const files = new MemFilesApi();
+    const data = mkdtempSync(join(tmpdir(), "p49-reuse-"));
+    const counts = new Map<string, number[]>();
+    for (const shards of [2, 3, 2, 3]) {
+      const app = await startProjectShards({ shards, dir, data, files });
+      try {
+        for (const name of names)
+          counts.set(name, [...(counts.get(name) ?? []), (await hit(app, `name=${name}`)).n]);
+      } finally {
+        await app.close();
+      }
+    }
+    for (const [name, n] of counts) expect([name, n]).toEqual([name, [1, 2, 3, 4]]);
+  }, 60_000);
+
+  it("without files, a data directory refuses another thread count", async () => {
+    const data = mkdtempSync(join(tmpdir(), "p49-count-"));
+    const app = await startProjectShards({ shards: 2, dir, data });
+    try {
+      for (const name of names) expect((await hit(app, `name=${name}`)).n).toBe(1);
+    } finally {
+      await app.close();
+    }
+    // Its cells are kept by the thread shardOf(id, 2) gave them: 3 threads would open some empty.
+    await expect(startProjectShards({ shards: 3, dir, data })).rejects.toThrow(/2 threads/);
+    const again = await startProjectShards({ shards: 2, dir, data });
+    try {
+      for (const name of names) expect((await hit(again, `name=${name}`)).n).toBe(2);
+    } finally {
+      await again.close();
     }
   });
 });

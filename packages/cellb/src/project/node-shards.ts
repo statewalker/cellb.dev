@@ -11,7 +11,7 @@
  * per thread. The cells then belong to the FilesApi: a later run with another number of threads,
  * or empty data directories, opens them where the last one left off.
  */
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -29,9 +29,17 @@ export interface NodeProjectShardsOptions {
   shards: number;
   /** The project's folder (`wrangler.json(c)` and its `main`), as `loadNodeProject` takes. */
   dir: string;
-  /** A directory for the cells: thread `i` keeps its SQLite files in `<data>/s<i>`. Memory without it. */
+  /**
+   * A directory for the threads: thread `i` keeps its files in `<data>/s<i>`. Without `files`,
+   * that is where its cells live, so the directory keeps the thread count it was made with and
+   * refuses another. Memory without it.
+   */
   data?: string;
-  /** Where the cells' LTX log goes (a folder, S3, memory), served from this thread over a port. */
+  /**
+   * Where the cells' LTX log goes (a folder, S3, memory), served from this thread over a port.
+   * It is then the cells' only copy that lasts: each run restores them from it into temporary
+   * files, so a later run may use another thread count.
+   */
   files?: FilesApi;
 }
 
@@ -99,6 +107,7 @@ export async function startProjectShards(
 ): Promise<NodeProjectShards> {
   if (!Number.isInteger(opts.shards) || opts.shards < 1)
     throw new Error(`startProjectShards: shards must be a positive integer, got ${opts.shards}`);
+  if (opts.data && !opts.files) checkThreadCount(opts.data, opts.shards);
   const script = await shardEntry();
   const workers = Array.from(
     { length: opts.shards },
@@ -163,13 +172,39 @@ export async function startProjectShards(
       fetch: (req) => remotes[next++ % remotes.length].fetch(req),
       shards: remotes,
       async close() {
-        await Promise.all(remotes.map((r) => r.close()));
-        await Promise.all(workers.map((w) => ask(w, { type: "close" }, [])));
-        await end();
+        try {
+          await Promise.all(remotes.map((r) => r.close()));
+          const closed = await Promise.all(workers.map((w) => ask(w, { type: "close" }, [])));
+          const failed = closed.find((r) => !r.ok);
+          // A thread's last flush to the FilesApi failed: its latest commits may not be there.
+          if (failed) throw new Error(`a project shard did not close: ${failed.error}`);
+        } finally {
+          await end();
+        }
       },
     };
   } catch (err) {
     await end();
     throw err;
   }
+}
+
+/**
+ * Without a shared log, a cell lives in the data directory of the thread `shardOf(id, shards)`
+ * gives it: another thread count would open some cells empty in other threads' directories, and
+ * leave their data behind. The directory keeps the count it was made with.
+ */
+function checkThreadCount(data: string, shards: number): void {
+  const file = join(data, "shards.json");
+  if (existsSync(file)) {
+    const made = (JSON.parse(readFileSync(file, "utf8")) as { shards?: number }).shards;
+    if (made !== shards)
+      throw new Error(
+        `startProjectShards: ${data} holds the cells of ${made} threads, not ${shards}: ` +
+          "use that count, or keep the cells on a FilesApi (`files`) to change it",
+      );
+    return;
+  }
+  mkdirSync(data, { recursive: true });
+  writeFileSync(file, `${JSON.stringify({ shards })}\n`);
 }

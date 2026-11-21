@@ -171,17 +171,20 @@ import { NodeFilesApi } from "@statewalker/webrun-files-node";
 const app = await startProjectShards({
   shards: 4, // worker threads; each owns the cells shardOf(id, 4) gives it
   dir: "./counter", // wrangler.jsonc and its `main`, as loadNodeProject takes
-  data: "./data", // thread i keeps its SQLite files in ./data/s<i>; memory without it
-  files: new NodeFilesApi({ rootDir: "./backup" }), // optional: the cells' LTX log, on this thread
+  data: "./data", // thread i keeps its files in ./data/s<i>; memory without it
+  files: new NodeFilesApi({ rootDir: "./backup" }), // optional: the cells' LTX log, their lasting copy
 });
 const res = await app.fetch(new Request("http://local/?name=a")); // round robin over the threads
 await app.close();
 ```
 
 A Durable Object call from any thread runs in the owner's, over a port between every two threads.
-With `files`, the cells belong to that FilesApi (a folder, S3, memory): a later run with another
-number of threads, or empty data directories, opens each cell where the last run left it. Each
-thread's own databases (the alarm index, cron) stay in its data directory.
+With `files`, the cells belong to that FilesApi (a folder, S3, memory): each run restores them
+from it into temporary files, so a later run with another number of threads opens each cell where
+the last run left it. Without `files`, the cells live in `data`, and that directory keeps the
+thread count it was made with: a run with another count is refused rather than opening some cells
+empty. Each thread's alarm index is its own: with `files` it is in memory, so an alarm set before a
+restart fires once its object is used again.
 
 ### A wrangler project on a bucket shared with celld
 
