@@ -110,10 +110,11 @@ page the cell had ever written, until its database closed.
 - **One worker** with 1 MiB writes stays at 440–480 MB of anonymous memory from 512 MiB to
   2 GiB written. With 4 KiB writes it rises to about 580 MB by 256 MiB, then levels off: SQLite
   WASM's heap at its high-water mark, plus garbage. Closing the shards gives the memory back.
-- **Open:** the hook still copies each write before the commit drops it. Write throughput in
-  the 4-worker run was 109–149 MB/s after the fix, against about 190 MB/s in the run before it.
-  The one-worker run got faster (46 → 77 MB/s), so whether the copies cost throughput was not
-  settled.
+- **Throughput.** The hook also copied each write that the commit then dropped, which cost
+  about a fifth of write throughput. Since statewalker/cellb.dev#194 the object host tells the
+  driver whether its storage takes pages (`recordPages`), and the hook records nothing when it
+  does not. Two runs each of the same probe at 2 GiB: 182 and 181 MB/s before, 231 and 218 MB/s
+  after. A local experiment with the hook removed gave 228 and 231 MB/s.
 
 ## How many workers one tab runs
 
