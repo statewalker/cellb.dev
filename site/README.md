@@ -132,8 +132,8 @@ whose policy allows `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` and `s3:Li
 `sites/cellb.dev/*` only is what this workflow needs; the same key also publishes the browser
 examples (`.github/workflows/examples-publish.yml`), so the policy adds `examples.cellb.dev`,
 `emdash.cellb.dev`, `astro.cellb.dev` and `containers.cellb.dev`, and the hosts they moved from
-(`cellb.httpeers.net`, `cellb-<name>.httpeers.net`), which now serve redirects (published by
-`examples-publish.yml`). A redirect cannot carry browser storage across origins: posts a visitor
+(`cellb.httpeers.net`, `cellb-<name>.httpeers.net`), which now serve redirects (`cellb.httpeers.net`: a
+301 from the server; `cellb-<name>.httpeers.net`: pages published by `examples-publish.yml`). A redirect cannot carry browser storage across origins: posts a visitor
 wrote in EmDash on its old host stay in that host's storage and do not appear on
 `emdash.cellb.dev`. The redirect sites also replace the old demos' `/cellb-sw.js` with a worker
 that unregisters itself, so a returning visitor is not kept on the old app by its ServiceWorker.
