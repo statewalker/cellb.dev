@@ -223,8 +223,17 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
         } else {
           const holder = cur.value.node;
           if (holder && holder !== opts.node) {
-            const lease = await readJson<{ expires_ms: number }>(`nodes/${holder}.json`);
+            const lease = await readJson<{ expires_ms: number; log?: { state?: string } }>(
+              `nodes/${holder}.json`,
+            );
             if (lease && lease.value.expires_ms > now()) return undefined; // a live owner
+            // celld's takeover recovery gate (log_tier.rs takeover_gate): a celld owner in
+            // fleet durability acknowledges writes its followers hold before they reach the
+            // cell's prefix. Until a celld node has recovered the dead owner's node log into
+            // the per-cell prefixes and marked it sealed, the bucket is not complete for this
+            // cell: not ours to take. A record without `log` never acknowledged past the bucket.
+            const log = lease?.value.log;
+            if (log && log.state !== "sealed") return undefined;
           }
           epoch = cur.value.epoch + 1; // every activation advances the epoch
           await store.put(key, enc.encode(JSON.stringify({ node: opts.node, epoch })), {
