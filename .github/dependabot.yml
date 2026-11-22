@@ -49,6 +49,10 @@ updates:
         patterns: ["*"]
         exclude-patterns: ["@statewalker/*"]
         update-types: [minor, patch]
+    ignore:
+      # examples/agents/opencode imports @opencode-ai/sdk/workerd, which only the 0.0.0-dev-*
+      # builds up to 0.0.0-dev-19272 have; the 1.x releases do not (examples/agents/README.md).
+      - dependency-name: "@opencode-ai/sdk"
 
   - package-ecosystem: github-actions
     directory: /
