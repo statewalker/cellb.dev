@@ -133,6 +133,61 @@ for (const noIsolate of [false, true])
     );
   });
 
+// dispose() of a loaded Worker ends its Dedicated Worker (statewalker/cellb.dev#206): a Worker
+// that never yields stops, its call rejects, and the disposed handle refuses later calls.
+const DISPOSE_WORKER = `
+export default {
+  async fetch(req, env) {
+    const w = env.LOADER.load({
+      compatibilityDate: "2026-10-01",
+      mainModule: "w.js",
+      modules: {
+        "w.js": 'import { WorkerEntrypoint } from "cloudflare:workers";' +
+          "export default class extends WorkerEntrypoint { ping() { return 'pong'; } spin() { for (;;) {} } }",
+      },
+    });
+    const e = w.getEntrypoint();
+    const first = await e.ping();
+    const spinning = e.spin().then(() => "returned", (err) => "rejected: " + err.message);
+    await new Promise((r) => setTimeout(r, 100));
+    w.dispose();
+    const spin = await spinning;
+    let after;
+    try { await e.ping(); after = "answered"; } catch (err) { after = "refused: " + err.message; }
+    return Response.json({ first, spin, after });
+  },
+};
+`;
+test("dispose() of a loaded Worker ends its isolate, even one that never yields", async ({
+  page,
+}) => {
+  const config = {
+    name: "site-dispose",
+    main: "index.js",
+    worker_loaders: [{ binding: "LOADER" }],
+  };
+  const b64 = (s: string) => Buffer.from(s).toString("base64");
+  await page.goto("/site-projects/");
+  await page.waitForFunction(() => document.body.dataset.ready === "true");
+  const r = await page.evaluate((job) => (window as any).__runOnSite(job), {
+    name: "site-dispose",
+    scenario: "",
+    config,
+    files: [
+      ["/index.js", b64(DISPOSE_WORKER)],
+      ["/wrangler.json", b64(JSON.stringify(config))],
+    ],
+    assets: [],
+    paths: ["/"],
+    noIsolate: false,
+  });
+  expect(r.ok, r.error).toBe(true);
+  const out = JSON.parse(r.answers[0]);
+  expect(out.first).toBe("pong");
+  expect(out.spin).toMatch(/^rejected: .*disposed/);
+  expect(out.after).toMatch(/^refused: .*disposed/);
+});
+
 // node:async_hooks on a site: its modules' awaits are lowered as they are served, so 16 objects at
 // once keep their own stores, as in a bundle (agents-sdk-host.spec) and on Node (test/p13).
 test("AsyncLocalStorage on a site keeps each concurrent object's store, as on Node", async ({

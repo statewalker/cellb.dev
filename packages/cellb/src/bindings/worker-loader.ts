@@ -3,6 +3,7 @@ import {
   cross,
   ctxExports,
   type DurableObjectClass,
+  END_ISOLATE,
   entrypointStub,
   ISOLATED,
   type IsolatedClass,
@@ -199,7 +200,9 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
     },
     get(id: string, getCode: () => WorkerCode | Promise<WorkerCode>, cached = true) {
       let own: Promise<Loaded> | undefined; // load(): memoized per handle, not in the id cache
+      let disposed: Error | undefined; // load(): its handle was disposed, so it is not loaded again
       const loaded = () => {
+        if (disposed) return Promise.reject(disposed);
         let p = cached ? cache.get(id) : own;
         if (!p) {
           p = (async () => {
@@ -295,9 +298,30 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             return { cls: cls as DurableObjectClass, env };
           });
         },
-        /** Releases the loaded Worker: the id leaves the cache; a later get() loads again. */
+        /**
+         * Releases the loaded Worker. Its isolate ends now, as in workerd: its calls in flight
+         * reject, and a Worker that never yields stops. For `get(id)`, the id leaves the cache and
+         * a later get() loads the code again; a `load()`ed Worker's handle refuses later calls.
+         */
         dispose() {
-          cache.delete(id);
+          const p = cached ? cache.get(id) : own;
+          if (cached) {
+            if (p) cache.delete(id);
+          } else {
+            own = undefined;
+            disposed = new Error(`loaded Worker "${id}" was disposed`);
+          }
+          const reason = new Error(`loaded Worker "${id}" was disposed`);
+          // Still loading: it ends once loaded. An in-realm module has no isolate to end.
+          void p?.then(
+            (l) =>
+              (
+                (l.module as Record<symbol, unknown>)[END_ISOLATE] as
+                  | ((reason: Error) => void)
+                  | undefined
+              )?.(reason),
+            () => {},
+          );
         },
         getEntrypoint(name = "default", options: { props?: unknown } = {}) {
           // Props cross now (workerd serializes them here): a refusal is a rejected promise,

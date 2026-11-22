@@ -24,6 +24,11 @@ export const ISOLATED = Symbol.for("cellb.isolated-classes");
  * it does (the Worker Loader forgets the module, so the next `get()` loads the code again).
  */
 export const ON_ABORT = Symbol.for("cellb.on-abort");
+/**
+ * On a loaded Worker's module that runs in an isolate: ends that isolate now (`dispose()` of the
+ * Worker Loader's handle). Calls in flight and later ones reject with `reason`.
+ */
+export const END_ISOLATE = Symbol.for("cellb.end-isolate");
 
 /** A Durable Object class that runs in an isolate: its instances and storage live there. */
 export interface IsolatedClass {

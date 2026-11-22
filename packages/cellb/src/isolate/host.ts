@@ -4,7 +4,7 @@ import {
   outboundFetch,
   type WorkerCode,
 } from "../bindings/worker-loader.js";
-import { ISOLATED, type IsolatedClass, ON_ABORT } from "../core/handles.js";
+import { END_ISOLATE, ISOLATED, type IsolatedClass, ON_ABORT } from "../core/handles.js";
 import type { CellStorage } from "../ports.js";
 import { hostPort, type PortLike } from "./protocol.js";
 
@@ -121,6 +121,15 @@ export function isolatedModuleLoader(opts: {
     // Registered after the load: an isolate that ended while its code was evaluated is forgotten
     // at once.
     module[ON_ABORT] = (f: () => void) => (aborted ? f() : onAbort.push(f));
+    // Its handle was disposed: the thread (or Dedicated Worker) ends at once, so code that never
+    // yields stops too; then the calls in flight reject.
+    module[END_ISOLATE] = (reason: Error) => {
+      if (!isolates.delete(running)) return;
+      aborted = true;
+      isolate.terminate();
+      void close(reason);
+      for (const f of onAbort.splice(0)) f();
+    };
     return module as Record<string, unknown>;
   };
   return Object.assign(load, {
