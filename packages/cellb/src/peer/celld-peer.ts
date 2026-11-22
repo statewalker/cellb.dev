@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { Duplex } from "node:stream";
 import type { ObjectStore } from "../bucket/object-store.js";
 import { toAnotherNode } from "../core/handles.js";
+import { DurableObjectRoutingError } from "../core/object-host.js";
 import type { CellRuntime } from "../core/runtime.js";
 import { deserialize, serialize } from "../v8/serialize.js";
 import { createWebSocketClass } from "../ws/client.js";
@@ -509,7 +510,7 @@ export async function startCelldPeerServer(opts: {
 async function openTunnel(
   key: Uint8Array,
   source: string,
-  owner: { node: string; addr: string },
+  owner: { node: string; addr: string; cellKey?: string },
   kind: "do" | "rpc",
 ): Promise<import("node:net").Socket> {
   const { request } = await import("node:http");
@@ -539,7 +540,10 @@ async function openTunnel(
         }),
       ),
     );
-    req.on("error", reject);
+    // No connection to the owner (its process is gone, its lease still live): celld's answer.
+    req.on("error", (e) =>
+      reject(new DurableObjectRoutingError(owner.cellKey ?? owner.node, { cause: e })),
+    );
     req.end();
   });
   return socket;
@@ -548,7 +552,7 @@ async function openTunnel(
 async function tunnelCall(
   key: Uint8Array,
   source: string,
-  owner: { node: string; addr: string },
+  owner: { node: string; addr: string; cellKey?: string },
   kind: "do" | "rpc",
   inner: { method: string; path: string; headers: Record<string, string>; body?: Uint8Array },
 ): Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }> {
@@ -604,15 +608,17 @@ export function celldPeers(opts: { store: ObjectStore; node: string }) {
       const own = await json<{ node: string }>(`cells/${cellKey.replace("/", ":")}/own.json`);
       return own?.node && own.node !== opts.node ? own.node : undefined;
     },
+    /** Reached only when endpoint() found no live node lease for the owner: the cell is about
+     * to move (celld takes it once the lease has expired). */
     link(): never {
-      throw new Error("celld owners are reached through endpoint()");
+      throw new DurableObjectRoutingError("(owner without a live node lease)");
     },
     async endpoint(owner: string, cellKey: string, name: string | undefined) {
       const lease = await json<{ addr: string; expires_ms: number }>(`nodes/${owner}.json`);
       if (!lease?.addr || lease.expires_ms <= Date.now()) return undefined;
       key ??= loadPeerKey(opts.store);
       const k = await key;
-      const target = { node: owner, addr: lease.addr };
+      const target = { node: owner, addr: lease.addr, cellKey };
       const scope = cellKey.replace("/", ":");
       const control = (h: Record<string, string>) => ({
         ...h,

@@ -25,6 +25,7 @@ import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./na
 import {
   CellOwnedElsewhereError,
   closingWith,
+  DurableObjectRoutingError,
   ObjectClosedError,
   ObjectHost,
 } from "./object-host.js";
@@ -358,12 +359,23 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       const peers = opts.peers;
       if (!peers) return local;
       // Local first; a cell owned by another node is reached through that node.
-      const viaOwner = async () => {
+      /** The owner's endpoint; undefined when no node owns the cell now (it can be taken here). */
+      const viaOwner = async (): Promise<ObjectEndpoint | undefined> => {
         const owner = await peers.ownerOf(cellKey);
-        if (!owner) throw new CellOwnedElsewhereError(cellKey);
-        const direct = await peers.endpoint?.(owner, cellKey, id.name);
-        if (direct) return direct;
-        return httpEndpoint(postVia(peers.link(owner)), codec, binding, className, id);
+        if (!owner) return undefined;
+        let direct: ObjectEndpoint | undefined;
+        let link: Send;
+        try {
+          direct = await peers.endpoint?.(owner, cellKey, id.name);
+          if (direct) return direct;
+          link = peers.link(owner);
+        } catch (e) {
+          // The owner is named but cannot be reached (its process died, its lease still live):
+          // celld's answer for the same case. The cell moves once the owner's lease expires.
+          if (e instanceof DurableObjectRoutingError) throw e;
+          throw new DurableObjectRoutingError(cellKey, { cause: e });
+        }
+        return httpEndpoint(postVia(link), codec, binding, className, id);
       };
       // The host reports a failed open as a broken object; the cause tells why.
       const elsewhere = (e: unknown): boolean => {
@@ -375,31 +387,47 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           if (x.name === "CellOwnedElsewhereError") return true;
         return false;
       };
+      // Drop the host whose open found the cell owned elsewhere, but only that one: by now the
+      // map may hold a newer host another request opened, with events of its own queued.
+      const retireBroken = () => {
+        const h = hosts.get(cellKey);
+        if (h?.broken) retire(cellKey, h);
+      };
+      /**
+       * Runs an event here, or on the cell's owner. Each failed attempt was refused before the
+       * event ran (the local claim lost, or the owner answered that it no longer owns the cell),
+       * so it is safe to try again: locally when no node owns the cell any more, as celld
+       * claims a cell whose owner's lease ran out, or on the owner the bucket names now.
+       */
+      const attempts = 4;
+      const run = async <T>(first: ObjectEndpoint, go: (ep: ObjectEndpoint) => Promise<T>) => {
+        let ep = first;
+        for (let i = 1; ; i++) {
+          try {
+            return await go(ep);
+          } catch (e) {
+            if (!elsewhere(e) || i >= attempts) throw e;
+            retireBroken();
+            ep = (await viaOwner()) ?? local();
+          }
+        }
+      };
       return () => {
         const l = local();
         return {
           get local() {
             return l.local; // not copied: reading it opens the cell
           },
-          fetch: async (req: Request) => {
+          fetch: (req: Request) => {
             const spare = req.body ? req.clone() : req;
-            try {
-              return await l.fetch(req);
-            } catch (e) {
-              if (!elsewhere(e)) throw e;
-              retire(cellKey);
-              return (await viaOwner()).fetch(spare);
-            }
+            let used = false;
+            return run(l, (ep) => {
+              const r = used ? spare.clone() : req;
+              used = true;
+              return ep.fetch(r);
+            });
           },
-          call: async (method: string, args: unknown[]) => {
-            try {
-              return await l.call(method, args);
-            } catch (e) {
-              if (!elsewhere(e)) throw e;
-              retire(cellKey);
-              return (await viaOwner()).call(method, args);
-            }
-          },
+          call: (method: string, args: unknown[]) => run(l, (ep) => ep.call(method, args)),
         };
       };
     });

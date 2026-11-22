@@ -335,13 +335,17 @@ export class ObjectHost {
    * late — every queued continuation would see it open).
    */
   deliver<T>(fn: (instance: any, state: DurableObjectState) => T | Promise<T>): Promise<T> {
+    // A broken host reports why it broke even once it is closed: a host retired because its
+    // cell is owned by another node fails its queued events with that cause, so the runtime
+    // sends each of them to the owner instead of failing it as closed.
+    if (this.broken)
+      return Promise.reject(new BrokenObjectError(this.#brokenCause, "its initialization failed"));
     if (this.#closed) return Promise.reject(new ObjectClosedError(this.cellKey));
-    if (this.broken) return Promise.reject(new BrokenObjectError(undefined));
     return new Promise<T>((resolve, reject) => {
       this.#queue.push(() => {
-        if (this.#closed) return reject(new ObjectClosedError(this.cellKey));
         if (this.broken)
           return reject(new BrokenObjectError(this.#brokenCause, "its initialization failed"));
+        if (this.#closed) return reject(new ObjectClosedError(this.cellKey));
         let started: Promise<T>;
         this.#active++;
         try {
@@ -819,6 +823,20 @@ export class CellOwnedElsewhereError extends Error {
     super(`Durable Object ${cellKey} is owned by another node`);
     this.name = "CellOwnedElsewhereError";
   }
+}
+
+/**
+ * The cell's owner is another node, and that node cannot be reached: its process died while its
+ * node lease is still live, or the network refused. celld answers the same case with this name
+ * and message; the cell moves once the owner's lease expires, so a client may retry.
+ */
+export class DurableObjectRoutingError extends Error {
+  constructor(cellKey: string, options?: { cause?: unknown }) {
+    super("The Durable Object owner is currently unreachable", options);
+    this.name = "DurableObjectRoutingError";
+    this.cellKey = cellKey;
+  }
+  readonly cellKey: string;
 }
 
 /** celld's path segment for a facet name: the first 16 bytes of SHA-256(name), hex. */

@@ -136,7 +136,25 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     // Our authority lasts until the record we just wrote expires — minus a margin, so a node
     // that stalls (a paused process, a frozen tab) stops acknowledging before celld may take
     // over: celld waits for expires_ms; we stop at expires_ms - margin.
-    if (!closed) validUntil = t + ttl - Math.min(1_000, ttl / 4);
+    if (!closed) {
+      validUntil = t + ttl - Math.min(1_000, ttl / 4);
+      // Every write that moves the validity (renewals, advertise()) moves the deadline with it:
+      // a deadline armed for an older validity fires early, finds the lease valid, and would
+      // otherwise never fire again if the renewals after it stop landing (#178).
+      armDeadline();
+    }
+  };
+  /** If renewals stop arriving (a stalled process, an unreachable bucket), every cell stops at
+   * the local deadline — before celld may take it over. */
+  const armDeadline = () => {
+    if (deadline) clearTimeout(deadline);
+    deadline = setTimeout(
+      () => {
+        if (now() >= validUntil) fence(new Error(`node ${opts.node}: lease deadline passed`));
+      },
+      Math.max(0, validUntil - now()),
+    );
+    (deadline as { unref?: () => void }).unref?.();
   };
   const owned = new Set<string>();
   /** Cells whose ownership record was found lost, with the time their refusal ends. */
@@ -153,16 +171,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
             tick();
           });
         }, ttl / 3);
-        // If renewals stop arriving (a stalled process, an unreachable bucket), every cell
-        // stops at the local deadline — before celld may take it over.
-        if (deadline) clearTimeout(deadline);
-        deadline = setTimeout(
-          () => {
-            if (now() >= validUntil) fence(new Error(`node ${opts.node}: lease deadline passed`));
-          },
-          Math.max(0, validUntil - now()),
-        );
-        (deadline as { unref?: () => void }).unref?.();
+        armDeadline();
         (renew as { unref?: () => void }).unref?.();
       };
       tick();
