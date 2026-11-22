@@ -127,9 +127,83 @@ sides on Node:
 - `celldPeers({ store, node })`, passed as `peers`, routes a CellB Worker's calls for a celld-owned
   cell through the tunnel. That covers fetch, RPC (V8-serialized) and WebSockets.
 
-CellB is never a log follower and does not accept capacity hand-off (`/peer/handoff`): it
-acknowledges a write only once it is in the bucket, and its node record reports zero placement
-weight, so it owns only the cells requested through it.
+**CellB as a follower in celld's log tier.** In `CELLD_DURABILITY=fleet` (celld's default) a celld
+node ships each commit's LTX segment to up to two followers, chosen among every live node record,
+and acknowledges the write once they hold it on disk, before the bucket does. A CellB node with a
+peer server (`cellb serve`, or `startCelldPeerServer({ follower: createLogFollower(...) })`) is
+such a follower:
+
+- `POST /peer/log/append` (`CLA1` frames of `CLE1` entries): it adopts a leader's epoch only when
+  the leader's node record names it in an open log of that epoch, accepts entries strictly in
+  sequence, and answers `{ok, end, epoch}` only after they are fsynced;
+- `POST /peer/log/seal` fences the epoch for good and reports the held range; `POST
+  /peer/log/tail` returns it (`CLT2`) to the node that recovers a dead leader;
+- the leader's `truncate_to` drops what the bucket holds; a fragment the leader's record has
+  closed (recovered, or a later epoch) is dropped every 10 minutes.
+
+The segments are opaque to CellB (L0 LTX files it never reads). They live under `--data` (or a
+directory of the node's own under the OS temp dir): give a disk that keeps what was fsynced,
+because a celld leader acknowledges on it. A peer server without a follower answers the routes
+with 404, and celld quarantines the node from its ensembles for 5 minutes at a time, its
+acknowledgements falling back to the bucket meanwhile.
+
+**CellB as a leader, and as a recoverer.** `cellb serve` leads a session of its own unless
+`--durability bucket` (`CELLD_DURABILITY`, celld's default `fleet` otherwise), as a celld node
+does:
+
+- it recruits up to two live peers, celld or cellb, and opens epoch *n+1* in its node record
+  (`log: {state: open, epoch, ensemble, active: false}`, by compare-and-swap through its lease)
+  only once nothing it shipped is missing from the bucket;
+- it ships each commit's L0 segment to every follower in order and acknowledges the commit when
+  all of them hold it, or when its upload lands, whichever is first; `active: true` is applied in
+  the record before the first acknowledgement a follower made; uploads stay in TXID order per
+  cell, and one the followers acknowledged is retried until it lands;
+- any failure degrades the epoch to the bucket's acknowledgements; a follower that cannot append
+  (404) is left out for 5 minutes; `truncate_to` follows the bucket;
+- SIGTERM stops the shipping, waits for the bucket and seals the session.
+
+A dead leader's session (a celld node's or a cellb node's) is recovered by a 30-second sweep on
+every `cellb serve` node, as celld's nodes do: claim the record (`recovering`), seal the
+followers and read their tails, upload what the bucket lacks in TXID order, mark it `sealed`. An
+active session needs one complete witness: while a follower that may come back cannot be reached,
+the recovery waits; when none is left, the loss is recorded in `log/<session>.e<epoch>.loss.json`.
+A session that left node bundles (`log/<session>/bundle/`, celld's tiering) is left to celld.
+celld nodes recover dead cellb leaders the same way (e2e `p11n`: a cellb leader whose only
+follower is celld, and a fleet of cellb nodes, each killed under load with acknowledged writes
+only on its followers; none is lost).
+
+CellB does not accept capacity hand-off (`/peer/handoff`). Its node record reports zero placement
+weight and no paced hand-off, so celld neither hands nor rebalances cells to it. A node with a
+peer server reports memory headroom: celld's first-readiness gate keeps a starting celld node
+unready while a live peer reports pressure. A full celld node may route a new cell to it, which it
+serves.
+
+`cellb serve` (or `startFleetNode()` from `@statewalker/cellb/node`) puts the pieces together as a
+fleet node, with celld's node flags and environment:
+
+```sh
+AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… \
+  cellb serve ./my-project --bucket s3://cells/fleet-a --endpoint http://127.0.0.1:9200 \
+    --listen 0.0.0.0:8080 --internal-listen 10.0.0.5:7000
+```
+
+celld nodes and CellB nodes started this way on one bucket answer as one cluster: a request for
+any cell, at any node, reaches the cell's one owner (e2e `p11k-hybrid-cluster` runs 2 + 2 nodes
+under load, kills one of each, and checks that no acknowledged write is lost or repeated). What a
+mixed fleet relies on:
+
+- **The takeover recovery gate.** In celld's default `CELLD_DURABILITY=fleet`, a celld node
+  acknowledges a write once its followers hold it, before it reaches `cells/<cell>/ltx/`. When it
+  dies, its node record keeps `log.state` other than `sealed` until a running celld node has
+  recovered the log into the cells' prefixes. CellB, like celld (`takeover_gate`), takes none of
+  its cells before then; requests for them answer `DurableObjectRoutingError`.
+- **An unreachable owner** answers as on celld: `DurableObjectRoutingError: The Durable Object owner
+  is currently unreachable`, until its lease expires and the cell moves.
+- **The fleet's peer secret** (`fleet/peer-auth.json`) is created by the first node of either
+  runtime, with a create-only write.
+- **Leaving.** SIGTERM drains the node's requests in flight, releases its cells while its peer
+  server still answers (a request routed to it meanwhile is told to re-resolve the owner), then
+  deletes its node record, so the other nodes take its cells at once.
 
 ## Where celld is followed, and where it is not
 

@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
     environment:
       # The sandbox the invitation links open.
-      SANDBOX_URL: ${SANDBOX_URL:-https://cellb.httpeers.net/sandbox/app/}
+      SANDBOX_URL: ${SANDBOX_URL:-https://cellb.dev/sandbox/app/}
       # The public gateway (public apps for non-members), behind your TLS proxy or tunnel. Empty: none.
       SANDBOX_HUB_GATEWAY_PORT: ${SANDBOX_HUB_GATEWAY_PORT:-}
     volumes:

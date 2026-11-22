@@ -4,13 +4,11 @@ import Icon from "@/components/Icon.astro";
 import Button from "@/components/ui/Button.astro";
 import Docs from "@/layouts/Docs.astro";
 import { docHref } from "@/lib/docs";
-import { CONTAINER_DEMOS, repoFile } from "@/lib/site";
+import { byKind, CONTAINER_DEMOS_INDEX, CONTAINER_DEMOS_README } from "@/lib/showcase";
+import { repoFile } from "@/lib/site";
 
 // /containers/: CellB's containers (packages/containers), and the live demos built into the site
 // at /demos/containers/ (scripts/build-containers-demos.mjs).
-
-// copies of packages/containers/docs/images, next to the demos (scripts/build-containers-demos.mjs)
-const shot = (name: string) => `${CONTAINER_DEMOS.index}images/${name}.png`;
 
 const objectCode = `import { DurableObject } from "cloudflare:workers";
 
@@ -120,22 +118,9 @@ const docs: [string, string, string][] = [
   ],
 ];
 
-const examples: [string, string, string][] = [
-  ["python", "packages/containers/examples/python", "a stdlib HTTP server per object (Wasmer)"],
-  ["php", "packages/containers/examples/php", "PHP's built-in server per object (Wasmer)"],
-  ["node", "packages/containers/examples/node", "node:http in wasmer/edgejs (Wasmer, JSPI)"],
-  [
-    "pool",
-    "packages/containers/examples/pool",
-    "custom code on a pool, against each cell's own files",
-  ],
-  ["files", "packages/containers/examples/files", "a host FilesApi mounted into a container"],
-  [
-    "browser-demos",
-    "packages/containers/examples/browser-demos",
-    "the two live demos below (Wasmer and Lifo)",
-  ],
-];
+// the demos and the projects, from the catalog the /examples hub renders too
+const demos = byKind("live", "containers");
+const examples = byKind("area", "containers");
 ---
 
 <Docs
@@ -154,7 +139,7 @@ const examples: [string, string, string][] = [
     first starts (and are cached), and the object's code is the same as on celld.
   </p>
   <div class="my-6 flex flex-wrap gap-3">
-    <Button href={CONTAINER_DEMOS.index} size="lg">
+    <Button href={CONTAINER_DEMOS_INDEX} size="lg">
       Open the live demos <Icon name="arrowRight" />
     </Button>
     <Button href={repoFile("packages/containers/README.md")} variant="outline" size="lg">
@@ -168,26 +153,24 @@ const examples: [string, string, string][] = [
     notebook is served from an origin of its own: it installs and runs npm packages in its page's
     realm (Lifo is not a sandbox), and must not share this site's storage.
   </p>
-  {[CONTAINER_DEMOS.python, CONTAINER_DEMOS.notebook].map((d, i) => (
+  {demos.map((d) => (
     <div>
       <h3>
-        <a href={d.href}>{d.title}</a> <span class="text-sm font-normal text-muted-foreground">({d.engine})</span>
+        <a href={d.try}>{d.title}</a> <span class="text-sm font-normal text-muted-foreground">({d.engine})</span>
       </h3>
       <p>{d.body}</p>
-      <a href={d.href}>
-        <img
-          src={shot(i === 0 ? "python-1-run" : "notebook-3-edited")}
-          alt={i === 0 ? "The Python demo after a run: the script's output and the file it wrote" : "The notebook demo after a live edit"}
-          loading="lazy"
-          class="rounded-lg border"
-        />
-      </a>
+      {d.image && (
+        <a href={d.try}>
+          <img src={d.image.src} alt={d.image.alt} loading="lazy" class="rounded-lg border" />
+        </a>
+      )}
     </div>
   ))}
   <p>
-    <a href={docHref(CONTAINER_DEMOS.readme)}>How the demos are wired</a>: the isolated pool, the
+    <a href={docHref(CONTAINER_DEMOS_README)}>How the demos are wired</a>: the isolated pool, the
     ServiceWorker that serves the notebook's preview and gives the pages cross-origin isolation, and
-    the WebSocket for live reload.
+    the WebSocket for live reload. Every other example and demo of the site is on
+    <a href="/examples">Examples and demos</a>.
   </p>
 
   <h2>Two engines: Wasmer and Lifo</h2>
@@ -236,8 +219,8 @@ const examples: [string, string, string][] = [
 
   <h2>Examples</h2>
   <ul>
-    {examples.map(([name, dir, about]) => (
-      <li><a href={repoFile(dir)}><code>{name}</code></a>: {about}</li>
+    {examples.map((e) => (
+      <li><a href={repoFile(e.source ?? "")}><code>{e.title}</code></a>: {e.body}</li>
     ))}
   </ul>
   <p>

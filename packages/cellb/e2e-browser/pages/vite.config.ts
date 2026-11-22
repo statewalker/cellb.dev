@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { defineConfig, type Plugin, searchForWorkspaceRoot } from "vite";
 
@@ -48,9 +48,48 @@ const isolatedLabs: Plugin = {
   },
 };
 
+/**
+ * `cellb build` folders the tests write into public/built/ while the server runs, served from
+ * disk on every request. Vite serves public/ from a file list its watcher keeps: until the
+ * watcher has seen a new file (and sometimes never, under churn), a request for it falls through
+ * to index.html (statewalker/cellb.dev#212).
+ */
+const builtFolders: Plugin = {
+  name: "cellb-built-folders",
+  configureServer(server) {
+    const root = resolve(import.meta.dirname, "public/built");
+    const types: Record<string, string> = {
+      ".js": "text/javascript",
+      ".mjs": "text/javascript",
+      ".json": "application/json",
+      ".html": "text/html",
+      ".css": "text/css",
+      ".wasm": "application/wasm",
+      ".txt": "text/plain",
+      ".svg": "image/svg+xml",
+      ".png": "image/png",
+    };
+    server.middlewares.use((req, res, next) => {
+      if (!req.url?.startsWith("/built/")) return next();
+      const path = decodeURIComponent(
+        new URL(req.url, "http://x").pathname.slice("/built/".length),
+      );
+      const file = resolve(root, path);
+      if (!file.startsWith(`${root}/`) || !existsSync(file) || !statSync(file).isFile()) {
+        res.statusCode = 404;
+        return res.end("not found");
+      }
+      const ext = file.slice(file.lastIndexOf(".")).toLowerCase();
+      res.setHeader("Content-Type", types[ext] ?? "application/octet-stream");
+      res.setHeader("Cache-Control", "no-store");
+      res.end(readFileSync(file));
+    });
+  },
+};
+
 export default defineConfig({
   root: import.meta.dirname,
-  plugins: [isolatedLabs],
+  plugins: [isolatedLabs, builtFolders],
   // sqlite-wasm must not be pre-bundled (it locates its .wasm next to its module).
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm", "sqlite-vec-wasm-demo"],

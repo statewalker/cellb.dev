@@ -30,7 +30,28 @@ export interface LtxLogOptions {
   compact?: boolean;
   /** Checked before each write: false refuses it (this node's authority has lapsed). */
   authorized?: () => boolean;
+  /** True once the bucket is closing: an upload still retrying stops (recovery has the rows). */
+  stopped?: () => boolean;
 }
+
+/**
+ * A log tier leader's side of a commit (src/peer/log-leader.ts): `ship` hands the commit's L0
+ * segment to the followers and returns when they confirm it (`confirmed`, rejected if the fleet
+ * proof failed); `uploaded` tells it the segment reached the bucket (its truncate watermark).
+ * Undefined: not shipping now (no healthy ensemble), the bucket alone acknowledges.
+ */
+export interface SegmentShipper {
+  ship(seg: {
+    /** celld's scope, `<Class>:<idHex>`. */
+    cell: string;
+    cellEpoch: number;
+    txid: number;
+    bytes: Uint8Array;
+  }): { confirmed: Promise<void>; uploaded(): void; abandoned?(): void } | undefined;
+}
+
+const sleep = (ms: number) =>
+  new Promise((r) => (setTimeout(r, ms) as { unref?: () => void }).unref?.());
 
 const range = (key: string) => {
   const m = /\/ltx\/e(\d+)\/\d+\/([0-9a-f]{16})-([0-9a-f]{16})\.ltx$/.exec(key);
@@ -65,6 +86,81 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
     (wakeFormat ??= store
       .put("wake/format.json", enc.encode(JSON.stringify({ format: 2 })), { ifNoneMatch: "*" })
       .catch(() => {}));
+
+  let shipper: SegmentShipper | undefined;
+  // Each cell's uploads, one after the other, in TXID order whatever acknowledged the commits:
+  // celld's recovery skips rows at or below the highest TXID it finds in the bucket.
+  const uploads = new Map<string, Promise<void>>();
+  /** Cells whose acknowledged segment never reached the bucket: nothing after it lands (a gap). */
+  const poisoned = new Set<string>();
+  /**
+   * Makes a commit's segment durable: its upload, and (with a shipper) the followers' copy; the
+   * commit is acknowledged by whichever comes first. A segment the followers confirmed is in the
+   * bucket in the end: its upload is retried while this node keeps its authority.
+   */
+  const persist = async (cellKey: string, epoch: number, txid: bigint, bytes: Uint8Array) => {
+    const key = `cells/${scopeOf(cellKey)}/ltx/e${epoch}/0000/${ltxFileName(txid, txid)}`;
+    const shipped = shipper?.ship({
+      cell: scopeOf(cellKey),
+      cellEpoch: epoch,
+      txid: Number(txid),
+      bytes,
+    });
+    const fleet = shipped?.confirmed.then(
+      () => true,
+      () => false,
+    );
+    const prev = uploads.get(cellKey) ?? Promise.resolve();
+    const upload = prev
+      .catch(() => {})
+      .then(async () => {
+        if (poisoned.has(cellKey)) {
+          shipped?.abandoned?.();
+          throw new Error(`${cellKey}: an earlier acknowledged segment did not reach the bucket`);
+        }
+        for (let attempt = 0; ; attempt++) {
+          try {
+            await store.put(key, bytes);
+            shipped?.uploaded();
+            return;
+          } catch (e) {
+            if (!fleet || !(await fleet)) {
+              shipped?.abandoned?.(); // not acknowledged: the commit failed
+              throw e;
+            }
+            if (o.stopped?.()) {
+              // Closing with the bucket still down: the followers keep it for recovery; nothing
+              // of the cell after it may land.
+              poisoned.add(cellKey);
+              throw e;
+            }
+            // Acknowledged by the followers (or about to be): it must reach the bucket, and it
+            // never gives up — not even once this node's authority has lapsed: a write into a
+            // superseded epoch prefix is harmless (celld: "only into a superseded prefix"),
+            // while a segment left out would leave a TXID gap the next uploads build on and
+            // recovery skips (it reads the highest TXID listed).
+            await sleep(Math.min(100 * 2 ** attempt, 2_000));
+          }
+        }
+      });
+    uploads.set(cellKey, upload);
+    upload.then(
+      () => uploads.get(cellKey) === upload && uploads.delete(cellKey),
+      () => uploads.get(cellKey) === upload && uploads.delete(cellKey),
+    );
+    if (!fleet) return upload;
+    // The first proof wins; the commit fails only if both do.
+    await new Promise<void>((resolve, reject) => {
+      let failed = 0;
+      let error: unknown;
+      const fail = (e?: unknown) => {
+        if (e !== undefined) error = e;
+        if (++failed === 2) reject(error);
+      };
+      upload.then(resolve, fail);
+      fleet.then((ok) => (ok ? resolve() : fail()));
+    });
+  };
 
   // Commits of one cell are logged one after the other, so TXIDs and the page mirror advance
   // in commit order. (Without this, two quick commits both saw TXID 0 and raced to PUT the
@@ -172,8 +268,10 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
       if (info.pages && cell.pages) {
         if (!info.pages.pages.size) return;
         const txid = cell.txid + 1n;
-        await store.put(
-          `cells/${scopeOf(cellKey)}/ltx/e${cell.epoch}/0000/${ltxFileName(txid, txid)}`,
+        await persist(
+          cellKey,
+          cell.epoch,
+          txid,
           encodeLtx({
             header: {
               pageSize: info.pages.pageSize,
@@ -220,10 +318,7 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
         pages,
         postApplyChecksum: 0n, // celld 0.6.2 leaves the rolling checksums at 0
       });
-      await store.put(
-        `cells/${scopeOf(cellKey)}/ltx/e${cell.epoch}/0000/${ltxFileName(txid, txid)}`,
-        file,
-      );
+      await persist(cellKey, cell.epoch, txid, file);
       cell.txid = txid;
       cell.pages ??= new Map();
       for (const [p, d] of pages) cell.pages.set(p, d);
@@ -235,6 +330,7 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
       // snapshot file 1..N — celld reads it as any snapshot.
       if (!o.compact) return;
       await inOrder(cellKey, async () => {
+        await uploads.get(cellKey)?.catch(() => {}); // every segment in the bucket first
         const cell = cells.get(cellKey);
         const epoch = cell?.epoch ?? o.defaultEpoch ?? 1;
         const txid = cell?.txid ?? (await lastTxid(cellKey, epoch));
@@ -325,6 +421,29 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
     /** The cell is no longer ours (lease lost): forget its writer state. */
     forget(cellKey: string) {
       cells.delete(cellKey);
+    },
+    /**
+     * Waits for the cell's segments to reach the bucket: true once none is on its way (or one
+     * that was not acknowledged gave up), false if `timeoutMs` passed first.
+     */
+    async flush(cellKey: string, timeoutMs?: number): Promise<boolean> {
+      const settled = (async () => {
+        await queues.get(cellKey)?.catch(() => {});
+        await uploads.get(cellKey)?.catch(() => {});
+        return true;
+      })();
+      if (timeoutMs === undefined) return settled;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const r = await Promise.race([
+        settled,
+        new Promise<boolean>((res) => (timer = setTimeout(() => res(false), timeoutMs))),
+      ]);
+      clearTimeout(timer);
+      return r;
+    },
+    /** A log tier leader that ships each commit's segment to its followers (or none). */
+    setShipper(s: SegmentShipper | undefined) {
+      shipper = s;
     },
   });
 }

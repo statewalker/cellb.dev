@@ -2,13 +2,13 @@
 
 Two live demos of `@statewalker/cellb-containers`, one per engine, served as static sites:
 the Wasmer one at [cellb.dev/demos/containers/](https://cellb.dev/demos/containers/), the Lifo one
-at [cellb-containers.httpeers.net](https://cellb-containers.httpeers.net/), an origin of its own
+at [containers.cellb.dev](https://containers.cellb.dev/), an origin of its own
 (see [Where they are published](#where-they-are-published)).
 
 | Demo | Engine | What it shows |
 | --- | --- | --- |
 | [Python in Wasmer containers](https://cellb.dev/demos/containers/python/) (`python/`) | Wasmer (WASIX sandboxes) | a script runs in a fresh Python container per run, against files from the page, with no network |
-| [Notebook in a Lifo container](https://cellb-containers.httpeers.net/notebook/) (`notebook/`) | Lifo (a Linux-like OS in TypeScript) | Observable Framework installed by `npm` in the tab, then `observable preview` with live reload |
+| [Notebook in a Lifo container](https://containers.cellb.dev/notebook/) (`notebook/`) | Lifo (a Linux-like OS in TypeScript) | Observable Framework installed by `npm` in the tab, then `observable preview` with live reload |
 
 ![Python in Wasmer containers: the script's output and the file it wrote back to the page](../../docs/images/python-1-run.png)
 
@@ -73,7 +73,7 @@ rights of the page's origin. That is why this demo has an origin of its own.
 | Demo | Where | Published by |
 | --- | --- | --- |
 | landing page and `python/` | `https://cellb.dev/demos/containers/` | the site (`site/scripts/build-containers-demos.mjs`, `DEMOS_PAGES=python`), on every site deploy |
-| landing page, `python/` and `notebook/` | `https://cellb-containers.httpeers.net/` | `.github/workflows/examples-publish.yml` (run by hand), after testing the build |
+| landing page, `python/` and `notebook/` | `https://containers.cellb.dev/` | `.github/workflows/examples-publish.yml` (run by hand), after testing the build |
 
 The Python demo can share cellb.dev's origin: its page runs this repository's code only, and the
 Python a visitor types runs inside Wasmer's sandbox, which has no access to the page's JavaScript.

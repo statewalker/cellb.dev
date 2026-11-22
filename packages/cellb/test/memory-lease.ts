@@ -37,6 +37,14 @@ export class MemoryLeases {
     };
   }
 
+  /** The holder of `name` loses it (its lease ran out), but stays up and may claim again. */
+  expire(name: string): void {
+    const rec = this.#held.get(name);
+    if (!rec) return;
+    this.#held.delete(name);
+    rec.lost.abort(new Error(`lease "${name}" expired`));
+  }
+
   partition(owner: string): void {
     this.#cut.add(owner);
     for (const [name, rec] of this.#held)
