@@ -38,3 +38,35 @@ describe("P11k a node lease rewritten by advertise() is still fenced at its dead
     await bucket.close();
   });
 });
+
+// A deadline timer can fire a little before the clock the lease is judged by reads the deadline
+// (Node timers round; a `now` that is not Date.now). It then found the lease still valid and was
+// not armed again, and with renewals stuck the node kept its cells past its lease: a split brain
+// waiting to happen (statewalker/cellb.dev#212, found by stressing p11i).
+describe("P11k a deadline that fires early", () => {
+  it("is armed again for the rest, and still fences the cells", async () => {
+    const mem = memoryObjectStore();
+    let hang = false;
+    let lag = 0;
+    const store: ObjectStore = {
+      get: (k) => mem.get(k),
+      list: (p) => mem.list(p),
+      delete: (k) => mem.delete(k),
+      put: (k, b, c, a) =>
+        hang && k.startsWith("nodes/") ? new Promise<string>(() => {}) : mem.put(k, b, c, a),
+    };
+    const ttl = 1_000;
+    const bucket = celldBucket(store, { node: "n", leaseTtlMs: ttl, now: () => Date.now() - lag });
+    const lease = await bucket.ownership.tryAcquire(`Counter/${"5".repeat(64)}`);
+    hang = true; // no renewal lands from now on
+    lag = 150; // when the deadline timer fires, the lease's clock reads 150 ms short of it
+    const fenced = await new Promise<boolean>((resolve) => {
+      if (lease!.lost.aborted) return resolve(true);
+      lease!.lost.addEventListener("abort", () => resolve(true));
+      setTimeout(() => resolve(false), 4 * ttl);
+    });
+    expect(fenced).toBe(true);
+    hang = false;
+    await bucket.close();
+  });
+});

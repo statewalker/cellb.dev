@@ -154,9 +154,13 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     if (deadline) clearTimeout(deadline);
     deadline = setTimeout(
       () => {
+        if (closed) return;
         if (now() >= validUntil) fence(new Error(`node ${opts.node}: lease deadline passed`));
+        // Fired before the lease's clock reached the deadline (timers round; `now` may not be
+        // Date.now): wait for the rest, or no deadline is left while renewals are stuck.
+        else armDeadline();
       },
-      Math.max(0, validUntil - now()),
+      Math.max(1, validUntil - now()),
     );
     (deadline as { unref?: () => void }).unref?.();
   };

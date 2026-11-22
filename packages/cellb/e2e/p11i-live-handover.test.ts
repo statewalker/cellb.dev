@@ -339,9 +339,12 @@ describe("P11i self-fencing at the lease deadline", () => {
   // after one fence must be fenced by the next lapse too — or a late renewal would make its
   // writes acknowledged again after its node record expired and another node took the cell.
   it("a cell taken again after a failed renewal is fenced by the next lapse (no split brain)", async () => {
+    // Every step waits for the event it depends on, not for a time (statewalker/cellb.dev#212:
+    // fixed sleeps failed this test under load).
     const mem = memoryObjectStore();
     let failLeasePut = false;
-    let slowLeasePut = 0;
+    let holdLeasePut: Promise<void> | undefined;
+    let held: (() => void) | undefined;
     const store: ObjectStore = {
       get: (k) => mem.get(k),
       list: (p) => mem.list(p),
@@ -352,10 +355,11 @@ describe("P11i self-fencing at the lease deadline", () => {
             failLeasePut = false;
             throw new Error("bucket unavailable");
           }
-          if (slowLeasePut) {
-            const ms = slowLeasePut;
-            slowLeasePut = 0;
-            await new Promise((r) => setTimeout(r, ms));
+          const hold = holdLeasePut;
+          if (hold) {
+            holdLeasePut = undefined;
+            held?.();
+            await hold; // this renewal lands only when the test releases it
           }
         }
         return mem.put(k, b, c, a);
@@ -369,14 +373,42 @@ describe("P11i self-fencing at the lease deadline", () => {
       storage: bucket,
     });
     const stub = (rt.env.C as any).getByName("c");
+    const record = async () =>
+      JSON.parse(new TextDecoder().decode((await mem.get("nodes/n.json"))!.body)) as {
+        expires_ms: number;
+      };
+    const lostOf = (l: { lost: AbortSignal } | undefined) =>
+      new Promise((r) => l!.lost.addEventListener("abort", r));
+    const step = <T>(label: string, p: Promise<T>) =>
+      Promise.race([
+        p,
+        new Promise<T>((_, j) =>
+          setTimeout(() => j(new Error(`STEP ${label} did not happen`)), 8_000),
+        ),
+      ]);
     expect(await runInDurableObject(stub, (o: Counter) => o.bump())).toBe(1);
-    const probe = await bucket.ownership.tryAcquire("C/probe");
-    const fenced = new Promise((r) => probe!.lost.addEventListener("abort", r));
+    const fenced = lostOf(await bucket.ownership.tryAcquire("C/probe"));
+    // The next renewal is held from the moment it starts: it will land late.
+    let release!: () => void;
+    holdLeasePut = new Promise<void>((r) => (release = r));
+    const renewalStarted = new Promise<void>((r) => (held = r));
     failLeasePut = true;
-    await fenced; // a failed renewal fenced the node; its deadline is still ahead
-    slowLeasePut = 1_500; // the next renewal lands after the record it renews has expired
-    expect(await runInDurableObject(stub, (o: Counter) => o.bump())).toBe(2); // taken again
-    await new Promise((r) => setTimeout(r, 2_050)); // past the deadline and the record's expiry
+    await step("fenced", fenced); // a failed renewal fenced the node; its deadline is still ahead
+    expect(
+      await step(
+        "bump2",
+        runInDurableObject(stub, (o: Counter) => o.bump()),
+      ),
+    ).toBe(2); // taken again
+    const refenced = lostOf(await bucket.ownership.tryAcquire("C/probe2"));
+    await step("renewalStarted", renewalStarted); // the renewal is on its way, and held
+    await step("refenced", refenced); // the deadline fenced the cell taken again
+    const expiresMs = (await record()).expires_ms;
+    await until(
+      async () => Date.now(),
+      (t) => t > expiresMs,
+      10_000,
+    ); // the node's record has expired
     const rec = (await mem.list("cells/")).find(
       (k) => k.endsWith("/own.json") && !k.includes("probe"),
     )!;
@@ -385,10 +417,15 @@ describe("P11i self-fencing at the lease deadline", () => {
     const json = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
     await mem.put("nodes/celld.json", json({ node: "celld", expires_ms: Date.now() + 60_000 }));
     await mem.put(rec, json({ node: "celld", epoch: epoch + 1 }));
-    await new Promise((r) => setTimeout(r, 600)); // the late renewal lands
+    release(); // the late renewal lands
+    await until(
+      async () => (await record()).expires_ms,
+      (e) => e !== expiresMs,
+      10_000,
+    );
     await expect(runInDurableObject(stub, (o: Counter) => o.bump())).rejects.toThrow(
       /owned by another node/,
     );
     await rt.close();
-  }, 20_000);
+  }, 30_000);
 });

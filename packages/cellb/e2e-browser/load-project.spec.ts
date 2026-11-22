@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { files as helloHono } from "../../../site/src/from-sources/project.ts";
@@ -9,8 +9,42 @@ import { buildProject } from "../src/project/build.ts";
 const PKG = resolve(import.meta.dirname, "..");
 const PUBLIC = join(PKG, "e2e-browser/pages/public/built");
 
-async function build(project: string, dir: string) {
-  await buildProject(join(PKG, dir), join(PUBLIC, project));
+const built: string[] = [];
+test.afterEach(() => {
+  for (const out of built.splice(0)) rmSync(out, { recursive: true, force: true });
+});
+
+/**
+ * Builds into the dev server's public/ directory, then waits until the server serves every file
+ * it wrote. Vite learns of new public files through its file watcher: until it has, a request for
+ * one falls through to the SPA fallback (index.html), and the load fails with `"<!doctype "... is
+ * not valid JSON` (statewalker/cellb.dev#212).
+ */
+async function build(page: import("@playwright/test").Page, name: string, dir: string) {
+  // A folder of its own per run: repeated or parallel runs never build into one another's.
+  const project = `${name}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const out = join(PUBLIC, project);
+  built.push(out);
+  await buildProject(join(PKG, dir), out);
+  const files: string[] = [];
+  const walk = (d: string) => {
+    for (const name of readdirSync(d)) {
+      const full = join(d, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else files.push(full);
+    }
+  };
+  walk(out);
+  for (const file of files) {
+    const url = `/built/${project}/${relative(out, file).split("\\").join("/")}`;
+    const size = statSync(file).size;
+    await expect
+      .poll(async () => (await (await page.request.get(url)).body()).length, {
+        message: `the dev server serves ${url}`,
+        timeout: 15_000,
+      })
+      .toBe(size);
+  }
   return `/built/${project}/`;
 }
 
@@ -27,7 +61,7 @@ async function load(page: import("@playwright/test").Page, source: Source, runs:
 }
 
 test("a built counter: cells kept in OPFS under `data` across loads", async ({ page }) => {
-  const url = await build("counter", "conformance/celld-examples/counter");
+  const url = await build(page, "counter", "conformance/celld-examples/counter");
   const r = await load(page, url, [
     ["/?name=alpha", "/?name=alpha", "/?name=beta"],
     ["/?name=alpha"],
@@ -40,7 +74,7 @@ test("a built counter: cells kept in OPFS under `data` across loads", async ({ p
 });
 
 test("a built project with assets answers as celld does", async ({ page }) => {
-  const url = await build("assets-api", "conformance/projects/assets-api");
+  const url = await build(page, "assets-api", "conformance/projects/assets-api");
   const golden = JSON.parse(
     readFileSync(join(PKG, "conformance/golden/assets-api.json"), "utf8"),
   ).transcript.filter((s: { request?: string }) => s.request?.startsWith("GET "));
@@ -55,7 +89,7 @@ test("a built project with assets answers as celld does", async ({ page }) => {
 });
 
 test("a built project importing .wasm, Text and Data files", async ({ page }) => {
-  const url = await build("wasm-modules", "test/fixtures/wasm-modules");
+  const url = await build(page, "wasm-modules", "test/fixtures/wasm-modules");
   const r = await load(page, url, [["/?a=2&b=40"]]);
   expect(r.out[0][0].status).toBe(200);
   expect(JSON.parse(r.out[0][0].body)).toEqual({
@@ -68,7 +102,7 @@ test("a built project importing .wasm, Text and Data files", async ({ page }) =>
 });
 
 test("Worker Loader code runs in the package's own isolate worker", async ({ page }) => {
-  const url = await build("isolation-api", "conformance/projects/isolation-api");
+  const url = await build(page, "isolation-api", "conformance/projects/isolation-api");
   const golden = JSON.parse(
     readFileSync(join(PKG, "conformance/golden/isolation-api.json"), "utf8"),
   ).transcript;
@@ -80,7 +114,7 @@ test("Worker Loader code runs in the package's own isolate worker", async ({ pag
 test("a loaded Worker that replaces postMessage and location keeps answering from its isolate", async ({
   page,
 }) => {
-  const url = await build("isolate-globals", "e2e-browser/projects/isolate-globals");
+  const url = await build(page, "isolate-globals", "e2e-browser/projects/isolate-globals");
   const r = await load(page, url, [["/"]]);
   expect(r.out[0][0].status).toBe(200);
   expect(JSON.parse(r.out[0][0].body)).toEqual({
@@ -95,7 +129,7 @@ test("a loaded Worker that replaces postMessage and location keeps answering fro
 test("an import() in code a loaded Worker builds with Function resolves against its modules", async ({
   page,
 }) => {
-  const url = await build("function-import", "e2e-browser/projects/function-import");
+  const url = await build(page, "function-import", "e2e-browser/projects/function-import");
   const r = await load(page, url, [["/"]]);
   expect(r.out[0][0].status).toBe(200);
   expect(JSON.parse(r.out[0][0].body)).toEqual({
@@ -153,7 +187,7 @@ for (const compile of ["bundle", "site"] as const) {
 
     test("a project with assets answers as its `cellb build` folder does", async ({ page }) => {
       const paths = ["/", "/about", "/api/x", "/via-binding", "/missing"];
-      const url = await build(`assets-api-${compile}`, "conformance/projects/assets-api");
+      const url = await build(page, `assets-api-${compile}`, "conformance/projects/assets-api");
       const built = await load(page, url, [paths]);
       const r = await load(page, { sources: sources("conformance/projects/assets-api"), compile }, [
         paths,
@@ -166,7 +200,7 @@ for (const compile of ["bundle", "site"] as const) {
     });
 
     test("nodejs_compat answers as its `cellb build` folder does", async ({ page }) => {
-      const url = await build(`node-compat-${compile}`, "conformance/projects/node-compat");
+      const url = await build(page, `node-compat-${compile}`, "conformance/projects/node-compat");
       const built = await load(page, url, [["/"]]);
       const r = await load(
         page,
