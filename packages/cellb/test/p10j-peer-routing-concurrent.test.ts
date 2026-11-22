@@ -41,7 +41,7 @@ const opens = new Map<string, number>();
 const dead = new Set<string>();
 const gone = new Set<string>();
 let staleOwner: string | undefined;
-function fleet() {
+function fleet(routeTtlMs?: number) {
   const leases = new MemoryLeases();
   const log = filesApiChangeLog(new MemFilesApi());
   const nodes = new Map<string, CellRuntime>();
@@ -52,6 +52,7 @@ function fleet() {
         default: { fetch: (req: Request, env: any) => env.COUNTER.getByName("shared").fetch(req) },
       },
       durableObjects: { COUNTER: { className: "Counter" } },
+      ...(routeTtlMs ? { routeTtlMs } : {}),
       openSql: (cellKey: string) => {
         if (cellKey.startsWith("Counter/")) opens.set(name, (opens.get(name) ?? 0) + 1);
         return sqlite(cellKey);
@@ -266,6 +267,28 @@ describe("P10j concurrent requests for a cell another node owns", () => {
         new Promise((res) => setTimeout(() => res("timed out: forwarding loop"), 3_000)),
       ]);
       expect(r).toEqual({ n: 3 });
+    } finally {
+      await b.close();
+      await a.close();
+    }
+  });
+
+  // A route expired a fixed time after it was learned, used or not: every node opened (and
+  // deleted) a local database for every remote cell once per TTL (#210). A route in use stays.
+  it("a route in use does not expire: no local open while calls keep going to the owner", async () => {
+    const { node } = fleet(150);
+    const a = node("A");
+    const b = node("B");
+    try {
+      expect(await (await a.fetch(new Request("http://app/"))).json()).toEqual({ n: 1 });
+      opens.set("B", 0);
+      const end = Date.now() + 600; // four TTLs
+      let n = 1;
+      while (Date.now() < end) {
+        expect(await (await b.fetch(new Request("http://app/"))).json()).toEqual({ n: ++n });
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      expect(opens.get("B")).toBeLessThanOrEqual(1);
     } finally {
       await b.close();
       await a.close();

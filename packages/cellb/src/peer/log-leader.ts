@@ -56,8 +56,15 @@ export interface LogLeader {
 interface Member {
   node: string;
   addr: string;
+  /** Settles when the member's sender is idle (the barrier waits for it). */
   lane: Promise<unknown>;
+  /** Entries waiting for the member's next append, with their confirmations. */
+  queue: { entry: ShipEntry; done: (e?: unknown) => void }[];
+  sending: boolean;
 }
+
+/** Entries per append at most (a follower's body limit is far above this). */
+const MAX_BATCH = 256;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -139,6 +146,36 @@ export function createLogLeader(o: LogLeaderOptions): LogLeader {
       if (!log.active) await o.bucket.setLog({ ...log, active: true });
     })());
 
+  /** The member's sender: one append at a time, carrying everything queued for it. */
+  const send = (m: Member, at: number) => {
+    if (m.sending) return;
+    m.sending = true;
+    m.lane = (async () => {
+      while (m.queue.length) {
+        const batch = m.queue.splice(0, MAX_BATCH);
+        const frame = encodeAppend({
+          leader: session!,
+          epoch: at,
+          truncateTo,
+          entries: batch.map((b) => b.entry),
+        });
+        try {
+          const resp = await post(m, frame);
+          for (const b of batch)
+            b.done(
+              resp.ok || (resp.epoch === at && resp.end >= b.entry.seq)
+                ? undefined
+                : new Error(`follower ${m.node} refused seq ${b.entry.seq} of epoch ${at}`),
+            );
+        } catch (e) {
+          // The member failed: this append's entries and everything after it fail with it.
+          for (const b of [...batch, ...m.queue.splice(0)]) b.done(e);
+        }
+      }
+      m.sending = false;
+    })();
+  };
+
   const shipper: SegmentShipper = {
     ship(seg) {
       if (!healthy || stopped || !session) return undefined;
@@ -147,16 +184,15 @@ export function createLogLeader(o: LogLeaderOptions): LogLeader {
       const row = { seq: s, uploaded: false };
       rows.push(row);
       const entry: ShipEntry = { seq: s, ...seg };
-      const frame = encodeAppend({ leader: session, epoch: at, truncateTo, entries: [entry] });
-      // Each member gets the frames in order (its lane); the round confirms when all of them do.
+      // Each member gets the entries in order; entries queued while its append is in flight go
+      // together in its next one (celld ships a round's rows in one append). The round confirms
+      // when every member does.
       const answers = members.map((m) => {
-        const sent = m.lane.then(() => post(m, frame));
-        m.lane = sent.catch(() => {});
-        const confirmed = sent.then((resp) => {
-          if (!(resp.ok || (resp.epoch === at && resp.end >= s)))
-            throw new Error(`follower ${m.node} refused seq ${s} of epoch ${at}`);
-        });
+        const confirmed = new Promise<void>((resolve, reject) =>
+          m.queue.push({ entry, done: (e) => (e === undefined ? resolve() : reject(e)) }),
+        );
         confirmed.catch(() => {}); // the round reports the first failure
+        send(m, at);
         return confirmed;
       });
       const round = Promise.all(answers).then(() => activate(at));
@@ -234,7 +270,7 @@ export function createLogLeader(o: LogLeaderOptions): LogLeader {
     degrade();
     await o.bucket.setLog(next); // applied before any append of the epoch
     epoch = next.epoch;
-    members = found.map((c) => ({ ...c, lane: Promise.resolve() }));
+    members = found.map((c) => ({ ...c, lane: Promise.resolve(), queue: [], sending: false }));
     seq = 0;
     rows.length = 0;
     truncateTo = 0;

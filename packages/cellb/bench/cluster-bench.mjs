@@ -113,6 +113,7 @@ async function cluster(counts) {
               `127.0.0.1:${at}`,
               "--node",
               name,
+              ...(process.env.DURABILITY ? ["--durability", process.env.DURABILITY] : []),
             ],
           ];
     const p = spawn(args[0], args[1], { env, stdio: ["ignore", "pipe", "pipe"] });
@@ -328,6 +329,7 @@ const results = {
   celld: execFileSync(CELLD, ["--version"]).toString().trim(),
   bucket: "RustFS on 127.0.0.1",
   load: { clients: CLIENTS, names: NAMES, durationMs: DURATION_MS },
+  cellbDurability: process.env.DURABILITY ?? "fleet",
 };
 for (const s of chosen) results[s] = await all[s]();
 if (process.env.BENCH_JSON)

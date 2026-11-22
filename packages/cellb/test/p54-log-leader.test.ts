@@ -81,7 +81,10 @@ function holdable(mem: ObjectStore) {
   };
 }
 
-async function leaderNode(store: ObjectStore, opts: { maxFollowers?: number } = {}) {
+async function leaderNode(
+  store: ObjectStore,
+  opts: { maxFollowers?: number; fetch?: typeof fetch } = {},
+) {
   const h = holdable(store);
   const bucket = celldBucket(h.store, { node: "lead", leaseTtlMs: 5_000 });
   const leader = createLogLeader({ bucket, store, node: "lead", ...opts });
@@ -265,6 +268,45 @@ describe("P54 cellb leads a log tier session", () => {
       await l.bucket.close();
       await f1.close();
       await f2.close();
+    }
+  });
+
+  // celld ships a round as one append holding every captured row; one append per commit on a
+  // follower's ordered lane serialized a node's whole commit stream behind one round trip and
+  // one follower fsync at a time (#210's measurements: p50 56 ms with two cellb nodes).
+  it("commits made while an append is in flight go together in the next append", async () => {
+    const store = memoryObjectStore();
+    const f1 = await followerNode(store, "b1");
+    let appends = 0;
+    const counting: typeof fetch = (input, init) => {
+      if (String(input).endsWith("/peer/log/append")) appends++;
+      return fetch(input, init);
+    };
+    const l = await leaderNode(store, { fetch: counting });
+    try {
+      await l.leader.maintain();
+      l.hold(true); // only the follower acknowledges
+      const cells = Array.from(
+        { length: 20 },
+        (_, i) => `Counter/${i.toString(16).padStart(64, "0")}`,
+      );
+      await Promise.all(
+        cells.map(async (c) => {
+          const lease = (await l.bucket.ownership.tryAcquire(c))!;
+          await l.bucket.durability.committed(c, { seq: 1, image: image(1), epoch: lease.epoch });
+        }),
+      );
+      await l.leader.settled();
+      expect(appends).toBeLessThan(10); // 20 commits, a few appends
+      const t = decodeTail(
+        await f1.follower.tail({ leader: await l.bucket.session(), tail_format: 2 }),
+      );
+      expect(t.entries.map((e) => e.seq)).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+    } finally {
+      l.hold(false);
+      await l.leader.close();
+      await l.bucket.close();
+      await f1.close();
     }
   });
 });
