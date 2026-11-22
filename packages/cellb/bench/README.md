@@ -88,7 +88,8 @@ to a random node, so with N nodes (N-1)/N of the requests cross to the cell's ow
 peer tunnel. After each run it checks every counter (no value acknowledged twice, none lost).
 
 ```sh
-pnpm bench:cluster                                         # build, then every scenario (~5 min)
+pnpm bench:cluster                                         # build, then every scenario (~7 min)
+DURABILITY=bucket scripts/interop-env.sh node bench/cluster-bench.mjs throughput  # cellb without leading
 scripts/interop-env.sh node bench/cluster-bench.mjs throughput
 CONFIGS="celld=2;cellb=2" DURATION_MS=5000 scripts/interop-env.sh node bench/cluster-bench.mjs throughput
 BENCH_JSON=bench/results/cluster.json pnpm bench:cluster   # also write the results
@@ -99,35 +100,34 @@ it):
 
 | Nodes | Requests/s | p50 | p99 | CPU s / 1,000 requests |
 |---|---|---|---|---|
-| celld × 1 | 693 | 45 ms | 86 ms | 1.26 |
-| celld × 2 | 1,558 | 19 ms | 71 ms | 1.37 |
-| celld × 4 | 1,244 | 23 ms | 86 ms | 1.85 |
-| cellb × 1 | 641 | 45 ms | 138 ms | 1.40 |
-| cellb × 2 | 587 | 49 ms | 166 ms | 2.15 |
-| cellb × 4 | 457 | 59 ms | 211 ms | 3.31 |
-| celld × 1 + cellb × 1 | 623 | 49 ms | 142 ms | 0.74 + 1.25 |
-| celld × 2 + cellb × 2 | 679 | 38 ms | 193 ms | 1.10 + 1.36 |
+| celld × 1 | 700 | 44 ms | 82 ms | 1.24 |
+| celld × 2 | 1,555 | 17 ms | 91 ms | 1.25 |
+| celld × 4 | 1,439 | 20 ms | 82 ms | 1.66 |
+| cellb × 1 | 668 | 43 ms | 139 ms | 1.28 |
+| cellb × 2 | 594 | 48 ms | 154 ms | 2.21 |
+| cellb × 4 | 447 | 61 ms | 228 ms | 3.83 |
+| celld × 1 + cellb × 1 | 662 | 57 ms | 146 ms | 0.79 + 1.28 |
+| celld × 2 + cellb × 2 | 748 | 35 ms | 167 ms | 1.05 + 1.42 |
 
 | 2 celld + 2 cellb, one node stops | Cells answering again | Longest gap | Failed requests | Lost or repeated values |
 |---|---|---|---|---|
-| a cellb node, `SIGKILL` | 40 / 40 | 10.1 s | 1,723 | 0 |
-| a celld node, `SIGKILL` | 40 / 40 | 10.0 s | 1,441 | 0 |
+| a cellb node, `SIGKILL` | 40 / 40 | 9.8 s | 2,536 | 0 |
+| a celld node, `SIGKILL` | 40 / 40 | 9.8 s | 1,435 | 0 |
 | a cellb node, `SIGTERM` | 40 / 40 | 0.3 s | 0 | 0 |
-| a celld node, `SIGTERM` | 40 / 40 | 0.7 s | 1 | 0 |
+| a celld node, `SIGTERM` | 40 / 40 | 0.6 s | 1 | 0 |
 
-- **One node: the same.** A single node of either runtime answers about 670 requests/s, each
-  write acknowledged after its LTX file is in the bucket.
-- **From two nodes, celld acknowledges on a follower.** In its default `CELLD_DURABILITY=fleet`, a
-  celld node with another celld node acknowledges a write once that follower has it on disk, and
-  uploads to the bucket later; that, not routing, is the jump from one celld node to two. A CellB
-  node follows celld leaders (celld acknowledges on it too: in a mixed fleet the celld nodes ack at
-  that pace), but acknowledges its own writes only once they are in the bucket, so the cells CellB
-  owns run at the bucket's pace. Leading in celld's log tier is the next step for CellB's
-  throughput (statewalker/cellb.dev#209).
-- **Routing costs CellB about 2 ms of CPU per call** (1.7 ms with two nodes, from the CPU column;
-  2.7 ms with four, where the CPUs are contended), against about 0.1 ms for celld. Tunnels are
-  reused and a node calls the owner it knows directly, but each routed call still crosses two
-  HTTP stacks in JavaScript.
+- **One node: the same.** A single node of either runtime answers about 680 requests/s, each
+  write acknowledged after its LTX file is in the bucket (a lone node has no follower).
+- **From two nodes, both lead log tier sessions.** celld and cellb nodes alike acknowledge a write
+  once a follower holds it (`cellb serve` leads by default, `--durability fleet`), and each follows
+  the others. For celld that is the jump from one node to two: its request path is fast, so the
+  bucket's round trip was its latency. For cellb the latency is the same with `--durability bucket`
+  (measured: p50 56 ms either way with two nodes): its request path in JavaScript, about 1.3 ms of
+  CPU per request, is what bounds it on these 4 shared vCPUs, not the durability.
+- **A routed call costs CellB about 0.9 ms of CPU** (30 s steady state with `DURABILITY=bucket`,
+  1 vs 2 nodes: 1.13 and 1.60 CPU s / 1,000 requests, half of them routed); celld about 0.1 ms.
+  Tunnels are reused, a node calls the owner it knows directly for as long as calls keep reaching
+  it, and appends to a follower carry every row queued for it.
 - **More nodes than CPUs.** Four nodes, RustFS and the load generator share 4 vCPUs, so neither
   runtime gains from the third and fourth node here.
 - **A dead node's cells wait for its lease** (10 s), then for its log's recovery when it was a
