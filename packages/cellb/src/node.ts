@@ -8,6 +8,13 @@ export {
   type ServeArgs,
   startFleetNode,
 } from "./peer/fleet-node.js";
+export { createLogFollower, type LogFollower } from "./peer/log-follower.js";
+export { createLogLeader, type LogLeader, type LogLeaderOptions } from "./peer/log-leader.js";
+export {
+  createLogRecoverer,
+  type LogRecoverer,
+  type LogRecovererOptions,
+} from "./peer/log-recoverer.js";
 export { bundleWorkerForBrowser } from "./project/browser-bundle.js";
 export { type BuildProjectOptions, buildProject } from "./project/build.js";
 export type {
