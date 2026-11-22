@@ -26,6 +26,14 @@ export interface CelldBucketOptions {
   addr?: string;
   leaseTtlMs?: number;
   now?: () => number;
+  /**
+   * A predecessor under this node's name left a log tier session that is not sealed (it died as
+   * a leader): recover it before this node writes its own record (celld does the same before it
+   * installs a new lease). Without it the node waits until another node has recovered it.
+   */
+  recoverPredecessor?: (session: string, record: NodeRecord) => Promise<void>;
+  /** Our log tier session was taken over by a recoverer (a refused renewal): stop leading. */
+  onLogLost?: () => void;
   /** The waker-role lease (celld: 3 × its due-scan tick); match 3 × the runtime's wakePollMs. */
   wakerTtlMs?: number;
 }
@@ -33,8 +41,30 @@ export interface CelldBucketOptions {
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
+/** The `log` object of a node record: a leader's session in celld's log tier (ownership_store.rs). */
+export interface LogRecord {
+  state: "open" | "recovering" | "sealed";
+  epoch: number;
+  ensemble: string[];
+  tiered: number;
+  active: boolean;
+  claimant: string | null;
+  claimed_ms: number | null;
+}
+/** nodes/<node>.json, as far as cellb reads it. */
+export interface NodeRecord {
+  node: string;
+  expires_ms: number;
+  addr?: string;
+  ownership_index_generation?: string;
+  probe_public_key?: string;
+  log?: LogRecord;
+  [field: string]: unknown;
+}
+
 /** celld 0.6.3: how long a node refuses a cell whose ownership record it found lost. */
 export const LOST_RECORD_RECHECK_MS = 10_000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
 const lostRecordError = (scope: string) =>
   Object.assign(
     new Error(
@@ -99,23 +129,73 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     lost = new AbortController();
     was.abort(reason);
   };
-  const writeLease = () => {
-    const w = putLease();
-    // Every write in flight, not only the latest: they may land in any order.
+  // Every write of our node record goes through one chain, by compare-and-swap on the etag of the
+  // record we last wrote: the record carries our log tier session (`log`), which a recoverer may
+  // take over when it judges this node dead, and a late renewal must never write over that.
+  let leaseEtag: string | undefined;
+  let leaseChain: Promise<unknown> = Promise.resolve();
+  /** Our session's `log`, published with every write once set. */
+  let logRecord: LogRecord | undefined;
+  let everLogged = false;
+  /** A renewal was refused (a recoverer took the record over): no writes until it is sealed. */
+  let suspended = false;
+  const leaseKey = `nodes/${opts.node}.json`;
+  const writeLease = (expiresAt?: number) => {
+    const w = (leaseChain = leaseChain.catch(() => {}).then(() => putLease(expiresAt)));
+    // Every write in flight, not only the latest.
     writing = Promise.all([writing, w.catch(() => {})]);
     return w;
   };
-  const putLease = async () => {
-    if (closed) return;
+  /** Before our first write: a record under our name from an earlier process. */
+  const adoptPredecessor = async () => {
+    for (;;) {
+      const cur = await readJson<NodeRecord>(leaseKey);
+      if (!cur) return;
+      const rec = cur.value;
+      const ours = (rec.ownership_index_generation || rec.probe_public_key) === generation;
+      if (ours) {
+        leaseEtag = cur.etag;
+        return;
+      }
+      // A live process under our name: wait for its record to expire (celld waits too).
+      if (rec.expires_ms > now()) {
+        await sleep(Math.min(250, rec.expires_ms - now() + 1));
+        continue;
+      }
+      // A dead predecessor that led a log tier session: its acknowledged writes may be only on
+      // its followers until the session is recovered.
+      if (rec.log && rec.log.state !== "sealed") {
+        const session = `${opts.node}/${rec.ownership_index_generation || rec.probe_public_key}`;
+        if (opts.recoverPredecessor) await opts.recoverPredecessor(session, rec);
+        else await sleep(500); // another node recovers it
+        continue;
+      }
+      leaseEtag = cur.etag;
+      return;
+    }
+  };
+  const putLease = async (expiresAt?: number) => {
+    if (closed && expiresAt === undefined) return;
+    if (suspended) {
+      // Taken over: write again only once the recoverer has sealed the session.
+      const cur = await readJson<NodeRecord>(leaseKey);
+      if (cur?.value.log && cur.value.log.state !== "sealed")
+        throw new Error(`node ${opts.node}: its log tier session is being recovered`);
+      leaseEtag = cur?.etag;
+      logRecord = cur?.value.log;
+      suspended = false;
+    }
+    if (leaseEtag === undefined && !leaseWrittenOnce) await adoptPredecessor();
     const t = now();
-    const body = {
+    const body: NodeRecord = {
       node: opts.node,
-      expires_ms: t + ttl,
+      expires_ms: expiresAt ?? t + ttl,
       addr,
       probe_public_key: generation,
       peer_protocol: 5,
       paced_handoff: false,
       ownership_index_generation: generation,
+      ...(logRecord ? { log: logRecord } : {}),
       load: {
         sampled_ms: t,
         owned_cells: owned.size,
@@ -136,7 +216,23 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
         draining: false,
       },
     };
-    await store.put(`nodes/${opts.node}.json`, enc.encode(JSON.stringify(body)));
+    try {
+      leaseEtag = await store.put(
+        leaseKey,
+        enc.encode(JSON.stringify(body)),
+        leaseEtag === undefined ? { ifNoneMatch: "*" } : { ifMatch: leaseEtag },
+      );
+      leaseWrittenOnce = true;
+    } catch (e) {
+      if (e instanceof PreconditionFailedError) {
+        // Someone else wrote our record: a recoverer that judged this node dead. Its write
+        // stands; our session is over, and this node is fenced until it is sealed.
+        suspended = true;
+        if (logRecord) opts.onLogLost?.();
+      }
+      throw e;
+    }
+    if (expiresAt !== undefined) return;
     // Our authority lasts until the record we just wrote expires — minus a margin, so a node
     // that stalls (a paused process, a frozen tab) stops acknowledging before celld may take
     // over: celld waits for expires_ms; we stop at expires_ms - margin.
@@ -148,6 +244,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
       armDeadline();
     }
   };
+  let leaseWrittenOnce = false;
   /** If renewals stop arriving (a stalled process, an unreachable bucket), every cell stops at
    * the local deadline — before celld may take it over. */
   const armDeadline = () => {
@@ -168,22 +265,24 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   /** Cells whose ownership record was found lost, with the time their refusal ends. */
   const lostRecords = new Map<string, number>();
   const ensureLease = () => {
-    leaseWritten ??= probeKeyReady.then(writeLease).then(() => {
-      const tick = () => {
-        if (closed) return;
-        renew = setTimeout(() => {
-          // A failed renewal stops every cell (self-fencing); the node keeps renewing, so it
-          // can take cells again once the bucket answers.
-          writeLease().then(tick, (e) => {
-            fence(e);
-            tick();
-          });
-        }, ttl / 3);
-        armDeadline();
-        (renew as { unref?: () => void }).unref?.();
-      };
-      tick();
-    });
+    leaseWritten ??= probeKeyReady
+      .then(() => writeLease())
+      .then(() => {
+        const tick = () => {
+          if (closed) return;
+          renew = setTimeout(() => {
+            // A failed renewal stops every cell (self-fencing); the node keeps renewing, so it
+            // can take cells again once the bucket answers.
+            writeLease().then(tick, (e) => {
+              fence(e);
+              tick();
+            });
+          }, ttl / 3);
+          armDeadline();
+          (renew as { unref?: () => void }).unref?.();
+        };
+        tick();
+      });
     return leaseWritten;
   };
 
@@ -358,6 +457,25 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
       advertised = true;
       if (leaseWritten) await writeLease();
     },
+    /** This node's log tier session id, `<node>/<generation>` (celld's session identity). */
+    async session() {
+      await probeKeyReady;
+      return `${opts.node}/${generation}`;
+    },
+    /**
+     * Publishes our log tier session's `log` in the node record and resolves once that write has
+     * applied (celld: a leader waits for the renewal that carries it). Rejects if it did not.
+     */
+    async setLog(log: LogRecord) {
+      logRecord = log;
+      everLogged = true;
+      await ensureLease();
+      await writeLease();
+    },
+    /** The `log` this node last published (undefined: it leads no session). */
+    get log() {
+      return logRecord;
+    },
     /** Clean shutdown: stop renewing, remove this node's lease record, close the store. */
     async close() {
       closed = true;
@@ -370,7 +488,12 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
       let waited: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([writing, new Promise((r) => (waited = setTimeout(r, ttl)))]);
       clearTimeout(waited);
-      if (leaseWritten) await store.delete(`nodes/${opts.node}.json`).catch(() => {});
+      if (leaseWritten) {
+        // A record that carries a log tier session stays (celld never deletes one: followers and
+        // recoverers read it); expired, so the cells can be taken at once. Without one, it goes.
+        if (everLogged) await writeLease(now()).catch(() => {});
+        else await store.delete(leaseKey).catch(() => {});
+      }
       store.close?.();
     },
   };

@@ -99,18 +99,19 @@ describe("P10h a closed node's lease", () => {
     return { store, hold: () => (holding = true), held, heldCount };
   }
 
-  it("two lease writes in flight at close(), landing out of order, leave no record", async () => {
+  // Lease writes go through one compare-and-swap chain (statewalker/cellb.dev#209): a second
+  // write starts only once the one before it has landed, so two can no longer land out of order.
+  it("lease writes are serialized; writes still queued at close() leave no record", async () => {
     const s = heldLeases();
     const a = celldBucket(s.store, { node: "a", leaseTtlMs: 300 });
     expect(await a.ownership.tryAcquire(cell)).toBeDefined();
     s.hold();
     await s.heldCount(1); // a renewal on its way
     void a.advertise("addr-2");
-    await s.heldCount(2); // and the advertise's write after it
+    await new Promise((r) => setTimeout(r, 150));
+    expect(s.held.length).toBe(1); // the advertise's write waits for it
     const closed = a.close();
-    s.held[1]?.(); // the later write lands first...
-    await new Promise((r) => setTimeout(r, 20));
-    s.held[0]?.(); // ...the earlier one last
+    s.held[0]?.();
     await closed;
     await new Promise((r) => setTimeout(r, 50));
     expect(await s.store.get("nodes/a.json")).toBeUndefined();

@@ -58,6 +58,13 @@ async function countingRelay(
   };
 }
 
+// Each owner's bucket: its address is published with advertise() (the record is written only
+// through the node's own lease chain).
+let bucket_owner: ReturnType<typeof celldBucket>;
+let bucket_owner2: ReturnType<typeof celldBucket>;
+let bucket_owner3: ReturnType<typeof celldBucket>;
+let bucket_owner4: ReturnType<typeof celldBucket>;
+
 describe("P10l peer tunnels are reused", () => {
   it("sequential calls to an owner share a tunnel (fetch and RPC)", async () => {
     const store = memoryObjectStore();
@@ -66,16 +73,12 @@ describe("P10l peer tunnels are reused", () => {
       worker,
       durableObjects: { C: { className: "Counter" } },
       openSql: nodeSqliteOpener(),
-      storage: celldBucket(store, { node: "owner" }),
+      storage: (bucket_owner = celldBucket(store, { node: "owner" })),
     });
     const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner" });
     const relay = await countingRelay(peer.addr);
-    await store.put(
-      "nodes/owner.json",
-      new TextEncoder().encode(
-        JSON.stringify({ node: "owner", addr: relay.addr, expires_ms: Date.now() + 60_000 }),
-      ),
-    );
+    await (await bucket_owner.ownership.tryAcquire("C/warm-owner"))?.release();
+    await bucket_owner.advertise(relay.addr);
     const cellKey = `Counter/${(owner.env.C as any).idFromName("x").toString()}`;
     const ep = (await celldPeers({ store, node: "caller" }).endpoint("owner", cellKey, "x"))!;
     try {
@@ -98,15 +101,11 @@ describe("P10l peer tunnels are reused", () => {
       worker: { Counter, default: {} },
       durableObjects: { C: { className: "Counter" } },
       openSql: nodeSqliteOpener(),
-      storage: celldBucket(store, { node: "owner2" }),
+      storage: (bucket_owner2 = celldBucket(store, { node: "owner2" })),
     });
     const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner2" });
-    await store.put(
-      "nodes/owner2.json",
-      new TextEncoder().encode(
-        JSON.stringify({ node: "owner2", addr: peer.addr, expires_ms: Date.now() + 60_000 }),
-      ),
-    );
+    await (await bucket_owner2.ownership.tryAcquire("C/warm-owner2"))?.release();
+    await bucket_owner2.advertise(peer.addr);
     const cellKey = `Counter/${(owner.env.C as any).idFromName("y").toString()}`;
     const ep = (await celldPeers({ store, node: "caller2" }).endpoint("owner2", cellKey, "y"))!;
     try {
@@ -132,16 +131,12 @@ describe("P10l peer tunnels are reused", () => {
       worker: { Counter, default: {} },
       durableObjects: { C: { className: "Counter" } },
       openSql: nodeSqliteOpener(),
-      storage: celldBucket(store, { node: "owner3" }),
+      storage: (bucket_owner3 = celldBucket(store, { node: "owner3" })),
       closeGraceMs: 50,
     });
     const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner3" });
-    await store.put(
-      "nodes/owner3.json",
-      new TextEncoder().encode(
-        JSON.stringify({ node: "owner3", addr: peer.addr, expires_ms: Date.now() + 60_000 }),
-      ),
-    );
+    await (await bucket_owner3.ownership.tryAcquire("C/warm-owner3"))?.release();
+    await bucket_owner3.advertise(peer.addr);
     const cellKey = `Counter/${(owner.env.C as any).idFromName("z").toString()}`;
     const ep = (await celldPeers({ store, node: "caller3" }).endpoint("owner3", cellKey, "z"))!;
     try {
@@ -164,15 +159,11 @@ describe("P10l peer tunnels are reused", () => {
       worker: { Counter, default: {} },
       durableObjects: { C: { className: "Counter" } },
       openSql: nodeSqliteOpener(),
-      storage: celldBucket(store, { node: "owner4" }),
+      storage: (bucket_owner4 = celldBucket(store, { node: "owner4" })),
     });
     const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner4" });
-    await store.put(
-      "nodes/owner4.json",
-      new TextEncoder().encode(
-        JSON.stringify({ node: "owner4", addr: peer.addr, expires_ms: Date.now() + 60_000 }),
-      ),
-    );
+    await (await bucket_owner4.ownership.tryAcquire("C/warm-owner4"))?.release();
+    await bucket_owner4.advertise(peer.addr);
     const cellKey = `Counter/${(owner.env.C as any).idFromName("w").toString()}`;
     const ep = (await celldPeers({ store, node: "caller4" }).endpoint("owner4", cellKey, "w"))!;
     try {
@@ -190,14 +181,18 @@ describe("P10l peer tunnels are reused", () => {
   it("a node handed a call for a cell it does not own answers stale-owner, never forwards it", async () => {
     const store = memoryObjectStore();
     const worker = { Counter, default: {} };
-    const mk = (node: string) =>
-      createCellRuntime({
+    const buckets = new Map<string, ReturnType<typeof celldBucket>>();
+    const mk = (node: string) => {
+      const bucket = celldBucket(store, { node });
+      buckets.set(node, bucket);
+      return createCellRuntime({
         worker,
         durableObjects: { C: { className: "Counter" } },
         openSql: nodeSqliteOpener(),
-        storage: celldBucket(store, { node }),
+        storage: bucket,
         peers: celldPeers({ store, node }),
       });
+    };
     const y = mk("y-owner");
     const x = mk("x-other");
     const py = await startCelldPeerServer({ runtime: y, store, node: "y-owner" });
@@ -206,11 +201,11 @@ describe("P10l peer tunnels are reused", () => {
     for (const [n, p] of [
       ["y-owner", py],
       ["x-other", px],
-    ] as const)
-      await store.put(
-        `nodes/${n}.json`,
-        enc2.encode(JSON.stringify({ node: n, addr: p.addr, expires_ms: Date.now() + 60_000 })),
-      );
+    ] as const) {
+      const b = buckets.get(n)!;
+      await (await b.ownership.tryAcquire(`C/warm-${n}`))?.release();
+      await b.advertise(p.addr);
+    }
     try {
       expect(await (y.env.C as any).getByName("v").inc()).toBe(1); // y owns it
       const cellKey = `Counter/${(y.env.C as any).idFromName("v").toString()}`;
