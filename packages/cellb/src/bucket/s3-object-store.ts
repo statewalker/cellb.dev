@@ -1,3 +1,4 @@
+import { sha256 as nobleSha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import type { ObjectStore } from "./object-store.js";
 import { type ObjectAttributes, PreconditionFailedError } from "./object-store.js";
@@ -26,15 +27,10 @@ export interface S3Options {
 }
 
 const enc = new TextEncoder();
+// SHA-256 in JS (noble), synchronous: WebCrypto's digest costs more per call than it saves on the
+// small bodies a bucket client hashes (a node's CPU profile, statewalker/cellb.dev#208).
 const sha256 = async (data: Uint8Array | string) =>
-  bytesToHex(
-    new Uint8Array(
-      await crypto.subtle.digest(
-        "SHA-256",
-        typeof data === "string" ? enc.encode(data) : (data as BufferSource),
-      ),
-    ),
-  );
+  bytesToHex(nobleSha256(typeof data === "string" ? enc.encode(data) : data));
 const hmac = async (key: Uint8Array | ArrayBuffer, data: string) => {
   const k = await crypto.subtle.importKey(
     "raw",
@@ -44,6 +40,33 @@ const hmac = async (key: Uint8Array | ArrayBuffer, data: string) => {
     ["sign"],
   );
   return new Uint8Array(await crypto.subtle.sign("HMAC", k, enc.encode(data)));
+};
+/**
+ * SigV4's signing key, HMAC(HMAC(HMAC(HMAC("AWS4"+secret, day), region), "s3"), "aws4_request"),
+ * imported for signing. It changes once a day, so it is derived once per secret, day and region
+ * instead of four HMACs and five key imports per request.
+ */
+const signingKeys = new Map<string, Promise<CryptoKey>>();
+const signingKey = (secret: string, day: string, region: string): Promise<CryptoKey> => {
+  const id = `${day}\n${region}\n${secret}`;
+  let k = signingKeys.get(id);
+  if (!k) {
+    if (signingKeys.size >= 16) signingKeys.clear(); // yesterday's keys
+    k = (async () => {
+      let key: Uint8Array = await hmac(enc.encode(`AWS4${secret}`), day);
+      for (const part of [region, "s3", "aws4_request"]) key = await hmac(key, part);
+      return crypto.subtle.importKey(
+        "raw",
+        key as BufferSource,
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+    })();
+    k.catch(() => signingKeys.delete(id));
+    signingKeys.set(id, k);
+  }
+  return k;
 };
 const uriEncode = (s: string, slash = true) =>
   encodeURIComponent(s)
@@ -86,9 +109,15 @@ export async function signV4(
   ].join("\n");
   const scope = `${day}/${region}/s3/aws4_request`;
   const toSign = ["AWS4-HMAC-SHA256", amzDate, scope, await sha256(canonical)].join("\n");
-  let key: Uint8Array = await hmac(enc.encode(`AWS4${o.secretAccessKey}`), day);
-  for (const part of [region, "s3", "aws4_request"]) key = await hmac(key, part);
-  const signature = bytesToHex(await hmac(key, toSign));
+  const signature = bytesToHex(
+    new Uint8Array(
+      await crypto.subtle.sign(
+        "HMAC",
+        await signingKey(o.secretAccessKey, day, region),
+        enc.encode(toSign),
+      ),
+    ),
+  );
   h.authorization = `AWS4-HMAC-SHA256 Credential=${o.accessKeyId}/${scope}, SignedHeaders=${names.join(";")}, Signature=${signature}`;
   delete h.host; // set by fetch
   return h;
