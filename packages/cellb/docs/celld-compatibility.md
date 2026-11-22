@@ -147,8 +147,32 @@ because a celld leader acknowledges on it. A peer server without a follower answ
 with 404, and celld quarantines the node from its ensembles for 5 minutes at a time, its
 acknowledgements falling back to the bucket meanwhile.
 
-CellB itself acknowledges a write only once it is in the bucket (it is never a log leader), and
-does not accept capacity hand-off (`/peer/handoff`). Its node record reports zero placement
+**CellB as a leader, and as a recoverer.** `cellb serve` leads a session of its own unless
+`--durability bucket` (`CELLD_DURABILITY`, celld's default `fleet` otherwise), as a celld node
+does:
+
+- it recruits up to two live peers, celld or cellb, and opens epoch *n+1* in its node record
+  (`log: {state: open, epoch, ensemble, active: false}`, by compare-and-swap through its lease)
+  only once nothing it shipped is missing from the bucket;
+- it ships each commit's L0 segment to every follower in order and acknowledges the commit when
+  all of them hold it, or when its upload lands, whichever is first; `active: true` is applied in
+  the record before the first acknowledgement a follower made; uploads stay in TXID order per
+  cell, and one the followers acknowledged is retried until it lands;
+- any failure degrades the epoch to the bucket's acknowledgements; a follower that cannot append
+  (404) is left out for 5 minutes; `truncate_to` follows the bucket;
+- SIGTERM stops the shipping, waits for the bucket and seals the session.
+
+A dead leader's session (a celld node's or a cellb node's) is recovered by a 30-second sweep on
+every `cellb serve` node, as celld's nodes do: claim the record (`recovering`), seal the
+followers and read their tails, upload what the bucket lacks in TXID order, mark it `sealed`. An
+active session needs one complete witness: while a follower that may come back cannot be reached,
+the recovery waits; when none is left, the loss is recorded in `log/<session>.e<epoch>.loss.json`.
+A session that left node bundles (`log/<session>/bundle/`, celld's tiering) is left to celld.
+celld nodes recover dead cellb leaders the same way (e2e `p11n`: a cellb leader whose only
+follower is celld, and a fleet of cellb nodes, each killed under load with acknowledged writes
+only on its followers; none is lost).
+
+CellB does not accept capacity hand-off (`/peer/handoff`). Its node record reports zero placement
 weight and no paced hand-off, so celld neither hands nor rebalances cells to it. A node with a
 peer server reports memory headroom: celld's first-readiness gate keeps a starting celld node
 unready while a live peer reports pressure. A full celld node may route a new cell to it, which it
