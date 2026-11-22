@@ -95,7 +95,7 @@
     "typescript-js": "npm:typescript@6.0.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260702.1",
+    "@cloudflare/workers-types": "^5.20261119.1",
     "@statewalker/webrun-files-node": "catalog:",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
