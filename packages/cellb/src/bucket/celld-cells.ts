@@ -3,7 +3,7 @@ import { scopeOf } from "../core/celld-schema.js";
 import { decodeLtx, encodeLtx, ltxFileName } from "../ltx/ltx.js";
 import type { BackupInfo, CellBackup, CellDurability } from "../ports.js";
 import { equal, pad16, pageSizeOf, toRollback } from "./celld-format.js";
-import { ltxLog } from "./ltx-log.js";
+import { ltxLog, type SegmentShipper } from "./ltx-log.js";
 import { type ObjectStore, PreconditionFailedError } from "./object-store.js";
 
 /**
@@ -361,6 +361,8 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
         epoch,
         lost: fenced,
         release: async () => {
+          // The next owner restores from the bucket: every segment of ours is there first.
+          await log.flush(cellKey);
           const now2 = await readJson<{ node: string; epoch: number }>(key);
           if (now2?.value.node === opts.node && now2.value.epoch === epoch)
             await store
@@ -456,6 +458,10 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
       addr = address;
       advertised = true;
       if (leaseWritten) await writeLease();
+    },
+    /** A log tier leader: commits are acknowledged by its followers or the bucket, first wins. */
+    setShipper(shipper: SegmentShipper | undefined) {
+      log.setShipper(shipper);
     },
     /** This node's log tier session id, `<node>/<generation>` (celld's session identity). */
     async session() {
