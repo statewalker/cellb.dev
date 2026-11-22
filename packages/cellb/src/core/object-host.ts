@@ -76,8 +76,15 @@ function signalOf(req: Request): () => AbortSignal | undefined {
 /** The object's host was closed for good: its storage and events fail with this. */
 export class ObjectClosedError extends Error {
   override name = "ObjectClosedError";
-  constructor(cellKey: string) {
+  /**
+   * The event never started: the object was closed before it was delivered. Only such a call may
+   * be sent to another node; one that ran may have written, and running it again would apply it
+   * twice.
+   */
+  readonly notStarted: boolean;
+  constructor(cellKey: string, opts?: { notStarted?: boolean }) {
     super(`Durable Object ${cellKey} was closed (its runtime shut down, or it moved or was reset)`);
+    this.notStarted = opts?.notStarted ?? false;
   }
 }
 
@@ -340,12 +347,13 @@ export class ObjectHost {
     // sends each of them to the owner instead of failing it as closed.
     if (this.broken)
       return Promise.reject(new BrokenObjectError(this.#brokenCause, "its initialization failed"));
-    if (this.#closed) return Promise.reject(new ObjectClosedError(this.cellKey));
+    if (this.#closed)
+      return Promise.reject(new ObjectClosedError(this.cellKey, { notStarted: true }));
     return new Promise<T>((resolve, reject) => {
       this.#queue.push(() => {
         if (this.broken)
           return reject(new BrokenObjectError(this.#brokenCause, "its initialization failed"));
-        if (this.#closed) return reject(new ObjectClosedError(this.cellKey));
+        if (this.#closed) return reject(new ObjectClosedError(this.cellKey, { notStarted: true }));
         let started: Promise<T>;
         this.#active++;
         try {

@@ -191,7 +191,7 @@ const readBody = async (req: IncomingMessage, limit = Number.POSITIVE_INFINITY) 
   return new Uint8Array(Buffer.concat(chunks));
 };
 
-/** The cell a scope names, as a stub of this runtime (undefined: not a class we host). */
+/** The cell a scope names, as a local stub of this runtime (undefined: not a class we host). */
 function stubFor(runtime: CellRuntime, scope: string, name: string | undefined): any {
   const m = /^([^:]+):([0-9a-f]{64})$/.exec(scope);
   if (!m) return undefined;
@@ -199,16 +199,20 @@ function stubFor(runtime: CellRuntime, scope: string, name: string | undefined):
     ([, cls]) => cls === m[1],
   )?.[0];
   if (!binding) return undefined;
-  const ns = runtime.env[binding] as any;
+  // This node's cell only: a call forwarded here for a cell another node owns is answered
+  // stale-owner (the caller re-resolves), never forwarded again, as celld does.
+  const ns = (runtime.localNamespace?.(binding) ?? runtime.env[binding]) as any;
   return name !== undefined ? ns.getByName(name) : ns.get(ns.idFromString(m[2]));
 }
 
 /** The call did not run here because this node does not (or no longer) own the cell: a node
- * that is leaving the fleet closed it (ObjectClosedError), so the caller re-resolves the owner. */
+ * that is leaving the fleet closed it before the call started, so the caller re-resolves the
+ * owner. A call the closing node had started is not one: it may have written. */
 const notOwner = (e: unknown) =>
   /owned by another|OwnedElsewhere|lease/i.test(String((e as Error)?.message ?? e)) ||
   (e as Error)?.name === "CellOwnedElsewhereError" ||
-  (e as Error)?.name === "ObjectClosedError";
+  ((e as Error)?.name === "ObjectClosedError" &&
+    (e as { notStarted?: boolean }).notStarted === true);
 
 function reply(
   res: ServerResponse,

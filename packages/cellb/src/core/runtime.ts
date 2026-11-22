@@ -149,6 +149,13 @@ export interface CellRuntime {
   /** Durable Object binding → class name (the namespace key used by idFromName). */
   readonly durableObjectBindings: Readonly<Record<string, string>>;
   /**
+   * A binding's namespace whose stubs reach this node's cells only: a cell another node owns
+   * fails with CellOwnedElsewhereError instead of being routed there. What a node serves calls
+   * forwarded to it through (a peer server): celld answers such a call where it owns the cell, or
+   * tells the caller to re-resolve, and never forwards it again.
+   */
+  localNamespace(binding: string): DurableObjectNamespace | undefined;
+  /**
    * WebSocket ingress: runs the Worker's fetch with an Upgrade request; on a 101
    * with `webSocket`, returns the client end's MessagePort (to be transferred to
    * the real client, e.g. a page's CellsWebSocket).
@@ -311,6 +318,11 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     };
   };
 
+  /** An object closed before the call reached it: the call did not run, and may go elsewhere. */
+  const notStartedClosed = (e: unknown) =>
+    (e as { name?: string })?.name === "ObjectClosedError" &&
+    (e as { notStarted?: boolean }).notStarted === true;
+  const localNamespaces = new Map<string, DurableObjectNamespace>();
   /** Cells last reached on another node, and how: the next call goes there directly. */
   const routes = new Map<string, { ep: ObjectEndpoint; until: number }>();
   const ROUTE_TTL_MS = 60_000;
@@ -322,7 +334,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       const cellKey = `${className}/${id.toString()}`;
       // Once close() has closed the cells, none opens again: its storage is closed or handed to
       // the next runtime. Until then (the grace period), work in flight still reaches objects.
-      if (cellsClosed) throw new ObjectClosedError(cellKey);
+      if (cellsClosed) throw new ObjectClosedError(cellKey, { notStarted: true });
       let h = hosts.get(cellKey);
       if (!h || h.broken) {
         if (h) retire(cellKey, h);
@@ -412,6 +424,10 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       ) => {
         // A cell another node owned on the last call goes straight to that node: trying the
         // local claim first opened (and deleted) a database per routed call.
+        // A cell this node holds open (taken by an alarm, say, since the route was learned) is
+        // served here, and the route is stale.
+        const open = hosts.get(cellKey);
+        if (open && !open.broken) routes.delete(cellKey);
         const known = routes.get(cellKey);
         let viaRoute = !!known && known.until > clock.now();
         let ep = viaRoute ? known!.ep : first();
@@ -426,7 +442,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
               if (
                 !elsewhere(e) &&
                 !(e instanceof DurableObjectRoutingError) &&
-                (e as Error)?.name !== "ObjectClosedError"
+                !notStartedClosed(e)
               )
                 throw e;
               routes.delete(cellKey);
@@ -472,6 +488,19 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       };
     });
     bindingClasses[binding] = className;
+    localNamespaces.set(
+      binding,
+      new DurableObjectNamespace(
+        opts.namespaceKeys?.[className] ?? namespaceKey(opts.scriptName ?? "worker", className),
+        (id) => {
+          const cellKey = `${className}/${id.toString()}`;
+          return localEndpoint(
+            () => hostFor(id),
+            () => (hosts.has(cellKey) ? undefined : opts.openSql.room?.(cellKey)),
+          );
+        },
+      ),
+    );
     // ctx.exports.<Class> of a class with a namespace is also that namespace, as in workerd
     // (`ctx.exports.MyActor.getByName("a")`); it stays usable as a facet class handle.
     const ns = env[binding] as DurableObjectNamespace;
@@ -541,6 +570,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     env,
     exports: exportsObj,
     durableObjectBindings: bindingClasses,
+    localNamespace: (binding: string) => localNamespaces.get(binding),
     backupNow: () => backupAll("manual"),
     async connectWebSocket(url, protocols = [], headers) {
       const h = new Headers(headers);

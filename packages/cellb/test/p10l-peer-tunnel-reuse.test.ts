@@ -9,6 +9,12 @@ import { celldPeers, nodeSqliteOpener, startCelldPeerServer } from "../src/node.
 // statewalker/cellb.dev#208). Both sides: cellb's client reuses tunnels, and its server keeps
 // them open for celld's.
 class Counter extends DurableObject {
+  /** Writes, waits, writes again: still running when its node closes, it fails half done. */
+  async twoStep(ms: number) {
+    this.inc();
+    await new Promise((r) => setTimeout(r, ms));
+    return this.inc();
+  }
   async slow(ms: number) {
     await new Promise((r) => setTimeout(r, ms));
     return this.inc();
@@ -112,6 +118,112 @@ describe("P10l peer tunnels are reused", () => {
     } finally {
       await peer.close();
       await owner.close();
+    }
+  });
+
+  // Reviewer finding (gate pass 1, #211): ObjectClosedError also reaches an event that already
+  // ran and wrote, when its node closes under it. Answering that as stale-owner made the caller
+  // run the same call on the next owner: one call applied twice. Only a call that never started
+  // may be re-routed.
+  it("a call its owner closed while it ran is not answered as stale-owner (it is not re-run)", async () => {
+    const { CellOwnedElsewhereError } = await import("../src/index.js");
+    const store = memoryObjectStore();
+    const owner = createCellRuntime({
+      worker: { Counter, default: {} },
+      durableObjects: { C: { className: "Counter" } },
+      openSql: nodeSqliteOpener(),
+      storage: celldBucket(store, { node: "owner3" }),
+      closeGraceMs: 50,
+    });
+    const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner3" });
+    await store.put(
+      "nodes/owner3.json",
+      new TextEncoder().encode(
+        JSON.stringify({ node: "owner3", addr: peer.addr, expires_ms: Date.now() + 60_000 }),
+      ),
+    );
+    const cellKey = `Counter/${(owner.env.C as any).idFromName("z").toString()}`;
+    const ep = (await celldPeers({ store, node: "caller3" }).endpoint("owner3", cellKey, "z"))!;
+    try {
+      const running = ep.call("twoStep", [400]).catch((e: any) => e);
+      await new Promise((r) => setTimeout(r, 100));
+      await owner.close(); // the event is half done when its database closes
+      const err = (await running) as Error;
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(CellOwnedElsewhereError);
+      expect(String(err.message)).not.toMatch(/owned by another node/);
+    } finally {
+      await peer.close();
+      await owner.close();
+    }
+  });
+
+  it("a call that reaches a closed node before it starts is answered as stale-owner", async () => {
+    const store = memoryObjectStore();
+    const owner = createCellRuntime({
+      worker: { Counter, default: {} },
+      durableObjects: { C: { className: "Counter" } },
+      openSql: nodeSqliteOpener(),
+      storage: celldBucket(store, { node: "owner4" }),
+    });
+    const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner4" });
+    await store.put(
+      "nodes/owner4.json",
+      new TextEncoder().encode(
+        JSON.stringify({ node: "owner4", addr: peer.addr, expires_ms: Date.now() + 60_000 }),
+      ),
+    );
+    const cellKey = `Counter/${(owner.env.C as any).idFromName("w").toString()}`;
+    const ep = (await celldPeers({ store, node: "caller4" }).endpoint("owner4", cellKey, "w"))!;
+    try {
+      await owner.close();
+      const refused = (await ep.call("inc", []).catch((e: unknown) => e)) as Error;
+      expect(refused.name).toBe("CellOwnedElsewhereError");
+    } finally {
+      await peer.close();
+    }
+  });
+
+  // celld serves a peer call only where it owns the cell; anywhere else it answers stale-owner
+  // and the caller re-resolves. A cellb node routed a call it was handed to the owner it knew,
+  // which can loop between two nodes (reviewer finding, gate pass 1, #211).
+  it("a node handed a call for a cell it does not own answers stale-owner, never forwards it", async () => {
+    const store = memoryObjectStore();
+    const worker = { Counter, default: {} };
+    const mk = (node: string) =>
+      createCellRuntime({
+        worker,
+        durableObjects: { C: { className: "Counter" } },
+        openSql: nodeSqliteOpener(),
+        storage: celldBucket(store, { node }),
+        peers: celldPeers({ store, node }),
+      });
+    const y = mk("y-owner");
+    const x = mk("x-other");
+    const py = await startCelldPeerServer({ runtime: y, store, node: "y-owner" });
+    const px = await startCelldPeerServer({ runtime: x, store, node: "x-other" });
+    const enc2 = new TextEncoder();
+    for (const [n, p] of [
+      ["y-owner", py],
+      ["x-other", px],
+    ] as const)
+      await store.put(
+        `nodes/${n}.json`,
+        enc2.encode(JSON.stringify({ node: n, addr: p.addr, expires_ms: Date.now() + 60_000 })),
+      );
+    try {
+      expect(await (y.env.C as any).getByName("v").inc()).toBe(1); // y owns it
+      const cellKey = `Counter/${(y.env.C as any).idFromName("v").toString()}`;
+      // a caller that wrongly believes x owns the cell
+      const ep = (await celldPeers({ store, node: "z" }).endpoint("x-other", cellKey, "v"))!;
+      const err = (await ep.call("inc", []).catch((e: unknown) => e)) as Error;
+      expect(err?.name).toBe("CellOwnedElsewhereError");
+      expect(await (y.env.C as any).getByName("v").inc()).toBe(2); // ran nowhere else
+    } finally {
+      await px.close();
+      await py.close();
+      await x.close();
+      await y.close();
     }
   });
 });

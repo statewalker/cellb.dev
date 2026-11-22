@@ -151,3 +151,36 @@ describe("P50 cellb serve: a fleet node", () => {
     expect(asyncContextFrameArgs("v24.1.0", [], undefined)).toEqual([]);
   });
 });
+
+// Reviewer finding (gate pass 1, #211): on Node 22 `cellb serve` relaunches itself, and a signal
+// sent to the process group (Ctrl-C, systemd's KillMode=control-group) reaches the child twice:
+// from the group, and forwarded by the parent. The child's handler was `once`, so the second
+// copy found none and killed the node before it had released its cells.
+describe("P50 stopping on signals", () => {
+  it("a second SIGINT during the graceful stop does not kill the process", async () => {
+    const { spawn } = await import("node:child_process");
+    const p = spawn(
+      process.execPath,
+      ["--no-warnings", join(__dirname, "fixtures/stop-signals.mjs")],
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let out = "";
+    p.stdout!.on("data", (d) => (out += d));
+    p.stderr!.on("data", (d) => (out += d));
+    for (let i = 0; i < 100 && !out.includes("ready"); i++)
+      await new Promise((r) => setTimeout(r, 50));
+    p.kill("SIGINT");
+    await new Promise((r) => setTimeout(r, 30));
+    p.kill("SIGINT");
+    const [code, signal] = await new Promise<[number | null, string | null]>((r) =>
+      p.once("exit", (c, s) => r([c, s])),
+    );
+    expect({ code, signal, out: out.trim().split("\n").at(-1) }).toEqual({
+      code: 0,
+      signal: null,
+      out: "stopped 1",
+    });
+  }, 30_000);
+});

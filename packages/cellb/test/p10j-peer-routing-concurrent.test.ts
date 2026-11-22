@@ -240,4 +240,35 @@ describe("P10j concurrent requests for a cell another node owns", () => {
       await a.close();
     }
   });
+
+  // Reviewer finding (gate pass 1, #211): a node used the route it cached even after it took the
+  // cell itself (an alarm, runInDurableObject), and a node serving a forwarded call routed it
+  // again: two nodes forwarded the call to each other and it never ran.
+  it("a node that owns the cell serves it, whatever route it cached; no forwarding loop", async () => {
+    const { node, leases } = fleet();
+    const a = node("A");
+    const b = node("B");
+    try {
+      expect(await (await a.fetch(new Request("http://app/"))).json()).toEqual({ n: 1 });
+      expect(await (await b.fetch(new Request("http://app/"))).json()).toEqual({ n: 2 }); // B: route → A
+      const cellKey = `Counter/${(b.env.COUNTER as any).idFromName("shared")}`;
+      leases.expire(cellKey); // A's lease runs out; A stays up
+      const { runInDurableObject } = await import("../src/index.js");
+      // B takes the cell without a routed call (as an alarm firing does)
+      expect(
+        await runInDurableObject(
+          (b.env.COUNTER as any).getByName("shared"),
+          async (_o: unknown, s: any) => s.storage.get("n"),
+        ),
+      ).toBe(2);
+      const r = await Promise.race([
+        b.fetch(new Request("http://app/")).then((x) => x.json()),
+        new Promise((res) => setTimeout(() => res("timed out: forwarding loop"), 3_000)),
+      ]);
+      expect(r).toEqual({ n: 3 });
+    } finally {
+      await b.close();
+      await a.close();
+    }
+  });
 });

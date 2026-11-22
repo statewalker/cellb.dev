@@ -159,18 +159,39 @@ async function serve(args: string[]): Promise<number> {
   console.log(
     `cellb serve: node ${node.node} ready ${node.url} (peer ${node.addr}; AsyncLocalStorage: ${asyncLocalStorageMode()})`,
   );
+  return onStopSignals(async () => {
+    console.log(`cellb serve: node ${node.node} leaving the fleet`);
+    await node.close();
+  });
+}
+
+/**
+ * Runs `stop` on the first SIGTERM or SIGINT and settles with the exit code (0, or 1 if `stop`
+ * failed). The handlers stay registered until then, and later signals are ignored: a signal sent
+ * to the process group reaches a relaunched `cellb serve` twice (from the group, and forwarded by
+ * its parent), and with no handler left the second copy would kill the node before it released
+ * its cells.
+ */
+export function onStopSignals(stop: () => Promise<void>): Promise<number> {
   return new Promise<number>((resolve) => {
-    const stop = () => {
-      console.log(`cellb serve: node ${node.node} leaving the fleet`);
-      node.close().then(
-        () => resolve(0),
+    let stopping = false;
+    const onSignal = () => {
+      if (stopping) return;
+      stopping = true;
+      stop().then(
+        () => finish(0),
         (e) => {
-          console.error(`cellb serve: ${(e as Error)?.message ?? e}`);
-          resolve(1);
+          console.error(`cellb: ${(e as Error)?.message ?? e}`);
+          finish(1);
         },
       );
     };
-    process.once("SIGTERM", stop);
-    process.once("SIGINT", stop);
+    const finish = (code: number) => {
+      process.off("SIGTERM", onSignal);
+      process.off("SIGINT", onSignal);
+      resolve(code);
+    };
+    process.on("SIGTERM", onSignal);
+    process.on("SIGINT", onSignal);
   });
 }
