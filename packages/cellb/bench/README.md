@@ -123,8 +123,10 @@ it):
   node is never a follower and always waits for the bucket, so CellB clusters and mixed ones run
   at the bucket's pace. Joining celld's log tier is the next step for CellB's throughput
   (statewalker/cellb.dev#208).
-- **Routing costs CellB about 1 ms of CPU per call.** Tunnels are reused and a node calls the owner
-  it knows directly, but each routed call still crosses two HTTP stacks in JavaScript.
+- **Routing costs CellB about 2 ms of CPU per call** (1.7 ms with two nodes, from the CPU column;
+  2.7 ms with four, where the CPUs are contended), against about 0.1 ms for celld. Tunnels are
+  reused and a node calls the owner it knows directly, but each routed call still crosses two
+  HTTP stacks in JavaScript.
 - **More nodes than CPUs.** Four nodes, RustFS and the load generator share 4 vCPUs, so neither
   runtime gains from the third and fourth node here.
 - **A dead node's cells wait for its lease** (10 s), then for its log's recovery when it was a
