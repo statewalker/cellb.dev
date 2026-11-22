@@ -52,13 +52,16 @@ const freePort = () =>
       s.close(() => res(p));
     });
   });
+/** CPU seconds of a process and its descendants (`cellb serve` relaunches itself on Node 22). */
 const cpuSeconds = (pid) => {
+  let total = 0;
   try {
     const f = readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1].split(" ");
-    return (Number(f[11]) + Number(f[12])) / CLK_TCK; // utime + stime
-  } catch {
-    return 0;
-  }
+    total += (Number(f[11]) + Number(f[12])) / CLK_TCK; // utime + stime
+    for (const child of readFileSync(`/proc/${pid}/task/${pid}/children`, "utf8").trim().split(/\s+/))
+      if (child) total += cpuSeconds(Number(child));
+  } catch {}
+  return total;
 };
 const pct = (sorted, p) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] ?? 0;
 const round = (x, d = 1) => Math.round(x * 10 ** d) / 10 ** d;

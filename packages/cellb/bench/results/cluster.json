@@ -1,0 +1,231 @@
+{
+  "date": "2026-11-22T16:29:49.407Z",
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cpus": 4,
+    "memoryGB": 16,
+    "node": "v22.23.5",
+    "platform": "linux x64"
+  },
+  "celld": "celld 0.6.3",
+  "bucket": "RustFS on 127.0.0.1",
+  "load": {
+    "clients": 32,
+    "names": 200,
+    "durationMs": 10000
+  },
+  "throughput": [
+    {
+      "celld": 1,
+      "cellb": 0,
+      "requests": 7087,
+      "rps": 707,
+      "p50Ms": 43.4,
+      "p90Ms": 59.6,
+      "p99Ms": 82.6,
+      "crossNodeShare": 0,
+      "cpuSecondsPer1kRequests": {
+        "celld": 1.19
+      },
+      "owners": {
+        "celld": 200
+      },
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    },
+    {
+      "celld": 2,
+      "cellb": 0,
+      "requests": 17214,
+      "rps": 1713,
+      "p50Ms": 17.1,
+      "p90Ms": 25.3,
+      "p99Ms": 60.5,
+      "crossNodeShare": 0.5,
+      "cpuSecondsPer1kRequests": {
+        "celld": 1.25
+      },
+      "owners": {
+        "celld": 200
+      },
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    },
+    {
+      "celld": 4,
+      "cellb": 0,
+      "requests": 11807,
+      "rps": 1179,
+      "p50Ms": 22.8,
+      "p90Ms": 40.3,
+      "p99Ms": 88.8,
+      "crossNodeShare": 0.75,
+      "cpuSecondsPer1kRequests": {
+        "celld": 1.78
+      },
+      "owners": {
+        "celld": 200
+      },
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    },
+    {
+      "celld": 0,
+      "cellb": 1,
+      "requests": 6646,
+      "rps": 663,
+      "p50Ms": 43.6,
+      "p90Ms": 71.3,
+      "p99Ms": 127.5,
+      "crossNodeShare": 0,
+      "cpuSecondsPer1kRequests": {
+        "cellb": 0
+      },
+      "owners": {
+        "cellb": 200
+      },
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    },
+    {
+      "celld": 0,
+      "cellb": 2,
+      "requests": 3311,
+      "rps": 329,
+      "p50Ms": 89.6,
+      "p90Ms": 179.2,
+      "p99Ms": 264.4,
+      "crossNodeShare": 0.5,
+      "cpuSecondsPer1kRequests": {
+        "cellb": 0.02
+      },
+      "owners": {
+        "cellb": 200
+      },
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    },
+    {
+      "celld": 0,
+      "cellb": 4,
+      "requests": 3026,
+      "rps": 301,
+      "p50Ms": 107,
+      "p90Ms": 175,
+      "p99Ms": 228.5,
+      "crossNodeShare": 0.75,
+      "cpuSecondsPer1kRequests": {
+        "cellb": 0.03
+      },
+      "owners": {
+        "cellb": 200
+      },
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    },
+    {
+      "celld": 1,
+      "cellb": 1,
+      "requests": 4076,
+      "rps": 405,
+      "p50Ms": 56.7,
+      "p90Ms": 170.2,
+      "p99Ms": 227.5,
+      "crossNodeShare": 0.5,
+      "cpuSecondsPer1kRequests": {
+        "celld": 1.01,
+        "cellb": 0.01
+      },
+      "owners": {
+        "cellb": 91,
+        "celld": 109
+      },
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    },
+    {
+      "celld": 2,
+      "cellb": 2,
+      "requests": 4313,
+      "rps": 429,
+      "p50Ms": 53,
+      "p90Ms": 173.7,
+      "p99Ms": 246.3,
+      "crossNodeShare": 0.75,
+      "cpuSecondsPer1kRequests": {
+        "celld": 1.17,
+        "cellb": 0.01
+      },
+      "owners": {
+        "cellb": 101,
+        "celld": 99
+      },
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    }
+  ],
+  "failover": [
+    {
+      "signal": "SIGKILL",
+      "victim": "cellb",
+      "countersAnsweringAgain": "40/40",
+      "unavailableMsMax": 10211,
+      "unavailableMsP50": 138,
+      "failedRequests": 1286,
+      "errors": {
+        "cellb: fetch failed": 10,
+        "celld: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 830,
+        "cellb: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 446
+      },
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    },
+    {
+      "signal": "SIGKILL",
+      "victim": "celld",
+      "countersAnsweringAgain": "40/40",
+      "unavailableMsMax": 9918,
+      "unavailableMsP50": 172,
+      "failedRequests": 854,
+      "errors": {
+        "celld: fetch failed": 6,
+        "cellb: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 554,
+        "celld: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 294
+      },
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    }
+  ],
+  "leave": [
+    {
+      "signal": "SIGTERM",
+      "victim": "cellb",
+      "countersAnsweringAgain": "40/40",
+      "unavailableMsMax": 198,
+      "unavailableMsP50": 84,
+      "failedRequests": 0,
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    },
+    {
+      "signal": "SIGTERM",
+      "victim": "celld",
+      "countersAnsweringAgain": "40/40",
+      "unavailableMsMax": 802,
+      "unavailableMsP50": 40,
+      "failedRequests": 0,
+      "errors": {},
+      "valuesAckedTwice": 0,
+      "countersBehind": 0
+    }
+  ]
+}

@@ -12,3 +12,5 @@ A leaving node (SIGTERM, `FleetNode.close()`) drains its requests in flight, rel
 
 `cellb serve` runs AsyncLocalStorage on AsyncContextFrame: on Node 22 it relaunches itself with `--experimental-async-context-frame` (the default from Node 24) unless `execArgv` or `NODE_OPTIONS` names that flag either way, and its ready line says which (`AsyncLocalStorage: frame`). On async_hooks every promise paid for it, and a node served 2.7 times fewer requests. The relaunched process exits when its parent dies, SIGKILL included. Fleet nodes log pages with `pageCapture`. `s3ObjectStore` derives the SigV4 signing key once per day, region and secret instead of per request, and hashes with `@noble/hashes` instead of WebCrypto's digest.
 
+Routing between nodes is cheaper: `celldPeers` reuses idle peer tunnels (h1 keep-alive inside, as celld does) and the peer server keeps tunnels open for the next call, from celld or cellb; a node remembers where it last reached a cell and calls that owner directly (a non-owner used to open and delete a local database for every routed call), forgetting the route when the owner answers stale-owner, has closed the cell, or cannot be reached.
+

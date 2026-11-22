@@ -311,6 +311,9 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     };
   };
 
+  /** Cells last reached on another node, and how: the next call goes there directly. */
+  const routes = new Map<string, { ep: ObjectEndpoint; until: number }>();
+  const ROUTE_TTL_MS = 60_000;
   for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {
     const cls = opts.worker[className] as DurableObjectClass | undefined;
     if (typeof cls !== "function")
@@ -403,12 +406,33 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
        * claims a cell whose owner's lease ran out, or on the owner the bucket names now.
        */
       const attempts = 6;
-      const run = async <T>(first: ObjectEndpoint, go: (ep: ObjectEndpoint) => Promise<T>) => {
-        let ep = first;
+      const run = async <T>(
+        first: () => ObjectEndpoint,
+        go: (ep: ObjectEndpoint) => Promise<T>,
+      ) => {
+        // A cell another node owned on the last call goes straight to that node: trying the
+        // local claim first opened (and deleted) a database per routed call.
+        const known = routes.get(cellKey);
+        let viaRoute = !!known && known.until > clock.now();
+        let ep = viaRoute ? known!.ep : first();
         for (let i = 1; ; i++) {
           try {
             return await go(ep);
           } catch (e) {
+            if (viaRoute) {
+              viaRoute = false;
+              // The owner moved or left (stale-owner), or cannot be reached: forget the route and
+              // take the usual way, a local claim first. An error of the object's own stands.
+              if (
+                !elsewhere(e) &&
+                !(e instanceof DurableObjectRoutingError) &&
+                (e as Error)?.name !== "ObjectClosedError"
+              )
+                throw e;
+              routes.delete(cellKey);
+              ep = first();
+              continue;
+            }
             if (!elsewhere(e)) throw e;
             // Neither claimed here nor reached on an owner: celld's answer for a cell it cannot
             // route (the owner is gone and its cells are not yet free, say).
@@ -416,15 +440,23 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
             retireBroken();
             // The owner may be releasing the cell this moment (a node leaving the fleet).
             if (i > 1) await new Promise((r) => setTimeout(r, 25 * 2 ** i));
-            ep = (await viaOwner()) ?? local();
+            const owner = await viaOwner();
+            if (owner) routes.set(cellKey, { ep: owner, until: clock.now() + ROUTE_TTL_MS });
+            else routes.delete(cellKey);
+            ep = owner ?? local();
           }
         }
       };
       return () => {
-        const l = local();
+        // Made on first use: making it opens the cell, which a call routed elsewhere never needs.
+        let made: ObjectEndpoint | undefined;
+        const l = () => {
+          made ??= local();
+          return made;
+        };
         return {
           get local() {
-            return l.local; // not copied: reading it opens the cell
+            return l().local; // not copied: reading it opens the cell
           },
           fetch: (req: Request) => {
             const spare = req.body ? req.clone() : req;

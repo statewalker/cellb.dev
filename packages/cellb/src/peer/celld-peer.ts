@@ -420,7 +420,8 @@ export async function startCelldPeerServer(opts: {
     do: createServer({ requireHostHeader: false }, (q, s) => void serveDo(q, s)),
     rpc: createServer({ requireHostHeader: false }, (q, s) => void serveRpc(q, s)),
   };
-  for (const s of Object.values(inner)) s.keepAliveTimeout = 0;
+  // Tunnels stay open between calls, so celld (and cellb) callers reuse them; idle ones close.
+  for (const s of Object.values(inner)) s.keepAliveTimeout = 60_000;
   // A tunneled WebSocket (celld: the client's own handshake crosses the tunnel and the owner
   // answers it): the cell's 101 + webSocket is bridged to the raw connection, framed by `ws`.
   const { WebSocketServer } = await import("ws");
@@ -610,6 +611,40 @@ async function openTunnel(
   return socket;
 }
 
+/**
+ * Idle tunnels per (caller, owner, address, kind), reused for the next call as celld does
+ * (main/peer_tunnel.rs): h1 keep-alive inside the tunnel, one call at a time on each. An agent
+ * whose connections are signed tunnels: the signature covers the upgrade, once per tunnel.
+ */
+const tunnelAgents = new Map<string, import("node:http").Agent>();
+async function tunnelAgent(
+  key: Uint8Array,
+  source: string,
+  owner: { node: string; addr: string },
+  kind: "do" | "rpc",
+): Promise<import("node:http").Agent> {
+  const id = `${source}\n${owner.node}\n${owner.addr}\n${kind}`;
+  let agent = tunnelAgents.get(id);
+  if (!agent) {
+    const { Agent } = await import("node:http");
+    class TunnelAgent extends Agent {
+      override createConnection(
+        _options: import("node:http").ClientRequestArgs,
+        done?: (err: Error | null, stream: Duplex) => void,
+      ): undefined {
+        openTunnel(key, source, owner, kind).then(
+          (socket) => done?.(null, socket),
+          (e) => done?.(e as Error, undefined as never),
+        );
+        return undefined;
+      }
+    }
+    agent = new TunnelAgent({ keepAlive: true, maxFreeSockets: 64, keepAliveMsecs: 30_000 });
+    tunnelAgents.set(id, agent);
+  }
+  return agent;
+}
+
 async function tunnelCall(
   key: Uint8Array,
   source: string,
@@ -618,35 +653,52 @@ async function tunnelCall(
   inner: { method: string; path: string; headers: Record<string, string>; body?: Uint8Array },
 ): Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }> {
   const { request } = await import("node:http");
-  const socket = await openTunnel(key, source, owner, kind);
+  const agent = await tunnelAgent(key, source, { node: owner.node, addr: owner.addr }, kind);
+  const [host, port] = [
+    owner.addr.slice(0, owner.addr.lastIndexOf(":")),
+    Number(owner.addr.slice(owner.addr.lastIndexOf(":") + 1)),
+  ];
+  const once = () =>
+    new Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }>(
+      (resolve, reject) => {
+        const req = request(
+          { agent, host, port, method: inner.method, path: inner.path, headers: inner.headers },
+          async (res) => {
+            try {
+              const chunks: Buffer[] = [];
+              for await (const c of res) chunks.push(c as Buffer);
+              const headers: Record<string, string> = {};
+              for (const [k, v] of Object.entries(res.headers))
+                if (typeof v === "string") headers[k] = v;
+              resolve({
+                status: res.statusCode ?? 500,
+                headers,
+                body: new Uint8Array(Buffer.concat(chunks)),
+              });
+            } catch (e) {
+              reject(e);
+            }
+          },
+        );
+        req.on("error", (e) => reject(Object.assign(e, { reused: req.reusedSocket })));
+        req.end(inner.body);
+      },
+    );
+  const owned = (e: unknown) =>
+    e instanceof DurableObjectRoutingError && owner.cellKey
+      ? new DurableObjectRoutingError(owner.cellKey, { cause: e.cause })
+      : e;
   try {
-    return await new Promise((resolve, reject) => {
-      const req = request(
-        // no agent: the request runs on the upgraded socket itself
-        {
-          createConnection: () => socket,
-          method: inner.method,
-          path: inner.path,
-          headers: inner.headers,
-        },
-        async (res) => {
-          const chunks: Buffer[] = [];
-          for await (const c of res) chunks.push(c as Buffer);
-          const headers: Record<string, string> = {};
-          for (const [k, v] of Object.entries(res.headers))
-            if (typeof v === "string") headers[k] = v;
-          resolve({
-            status: res.statusCode ?? 500,
-            headers,
-            body: new Uint8Array(Buffer.concat(chunks)),
-          });
-        },
-      );
-      req.on("error", reject);
-      req.end(inner.body);
-    });
-  } finally {
-    socket.destroy();
+    return await once();
+  } catch (e) {
+    // A pooled tunnel can close between its last call and this one (the owner's idle timeout):
+    // the body is buffered, so the call goes once more on a fresh tunnel, as celld does.
+    if (!(e as { reused?: boolean }).reused) throw owned(e);
+    try {
+      return await once();
+    } catch (e2) {
+      throw owned(e2);
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { describe, expect, it } from "vitest";
 import {
+  CellOwnedElsewhereError,
   type CellRuntime,
   createCellRuntime,
   DurableObject,
@@ -34,6 +35,9 @@ const slow = (lease: Lease): Lease => ({
   },
 });
 
+const sqlite = nodeSqliteOpener();
+/** Local databases each node opened (a node routing to the owner should not open one per call). */
+const opens = new Map<string, number>();
 const dead = new Set<string>();
 const gone = new Set<string>();
 let staleOwner: string | undefined;
@@ -48,7 +52,10 @@ function fleet() {
         default: { fetch: (req: Request, env: any) => env.COUNTER.getByName("shared").fetch(req) },
       },
       durableObjects: { COUNTER: { className: "Counter" } },
-      openSql: nodeSqliteOpener(),
+      openSql: (cellKey: string) => {
+        if (cellKey.startsWith("Counter/")) opens.set(name, (opens.get(name) ?? 0) + 1);
+        return sqlite(cellKey);
+      },
       storage: { ...log, ownership: slow(leases.for(name)) },
       peers: {
         // The owner's runtime, in process: a stand-in for the peer tunnel.
@@ -63,9 +70,15 @@ function fleet() {
           if (dead.has(owner)) throw new Error("connect ECONNREFUSED 127.0.0.1:1");
           const ns = nodes.get(owner)!.env.COUNTER as any;
           const stub = ns.getByName("shared");
+          // as the peer server answers: a node that closed the cell no longer owns it (stale-owner)
+          const stale = (e: unknown) => {
+            throw (e as Error)?.name === "ObjectClosedError"
+              ? new CellOwnedElsewhereError("Counter/shared")
+              : e;
+          };
           return {
-            fetch: (req: Request) => stub.fetch(req),
-            call: (method: string, args: unknown[]) => stub[method](...args),
+            fetch: (req: Request) => stub.fetch(req).catch(stale),
+            call: (method: string, args: unknown[]) => stub[method](...args).catch(stale),
           };
         },
       },
@@ -201,6 +214,28 @@ describe("P10j concurrent requests for a cell another node owns", () => {
     } finally {
       staleOwner = undefined;
       gone.delete("A");
+      await b.close();
+      await a.close();
+    }
+  });
+
+  // A non-owner opened (and deleted) a local database for every call it routed, before finding
+  // the cell owned elsewhere: 16 % of a cellb node's CPU when nodes route to each other
+  // (bench/cluster-bench.mjs). Once it knows the owner, it calls the owner directly.
+  it("a node that routes to the owner does not open the cell locally on every call", async () => {
+    const { node } = fleet();
+    const a = node("A");
+    const b = node("B");
+    try {
+      expect(await (await a.fetch(new Request("http://app/"))).json()).toEqual({ n: 1 });
+      opens.set("B", 0);
+      for (let i = 2; i <= 21; i++)
+        expect(await (await b.fetch(new Request("http://app/"))).json()).toEqual({ n: i });
+      expect(opens.get("B")).toBeLessThanOrEqual(1);
+      // the owner leaves: B's next call finds out and takes the cell
+      await a.close();
+      expect(await (await b.fetch(new Request("http://app/"))).json()).toEqual({ n: 22 });
+    } finally {
       await b.close();
       await a.close();
     }
