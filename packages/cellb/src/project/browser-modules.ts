@@ -116,6 +116,18 @@ export function browserModuleLoader(
             `const ${IMPORT_FROM} = globalThis.__cellsImports[${JSON.stringify(importsKey)}]; `,
           );
     };
+    // An import of none of the loaded modules fails when it runs, as on workerd, not when the
+    // importing module loads: Kitesurf's page runtime has `import("./__ks_user_classic_regular.js")`
+    // and loads that module only for a page with classic scripts.
+    const missingUrl = (spec: string, importer: string) =>
+      URL.createObjectURL(
+        new Blob(
+          [
+            `throw new Error(${JSON.stringify(`No such module "${spec}" (imported from "${importer}")`)});`,
+          ],
+          { type: "text/javascript" },
+        ),
+      );
     const urls = new Map<string, string>();
     // Modules whose Blob URL is being made: a Blob URL exists only once its text (with its
     // imports' URLs) does, so modules that import each other cannot be loaded this way.
@@ -138,8 +150,10 @@ export function browserModuleLoader(
       // not imports (a code generator's template may well contain `from "cloudflare:workers"`).
       const text = rewriteModuleSpecifiers(routed(name), (spec) => {
         if (spec === "cloudflare:workers") return shimUrl;
-        if (spec.startsWith("./") || spec.startsWith("../"))
-          return urlOf(new URL(spec, `file:///${base}`).pathname.slice(1));
+        if (spec.startsWith("./") || spec.startsWith("../")) {
+          const target = new URL(spec, `file:///${base}`).pathname.slice(1);
+          return names.has(target) ? urlOf(target) : missingUrl(spec, name);
+        }
         return undefined;
       });
       const url = URL.createObjectURL(
