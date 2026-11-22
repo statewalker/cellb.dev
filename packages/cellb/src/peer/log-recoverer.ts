@@ -158,6 +158,15 @@ export function createLogRecoverer(o: LogRecovererOptions): LogRecoverer {
   };
 
   const recoverOnce = async (node: string): Promise<RecoverOutcome> => {
+    // 0. A session that left celld's node bundles is celld's to recover: look before claiming,
+    // or our fresh claim would keep celld's recovery away.
+    {
+      const cur = await read(node);
+      const log = cur?.rec.log;
+      if (!cur || !log || log.state === "sealed") return "none";
+      const gen = cur.rec.ownership_index_generation || cur.rec.probe_public_key;
+      if ((await o.store.list(`log/${node}/${gen}/bundle/`)).length) return "bundles";
+    }
     // 1–2. the record, and our claim on it
     let claimed: { rec: NodeRecord; etag: string; log: LogRecord } | undefined;
     for (let attempt = 0; attempt < 5 && !claimed; attempt++) {
@@ -203,7 +212,6 @@ export function createLogRecoverer(o: LogRecovererOptions): LogRecoverer {
       } catch {}
     }, 5_000);
     try {
-      if ((await o.store.list(`log/${session}/bundle/`)).length) return "bundles"; // celld's to fold
       // 3. seal and gather every member
       const results = await Promise.all(
         held.log.ensemble.map((m) => gather(m, session, held.log.epoch)),

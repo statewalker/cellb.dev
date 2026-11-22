@@ -115,9 +115,12 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
             shipped?.uploaded();
             return;
           } catch (e) {
-            // Acknowledged by the followers (or about to be): it must reach the bucket.
+            // Acknowledged by the followers (or about to be): it must reach the bucket, and it
+            // never gives up — not even once this node's authority has lapsed: a write into a
+            // superseded epoch prefix is harmless (celld: "only into a superseded prefix"),
+            // while a segment left out would leave a TXID gap the next uploads build on and
+            // recovery skips (it reads the highest TXID listed).
             if (!fleet || !(await fleet)) throw e;
-            if (o.authorized && !o.authorized()) throw e; // fenced: the epoch is superseded
             await sleep(Math.min(100 * 2 ** attempt, 2_000));
           }
         }
@@ -401,10 +404,24 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
     forget(cellKey: string) {
       cells.delete(cellKey);
     },
-    /** Settles once the cell's segments are in the bucket (or their uploads gave up). */
-    async flush(cellKey: string) {
-      await queues.get(cellKey)?.catch(() => {});
-      await uploads.get(cellKey)?.catch(() => {});
+    /**
+     * Waits for the cell's segments to reach the bucket: true once none is on its way (or one
+     * that was not acknowledged gave up), false if `timeoutMs` passed first.
+     */
+    async flush(cellKey: string, timeoutMs?: number): Promise<boolean> {
+      const settled = (async () => {
+        await queues.get(cellKey)?.catch(() => {});
+        await uploads.get(cellKey)?.catch(() => {});
+        return true;
+      })();
+      if (timeoutMs === undefined) return settled;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const r = await Promise.race([
+        settled,
+        new Promise<boolean>((res) => (timer = setTimeout(() => res(false), timeoutMs))),
+      ]);
+      clearTimeout(timer);
+      return r;
     },
     /** A log tier leader that ships each commit's segment to its followers (or none). */
     setShipper(s: SegmentShipper | undefined) {

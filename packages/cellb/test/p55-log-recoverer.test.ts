@@ -163,3 +163,31 @@ describe("P55 recovering a dead leader's session", () => {
     }
   });
 });
+
+// Merge gate #213, pass 1 (high): the recoverer claimed a session before it looked for celld's
+// node bundles, then left it with a fresh claim it would not use — celld's own recovery keeps away
+// from a fresh claim, and a cellb sweep renewed it every 30 s.
+describe("P55 a session with celld bundles", () => {
+  it("is left untouched for celld: no claim", async () => {
+    const store = memoryObjectStore();
+    const rec = {
+      node: "celldlead",
+      expires_ms: Date.now() - 60_000,
+      addr: "127.0.0.1:9",
+      ownership_index_generation: "gen1",
+      log: {
+        state: "open",
+        epoch: 3,
+        ensemble: ["x"],
+        tiered: 0,
+        active: true,
+        claimant: null,
+        claimed_ms: null,
+      },
+    };
+    await store.put("nodes/celldlead.json", enc.encode(JSON.stringify(rec)));
+    await store.put("log/celldlead/gen1/bundle/e3-00000001.ltxb", new Uint8Array(4));
+    expect(await createLogRecoverer({ store, node: "me" }).recover("celldlead")).toBe("bundles");
+    expect((await record(store, "celldlead")).log).toEqual(rec.log);
+  });
+});

@@ -248,14 +248,16 @@ export function createLogLeader(o: LogLeaderOptions): LogLeader {
     const found = await candidates();
     const improves = found.length > members.length;
     if (healthy && !improves) return;
-    // The barrier: nothing shipped is missing from the bucket, nothing in flight.
-    if (pending()) return;
+    // Degrade FIRST: from here on the epoch acknowledges nothing more (commits wait for the
+    // bucket), so nothing can slip past the barrier below. Then the barrier: nothing in flight,
+    // and nothing the epoch acknowledged missing from the bucket — followers drop an epoch's rows
+    // when they adopt the next one (celld node_log.rs: degraded, then the drain). Not drained
+    // yet: the next maintenance tries again (the epoch stays degraded until then).
+    degrade();
     await Promise.allSettled(members.map((m) => m.lane));
     await credited.catch(() => {});
-    if (!found.length) {
-      degrade();
-      return;
-    }
+    if (pending()) return;
+    if (!found.length) return;
     const prev = o.bucket.log;
     if (prev && prev.state === "recovering") return; // taken over: not ours to reopen
     const next: LogRecord = {
@@ -267,7 +269,6 @@ export function createLogLeader(o: LogLeaderOptions): LogLeader {
       claimant: null,
       claimed_ms: null,
     };
-    degrade();
     await o.bucket.setLog(next); // applied before any append of the epoch
     epoch = next.epoch;
     members = found.map((c) => ({ ...c, lane: Promise.resolve(), queue: [], sending: false }));

@@ -108,3 +108,44 @@ describe("P52 the node record carries the log, by compare-and-swap", () => {
     }
   });
 });
+
+// Merge gate #213, pass 1 (high): waiting for a dead predecessor's session to be recovered, a
+// starting node retried at once when recovery could not finish (left to celld, claimed elsewhere):
+// a tight loop against the bucket.
+describe("P52 waiting for a predecessor's session", () => {
+  it("retries at a measured pace when its recovery cannot finish yet", async () => {
+    const store = memoryObjectStore();
+    await store.put(
+      "nodes/p.json",
+      enc.encode(
+        JSON.stringify({
+          node: "p",
+          expires_ms: Date.now() - 60_000,
+          addr: "127.0.0.1:1",
+          ownership_index_generation: "old",
+          log: openLog(1, ["f"]),
+        }),
+      ),
+    );
+    let attempts = 0;
+    const b = celldBucket(store, {
+      node: "p",
+      leaseTtlMs: 600,
+      recoverPredecessor: async () => {
+        attempts++; // recovery cannot finish (celld's bundles, another claim)
+      },
+    });
+    const acquiring = b.ownership.tryAcquire(`Counter/${"8".repeat(64)}`).catch(() => {});
+    await new Promise((r) => setTimeout(r, 1_000));
+    expect(attempts).toBeGreaterThan(0);
+    expect(attempts).toBeLessThan(10);
+    // recovered by someone: the node starts
+    const rec = await read(store, "p");
+    await store.put(
+      "nodes/p.json",
+      enc.encode(JSON.stringify({ ...rec, log: { ...rec.log, state: "sealed" } })),
+    );
+    await acquiring;
+    await b.close();
+  });
+});

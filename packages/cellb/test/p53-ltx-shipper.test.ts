@@ -162,3 +162,66 @@ describe("P53 a leader's commits: followers or the bucket, whichever is first", 
     }
   });
 });
+
+// Merge gate #213, pass 1 (high): an upload that gave up (the node's authority lapsed while the
+// bucket failed) did not stop the next one: the bucket got TXID N+1 without N, and recovery (cellb's
+// and celld's) skips rows at or below the highest TXID it lists — N was lost for good.
+describe("P53 a cell's uploads after one that gave up", () => {
+  it("leave no TXID gap in the bucket", async () => {
+    const { ltxLog } = await import("../src/bucket/ltx-log.js");
+    const mem = memoryObjectStore();
+    let failTxid1 = true;
+    const store: ObjectStore = {
+      get: (k) => mem.get(k),
+      list: (p) => mem.list(p),
+      delete: (k) => mem.delete(k),
+      put: async (k, b, c, a) => {
+        if (failTxid1 && k.endsWith("0000000000000001-0000000000000001.ltx"))
+          throw new Error("bucket unavailable");
+        return mem.put(k, b, c, a);
+      },
+    };
+    let authorized = true;
+    const log = ltxLog(store, { authorized: () => authorized });
+    log.setShipper(fleet().shipper);
+    log.begin(cellKey, 1);
+    await log.committed(cellKey, { seq: 1, image: image(1), epoch: 1 }); // the followers hold it
+    authorized = false; // the lease lapses: the failing upload of TXID 1 gives up
+    await new Promise((r) => setTimeout(r, 300));
+    authorized = true; // renewed
+    failTxid1 = false;
+    await log.committed(cellKey, { seq: 2, image: image(2), epoch: 1 });
+    await log.flush(cellKey);
+    // an upload the followers acknowledged never gives up (writing into a superseded epoch is
+    // harmless): once the bucket answers, both land, in order — never 2 without 1
+    expect(await mem.list(`cells/${scope}/ltx/`)).toEqual([
+      `cells/${scope}/ltx/e1/0000/0000000000000001-0000000000000001.ltx`,
+      `cells/${scope}/ltx/e1/0000/0000000000000002-0000000000000002.ltx`,
+    ]);
+  }, 20_000);
+});
+
+// Merge gate #213, pass 1 (high): release() swallowed an upload that had not landed and wrote the
+// record released ({node: ""}), so the next owner took the cell at once and restored from a bucket
+// missing a segment the followers had acknowledged; the takeover gate (which waits for a dead
+// owner's session to be recovered) never saw it.
+describe("P53 releasing a cell whose acknowledged segment is not in the bucket", () => {
+  it("keeps the record naming this node (recovery decides), and takes the cell again only once it landed", async () => {
+    const t = await setup();
+    try {
+      t.failNext(1_000_000); // the bucket is down for cell files
+      await t.b.durability.committed(cellKey, { seq: 1, image: image(1), epoch: t.epoch });
+      await t.lease.release();
+      const own = JSON.parse(
+        new TextDecoder().decode((await t.mem.get(`cells/${scope}/own.json`))!.body),
+      );
+      expect(own.node).toBe("lead");
+      t.failNext(0); // the bucket is back: the retried upload lands
+      const again = await t.b.ownership.tryAcquire(cellKey); // waits for it first
+      expect(again?.epoch).toBe(t.epoch + 1);
+      expect(t.order).toEqual(["0000000000000001-0000000000000001.ltx"]);
+    } finally {
+      await t.b.close();
+    }
+  }, 30_000);
+});

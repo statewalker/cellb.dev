@@ -309,4 +309,58 @@ describe("P54 cellb leads a log tier session", () => {
       await f1.close();
     }
   });
+
+  // Merge gate #213, pass 1 (critical): maintain() checked the barrier, then awaited the lanes
+  // while the epoch still shipped and acknowledged; a commit acknowledged then could still be on
+  // its way to the bucket when the next epoch opened, and followers drop the old epoch's rows
+  // when they adopt a new one. celld degrades first, then waits for the drain (node_log.rs).
+  it("a commit made while the ensemble changes is not acknowledged on the epoch being retired", async () => {
+    const store = memoryObjectStore();
+    const f1 = await followerNode(store, "q1");
+    let delay = 0;
+    const slowAppends: typeof fetch = async (input, init) => {
+      if (delay && String(input).endsWith("/peer/log/append"))
+        await new Promise((r) => setTimeout(r, delay));
+      return fetch(input, init);
+    };
+    const l = await leaderNode(store, { fetch: slowAppends });
+    try {
+      await l.leader.maintain();
+      await l.commit();
+      await l.leader.settled();
+      const f2 = await followerNode(store, "q2"); // a second follower: a better ensemble exists
+      try {
+        delay = 300;
+        const x = l.commit(); // its upload lands fast, its round takes 300 ms
+        await l.bucket.flush(cellKey);
+        const reconfig = l.leader.maintain(); // passes the barrier, waits for X's round
+        await new Promise((r) => setTimeout(r, 50));
+        l.hold(true);
+        const r = l.commit(); // made during that wait; its upload is held
+        await x;
+        // the epoch degraded before the wait: R is not acknowledged by q1, it waits for the bucket
+        const raced = await Promise.race([
+          r.then(() => "acknowledged"),
+          new Promise((res) => setTimeout(() => res("waiting"), 1_000)),
+        ]);
+        expect(raced).toBe("waiting");
+        // R was never acknowledged by a follower, so the new epoch retires nothing of it: what the
+        // old epoch acknowledged (X) is in the bucket, which is what the barrier requires
+        await reconfig;
+        expect((await record(store, "lead")).log).toMatchObject({
+          epoch: 2,
+          ensemble: ["q1", "q2"],
+        });
+        l.hold(false);
+        await r; // acknowledged by the bucket
+      } finally {
+        await f2.close();
+      }
+    } finally {
+      l.hold(false);
+      await l.leader.close();
+      await l.bucket.close();
+      await f1.close();
+    }
+  });
 });

@@ -167,8 +167,10 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
       // its followers until the session is recovered.
       if (rec.log && rec.log.state !== "sealed") {
         const session = `${opts.node}/${rec.ownership_index_generation || rec.probe_public_key}`;
-        if (opts.recoverPredecessor) await opts.recoverPredecessor(session, rec);
-        else await sleep(500); // another node recovers it
+        // Recovered here if we can; otherwise (another node's claim, celld's bundles) another
+        // node does it: either way, look again after a pause, not at once.
+        if (opts.recoverPredecessor) await opts.recoverPredecessor(session, rec).catch(() => {});
+        await sleep(500);
         continue;
       }
       leaseEtag = cur.etag;
@@ -299,6 +301,9 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   const ownership = {
     async tryAcquire(cellKey: string) {
       await ensureLease();
+      // Our own segments of the cell still on their way (a release that could not wait for
+      // them): in the bucket first, or the restore below would miss them.
+      await log.flush(cellKey);
       // No claim while this node's authority has lapsed: no deadline is left to fence a cell
       // taken now, and a late renewal could make its writes acknowledged again after its node
       // record had expired and another node took the cell (a split brain).
@@ -362,8 +367,14 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
         epoch,
         lost: fenced,
         release: async () => {
-          // The next owner restores from the bucket: every segment of ours is there first.
-          await log.flush(cellKey);
+          // The next owner restores from the bucket: every segment of ours is there first. One the
+          // followers acknowledged that does not land (the bucket is down) keeps the record naming
+          // this node: the takeover gate then waits for our session's recovery, which has it.
+          if (!(await log.flush(cellKey, ttl))) {
+            log.forget(cellKey);
+            owned.delete(cellKey);
+            return;
+          }
           const now2 = await readJson<{ node: string; epoch: number }>(key);
           if (now2?.value.node === opts.node && now2.value.epoch === epoch)
             await store
