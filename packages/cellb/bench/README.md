@@ -79,3 +79,53 @@ Each end of a socket counts every message's UTF-8 size, for `bufferedAmount` and
 acknowledgements its peer sends. Until webrun-http-browser 0.12.2 that count was a loop over the
 characters in JavaScript, about 0.26 ms per 64 KiB string, and it held 64 KiB echoes at about
 75 MB/s on Node. It now runs natively (`TextEncoder.encodeInto`).
+
+## Hybrid clusters
+
+`cluster-bench.mjs` runs celld fleet nodes and `cellb serve` nodes on one bucket of a local RustFS
+and loads them the same way: 32 concurrent clients increment 200 counters for 10 s, every request
+to a random node, so with N nodes (N-1)/N of the requests cross to the cell's owner over celld's
+peer tunnel. After each run it checks every counter (no value acknowledged twice, none lost).
+
+```sh
+pnpm bench:cluster                                         # build, then every scenario (~5 min)
+scripts/interop-env.sh node bench/cluster-bench.mjs throughput
+CONFIGS="celld=2;cellb=2" DURATION_MS=5000 scripts/interop-env.sh node bench/cluster-bench.mjs throughput
+BENCH_JSON=bench/results/cluster.json pnpm bench:cluster   # also write the results
+```
+
+Recorded in `results/cluster.json` (celld 0.6.3, Node 22, one 4-vCPU VM, every node and RustFS on
+it):
+
+| Nodes | Requests/s | p50 | p99 | CPU s / 1,000 requests |
+|---|---|---|---|---|
+| celld × 1 | 683 | 45 ms | 88 ms | 1.23 |
+| celld × 2 | 1,660 | 18 ms | 69 ms | 1.28 |
+| celld × 4 | 1,336 | 21 ms | 77 ms | 1.72 |
+| cellb × 1 | 660 | 43 ms | 155 ms | 1.29 |
+| cellb × 2 | 564 | 52 ms | 166 ms | 2.15 |
+| cellb × 4 | 455 | 61 ms | 211 ms | 3.29 |
+| celld × 1 + cellb × 1 | 583 | 50 ms | 163 ms | 0.86 + 1.08 |
+| celld × 2 + cellb × 2 | 621 | 43 ms | 209 ms | 1.04 + 1.47 |
+
+| 2 celld + 2 cellb, one node stops | Cells answering again | Longest gap | Failed requests | Lost or repeated values |
+|---|---|---|---|---|
+| a cellb node, `SIGKILL` | 40 / 40 | 10.0 s | 1,168 | 0 |
+| a celld node, `SIGKILL` | 40 / 40 | 10.4 s | 2,236 | 0 |
+| a cellb node, `SIGTERM` | 40 / 40 | 0.3 s | 0 | 0 |
+| a celld node, `SIGTERM` | 40 / 40 | 0.7 s | 5 | 0 |
+
+- **One node: the same.** A single node of either runtime answers about 670 requests/s, each
+  write acknowledged after its LTX file is in the bucket.
+- **From two nodes, celld acknowledges on a follower.** In its default `CELLD_DURABILITY=fleet`, a
+  celld node with another celld node acknowledges a write once that follower has it on disk, and
+  uploads to the bucket later; that, not routing, is the jump from one celld node to two. A CellB
+  node is never a follower and always waits for the bucket, so CellB clusters and mixed ones run
+  at the bucket's pace. Joining celld's log tier is the next step for CellB's throughput
+  (statewalker/cellb.dev#208).
+- **Routing costs CellB about 1 ms of CPU per call.** Tunnels are reused and a node calls the owner
+  it knows directly, but each routed call still crosses two HTTP stacks in JavaScript.
+- **More nodes than CPUs.** Four nodes, RustFS and the load generator share 4 vCPUs, so neither
+  runtime gains from the third and fourth node here.
+- **A dead node's cells wait for its lease** (10 s), then for its log's recovery when it was a
+  celld node. A node that leaves with `SIGTERM` releases its cells, and they move at once.
