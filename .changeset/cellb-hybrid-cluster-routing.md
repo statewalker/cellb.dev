@@ -1,5 +1,7 @@
 ---
-"@statewalker/cellb": patch
+"@statewalker/cellb": minor
 ---
 
 Mixed celld + cellb fleets on one bucket (#208): requests for a cell another node owns now reach that node however they arrive. Events queued on a node whose claim of the cell failed are sent to the owner instead of failing with `ObjectClosedError`; a newer host for the cell is no longer closed by an older request's reroute; when the owner's lease runs out between the failed claim and the owner lookup, the cell is claimed locally, as celld does. An owner that cannot be reached (its process died while its node lease is live) is reported as celld reports it: `DurableObjectRoutingError: The Durable Object owner is currently unreachable` (exported), instead of the socket's error. `celldBucket(...).advertise()` re-arms the lease deadline, so a node whose renewals stop after an advertise still fences its cells (#178). A peer server (and `celldPeers`) on a bucket without the fleet's peer secret creates `fleet/peer-auth.json`, as celld's first node does, instead of refusing to start: a fleet of cellb nodes only, or one a cellb node joins first, routes between its nodes.
+
+`cellb serve [project] --bucket s3://NAME[/PREFIX] [--endpoint URL] [--listen IP:PORT] [--internal-listen IP:PORT] [--advertise ADDR:PORT] [--node NAME]` runs a project as a node of a celld fleet, with celld's flags and environment (`CELLD_BUCKET`, `S3_ENDPOINT`, `AWS_*`): the cells in the bucket under celld's ownership records, celld's peer tunnel on the internal listener, the Worker (WebSockets included) on the public one. SIGTERM releases the node's cells. The same node is `startFleetNode()` from `@statewalker/cellb/node`.

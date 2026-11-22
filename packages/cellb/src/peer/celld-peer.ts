@@ -271,6 +271,62 @@ export function cellSocket(
 }
 
 /**
+ * Answers a WebSocket upgrade on a Node server with a cell's 101: `open()` asks the runtime (a
+ * Request with Upgrade), the cell's WebSocketPair end is bridged to the raw connection, framed
+ * by `ws`. `failed` answers an error thrown by `open()`, `fail` any other refusal.
+ */
+export async function bridgeUpgrade(
+  wss: import("ws").WebSocketServer,
+  req: IncomingMessage,
+  socket: Duplex,
+  head: Buffer,
+  open: () => Promise<Response>,
+  failed: (e: unknown) => void,
+  fail: (status: number, body: string) => void,
+): Promise<void> {
+  const protocols = req.headers["sec-websocket-protocol"] as string | undefined;
+  let res: Response & { webSocket?: CfWebSocket | null };
+  try {
+    res = await open();
+  } catch (e) {
+    return failed(e);
+  }
+  if (res.status !== 101 || !res.webSocket) return fail(res.status, await res.text());
+  let cell: WebSocket;
+  try {
+    cell = cellSocket(res as Response & { webSocket: CfWebSocket }, protocols);
+  } catch (e) {
+    return fail(400, String((e as Error)?.message ?? e));
+  }
+  const pending: (string | ArrayBuffer)[] = [];
+  let isOpen = false;
+  wss.handleUpgrade(req, socket, head, (client) => {
+    cell.onopen = () => {
+      isOpen = true;
+      for (const m of pending.splice(0)) cell.send(m);
+    };
+    client.on("message", (data: Buffer, isBinary: boolean) => {
+      const m = isBinary ? (new Uint8Array(data).buffer as ArrayBuffer) : data.toString();
+      if (isOpen) cell.send(m);
+      else pending.push(m);
+    });
+    cell.onmessage = (ev: MessageEvent) =>
+      client.send(ev.data instanceof ArrayBuffer ? Buffer.from(ev.data) : ev.data);
+    client.on("close", (code: number, reason: Buffer) =>
+      cell.close(
+        code >= 1000 && code < 5000 && code !== 1005 && code !== 1006 ? code : 1000,
+        reason.toString(),
+      ),
+    );
+    cell.onclose = (ev: CloseEvent) =>
+      client.close(
+        ev.code >= 1000 && ev.code !== 1005 && ev.code !== 1006 ? ev.code : 1000,
+        ev.reason,
+      );
+  });
+}
+
+/**
  * Serves celld's peer tunnel for `runtime` on `host:port` (0: any free port). `node` is this
  * node's name in the fleet (the same as celldBucket's `node`).
  */
@@ -390,53 +446,25 @@ export async function startCelldPeerServer(opts: {
       ? (req.url as string)
       : `http://${req.headers.host ?? "cell"}${req.url ?? "/"}`;
     const protocols = req.headers["sec-websocket-protocol"] as string | undefined;
-    let res: Response & { webSocket?: CfWebSocket | null };
-    try {
-      res = await stub.fetch(
-        withUpgrade(
-          new Request(url, { headers }),
-          "websocket",
-          protocols ? { "Sec-WebSocket-Protocol": protocols } : undefined,
+    await bridgeUpgrade(
+      wss,
+      req,
+      socket,
+      head,
+      () =>
+        stub.fetch(
+          withUpgrade(
+            new Request(url, { headers }),
+            "websocket",
+            protocols ? { "Sec-WebSocket-Protocol": protocols } : undefined,
+          ),
         ),
-      );
-    } catch (e) {
-      return notOwner(e)
-        ? fail(409, "stale route", { "x-cells-route-error": "stale-owner" })
-        : fail(500, String((e as Error)?.message ?? e));
-    }
-    if (res.status !== 101 || !res.webSocket) return fail(res.status, await res.text());
-    let cell: WebSocket;
-    try {
-      cell = cellSocket(res as Response & { webSocket: CfWebSocket }, protocols);
-    } catch (e) {
-      return fail(400, String((e as Error)?.message ?? e));
-    }
-    const pending: (string | ArrayBuffer)[] = [];
-    let open = false;
-    wss.handleUpgrade(req, socket, head, (client) => {
-      cell.onopen = () => {
-        open = true;
-        for (const m of pending.splice(0)) cell.send(m);
-      };
-      client.on("message", (data: Buffer, isBinary: boolean) => {
-        const m = isBinary ? (new Uint8Array(data).buffer as ArrayBuffer) : data.toString();
-        if (open) cell.send(m);
-        else pending.push(m);
-      });
-      cell.onmessage = (ev: MessageEvent) =>
-        client.send(ev.data instanceof ArrayBuffer ? Buffer.from(ev.data) : ev.data);
-      client.on("close", (code: number, reason: Buffer) =>
-        cell.close(
-          code >= 1000 && code < 5000 && code !== 1005 && code !== 1006 ? code : 1000,
-          reason.toString(),
-        ),
-      );
-      cell.onclose = (ev: CloseEvent) =>
-        client.close(
-          ev.code >= 1000 && ev.code !== 1005 && ev.code !== 1006 ? ev.code : 1000,
-          ev.reason,
-        );
-    });
+      (e) =>
+        notOwner(e)
+          ? fail(409, "stale route", { "x-cells-route-error": "stale-owner" })
+          : fail(500, String((e as Error)?.message ?? e)),
+      fail,
+    );
   });
 
   const server: Server = createServer(async (req, res) => {
