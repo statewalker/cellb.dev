@@ -70,7 +70,68 @@ export async function main(args: string[]): Promise<number> {
   }
 }
 
+const FRAME = "--experimental-async-context-frame";
+const NO_FRAME = "--no-experimental-async-context-frame";
+const nodeMajor = (version: string) => Number(/^v?(\d+)/.exec(version)?.[1] ?? 0);
+const mentions = (flag: string, execArgv: string[], nodeOptions?: string) =>
+  execArgv.includes(flag) || (nodeOptions ?? "").split(/\s+/).includes(flag);
+
+/**
+ * The Node flags `cellb serve` adds: AsyncLocalStorage on AsyncContextFrame, the default from
+ * Node 24. On Node 22's async_hooks every promise pays for it, and a fleet node served 2.7 times
+ * fewer requests (bench/cluster-bench.mjs). A flag either way in execArgv or NODE_OPTIONS wins.
+ */
+export function asyncContextFrameArgs(
+  version: string,
+  execArgv: string[],
+  nodeOptions: string | undefined,
+): string[] {
+  if (nodeMajor(version) >= 24) return [];
+  if (mentions(FRAME, execArgv, nodeOptions) || mentions(NO_FRAME, execArgv, nodeOptions))
+    return [];
+  return [FRAME];
+}
+
+const asyncLocalStorageMode = () =>
+  mentions(NO_FRAME, process.execArgv, process.env.NODE_OPTIONS)
+    ? "async_hooks"
+    : nodeMajor(process.version) >= 24 ||
+        mentions(FRAME, process.execArgv, process.env.NODE_OPTIONS)
+      ? "frame"
+      : "async_hooks";
+
+/** Runs this command again in a Node with `flags`, forwarding signals; its exit code. */
+async function relaunch(flags: string[]): Promise<number> {
+  const { spawn } = await import("node:child_process");
+  const child = spawn(process.execPath, [...process.execArgv, ...flags, ...process.argv.slice(1)], {
+    // the IPC channel tells the child when this process dies, SIGKILL included
+    stdio: ["inherit", "inherit", "inherit", "ipc"],
+    env: { ...process.env, CELLB_RELAUNCHED: "1" },
+  });
+  const forward = (sig: NodeJS.Signals) => () => child.kill(sig);
+  const onTerm = forward("SIGTERM");
+  const onInt = forward("SIGINT");
+  process.on("SIGTERM", onTerm);
+  process.on("SIGINT", onInt);
+  return new Promise<number>((resolve) =>
+    child.once("exit", (code, signal) => {
+      process.off("SIGTERM", onTerm);
+      process.off("SIGINT", onInt);
+      resolve(code ?? (signal ? 1 : 0));
+    }),
+  );
+}
+
 async function serve(args: string[]): Promise<number> {
+  const flags = asyncContextFrameArgs(process.version, process.execArgv, process.env.NODE_OPTIONS);
+  if (flags.length && !process.env.CELLB_RELAUNCHED) return relaunch(flags);
+  // Relaunched: the parent, which is the node to its supervisor, died (a SIGKILL cannot be
+  // forwarded), so this process dies with it, as abruptly.
+  if (process.env.CELLB_RELAUNCHED && process.send) {
+    process.once("disconnect", () => process.exit(137));
+    // the channel only watches the parent: it must not keep this process alive after close()
+    (process.channel as { unref?: () => void } | undefined)?.unref?.();
+  }
   const { parseServeArgs, startFleetNode } = await import("./peer/fleet-node.js");
   let o: ReturnType<typeof parseServeArgs>;
   try {
@@ -95,7 +156,9 @@ async function serve(args: string[]): Promise<number> {
   }
   if (node.unsupported.length)
     console.error(`cellb serve: unsupported: ${node.unsupported.join("; ")}`);
-  console.log(`cellb serve: node ${node.node} ready ${node.url} (peer ${node.addr})`);
+  console.log(
+    `cellb serve: node ${node.node} ready ${node.url} (peer ${node.addr}; AsyncLocalStorage: ${asyncLocalStorageMode()})`,
+  );
   return new Promise<number>((resolve) => {
     const stop = () => {
       console.log(`cellb serve: node ${node.node} leaving the fleet`);

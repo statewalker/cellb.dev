@@ -10,3 +10,5 @@ Mixed celld + cellb fleets on one bucket (#208): requests for a cell another nod
 
 A leaving node (SIGTERM, `FleetNode.close()`) drains its requests in flight, releases its cells while its peer server still answers (a request routed to it meanwhile is told to re-resolve), then stops; open peer tunnels no longer keep `startCelldPeerServer(...).close()` from finishing. A request whose owner left between the lookup and the call claims the cell where it is.
 
+`cellb serve` runs AsyncLocalStorage on AsyncContextFrame: on Node 22 it relaunches itself with `--experimental-async-context-frame` (the default from Node 24) unless `execArgv` or `NODE_OPTIONS` names that flag either way, and its ready line says which (`AsyncLocalStorage: frame`). On async_hooks every promise paid for it, and a node served 2.7 times fewer requests. The relaunched process exits when its parent dies, SIGKILL included. Fleet nodes log pages with `pageCapture`.
+

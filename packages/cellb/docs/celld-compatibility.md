@@ -131,6 +131,33 @@ CellB is never a log follower and does not accept capacity hand-off (`/peer/hand
 acknowledges a write only once it is in the bucket, and its node record reports zero placement
 weight, so it owns only the cells requested through it.
 
+`cellb serve` (or `startFleetNode()` from `@statewalker/cellb/node`) puts the pieces together as a
+fleet node, with celld's node flags and environment:
+
+```sh
+AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… \
+  cellb serve ./my-project --bucket s3://cells/fleet-a --endpoint http://127.0.0.1:9200 \
+    --listen 0.0.0.0:8080 --internal-listen 10.0.0.5:7000
+```
+
+celld nodes and CellB nodes started this way on one bucket answer as one cluster: a request for
+any cell, at any node, reaches the cell's one owner (e2e `p11k-hybrid-cluster` runs 2 + 2 nodes
+under load, kills one of each, and checks that no acknowledged write is lost or repeated). What a
+mixed fleet relies on:
+
+- **The takeover recovery gate.** In celld's default `CELLD_DURABILITY=fleet`, a celld node
+  acknowledges a write once its followers hold it, before it reaches `cells/<cell>/ltx/`. When it
+  dies, its node record keeps `log.state` other than `sealed` until a running celld node has
+  recovered the log into the cells' prefixes. CellB, like celld (`takeover_gate`), takes none of
+  its cells before then; requests for them answer `DurableObjectRoutingError`.
+- **An unreachable owner** answers as on celld: `DurableObjectRoutingError: The Durable Object owner
+  is currently unreachable`, until its lease expires and the cell moves.
+- **The fleet's peer secret** (`fleet/peer-auth.json`) is created by the first node of either
+  runtime, with a create-only write.
+- **Leaving.** SIGTERM drains the node's requests in flight, releases its cells while its peer
+  server still answers (a request routed to it meanwhile is told to re-resolve the owner), then
+  deletes its node record, so the other nodes take its cells at once.
+
 ## Where celld is followed, and where it is not
 
 CellB follows celld, including its deviations from Cloudflare, with these exceptions:

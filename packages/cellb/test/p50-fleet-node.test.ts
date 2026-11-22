@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
+import { asyncContextFrameArgs } from "../src/cli.js";
 import { memoryObjectStore } from "../src/index.js";
 import { parseServeArgs, startFleetNode } from "../src/node.js";
 
@@ -135,4 +136,18 @@ describe("P50 cellb serve: a fleet node", () => {
       await b.close();
     }
   }, 60_000);
+
+  // AsyncLocalStorage on Node 22's async_hooks costs every promise: a node served 2.7 times
+  // fewer requests (bench/cluster-bench.mjs). Node 24 runs it on AsyncContextFrame by default;
+  // `cellb serve` asks Node 22 for the same, unless the user decided otherwise.
+  it("serve runs AsyncLocalStorage on AsyncContextFrame where Node does not by default", () => {
+    const FLAG = "--experimental-async-context-frame";
+    expect(asyncContextFrameArgs("v22.23.5", [], undefined)).toEqual([FLAG]);
+    expect(asyncContextFrameArgs("v22.23.5", [FLAG], undefined)).toEqual([]);
+    expect(asyncContextFrameArgs("v22.23.5", [], `--max-old-space-size=4096 ${FLAG}`)).toEqual([]);
+    expect(
+      asyncContextFrameArgs("v22.23.5", ["--no-experimental-async-context-frame"], undefined),
+    ).toEqual([]);
+    expect(asyncContextFrameArgs("v24.1.0", [], undefined)).toEqual([]);
+  });
 });

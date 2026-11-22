@@ -122,7 +122,7 @@ async function fleet(prefix: string, counts: { celld: number; cellb: number }) {
           "--node",
           name,
         ],
-        / ready http/,
+        / ready http.*AsyncLocalStorage: frame/,
         `http://127.0.0.1:${at}`,
       ),
     );

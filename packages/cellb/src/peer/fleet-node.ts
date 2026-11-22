@@ -80,7 +80,7 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
   const store = o.store ?? s3();
   const bucket = celldBucket(o.store ?? s3(), { node, leaseTtlMs: o.leaseTtlMs });
   const project = await loadNodeProject(o.dir, {
-    openSql: nodeSqliteOpener(o.data),
+    openSql: nodeSqliteOpener(o.data, { pageCapture: true }),
     files: new MemFilesApi(),
     storage: bucket,
     peers: celldPeers({ store, node }),
