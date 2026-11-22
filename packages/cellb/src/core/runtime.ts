@@ -370,6 +370,9 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           if (direct) return direct;
           link = peers.link(owner);
         } catch (e) {
+          // The record names an owner without a live node record: it left, or its lease ran
+          // out, since the lookup. Nobody to reach; the cell may be claimed here.
+          if (e instanceof DurableObjectRoutingError && e.ownerGone) return undefined;
           // The owner is named but cannot be reached (its process died, its lease still live):
           // celld's answer for the same case. The cell moves once the owner's lease expires.
           if (e instanceof DurableObjectRoutingError) throw e;
@@ -399,15 +402,20 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
        * so it is safe to try again: locally when no node owns the cell any more, as celld
        * claims a cell whose owner's lease ran out, or on the owner the bucket names now.
        */
-      const attempts = 4;
+      const attempts = 6;
       const run = async <T>(first: ObjectEndpoint, go: (ep: ObjectEndpoint) => Promise<T>) => {
         let ep = first;
         for (let i = 1; ; i++) {
           try {
             return await go(ep);
           } catch (e) {
-            if (!elsewhere(e) || i >= attempts) throw e;
+            if (!elsewhere(e)) throw e;
+            // Neither claimed here nor reached on an owner: celld's answer for a cell it cannot
+            // route (the owner is gone and its cells are not yet free, say).
+            if (i >= attempts) throw new DurableObjectRoutingError(cellKey, { cause: e });
             retireBroken();
+            // The owner may be releasing the cell this moment (a node leaving the fleet).
+            if (i > 1) await new Promise((r) => setTimeout(r, 25 * 2 ** i));
             ep = (await viaOwner()) ?? local();
           }
         }

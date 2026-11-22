@@ -197,9 +197,12 @@ function stubFor(runtime: CellRuntime, scope: string, name: string | undefined):
   return name !== undefined ? ns.getByName(name) : ns.get(ns.idFromString(m[2]));
 }
 
+/** The call did not run here because this node does not (or no longer) own the cell: a node
+ * that is leaving the fleet closed it (ObjectClosedError), so the caller re-resolves the owner. */
 const notOwner = (e: unknown) =>
   /owned by another|OwnedElsewhere|lease/i.test(String((e as Error)?.message ?? e)) ||
-  (e as Error)?.name === "CellOwnedElsewhereError";
+  (e as Error)?.name === "CellOwnedElsewhereError" ||
+  (e as Error)?.name === "ObjectClosedError";
 
 function reply(
   res: ServerResponse,
@@ -494,6 +497,10 @@ export async function startCelldPeerServer(opts: {
     }
     reply(res, 404, {}, "not found");
   });
+  // Upgraded tunnels leave the HTTP server's bookkeeping (closeAllConnections() does not reach
+  // them) but still hold server.close() open: a peer's long-lived tunnel, or a WebSocket bridged
+  // through one, would keep a closing node from ever leaving the fleet.
+  const tunnels = new Set<Duplex>();
   server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     const path = req.url ?? "/";
     const refuse = (status: number, message: string, extra: Record<string, string> = {}) => {
@@ -536,6 +543,8 @@ export async function startCelldPeerServer(opts: {
       ].join("\r\n") + "\r\n\r\n",
     );
     if (head?.length) socket.unshift(head);
+    tunnels.add(socket);
+    socket.once("close", () => tunnels.delete(socket));
     inner[kind].emit("connection", socket);
   });
   await new Promise<void>((r) => server.listen(opts.port ?? 0, host, () => r()));
@@ -546,6 +555,8 @@ export async function startCelldPeerServer(opts: {
       new Promise<void>((r) => {
         server.closeAllConnections?.();
         for (const s of Object.values(inner)) s.closeAllConnections?.();
+        for (const t of tunnels) t.destroy();
+        tunnels.clear();
         server.close(() => r());
       }),
   };
@@ -660,8 +671,8 @@ export function celldPeers(opts: { store: ObjectStore; node: string }) {
     },
     /** Reached only when endpoint() found no live node lease for the owner: the cell is about
      * to move (celld takes it once the lease has expired). */
-    link(): never {
-      throw new DurableObjectRoutingError("(owner without a live node lease)");
+    link(owner: string): never {
+      throw new DurableObjectRoutingError(owner, { ownerGone: true });
     },
     async endpoint(owner: string, cellKey: string, name: string | undefined) {
       const lease = await json<{ addr: string; expires_ms: number }>(`nodes/${owner}.json`);

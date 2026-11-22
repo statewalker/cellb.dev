@@ -110,4 +110,29 @@ describe("P50 cellb serve: a fleet node", () => {
       await b.close();
     }
   }, 60_000);
+
+  it("a node closes promptly while a peer's tunnel into it is still open", async () => {
+    const store = memoryObjectStore();
+    const dir = join(examples, "wsecho");
+    const a = await startFleetNode({ dir, store, node: "a", listen: "127.0.0.1:0" });
+    const b = await startFleetNode({ dir, store, node: "b", listen: "127.0.0.1:0" });
+    try {
+      // a owns the cell; a WebSocket opened at b crosses a tunnel into a and stays open
+      const first = new WebSocket(`${a.url.replace("http", "ws")}/`);
+      await new Promise((r, j) => (first.on("open", r), first.on("error", j)));
+      first.close();
+      const ws = new WebSocket(`${b.url.replace("http", "ws")}/`);
+      await new Promise((r, j) => (ws.on("open", r), ws.on("error", j)));
+      const t = Date.now();
+      const closed = await Promise.race([
+        a.close().then(() => true),
+        new Promise((r) => setTimeout(() => r(false), 8_000)),
+      ]);
+      expect(closed).toBe(true);
+      expect(Date.now() - t).toBeLessThan(5_000);
+      ws.terminate();
+    } finally {
+      await b.close();
+    }
+  }, 60_000);
 });

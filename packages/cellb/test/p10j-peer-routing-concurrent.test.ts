@@ -4,6 +4,7 @@ import {
   type CellRuntime,
   createCellRuntime,
   DurableObject,
+  DurableObjectRoutingError,
   filesApiChangeLog,
   type Lease,
 } from "../src/index.js";
@@ -34,6 +35,8 @@ const slow = (lease: Lease): Lease => ({
 });
 
 const dead = new Set<string>();
+const gone = new Set<string>();
+let staleOwner: string | undefined;
 function fleet() {
   const leases = new MemoryLeases();
   const log = filesApiChangeLog(new MemFilesApi());
@@ -48,10 +51,15 @@ function fleet() {
       openSql: nodeSqliteOpener(),
       storage: { ...log, ownership: slow(leases.for(name)) },
       peers: {
-        ownerOf: (cellKey) => Promise.resolve(leases.holder(cellKey)),
         // The owner's runtime, in process: a stand-in for the peer tunnel.
-        link: (owner) => (req) => nodes.get(owner)!.fetch(req),
+        link: (owner) => {
+          // celldPeers reaches owners through endpoint() only: link() means no live node record
+          if (gone.has(owner)) throw new DurableObjectRoutingError(owner, { ownerGone: true });
+          return (req) => nodes.get(owner)!.fetch(req);
+        },
+        ownerOf: (cellKey) => Promise.resolve(staleOwner ?? leases.holder(cellKey)),
         endpoint: async (owner) => {
+          if (gone.has(owner)) return undefined; // no live node record: as celldPeers answers
           if (dead.has(owner)) throw new Error("connect ECONNREFUSED 127.0.0.1:1");
           const ns = nodes.get(owner)!.env.COUNTER as any;
           const stub = ns.getByName("shared");
@@ -167,6 +175,32 @@ describe("P10j concurrent requests for a cell another node owns", () => {
       const answers = await Promise.all(pending);
       expect(answers.filter((x) => typeof x !== "number")).toEqual([]);
     } finally {
+      await b.close();
+      await a.close();
+    }
+  });
+
+  it("an owner that left between the lookup and the call: the cell is claimed here", async () => {
+    const { node } = fleet();
+    const a = node("A");
+    const b = node("B");
+    try {
+      expect(await (await a.fetch(new Request("http://app/"))).json()).toEqual({ n: 1 });
+      // b's lookup still names A (read before A released), but A has left: no node record.
+      staleOwner = "A";
+      gone.add("A");
+      const releasedSoon = (async () => {
+        await new Promise((r) => setTimeout(r, 30));
+        await a.close(); // releases the cell
+        staleOwner = undefined;
+      })();
+      const r = await b.fetch(new Request("http://app/"));
+      await releasedSoon;
+      expect(r.status, await r.clone().text()).toBe(200);
+      expect(((await r.json()) as { n: number }).n).toBe(2);
+    } finally {
+      staleOwner = undefined;
+      gone.delete("A");
       await b.close();
       await a.close();
     }

@@ -831,12 +831,15 @@ export class CellOwnedElsewhereError extends Error {
  * and message; the cell moves once the owner's lease expires, so a client may retry.
  */
 export class DurableObjectRoutingError extends Error {
-  constructor(cellKey: string, options?: { cause?: unknown }) {
+  constructor(cellKey: string, options?: { cause?: unknown; ownerGone?: boolean }) {
     super("The Durable Object owner is currently unreachable", options);
     this.name = "DurableObjectRoutingError";
     this.cellKey = cellKey;
+    this.ownerGone = options?.ownerGone ?? false;
   }
   readonly cellKey: string;
+  /** The owner has no live node record: it left or its lease ran out, so the cell may be free. */
+  readonly ownerGone: boolean;
 }
 
 /** celld's path segment for a facet name: the first 16 bytes of SHA-256(name), hex. */

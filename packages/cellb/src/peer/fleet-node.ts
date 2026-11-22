@@ -39,6 +39,8 @@ export interface FleetNodeOptions {
   leaseTtlMs?: number;
   /** A directory for the cells' local SQLite files (default: memory; the bucket is the copy). */
   data?: string;
+  /** On close, how long requests in flight may take to finish (default 5 s). */
+  drainMs?: number;
 }
 
 export interface FleetNode {
@@ -107,7 +109,13 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
       body: body as BodyInit | undefined,
     });
   };
+  let inFlight = 0;
+  let drained: (() => void) | undefined;
   const server: Server = createServer(async (req, res) => {
+    inFlight++;
+    res.once("close", () => {
+      if (--inFlight === 0) drained?.();
+    });
     try {
       const hasBody = req.method !== "GET" && req.method !== "HEAD";
       const chunks: Buffer[] = [];
@@ -133,7 +141,11 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
   server.keepAliveTimeout = 65_000;
   const { WebSocketServer } = await import("ws");
   const wss = new WebSocketServer({ noServer: true });
+  // Upgraded sockets hold server.close() open and closeAllConnections() does not reach them.
+  const upgraded = new Set<Duplex>();
   server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    upgraded.add(socket);
+    socket.once("close", () => upgraded.delete(socket));
     const fail = (status: number, body: string) =>
       socket.end(
         `HTTP/1.1 ${status} Error\r\ncontent-length: ${Buffer.byteLength(body)}\r\nconnection: close\r\n\r\n${body}`,
@@ -173,14 +185,24 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
     unsupported: project.unsupported ?? [],
     close: () =>
       (closing ??= (async () => {
-        await new Promise<void>((r) => {
-          server.closeAllConnections?.();
-          server.close(() => r());
-        });
+        // A graceful leave, as celld's hand-off: no new connections; requests in flight finish
+        // (for at most the grace period); then the cells are released while the peer server
+        // still answers, so a request routed here meanwhile is told to re-resolve the owner
+        // (stale-owner) instead of finding no one; then the peer server stops.
+        const listening = new Promise<void>((r) => server.close(() => r()));
+        server.closeIdleConnections?.();
+        if (inFlight > 0)
+          await new Promise<void>((r) => {
+            drained = r;
+            setTimeout(r, o.drainMs ?? 5_000).unref?.();
+          });
+        server.closeAllConnections?.();
         for (const c of wss.clients) c.terminate();
-        await peer.close();
+        for (const u of upgraded) u.destroy();
+        await listening;
         // releases every owned cell (own.json → released) and deletes the node record
         await runtime.close();
+        await peer.close();
       })()),
   };
 }

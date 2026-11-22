@@ -56,7 +56,14 @@ describe("P10k celldPeers: an owner that cannot be reached", () => {
     );
     const peers = celldPeers({ store, node: "me" });
     expect(await peers.endpoint("gone", cellKey, "a")).toBeUndefined();
-    expect(() => peers.link()).toThrow(DurableObjectRoutingError);
+    let err: any;
+    try {
+      peers.link("gone");
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(DurableObjectRoutingError);
+    expect(err.ownerGone).toBe(true);
   });
 });
 
