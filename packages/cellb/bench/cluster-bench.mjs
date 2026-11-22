@@ -29,7 +29,8 @@ import { fileURLToPath } from "node:url";
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const CELLD = process.env.CELLD_BIN;
 const ENDPOINT = process.env.RUSTFS_ENDPOINT;
-if (!CELLD || !ENDPOINT) throw new Error("run under scripts/interop-env.sh (CELLD_BIN, RUSTFS_ENDPOINT)");
+if (!CELLD || !ENDPOINT)
+  throw new Error("run under scripts/interop-env.sh (CELLD_BIN, RUSTFS_ENDPOINT)");
 const BUCKET = process.env.BENCH_BUCKET ?? "cells";
 const CLIENTS = Number(process.env.CLIENTS ?? 32);
 const NAMES = Number(process.env.NAMES ?? 200);
@@ -58,7 +59,9 @@ const cpuSeconds = (pid) => {
   try {
     const f = readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1].split(" ");
     total += (Number(f[11]) + Number(f[12])) / CLK_TCK; // utime + stime
-    for (const child of readFileSync(`/proc/${pid}/task/${pid}/children`, "utf8").trim().split(/\s+/))
+    for (const child of readFileSync(`/proc/${pid}/task/${pid}/children`, "utf8")
+      .trim()
+      .split(/\s+/))
       if (child) total += cpuSeconds(Number(child));
   } catch {}
   return total;
@@ -82,8 +85,36 @@ async function cluster(counts) {
     const name = kind === "cellb" ? `cellb-${prefix}-${i}` : `celld-${i}`;
     const args =
       kind === "celld"
-        ? [CELLD, ["--bucket", bucketUrl, "--endpoint", ENDPOINT, "--listen", `127.0.0.1:${at}`, "--internal-listen", `127.0.0.1:${await freePort()}`]]
-        : [process.execPath, ["--no-warnings", join(HERE, "../bin/cellb.mjs"), "serve", dir, "--bucket", bucketUrl, "--endpoint", ENDPOINT, "--listen", `127.0.0.1:${at}`, "--node", name]];
+        ? [
+            CELLD,
+            [
+              "--bucket",
+              bucketUrl,
+              "--endpoint",
+              ENDPOINT,
+              "--listen",
+              `127.0.0.1:${at}`,
+              "--internal-listen",
+              `127.0.0.1:${await freePort()}`,
+            ],
+          ]
+        : [
+            process.execPath,
+            [
+              "--no-warnings",
+              join(HERE, "../bin/cellb.mjs"),
+              "serve",
+              dir,
+              "--bucket",
+              bucketUrl,
+              "--endpoint",
+              ENDPOINT,
+              "--listen",
+              `127.0.0.1:${at}`,
+              "--node",
+              name,
+            ],
+          ];
     const p = spawn(args[0], args[1], { env, stdio: ["ignore", "pipe", "pipe"] });
     let log = "";
     p.stdout.on("data", (d) => (log += d));
@@ -95,7 +126,14 @@ async function cluster(counts) {
   };
   for (let i = 0; i < (counts.celld ?? 0); i++) await start("celld", i);
   for (let i = 0; i < (counts.cellb ?? 0); i++) await start("cellb", i);
-  const store = s3ObjectStore({ endpoint: ENDPOINT, bucket: BUCKET, prefix, region: "us-east-1", accessKeyId: "rustfsadmin", secretAccessKey: "rustfssecret" });
+  const store = s3ObjectStore({
+    endpoint: ENDPOINT,
+    bucket: BUCKET,
+    prefix,
+    region: "us-east-1",
+    accessKeyId: "rustfsadmin",
+    secretAccessKey: "rustfssecret",
+  });
   return {
     nodes,
     async owners() {
@@ -136,7 +174,9 @@ async function load(c, { until, names = NAMES, clients = CLIENTS, onAck }) {
         const node = live[Math.floor(Math.random() * live.length)];
         const t = performance.now();
         try {
-          const r = await fetch(`${node.base}/increment?name=${name}`, { signal: AbortSignal.timeout(30_000) });
+          const r = await fetch(`${node.base}/increment?name=${name}`, {
+            signal: AbortSignal.timeout(30_000),
+          });
           const text = await r.text();
           if (r.status !== 200) throw new Error(`${r.status} ${text.slice(0, 100)}`);
           lat.push(performance.now() - t);
@@ -145,7 +185,10 @@ async function load(c, { until, names = NAMES, clients = CLIENTS, onAck }) {
           acks.get(name).push(n);
           onAck?.(name, performance.now());
         } catch (e) {
-          const k = `${node.kind}: ${String(e.message).replace(/\[at .*/, "").replace(/[0-9a-f]{64}/g, "<id>").slice(0, 90)}`;
+          const k = `${node.kind}: ${String(e.message)
+            .replace(/\[at .*/, "")
+            .replace(/[0-9a-f]{64}/g, "<id>")
+            .slice(0, 90)}`;
           errors[k] = (errors[k] ?? 0) + 1;
         }
       }
@@ -163,7 +206,9 @@ async function verify(c, acks) {
     let next;
     for (let i = 0; i < 60 && next === undefined; i++) {
       const live = c.nodes.filter((n) => !n.dead);
-      const r = await fetch(`${live[i % live.length].base}/increment?name=${name}`).catch(() => undefined);
+      const r = await fetch(`${live[i % live.length].base}/increment?name=${name}`).catch(
+        () => undefined,
+      );
       if (r?.status === 200) next = JSON.parse(await r.text()).n;
       else await sleep(500);
     }
@@ -173,9 +218,14 @@ async function verify(c, acks) {
 }
 
 async function throughput() {
-  const configs = (process.env.CONFIGS ?? "celld=1;celld=2;celld=4;cellb=1;cellb=2;cellb=4;celld=1,cellb=1;celld=2,cellb=2")
+  const configs = (
+    process.env.CONFIGS ??
+    "celld=1;celld=2;celld=4;cellb=1;cellb=2;cellb=4;celld=1,cellb=1;celld=2,cellb=2"
+  )
     .split(";")
-    .map((s) => Object.fromEntries(s.split(",").map((kv) => [kv.split("=")[0], Number(kv.split("=")[1])])));
+    .map((s) =>
+      Object.fromEntries(s.split(",").map((kv) => [kv.split("=")[0], Number(kv.split("=")[1])])),
+    );
   const rows = [];
   for (const counts of configs) {
     const c = await cluster(counts);
@@ -184,10 +234,14 @@ async function throughput() {
       await load(c, { until: () => warm-- <= 0 }); // every cell opened, its owner settled
       const cpu0 = c.nodes.map((n) => cpuSeconds(n.p.pid));
       const t0 = performance.now();
-      const { acks, lat, errors } = await load(c, { until: () => performance.now() - t0 > DURATION_MS });
+      const { acks, lat, errors } = await load(c, {
+        until: () => performance.now() - t0 > DURATION_MS,
+      });
       const secs = (performance.now() - t0) / 1000;
       const cpu = {};
-      c.nodes.forEach((n, i) => (cpu[n.kind] = (cpu[n.kind] ?? 0) + cpuSeconds(n.p.pid) - cpu0[i]));
+      c.nodes.forEach((n, i) => {
+        cpu[n.kind] = (cpu[n.kind] ?? 0) + cpuSeconds(n.p.pid) - cpu0[i];
+      });
       lat.sort((a, b) => a - b);
       const nodes = (counts.celld ?? 0) + (counts.cellb ?? 0);
       const row = {
@@ -199,7 +253,9 @@ async function throughput() {
         p90Ms: round(pct(lat, 0.9)),
         p99Ms: round(pct(lat, 0.99)),
         crossNodeShare: round((nodes - 1) / nodes, 2),
-        cpuSecondsPer1kRequests: Object.fromEntries(Object.entries(cpu).map(([k, v]) => [k, round((v / lat.length) * 1000, 2)])),
+        cpuSecondsPer1kRequests: Object.fromEntries(
+          Object.entries(cpu).map(([k, v]) => [k, round((v / lat.length) * 1000, 2)]),
+        ),
         owners: await c.owners(),
         errors,
         ...(await verify(c, acks)),
@@ -262,11 +318,18 @@ const all = { throughput, failover: () => failover("SIGKILL"), leave: () => fail
 const chosen = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(all);
 const results = {
   date: new Date().toISOString(),
-  machine: { cpu: os.cpus()[0]?.model, cpus: os.cpus().length, memoryGB: Math.round(os.totalmem() / 2 ** 30), node: process.version, platform: `${os.platform()} ${os.arch()}` },
+  machine: {
+    cpu: os.cpus()[0]?.model,
+    cpus: os.cpus().length,
+    memoryGB: Math.round(os.totalmem() / 2 ** 30),
+    node: process.version,
+    platform: `${os.platform()} ${os.arch()}`,
+  },
   celld: execFileSync(CELLD, ["--version"]).toString().trim(),
   bucket: "RustFS on 127.0.0.1",
   load: { clients: CLIENTS, names: NAMES, durationMs: DURATION_MS },
 };
 for (const s of chosen) results[s] = await all[s]();
-if (process.env.BENCH_JSON) writeFileSync(process.env.BENCH_JSON, `${JSON.stringify(results, null, 2)}\n`);
+if (process.env.BENCH_JSON)
+  writeFileSync(process.env.BENCH_JSON, `${JSON.stringify(results, null, 2)}\n`);
 process.exit(0);
