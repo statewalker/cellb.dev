@@ -459,6 +459,10 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
       advertised = true;
       if (leaseWritten) await writeLease();
     },
+    /** Settles once the cell's segments are in the bucket. */
+    flush(cellKey: string) {
+      return log.flush(cellKey);
+    },
     /** A log tier leader: commits are acknowledged by its followers or the bucket, first wins. */
     setShipper(shipper: SegmentShipper | undefined) {
       log.setShipper(shipper);

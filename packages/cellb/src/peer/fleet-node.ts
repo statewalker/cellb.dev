@@ -13,6 +13,8 @@ import { loadNodeProject } from "../project/node-project.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { bridgeUpgrade, celldPeers, startCelldPeerServer } from "./celld-peer.js";
 import { createLogFollower } from "./log-follower.js";
+import { createLogLeader } from "./log-leader.js";
+import { createLogRecoverer } from "./log-recoverer.js";
 
 /**
  * A cellb node in a celld fleet, as `celld --bucket …` runs one: the project's Worker on a
@@ -48,6 +50,11 @@ export interface FleetNodeOptions {
   data?: string;
   /** On close, how long requests in flight may take to finish (default 5 s). */
   drainMs?: number;
+  /**
+   * celld's CELLD_DURABILITY: "fleet" (default, as celld) leads a log tier session, so commits
+   * are acknowledged once followers hold them; "bucket" acknowledges on the bucket alone.
+   */
+  durability?: "fleet" | "bucket";
 }
 
 export interface FleetNode {
@@ -85,7 +92,20 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
   };
   // The bucket's close() closes its store: it gets one of its own.
   const store = o.store ?? s3();
-  const bucket = celldBucket(o.store ?? s3(), { node, leaseTtlMs: o.leaseTtlMs });
+  // celld's log tier: this node leads a session (its commits acknowledged by followers) unless
+  // durability is "bucket", recovers dead leaders' sessions, and follows other leaders.
+  const fleetDurability = (o.durability ?? "fleet") === "fleet";
+  let leader: ReturnType<typeof createLogLeader> | undefined;
+  const recoverer = createLogRecoverer({ store: o.store ?? s3(), node });
+  const bucket = celldBucket(o.store ?? s3(), {
+    node,
+    leaseTtlMs: o.leaseTtlMs,
+    // a predecessor under our name that died leading a session: recovered before we start
+    recoverPredecessor: async () => {
+      await recoverer.recover(node);
+    },
+    onLogLost: () => leader?.lost(),
+  });
   const project = await loadNodeProject(o.dir, {
     openSql: nodeSqliteOpener(o.data, { pageCapture: true }),
     files: new MemFilesApi(),
@@ -110,6 +130,12 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
   });
   const addr = o.advertise ?? peer.addr;
   await bucket.advertise(addr);
+  recoverer.start();
+  if (fleetDurability) {
+    leader = createLogLeader({ bucket, store, node });
+    bucket.setShipper(leader.shipper);
+    leader.start();
+  }
 
   const toRequest = async (req: IncomingMessage, body?: Uint8Array) => {
     const headers = new Headers();
@@ -214,7 +240,10 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
         for (const u of upgraded) u.destroy();
         await listening;
         // releases every owned cell (own.json → released) and deletes the node record
+        // no more shipping; the session sealed once the bucket holds what it shipped
+        await leader?.close();
         await runtime.close();
+        recoverer.close();
         await peer.close();
         clearInterval(followerGc);
       })()),
@@ -232,6 +261,7 @@ export interface ServeArgs {
   node?: string;
   leaseTtlMs?: number;
   data?: string;
+  durability?: "fleet" | "bucket";
 }
 
 /**
@@ -252,6 +282,7 @@ export function parseServeArgs(args: string[], env: Record<string, string | unde
     "node",
     "lease-ttl",
     "data",
+    "durability",
   ];
   let dir: string | undefined;
   for (let i = 0; i < args.length; i++) {
@@ -282,6 +313,12 @@ export function parseServeArgs(args: string[], env: Record<string, string | unde
   if (flags.node) out.node = flags.node;
   if (flags["lease-ttl"]) out.leaseTtlMs = Number(flags["lease-ttl"]);
   if (flags.data) out.data = flags.data;
+  const durability = flags.durability ?? env.CELLD_DURABILITY;
+  if (durability !== undefined) {
+    if (durability !== "fleet" && durability !== "bucket")
+      throw new Error(`--durability must be fleet or bucket, got ${JSON.stringify(durability)}`);
+    out.durability = durability;
+  }
   if (out.endpoint === undefined) delete out.endpoint;
   return out;
 }

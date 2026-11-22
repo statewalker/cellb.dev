@@ -16,13 +16,15 @@ const USAGE = `Usage:
 
   cellb serve [project-dir] --bucket s3://NAME[/PREFIX] [--endpoint URL] [--region REGION]
               [--listen IP:PORT] [--internal-listen IP:PORT] [--advertise ADDR:PORT]
-              [--node NAME] [--lease-ttl MS] [--data DIR]
+              [--node NAME] [--lease-ttl MS] [--data DIR] [--durability fleet|bucket]
 
     Runs the project as a node of a celld fleet: the same bucket, ownership records and peer
     tunnel as \`celld --bucket\`, so celld and cellb nodes serve one set of cells together.
     Credentials: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (AWS_SESSION_TOKEN). Defaults:
     CELLD_BUCKET, S3_ENDPOINT, AWS_REGION; --listen 127.0.0.1:8080, --internal-listen
-    127.0.0.1:0. SIGTERM or SIGINT releases the node's cells and leaves the fleet.`;
+    127.0.0.1:0. --durability (CELLD_DURABILITY), as celld: "fleet" (default) acknowledges a
+    write once follower nodes hold it, "bucket" once the bucket does. SIGTERM or SIGINT releases
+    the node's cells and leaves the fleet.`;
 
 /** Runs the command line `args` (without node and the script); returns the exit code. */
 export async function main(args: string[]): Promise<number> {
