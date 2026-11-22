@@ -3,7 +3,6 @@ import {
   cross,
   ctxExports,
   type DurableObjectClass,
-  END_ISOLATE,
   entrypointStub,
   ISOLATED,
   type IsolatedClass,
@@ -170,6 +169,8 @@ export type ModuleLoader = (
   id: string,
   code: WorkerCode,
   logs?: LogSink,
+  /** Aborted when the handle is disposed: a loader that runs code in an isolate ends it. */
+  signal?: AbortSignal,
 ) => Promise<Record<string, unknown>>;
 
 /**
@@ -188,6 +189,8 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
     logs: TailLog[];
   };
   const cache = new Map<string, Promise<Loaded>>();
+  // Each load's controller: dispose() aborts it, which ends its isolate, loaded or still loading.
+  const ending = new WeakMap<Promise<Loaded>, AbortController>();
   let anonymous = 0;
   const loader = {
     /** Compiles and runs code without the id cache (a fresh Worker per call). */
@@ -201,10 +204,12 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
     get(id: string, getCode: () => WorkerCode | Promise<WorkerCode>, cached = true) {
       let own: Promise<Loaded> | undefined; // load(): memoized per handle, not in the id cache
       let disposed: Error | undefined; // load(): its handle was disposed, so it is not loaded again
+      let ended = false; // dispose() acts once: a stale handle must not end a newer isolate
       const loaded = () => {
         if (disposed) return Promise.reject(disposed);
         let p = cached ? cache.get(id) : own;
         if (!p) {
+          const ctl = new AbortController();
           p = (async () => {
             const code = await getCode();
             // celld takes module source and wasm bytes only, not `data` modules.
@@ -214,7 +219,7 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             const logs: TailLog[] = [];
             const sink: LogSink = (level, message) =>
               logs.push({ level, message, timestamp: Date.now() });
-            const module = await load(id, code, sink);
+            const module = await load(id, code, sink, ctl.signal);
             // Its isolate ended (`abortIsolate()`): the next get() of this id loads it again.
             (
               (module as Record<symbol, unknown>)[ON_ABORT] as
@@ -227,7 +232,10 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             const env = code.env ?? {};
             return { module, env, exports: ctxExports(module, env), code, logs };
           })();
-          p.catch(() => cache.delete(id));
+          ending.set(p, ctl);
+          p.catch(() => {
+            if (cache.get(id) === p) cache.delete(id);
+          });
           if (cached) cache.set(id, p);
           else own = p;
         }
@@ -304,6 +312,8 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
          * a later get() loads the code again; a `load()`ed Worker's handle refuses later calls.
          */
         dispose() {
+          if (ended) return;
+          ended = true;
           const p = cached ? cache.get(id) : own;
           if (cached) {
             if (p) cache.delete(id);
@@ -311,17 +321,8 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             own = undefined;
             disposed = new Error(`loaded Worker "${id}" was disposed`);
           }
-          const reason = new Error(`loaded Worker "${id}" was disposed`);
-          // Still loading: it ends once loaded. An in-realm module has no isolate to end.
-          void p?.then(
-            (l) =>
-              (
-                (l.module as Record<symbol, unknown>)[END_ISOLATE] as
-                  | ((reason: Error) => void)
-                  | undefined
-              )?.(reason),
-            () => {},
-          );
+          // Loaded or still loading, its isolate ends now (an in-realm module has none).
+          if (p) ending.get(p)?.abort(new Error(`loaded Worker "${id}" was disposed`));
         },
         getEntrypoint(name = "default", options: { props?: unknown } = {}) {
           // Props cross now (workerd serializes them here): a refusal is a rejected promise,

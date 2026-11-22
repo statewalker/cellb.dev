@@ -21,7 +21,7 @@ export default class extends WorkerEntrypoint {
 }`;
 
 /** A project whose Worker runs `body` with `code()`, the loaded Worker's code, in scope. */
-async function project(body: string) {
+async function project(body: string, main = MAIN) {
   const dir = mkdtempSync(join(tmpdir(), "cellb-dispose-"));
   writeFileSync(
     join(dir, "wrangler.jsonc"),
@@ -35,7 +35,7 @@ async function project(body: string) {
   writeFileSync(
     join(dir, "index.js"),
     `const code = () => ({ compatibilityDate: "2026-01-01", mainModule: "main.js",
-  modules: { "main.js": ${JSON.stringify(MAIN)} } });
+  modules: { "main.js": ${JSON.stringify(main)} } });
 export default { async fetch(request, env) {
   try { ${body} } catch (e) { return Response.json({ error: String(e?.message ?? e) }); }
 } };`,
@@ -109,5 +109,40 @@ return Response.json(out);`);
     const before = threads();
     expect(await json(runtime)).toEqual(["pong", "pong", 1, "pong", 2]);
     expect(await threadsDownTo(before)).toBeLessThanOrEqual(before);
+  }, 60_000);
+
+  it("a Worker whose top-level code never yields ends on dispose() while it loads", async () => {
+    const runtime = await project(
+      `
+const w = env.LOADER.load(code());
+const call = w.getEntrypoint().ping().then(() => "returned", (err) => "rejected: " + err.message);
+await new Promise((r) => setTimeout(r, 300));
+w.dispose();
+const r = await Promise.race([call, new Promise((r) => setTimeout(() => r("still pending"), 3000))]);
+return Response.json({ r });`,
+      "for (;;) {}\nexport default {};",
+    );
+    const before = threads();
+    const out = (await json(runtime)) as { r: string };
+    expect(out.r).toMatch(/^rejected: .*disposed/);
+    expect(await threadsDownTo(before)).toBeLessThanOrEqual(before);
+  }, 60_000);
+
+  it("a second dispose() of a stale get(id) handle leaves the id's newer isolate alone", async () => {
+    const runtime = await project(`
+const get = () => env.LOADER.get("again", code);
+const a = get();
+await a.getEntrypoint().ping();
+a.dispose();
+const b = get();
+await b.getEntrypoint().ping();
+// b's call in flight: the stale handle's second dispose() must not end b's isolate
+const inflight = b.getEntrypoint().spin().then(() => "returned", (err) => "rejected: " + err.message);
+await new Promise((r) => setTimeout(r, 100));
+a.dispose();
+const r = await Promise.race([inflight, new Promise((r) => setTimeout(() => r("running"), 500))]);
+b.dispose();
+return Response.json({ r });`);
+    expect(await json(runtime)).toEqual({ r: "running" });
   }, 60_000);
 });
