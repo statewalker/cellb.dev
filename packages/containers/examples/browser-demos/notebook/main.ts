@@ -11,16 +11,23 @@
 import { readText, writeText } from "@statewalker/webrun-files";
 import { cow, readOnly } from "@statewalker/webrun-files-composite";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
-import { SwHttpAdapter } from "@statewalker/webrun-http-browser/sw";
+import type { SwHttpAdapter } from "@statewalker/webrun-http-browser/sw";
 import { type Container, createContainer } from "../../../src/container.ts";
 import { HostMounts, serveHostFiles } from "../../../src/files/bridge.ts";
 import { createIsolatedPool } from "../../../src/isolated-pool.ts";
 import { connectEngine } from "../../../src/rpc.ts";
 import { containerWebSocket } from "../../../src/websocket.ts";
-import { frameworkBuildSteps, frameworkLayerFiles, frameworkPreview } from "../recipe.ts";
+import {
+  frameworkBuildSteps,
+  frameworkLayerFiles,
+  frameworkPreview,
+} from "../../observable-framework/recipe.ts";
+import { BASE, startServiceWorker } from "../service-worker.ts";
 import notebook from "./notebook.md?raw";
 
 const KEY = "nb"; // the preview's first path segment, routed by the ServiceWorker to this page
+// The preview is at <base>nb/ (the app's base path: its ServiceWorker's scope).
+const PREVIEW = `${BASE}${KEY}`;
 const PORT = 3000;
 const env = { HOME: "/home/user", OBSERVABLE_TELEMETRY_DISABLE: "true" };
 // what the notebook imports, for the build step to put into Framework's npm cache
@@ -91,15 +98,15 @@ async function startPreview(layer: MemFilesApi, site: MemFilesApi) {
   return container;
 }
 
-/** 3. /nb/… → the container's port 3000; HTML pages get the WebSocket into the container. */
-async function routePreview(container: Container) {
+/** 3. <base>nb/… → the container's port 3000; HTML pages get the WebSocket into the container. */
+async function routePreview(adapter: SwHttpAdapter, container: Container) {
   const WS = containerWebSocket(container, PORT);
-  // The frame's live-reload client says which page it shows by its path: drop /nb from it.
+  // The frame's live-reload client says which page it shows by its path: drop <base>nb from it.
   class NotebookWebSocket extends (WS as unknown as typeof WebSocket) {
     send(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
       if (typeof data === "string" && data.includes('"hello"')) {
         const message = JSON.parse(data);
-        if (message.type === "hello") message.path = message.path.replace(`/${KEY}`, "") || "/";
+        if (message.type === "hello") message.path = message.path.replace(PREVIEW, "") || "/";
         data = JSON.stringify(message);
       }
       super.send(data);
@@ -107,17 +114,11 @@ async function routePreview(container: Container) {
   }
   Object.assign(window, { __notebookWebSocket: NotebookWebSocket });
 
-  const adapter = new SwHttpAdapter({
-    key: KEY,
-    serviceWorkerUrl: new URL("/sw-worker.js", location.href).toString(),
-    reloadIfUncontrolled: true,
-  });
-  await adapter.start();
   const inject =
     "<script>window.WebSocket = window.parent.__notebookWebSocket || window.WebSocket;</script>";
   await adapter.register(`${KEY}/`, async (request) => {
     const url = new URL(request.url);
-    const path = url.pathname.slice(KEY.length + 1) || "/";
+    const path = url.pathname.slice(PREVIEW.length) || "/";
     const res = await container.getTcpPort(PORT).fetch(`http://container${path}${url.search}`, {
       method: request.method,
       headers: request.headers,
@@ -134,6 +135,14 @@ async function routePreview(container: Container) {
   });
 }
 
+/** Base64 of `bytes`, in chunks (a spread of a large array overflows the call stack). */
+function base64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
 /** 4. Edits go into the container (Framework watches its files there). */
 function wireEditor(container: Container) {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -142,17 +151,19 @@ function wireEditor(container: Container) {
   editor.addEventListener("input", () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      const bytes = new TextEncoder().encode(editor.value);
-      const b64 = btoa(String.fromCharCode(...bytes));
-      writing = writing.then(async () => {
-        const t0 = performance.now();
-        const r = await container.exec([
-          "node",
-          "-e",
-          `require('fs').writeFileSync('src/index.md', Buffer.from('${b64}', 'base64'))`,
-        ]);
-        log(`saved (exit ${r.exitCode}) in ${Math.round(performance.now() - t0)} ms`);
-      });
+      const b64 = base64(new TextEncoder().encode(editor.value));
+      writing = writing
+        .then(async () => {
+          const t0 = performance.now();
+          const r = await container.exec([
+            "node",
+            "-e",
+            `require('fs').writeFileSync('src/index.md', Buffer.from('${b64}', 'base64'))`,
+          ]);
+          log(`saved (exit ${r.exitCode}) in ${Math.round(performance.now() - t0)} ms`);
+        })
+        // a failed save is reported; the next one is still tried
+        .catch((e) => log(`save failed: ${(e as Error).message ?? e}`));
     }, 400);
   });
 }
@@ -160,14 +171,16 @@ function wireEditor(container: Container) {
 async function main() {
   try {
     const t0 = performance.now();
+    setStatus("starting the ServiceWorker…");
+    const adapter = await startServiceWorker(KEY);
     const layer = await buildLayer();
     const site = new MemFilesApi();
     await writeText(site, "/src/index.md", notebook);
     editor.value = await readText(site, "/src/index.md");
     const container = await startPreview(layer, site);
-    await routePreview(container);
+    await routePreview(adapter, container);
     wireEditor(container);
-    preview.src = `/${KEY}/`;
+    preview.src = `${PREVIEW}/`;
     await new Promise((r) => preview.addEventListener("load", r, { once: true }));
     setStatus(
       `ready in ${Math.round((performance.now() - t0) / 1000)} s · edit the notebook`,

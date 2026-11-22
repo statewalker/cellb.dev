@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>cellb — shards on the page's FilesApi</title>
+<body>
+  <!-- Under /labs/: cross-origin isolated, as the LTX VFS needs SharedArrayBuffer. -->
+  <script type="module">
+    import { MemFilesApi } from "@statewalker/webrun-files-mem";
+    import { filesApiPort } from "../../../src/ltx/ltx-host.ts";
+    import { startProjectShards } from "../../../src/project/browser-shards.ts";
+
+    // The page's own FilesApi (in memory here; a folder or S3 in an app). Each shard's LTX store
+    // reaches it through a port of its own (filesApiPort), given per shard by `bucket(shard)`.
+    const files = new MemFilesApi();
+    window.__run = async ({ project, shards, names, rounds, label }) => {
+      const ports = [];
+      const app = await startProjectShards({
+        shards,
+        spawn: () =>
+          new Worker(new URL("./shards-files-worker.ts", import.meta.url), { type: "module" }),
+        config: project.config,
+        code: { bundle: project.code },
+        name: `${label}-${Date.now().toString(36)}`,
+        bucket: (shard) => {
+          const p = filesApiPort(files);
+          ports.push(p);
+          return { ltx: "shards-files", node: `${label}-s${shard}`, files: { port: p.port } };
+        },
+      });
+      try {
+        const answers = Object.fromEntries(names.map((name) => [name, []]));
+        for (let round = 0; round < rounds; round++)
+          await Promise.all(
+            names.map(async (name) => {
+              const res = await app.fetch(new Request(`http://browser/?name=${name}`));
+              answers[name].push((await res.json()).n);
+            }),
+          );
+        return { ok: true, answers };
+      } catch (err) {
+        return { ok: false, error: String(err?.stack ?? err) };
+      } finally {
+        await app.close();
+        for (const p of ports) p.close();
+      }
+    };
+    window.__ltxFiles = async () => {
+      let n = 0;
+      for await (const e of files.list("/", { recursive: true }))
+        if (e.kind === "file" && e.path.endsWith(".ltx")) n++;
+      return n;
+    };
+    document.body.dataset.ready = "true";
+  </script>
+</body>

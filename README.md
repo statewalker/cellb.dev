@@ -5,8 +5,8 @@ celld/Cloudflare-compatible surface. The same cells run in a browser (OPFS, Serv
 in Node, and alongside celld on one shared bucket.
 
 Live demos, each app running in your browser tab: [EmDash served from a
-tab](https://cellb-emdash.httpeers.net) and [Astro (EmDash included) built in the
-tab](https://cellb-astro.httpeers.net).
+tab](https://emdash.cellb.dev) and [Astro (EmDash included) built in the
+tab](https://astro.cellb.dev).
 
 ## What cellb does, next to celld
 
@@ -57,15 +57,17 @@ packages/containers/   containers for cellb (experimental): ctx.container backed
                        sandboxes in browsers and Node, FilesApi mounts, examples (see its README)
 examples/flue/         a Flue agent app (Cloudflare target, Agents SDK) on cellb, in Node and Chromium
 examples/agents/       pi and opencode in Durable Objects on cellb, against the fake model
+examples/tesseract-ocr/  Tesseract OCR and PDF → PortableText in Durable Objects (wasm modules, alarms as a
+                       job queue, Worker Loader) on cellb, in Node and Chromium
 examples/emdash/       EmDash (Astro CMS, Cloudflare build) on cellb, in Node and served statically to a browser
-                       (live: https://cellb-emdash.httpeers.net)
+                       (live: https://emdash.cellb.dev)
 examples/astro-in-browser/  Astro apps, EmDash included, built from their sources in a browser tab and run there on cellb
-                       (live: https://cellb-astro.httpeers.net)
+                       (live: https://astro.cellb.dev)
 examples/platform-astro/  a small Astro SSR app the platform bundles, or builds from its sources
 examples/platform-demos/  the platform's demos: Astro, EmDash and Observable notebooks bundled, built or compiled
                        by the platform (packages/platform, as in this checkout), run on Wrangler, celld, cellb
 examples/fake-openai/  a scripted OpenAI-compatible model endpoint the examples test against
-examples/landing/      the page of https://cellb-examples.httpeers.net, which links to the published examples
+examples/landing/      the page of https://examples.cellb.dev, which links to the published examples
 site/                  the cellb.dev website (Astro, Tailwind CSS, shadcn/ui tokens)
 .github/workflows/     ci (cellb's lint, typecheck, unit tests and packed package; on main, the npm release)
                        and interop against the real
@@ -116,6 +118,9 @@ The examples, in `examples/` (`pnpm install` there: they have their own lockfile
    static site in Chromium.
 4. `cd astro-in-browser && pnpm test`: the in-browser builder on Node;
    `npx playwright test test/browser/emdash-in-browser.spec.ts` builds EmDash in a Chromium tab.
+5. `cd tesseract-ocr && pnpm fixtures && pnpm test`: Tesseract OCR and PDF conversion in Durable
+   Objects on cellb in Node; `pnpm test:browser` builds it with `cellb build` and runs it in
+   Chromium.
 
 To try the examples on cellb as it is in this checkout, before a release: pack it
 (`pnpm --dir packages/cellb pack`) and add to `examples/pnpm-workspace.yaml`
@@ -139,8 +144,8 @@ in `examples/` (what the examples workflow does with `cellb: packed`; do not com
   released cellb, or with `-f cellb=packed` on cellb as the chosen branch would publish it; run it
   before a release and after changing an example.
 - **Each published example has a host of its own.** `examples-publish.yml` publishes EmDash's
-  static build to https://cellb-emdash.httpeers.net and the in-browser builder to
-  https://cellb-astro.httpeers.net, with https://cellb-examples.httpeers.net linking to both. Each
+  static build to https://emdash.cellb.dev and the in-browser builder to
+  https://astro.cellb.dev, with https://examples.cellb.dev linking to both. Each
   one's ServiceWorker takes its whole origin (EmDash uses absolute `/_emdash/…` paths), so two on
   one host would replace each other.
 - **Examples run offline.** Agent frameworks need a model; the examples point theirs at

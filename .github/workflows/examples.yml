@@ -28,11 +28,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Node (fake-openai, Flue, pi and opencode, EmDash, the in-browser builder)
+          - name: Node (fake-openai, Flue, pi and opencode, EmDash, Tesseract OCR, the in-browser builder)
             browser: false
             run: |
               pnpm --filter @statewalker/fake-openai test
               pnpm --filter @statewalker/flue-example test
+              pnpm --filter @statewalker/tesseract-ocr-example fixtures
+              pnpm --filter @statewalker/tesseract-ocr-example test
               pnpm --filter @statewalker/agent-examples test
               pnpm --filter @statewalker/emdash-example test
               cd astro-in-browser
@@ -43,6 +45,10 @@ jobs:
             browser: true
             dir: flue
             run: pnpm test:browser
+          - name: Chromium — Tesseract OCR and PDF jobs (OPFS, Worker Loader, a reload)
+            browser: true
+            dir: tesseract-ocr
+            run: pnpm fixtures && pnpm test:browser
           - name: Chromium — EmDash's static build
             browser: true
             dir: emdash

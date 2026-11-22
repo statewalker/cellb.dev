@@ -27,7 +27,6 @@ const sections = [
       { href: "/docs", label: "Getting started" },
       { href: "/docs/how-it-works", label: "How it works" },
       { href: "/docs/from-sources", label: "Running from sources" },
-      { href: "/sandbox", label: "CellB sandbox" },
     ],
   },
   {
@@ -45,7 +44,13 @@ const sections = [
   },
   {
     heading: "Examples",
-    items: [{ href: "/examples", label: "All runnable examples" }, ...examplePages.map(navItem)],
+    items: [
+      { href: "/examples", label: "Examples & demos" },
+      { href: "/examples#try", label: "Try it now" },
+      { href: "/sandbox", label: "CellB sandbox" },
+      ...examplePages.map(navItem),
+      { href: "/examples#scenarios", label: "Conformance scenarios" },
+    ],
   },
 ];
 ---

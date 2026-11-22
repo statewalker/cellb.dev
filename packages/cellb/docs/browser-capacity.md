@@ -88,6 +88,34 @@ So the 2 GiB limits how many cells are **open** at once. It does not limit how m
 on disk. `closeDatabaseAfterMs` closes the databases of idle, hibernated cells. To give the memory
 back to the browser, end the worker. Its cells stay in OPFS, and the next worker opens them.
 
+## Memory while cells write
+
+A worker's memory does not grow with the data its cells store. Until statewalker/cellb.dev#184 it
+did. The SQLite WASM page hook (`src/adapters/wasm-page-hook.ts`) records every page a cell writes,
+so that an LTX log can take a commit's changed pages. Storage that takes no pages never took them:
+an OPFS pool without a bucket, a backup, or a changeset log. So the driver kept a JS copy of every
+page the cell had ever written, until its database closed.
+
+- **Now:** a commit with such storage drops the recorded pages (`object-host.ts`), and the
+  runtime's own `__cellb/` databases have no page hook. Node's driver captures pages only when
+  asked (`pageCapture`), so it never had the problem.
+- **Measured** with the spread probe (`probes/spread/`; `pnpm probes:browser spread -g "stored
+  volume"`), a profile on disk, 4 workers, 1 MiB per write:
+
+  | Written | Renderer PSS before | Renderer PSS after |
+  |---|---|---|
+  | 2 GiB | 3,696 MB | 1,574 MB |
+  | 6 GiB | 8,261 MB | 1,744 MB |
+
+- **One worker** with 1 MiB writes stays at 440–480 MB of anonymous memory from 512 MiB to
+  2 GiB written. With 4 KiB writes it rises to about 580 MB by 256 MiB, then levels off: SQLite
+  WASM's heap at its high-water mark, plus garbage. Closing the shards gives the memory back.
+- **Throughput.** The hook also copied each write that the commit then dropped, which cost
+  about a fifth of write throughput. Since statewalker/cellb.dev#194 the object host tells the
+  driver whether its storage takes pages (`recordPages`), and the hook records nothing when it
+  does not. Two runs each of the same probe at 2 GiB: 182 and 181 MB/s before, 231 and 218 MB/s
+  after. A local experiment with the hook removed gave 228 and 231 MB/s.
+
 ## How many workers one tab runs
 
 | Workers | Start of one (ms) | All of Chromium (PSS) | Renderer (PSS) |

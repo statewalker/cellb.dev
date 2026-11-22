@@ -144,3 +144,87 @@ describe("P11d node:sqlite page capture: databases nobody logs, and temporary fi
     kept.close();
   });
 });
+
+describe("P11d page hook without page capture (statewalker/cellb.dev#184)", () => {
+  it("a runtime whose storage takes no pages keeps none, however much the cell writes", async () => {
+    const { createCellRuntime, DurableObject } = await import("../src/index.js");
+    class Notes extends DurableObject {
+      add() {
+        const sql = this.ctx.storage.sql;
+        sql.exec("CREATE TABLE IF NOT EXISTS notes (v TEXT)");
+        sql.exec("INSERT INTO notes VALUES (?)", "n".repeat(4000)); // about one 4 KiB page each
+        return sql.exec<{ n: number }>("SELECT count(*) AS n FROM notes").one().n;
+      }
+    }
+    const open = wasmMemoryOpener(await sqlite());
+    const drivers = new Map<string, ReturnType<typeof open>>();
+    // No storage (an OPFS pool in a browser): durability.capturePages is off, so no commit
+    // takes the pages the hook records. Before the fix the driver kept a copy of every page the
+    // cell had written (302 pages here), so a worker's memory grew with the data its cells stored.
+    const rt = createCellRuntime({
+      worker: { default: {}, Notes } as never,
+      durableObjects: { NOTES: { className: "Notes" } },
+      openSql: (key) => {
+        const d = open(key);
+        drivers.set(key, d);
+        return d;
+      },
+    });
+    const notes = (rt.env.NOTES as { getByName(n: string): { add(): Promise<number> } }).getByName(
+      "a",
+    );
+    for (let i = 1; i <= 300; i++) expect(await notes.add()).toBe(i);
+    const cell = [...drivers].find(([key]) => key.startsWith("Notes/"));
+    expect(cell).toBeDefined();
+    // Every driver holds nothing after the commits: the cell's (its pages dropped at each commit)
+    // and cellb's own __cellb/alarms (no page hook at all: takeDirtyPages() is undefined).
+    for (const [key, d] of drivers)
+      expect([key, d.takeDirtyPages()?.pages.size ?? 0]).toEqual([key, 0]);
+    expect(drivers.get("__cellb/alarms")?.takeDirtyPages()).toBeUndefined();
+    // Nor does it copy writes it will drop (statewalker/cellb.dev#194): the object host tells the
+    // driver its storage takes no pages, so a write records nothing at all.
+    const [, d] = cell!;
+    d.exec("INSERT INTO notes VALUES ('written outside a commit of the object')", []);
+    expect(d.takeDirtyPages()?.pages.size ?? 0).toBe(0);
+    await rt.close();
+  });
+
+  it("a runtime whose storage takes pages still records them (an LTX log)", async () => {
+    const { createCellRuntime, DurableObject, filesApiLtxLog } = await import("../src/index.js");
+    const { MemFilesApi } = await import("@statewalker/webrun-files-mem");
+    class Notes extends DurableObject {
+      add() {
+        const sql = this.ctx.storage.sql;
+        sql.exec("CREATE TABLE IF NOT EXISTS notes (v TEXT)");
+        sql.exec("INSERT INTO notes VALUES (?)", "n".repeat(4000));
+        return sql.exec<{ n: number }>("SELECT count(*) AS n FROM notes").one().n;
+      }
+    }
+    const open = wasmMemoryOpener(await sqlite());
+    const drivers = new Map<string, ReturnType<typeof open>>();
+    const files = new MemFilesApi();
+    const rt = createCellRuntime({
+      worker: { default: {}, Notes } as never,
+      durableObjects: { NOTES: { className: "Notes" } },
+      storage: filesApiLtxLog(files),
+      openSql: (key) => {
+        const d = open(key);
+        drivers.set(key, d);
+        return d;
+      },
+    });
+    const notes = (rt.env.NOTES as { getByName(n: string): { add(): Promise<number> } }).getByName(
+      "a",
+    );
+    for (let i = 1; i <= 20; i++) expect(await notes.add()).toBe(i);
+    const [, d] = [...drivers].find(([key]) => key.startsWith("Notes/"))!;
+    d.exec("INSERT INTO notes VALUES ('one more')", []);
+    expect(d.takeDirtyPages()!.pages.size).toBeGreaterThan(0);
+    await rt.close();
+    // The log holds the cell: one LTX file per commit, under celld's keys.
+    let ltx = 0;
+    for await (const e of files.list("/", { recursive: true }))
+      if (e.kind === "file" && e.path.endsWith(".ltx")) ltx++;
+    expect(ltx).toBeGreaterThan(0);
+  });
+});

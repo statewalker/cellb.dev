@@ -93,7 +93,9 @@ options in `@statewalker/cellb/node` and `@statewalker/cellb/browser`, and retur
 Under `loadProject` are the lower-level calls of the next section: `loadNodeProject`,
 `browserProjectRuntime` and, beneath both, `createProjectRuntime`. The shard functions of
 `/browser` and `/tabs` (`startProjectShards`, `joinProjectShards`, `serveProjectShard`) run one
-`browserProjectRuntime` per shard ([Running in a browser](browser-host.md)). The package
+`browserProjectRuntime` per shard ([Running in a browser](browser-host.md)). On Node, `startProjectShards`
+from `/node` runs one `loadNodeProject` per worker thread, linked the same way, with the cells' LTX
+log optionally on a FilesApi of the main thread. The package
 [README](../README.md) has the full list of options.
 
 ## Projects: a wrangler configuration becomes a runtime

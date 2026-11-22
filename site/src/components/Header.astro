@@ -8,13 +8,13 @@ import Badge from "./ui/Badge.astro";
 
 // Built pages are directories ("/docs/"), so compare without the trailing slash.
 const path = Astro.url.pathname.replace(/\/+$/, "") || "/";
-const nav = [
+// Every example and demo is on /examples (the sandbox too: it is a demo, its page counts as there).
+const nav: { href: string; label: string; widest?: boolean; match?: string[] }[] = [
   { href: "/docs", label: "Docs" },
   { href: "/docs/how-it-works", label: "How it works" },
   { href: "/builders", label: "Builders" },
-  { href: "/examples", label: "Examples" },
-  { href: "/examples#live-demos", label: "Live demos" },
-  { href: "/sandbox", label: "Sandbox" },
+  { href: "/containers", label: "Containers" },
+  { href: "/examples", label: "Examples & demos", match: ["/examples", "/sandbox"] },
   { href: "/#compare", label: "Supported services" },
   // Shown from `xl` (`widest`) only: below it the bar has no room for them.
   { href: "/#use-cases", label: "Use cases", widest: true },
@@ -23,11 +23,14 @@ const nav = [
 
 /** Pages under an item: links to a section (#) never are; Docs takes the /docs pages no other item claims. */
 const under = (href: string) => path === href || path.startsWith(`${href}/`);
-const isActive = (href: string) =>
-  !href.includes("#") &&
-  (href === "/docs"
-    ? under(href) && !nav.some((o) => o.href !== href && !o.href.includes("#") && under(o.href))
-    : under(href));
+const matches = (o: (typeof nav)[number]) => (o.match ?? [o.href]).some(under);
+const isActive = (href: string) => {
+  const item = nav.find((o) => o.href === href);
+  if (!item || href.includes("#")) return false;
+  return href === "/docs"
+    ? matches(item) && !nav.some((o) => o.href !== href && !o.href.includes("#") && matches(o))
+    : matches(item);
+};
 ---
 
 <header class="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">

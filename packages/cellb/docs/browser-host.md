@@ -203,7 +203,7 @@ to one worker. In [examples/astro-in-browser](../../../examples/astro-in-browser
 (`cells-lab.spec.ts`: 48 cells with 10 writes each, then a reload), 8 shards took 5.1 s against
 9.1 s with OPFS pools, and 16 shards took 5.3 s against 8.9 s. Every cell read back after the
 reload. Reads after a restart are slower because they replay the log (1.4–2.2 s against
-0.6–0.9 s). The example runs as a [live demo](https://cellb-astro.httpeers.net).
+0.6–0.9 s). The example runs as a [live demo](https://astro.cellb.dev).
 
 #### Cells on LTX files in OPFS: `bucket: { ltx, node }`
 
@@ -246,7 +246,7 @@ shard worker                                          LTX store worker (one per 
   nothing and is meant for tests.
 
 EmDash's site and its package store run on it in
-[examples/astro-in-browser](../../../examples/astro-in-browser) ([live demo](https://cellb-astro.httpeers.net)). A 64 MiB cell
+[examples/astro-in-browser](../../../examples/astro-in-browser) ([live demo](https://astro.cellb.dev)). A 64 MiB cell
 compacts with about 4 MB in memory (`test/p30-ltx-pages.test.ts`).
 
 ##### On the app's own FilesApi
@@ -296,6 +296,31 @@ one's. All three ways are tested
 in Chromium (`e2e-browser/ltx-files.spec.ts`) and, with the shared buffer awaited instead of
 blocked on, in Node (`test/p39-files-rpc.test.ts`, `test/p40-ltx-store-files.test.ts`).
 
+**Several shards on one FilesApi.** A port serves one runtime, so `startProjectShards` takes
+`bucket` as a function too: each shard gets its own bucket, node name included, and the ports
+in it (`files: { port }`, `ltxStore.port`) travel with that shard's init:
+
+```ts
+const ports: { close(): void }[] = [];
+const app = await startProjectShards({
+  shards: 4, spawn, config, code, name: "my-project",
+  bucket: (shard) => {
+    const p = filesApiPort(files); // a port of its own for each shard
+    ports.push(p);
+    return { ltx: "my-project", node: `tab-s${shard}`, files: { port: p.port } };
+  },
+});
+// …
+await app.close();
+for (const p of ports) p.close();
+```
+
+The cells then belong to the FilesApi, not to a shard: a different number of shards opens them
+where the last ones left off (`e2e-browser/shards-files.spec.ts`). With more than one shard on
+one `ltx` storage, each runtime keeps its own databases apart, as `__cellb/s<shard>/alarms`
+(and `…/cron`). A single runtime keeps the plain `__cellb/alarms`, so its stored data stays
+where it was.
+
 #### A project at the origin's root: `root`
 
 An app that builds absolute paths (EmDash's admin calls `/_emdash/…`) cannot live under
@@ -305,7 +330,7 @@ prefixes (the host page's own files) goes to project `name` with its URL unchang
 navigations. A navigation that finds no tab running the project's shards is sent to `hostPage` with
 `?next=<the URL it asked for>`, since nothing else of the origin could start them.
 [examples/emdash](../../../examples/emdash) is served this way, from static files: see the
-[live demo](https://cellb-emdash.httpeers.net).
+[live demo](https://emdash.cellb.dev).
 
 ### A sharded origin: `CellRouter` in the ServiceWorker
 

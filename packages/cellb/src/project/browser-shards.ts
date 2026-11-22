@@ -103,6 +103,7 @@ export function serveProjectShard(opts: {
           pool: init.pool,
           filesDir: init.filesDir,
           isolateScript: opts.isolateScript,
+          ownDatabasesScope: init.shards > 1 ? `s${init.shard}` : undefined,
           route: throughRouter(init, serviceReady),
         });
         // Served through the ServiceWorker's router, which the tab attaches this worker to. The
@@ -131,6 +132,7 @@ export function serveProjectShard(opts: {
         pool: init.pool,
         filesDir: init.filesDir,
         isolateScript: opts.isolateScript,
+        ownDatabasesScope: init.shards > 1 ? `s${init.shard}` : undefined,
         route: (_key, id) => {
           const owner = shardOf(id.toString(), init.shards);
           return owner === init.shard ? undefined : links.get(owner);
@@ -233,11 +235,20 @@ export async function startProjectShards(opts: {
   assetFiles?: BrowserProjectOptions["assetFiles"];
   /** The OpenAI-compatible endpoint behind the project's `ai` binding. */
   ai?: BrowserProjectOptions["ai"];
-  /** Each shard is its own fleet node, named `<node>-s<shard>`. */
-  bucket?: BrowserBucket;
+  /**
+   * Each shard is its own fleet node, named `<node>-s<shard>`. Or a function that gives each
+   * shard its bucket, node name included, for buckets that hold a MessagePort: one port serves
+   * one runtime, so `{ ltx, files: { port } }` (a `filesApiPort` of the page's FilesApi) or
+   * `{ ltx, ltxStore }` needs a port per shard. The ports travel with that shard's init.
+   */
+  bucket?: BrowserBucket | ((shard: number) => BrowserBucket);
   /** Prefix of the shards' OPFS pools and files directories (`<name>-<shard>`). */
   name: string;
 }): Promise<ProjectShards> {
+  const bucketOf = (i: number): BrowserBucket | undefined =>
+    typeof opts.bucket === "function"
+      ? opts.bucket(i)
+      : opts.bucket && { ...opts.bucket, node: `${opts.bucket.node}-s${i}` };
   const workers = Array.from({ length: opts.shards }, (_, i) => opts.spawn(i));
   const ask = (w: Worker, data: unknown, ports: MessagePort[] = []) =>
     new Promise<{ ok: boolean; error?: string; unsupported?: string[] }>((resolve) => {
@@ -264,6 +275,7 @@ export async function startProjectShards(opts: {
     }
   const ingress = workers.map(() => new MessageChannel());
   try {
+    const buckets = workers.map((_, i) => bucketOf(i));
     const started = await Promise.all(
       workers.map((w, i) =>
         ask(
@@ -276,12 +288,13 @@ export async function startProjectShards(opts: {
             code: opts.code,
             assetFiles: opts.assetFiles,
             ai: opts.ai,
-            bucket: opts.bucket && { ...opts.bucket, node: `${opts.bucket.node}-s${i}` },
+            bucket: buckets[i],
             pool: `${opts.name}-${i}`,
             filesDir: `${opts.name}-files-${i}`,
             peers: wiring[i].peers,
           } satisfies ShardInit,
-          [ingress[i].port2, ...wiring[i].ports],
+          // The bucket's own ports last: the shard reads ingress and peers by index.
+          [ingress[i].port2, ...wiring[i].ports, ...bucketPorts(buckets[i])],
         ),
       ),
     );
@@ -303,4 +316,14 @@ export async function startProjectShards(opts: {
     for (const w of workers) w.terminate();
     throw err;
   }
+}
+
+/** The MessagePorts a bucket carries (an LTX store's FilesApi or store port): to transfer. */
+function bucketPorts(bucket: BrowserBucket | undefined): MessagePort[] {
+  if (!bucket || !("ltx" in bucket)) return [];
+  const ports: MessagePort[] = [];
+  if (bucket.files && typeof bucket.files === "object" && "port" in bucket.files)
+    ports.push(bucket.files.port);
+  if (bucket.ltxStore) ports.push(bucket.ltxStore.port);
+  return ports;
 }

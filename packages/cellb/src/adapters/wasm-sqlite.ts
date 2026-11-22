@@ -41,17 +41,25 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   readonly #sqlite3?: WasmSqlite3;
   readonly #capi?: { sqlite3_get_autocommit(db: number): number };
   #pageHook?: ReturnType<typeof installPageHook>;
+  readonly #pageHookOn: boolean;
+  #recording = true;
   constructor(
     db: Oo1Db,
     hooks?: WasmImageHooks,
     sqlite3?: WasmSqlite3,
     /** SQLite's C API, for `inTransaction()` alone (when `sqlite3` is not given). */
     capi?: { sqlite3_get_autocommit(db: number): number },
+    /**
+     * `pageHook: false`: no page hook, for a database whose pages no log takes (the runtime's own
+     * `__cellb/` databases), so that its written pages are not kept (statewalker/cellb.dev#184).
+     */
+    opts: { pageHook?: boolean } = {},
   ) {
     this.#db = db;
     this.#hooks = hooks;
     this.#sqlite3 = sqlite3;
     this.#capi = capi ?? sqlite3?.capi;
+    this.#pageHookOn = opts.pageHook !== false;
     if (!this.#capi?.sqlite3_get_autocommit)
       (this as { inTransaction?: unknown }).inTransaction = undefined;
     this.#enableDqs();
@@ -88,11 +96,12 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   /** Installs the page hook on the current main database file (see wasm-page-hook.ts). */
   #hookPages(): void {
     this.#pageHook = undefined;
-    if (!this.#sqlite3?.capi?.sqlite3_file_control) return;
+    if (!this.#pageHookOn || !this.#sqlite3?.capi?.sqlite3_file_control) return;
     try {
       this.#pageHook = installPageHook(
         this.#sqlite3,
         (this.#db as unknown as { pointer: number }).pointer,
+        () => this.#recording,
       );
     } catch {
       this.#pageHook = undefined;
@@ -107,6 +116,11 @@ export class WasmSqliteDriver implements SyncSqlDriver {
   }
   discardDirtyPages(): void {
     this.#pageHook?.discard();
+  }
+  /** Whether the page hook records writes (see SyncSqlDriver.recordPages). */
+  recordPages(on: boolean): void {
+    this.#recording = on;
+    if (!on) this.#pageHook?.discard();
   }
   /**
    * WASM builds cannot load extensions at run time; an extension must be compiled into the
@@ -225,14 +239,19 @@ export function tuneCellConnection(sqlite3: unknown, db: Oo1Db): void {
 }
 
 let memdbCounter = 0;
+/** The runtime's own databases (alarm index, cron state): no log takes their pages. */
+const ownDatabase = (cellKey: string) => cellKey.startsWith("__cellb/");
+
 export function wasmMemoryOpener(sqlite3: {
   oo1: { DB: new (path: string, mode?: string) => Oo1Db };
 }): OpenCellSql {
-  return () => {
+  return (cellKey) => {
     // memdb (not ":memory:"): an in-memory database that IS a VFS file, so the page hook works.
     const db = new sqlite3.oo1.DB(`file:/cells-mem-${++memdbCounter}?vfs=memdb`, "c");
     tuneCellConnection(sqlite3, db);
-    return new WasmSqliteDriver(db, memoryImageHooks(sqlite3), sqlite3 as never);
+    return new WasmSqliteDriver(db, memoryImageHooks(sqlite3), sqlite3 as never, undefined, {
+      pageHook: !ownDatabase(cellKey),
+    });
   };
 }
 
@@ -374,6 +393,8 @@ export async function sahpoolOpener(
           },
         },
         sqlite3 as never,
+        undefined,
+        { pageHook: !ownDatabase(cellKey) },
       );
     } catch (err) {
       if (opened.get(cellKey) === entry) opened.delete(cellKey);

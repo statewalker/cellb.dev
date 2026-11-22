@@ -76,8 +76,15 @@ function signalOf(req: Request): () => AbortSignal | undefined {
 /** The object's host was closed for good: its storage and events fail with this. */
 export class ObjectClosedError extends Error {
   override name = "ObjectClosedError";
-  constructor(cellKey: string) {
+  /**
+   * The event never started: the object was closed before it was delivered. Only such a call may
+   * be sent to another node; one that ran may have written, and running it again would apply it
+   * twice.
+   */
+  readonly notStarted: boolean;
+  constructor(cellKey: string, opts?: { notStarted?: boolean }) {
     super(`Durable Object ${cellKey} was closed (its runtime shut down, or it moved or was reset)`);
+    this.notStarted = opts?.notStarted ?? false;
   }
 }
 
@@ -169,6 +176,8 @@ export class ObjectHost {
     this.#opts = opts;
     this.#open = () => {
       this.#db = opts.openSql(opts.cellKey);
+      // Storage that takes no pages: the driver need not record them (statewalker/cellb.dev#194).
+      this.#db.recordPages?.(!!opts.durability.capturePages);
       for (const ext of opts.sqlExtensions ?? []) this.#db.loadExtension(ext);
     };
     this.#open();
@@ -181,6 +190,10 @@ export class ObjectHost {
         const d = this.#driver;
         const seq = ++this.#seq;
         const pages = opts.durability.capturePages ? d.takeDirtyPages() : undefined;
+        // Storage that takes no pages (an OPFS pool, a backup, a changeset log): drop what the
+        // driver's page hook recorded, or it keeps a copy of every page the cell ever wrote
+        // (statewalker/cellb.dev#184).
+        if (!opts.durability.capturePages) d.discardDirtyPages?.();
         const snap = () => d.pageImage?.() ?? d.image?.();
         // The log runs later, after the next event may have opened its transaction, and an
         // image cannot be taken inside one (VACUUM INTO). When the log will surely need it
@@ -329,13 +342,18 @@ export class ObjectHost {
    * late — every queued continuation would see it open).
    */
   deliver<T>(fn: (instance: any, state: DurableObjectState) => T | Promise<T>): Promise<T> {
-    if (this.#closed) return Promise.reject(new ObjectClosedError(this.cellKey));
-    if (this.broken) return Promise.reject(new BrokenObjectError(undefined));
+    // A broken host reports why it broke even once it is closed: a host retired because its
+    // cell is owned by another node fails its queued events with that cause, so the runtime
+    // sends each of them to the owner instead of failing it as closed.
+    if (this.broken)
+      return Promise.reject(new BrokenObjectError(this.#brokenCause, "its initialization failed"));
+    if (this.#closed)
+      return Promise.reject(new ObjectClosedError(this.cellKey, { notStarted: true }));
     return new Promise<T>((resolve, reject) => {
       this.#queue.push(() => {
-        if (this.#closed) return reject(new ObjectClosedError(this.cellKey));
         if (this.broken)
           return reject(new BrokenObjectError(this.#brokenCause, "its initialization failed"));
+        if (this.#closed) return reject(new ObjectClosedError(this.cellKey, { notStarted: true }));
         let started: Promise<T>;
         this.#active++;
         try {
@@ -813,6 +831,23 @@ export class CellOwnedElsewhereError extends Error {
     super(`Durable Object ${cellKey} is owned by another node`);
     this.name = "CellOwnedElsewhereError";
   }
+}
+
+/**
+ * The cell's owner is another node, and that node cannot be reached: its process died while its
+ * node lease is still live, or the network refused. celld answers the same case with this name
+ * and message; the cell moves once the owner's lease expires, so a client may retry.
+ */
+export class DurableObjectRoutingError extends Error {
+  constructor(cellKey: string, options?: { cause?: unknown; ownerGone?: boolean }) {
+    super("The Durable Object owner is currently unreachable", options);
+    this.name = "DurableObjectRoutingError";
+    this.cellKey = cellKey;
+    this.ownerGone = options?.ownerGone ?? false;
+  }
+  readonly cellKey: string;
+  /** The owner has no live node record: it left or its lease ran out, so the cell may be free. */
+  readonly ownerGone: boolean;
 }
 
 /** celld's path segment for a facet name: the first 16 bytes of SHA-256(name), hex. */

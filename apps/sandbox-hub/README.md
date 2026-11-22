@@ -154,7 +154,7 @@ needs:
 - a folder that persists. That folder is the mesh: a new key is a new, empty mesh, and every
   member must join again.
 
-Set `SANDBOX_URL` to the sandbox the links should open (`https://cellb.httpeers.net/sandbox/app/`
+Set `SANDBOX_URL` to the sandbox the links should open (`https://cellb.dev/sandbox/app/`
 once the site is published).
 
 ```sh

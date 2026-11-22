@@ -21,8 +21,28 @@ export async function rawChromium() {
       `--user-data-dir=${profile}`,
       "about:blank",
     ],
-    { stdio: ["ignore", "ignore", "pipe"] },
+    // Its own process group, so close() can stop the helper processes with it.
+    { stdio: ["ignore", "ignore", "pipe"], detached: true },
   );
+  // Out of the terminal's group, Chromium no longer gets its Ctrl-C: if the test process ends
+  // without close() (an interrupted run), kill Chromium's group and remove its profile on the
+  // way out.
+  const killGroup = () => {
+    try {
+      if (proc.pid) process.kill(-proc.pid, "SIGKILL");
+    } catch {
+      // none left
+    }
+  };
+  const onExit = () => {
+    killGroup();
+    try {
+      rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch {
+      // left in the temp directory
+    }
+  };
+  process.once("exit", onExit);
   const wsUrl = await new Promise<string>((resolve, reject) => {
     let err = "";
     proc.stderr?.on("data", (d: Buffer) => {
@@ -84,15 +104,25 @@ export async function rawChromium() {
       };
     },
     async close() {
+      // Killing only the main process left its helpers (renderer, GPU, utility) writing to the
+      // profile for a moment, and removing it then failed with ENOTEMPTY (statewalker/cellb.dev#195).
+      // Ask Chromium to quit, which stops its helpers; then kill whatever is left of its group.
+      const exited = new Promise<void>((r) =>
+        proc.exitCode !== null || proc.signalCode !== null ? r() : proc.once("exit", () => r()),
+      );
+      await Promise.race([send("Browser.close").catch(() => {}), sleep(5_000)]);
+      if (!(await Promise.race([exited.then(() => true), sleep(5_000).then(() => false)])))
+        proc.kill("SIGKILL");
+      await exited;
       ws.close();
-      proc.kill();
-      await new Promise((r) => proc.once("exit", r));
-      // Chromium's helper processes can still write to the profile just after the main one exits
-      // (ENOTEMPTY): rmSync retries for that.
-      rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      process.off("exit", onExit);
+      killGroup(); // the group: helpers still running
+      rmSync(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
     },
   };
 }
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** The Chromium playwright.config.ts picks: PW_CHROMIUM, Playwright's own, @sparticuz/chromium. */
 async function chromeBinary(): Promise<string> {

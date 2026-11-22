@@ -192,6 +192,13 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **Limits per object** (CPU time, memory, storage size).
 - **Opaque-origin iframes for untrusted code.** A loaded Worker is isolated from the project's realm,
   not from the origin.
-- **celld's log tier and capacity hand-off (`/peer/handoff`).** A CellB node acknowledges a write
-  only once it is in the bucket and never accepts cells it was not asked for.
+- **Capacity hand-off (`/peer/handoff`), and celld's node bundles.** A CellB node never accepts
+  cells it was not asked for. It leads, follows and recovers sessions of celld's log tier, but does
+  not write node bundles (they are optional in celld's protocol) and does not read them: a dead
+  celld leader whose session left bundles is recovered by a celld node, so in a fleet whose celld
+  nodes are all gone, such a session waits for a celld node to start. Browser nodes neither lead
+  nor follow (they have no peer server): their writes are acknowledged by the bucket.
+- **A browser node on a celld fleet bucket holds celld's readiness.** It has no peer server, so its
+  node record reports memory pressure (celld must not place cells on a node it cannot reach), and
+  celld's first-readiness gate keeps a celld node that starts meanwhile unready.
 - **Python Workers.**

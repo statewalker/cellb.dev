@@ -25,6 +25,7 @@ export {
 export {
   BrokenObjectError,
   CellOwnedElsewhereError,
+  DurableObjectRoutingError,
   ObjectClosedError,
 } from "./core/object-host.js";
 export {

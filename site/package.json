@@ -10,13 +10,15 @@
   "scripts": {
     "examples": "tsx scripts/build-examples.ts",
     "dev": "tsx scripts/build-examples.ts && astro dev",
-    "build": "tsx scripts/build-examples.ts && astro build && node scripts/build-sandbox.mjs && node scripts/compress.mjs",
+    "build": "tsx scripts/build-examples.ts && astro build && node scripts/build-sandbox.mjs && node scripts/build-containers-demos.mjs && node scripts/compress.mjs",
     "sandbox": "node scripts/build-sandbox.mjs",
     "preview": "astro preview",
     "typecheck": "tsx scripts/build-examples.ts && astro sync && tsc --noEmit",
     "check:examples": "node scripts/check-examples.mjs",
     "check:snippets": "node scripts/check-snippets.mjs",
-    "record:builders": "tsx scripts/record-builders.ts"
+    "record:builders": "tsx scripts/record-builders.ts",
+    "containers-demos": "node scripts/build-containers-demos.mjs",
+    "check:containers": "node scripts/check-containers.mjs"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.8",

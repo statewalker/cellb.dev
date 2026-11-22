@@ -3,14 +3,15 @@ name: site
 # The website (site/): built on every pull request that touches it, and published from main to
 # the httpeers static-site host, as statewalker/httpeers publishes its sites. A site there is a
 # first-level prefix of the `sites` bucket named after its domain (https://s3.httpeers.net, S3 on
-# RustFS); the host serves `<domain>/…` for `Host: <domain>`. For a *.httpeers.net name nothing
-# else is needed: the zone has a wildcard DNS record and Caddy a wildcard certificate. See
+# RustFS); the host serves `<domain>/…` for `Host: <domain>`. cellb.dev and its one-level
+# subdomains need nothing else: the zone has a wildcard DNS record and Caddy certificates for
+# cellb.dev and *.cellb.dev (site/README.md). See
 # statewalker/httpeers apps/sites/README.md and tools/publish/README.md.
 #
 # Settings (repository → Settings → Secrets and variables → Actions):
 #   secret   HTTPEERS_S3_ACCESS_KEY_ID, HTTPEERS_S3_SECRET_ACCESS_KEY   credentials that can write
 #            the site's prefix of the `sites` bucket (site/README.md: not RustFS's own pair)
-#   variable SITE_DOMAIN                       where to publish (default: cellb.httpeers.net)
+#   variable SITE_DOMAIN                       where to publish (default: cellb.dev)
 # Without the secrets the site is built and the publish step says it was skipped.
 on:
   push:
@@ -35,6 +36,7 @@ on:
       - "examples/platform-demos/notebooks/**"
       # CellB sandbox, built into the site at /sandbox/app/ (site/scripts/build-sandbox.mjs).
       - "apps/sandbox/**"
+      - "packages/containers/**"
       - "package.json"
       - ".nvmrc"
       - "pnpm-lock.yaml"
@@ -56,6 +58,7 @@ on:
       - "examples/platform-astro/**"
       - "examples/platform-demos/notebooks/**"
       - "apps/sandbox/**"
+      - "packages/containers/**"
       - "package.json"
       - ".nvmrc"
       - "pnpm-lock.yaml"
@@ -77,7 +80,7 @@ jobs:
     permissions:
       contents: read
     env:
-      SITE_DOMAIN: ${{ vars.SITE_DOMAIN || 'cellb.httpeers.net' }}
+      SITE_DOMAIN: ${{ vars.SITE_DOMAIN || 'cellb.dev' }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -105,6 +108,14 @@ jobs:
           pnpm --filter @statewalker/cellb-sandbox test
           SANDBOX_BASE=/sandbox/app/ pnpm --filter @statewalker/cellb-sandbox e2e
           SANDBOX_BASE=/sandbox/app/ HTTPS=1 pnpm --filter @statewalker/cellb-sandbox e2e
+
+      # The containers demo the site serves (Python in Wasmer containers, dist/demos/containers/),
+      # as published: behind a file server with no COOP/COEP headers. It needs the Wasmer registry:
+      # on main, an outage there does not hold back publishing the rest of the site.
+      - name: Containers demo (Wasmer)
+        timeout-minutes: 6
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+        run: pnpm --filter @statewalker/cellb-site check:containers
 
       - name: Publish to https://${{ env.SITE_DOMAIN }}
         if: github.event_name != 'pull_request'

@@ -37,7 +37,7 @@ worker is started that way (checked with a Vite build, see `scripts/pack-check.m
 | Import | What it gives |
 |---|---|
 | `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime` with `loadProjectBindings`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes (and `withUpgrade`, for an upgrade request a browser can make), and the errors embedders catch |
-| `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `applyNodeD1Migrations`, and celld's peer protocol (`startCelldPeerServer`, `celldPeers`) |
+| `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `startProjectShards` (a project over worker threads), `applyNodeD1Migrations`, celld's peer protocol (`startCelldPeerServer`, `celldPeers`), and `startFleetNode` (the `cellb serve` command: a node of a celld fleet) |
 | `@statewalker/cellb/browser` | `loadProject` (a `cellb build` folder by URL, or sources with a compiler), `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
 | `@statewalker/cellb/tabs` | the tab side and the ServiceWorker side of a project shared by the tabs (`joinProjectShards`, `installProjectRouter`, `shardOwner`) without the shard runtime: what a page and its ServiceWorker import |
 | `@statewalker/cellb/site` | `createProjectSite`: a project's sources compiled in the browser and served by an in-browser HTTP server (`browserProjectRuntime({ site })`); `siteCompiler` for `loadProject`, and `siteHostOverPort` / `hostSitesForWorker` to host a worker's site from its page. Needs the optional peer dependencies `@statewalker/webrun-modules`, `@statewalker/webrun-site-builder` and `@statewalker/webrun-site-host` (the ServiceWorker host) |
@@ -162,6 +162,30 @@ const res = await runtime.fetch(new Request("http://local/counter/a")); // {"n":
 await runtime.close();
 ```
 
+### A wrangler project over several worker threads
+
+```ts
+import { startProjectShards } from "@statewalker/cellb/node";
+import { NodeFilesApi } from "@statewalker/webrun-files-node";
+
+const app = await startProjectShards({
+  shards: 4, // worker threads; each owns the cells shardOf(id, 4) gives it
+  dir: "./counter", // wrangler.jsonc and its `main`, as loadNodeProject takes
+  data: "./data", // thread i keeps its files in ./data/s<i>; memory without it
+  files: new NodeFilesApi({ rootDir: "./backup" }), // optional: the cells' LTX log, their lasting copy
+});
+const res = await app.fetch(new Request("http://local/?name=a")); // round robin over the threads
+await app.close();
+```
+
+A Durable Object call from any thread runs in the owner's, over a port between every two threads.
+With `files`, the cells belong to that FilesApi (a folder, S3, memory): each run restores them
+from it into temporary files, so a later run with another number of threads opens each cell where
+the last run left it. Without `files`, the cells live in `data`, and that directory keeps the
+thread count it was made with: a run with another count is refused rather than opening some cells
+empty. Each thread's alarm index is its own: with `files` it is in memory, so an alarm set before a
+restart fires once its object is used again.
+
 ### A wrangler project on a bucket shared with celld
 
 ```ts
@@ -185,6 +209,15 @@ await runtime.close(); // releases the cells, so celld can take them at once
 
 `sqliteObjectStore` is the bucket `celld dev` keeps in that file. A fleet on S3 uses
 `s3ObjectStore({ endpoint, bucket, prefix, region, accessKeyId, secretAccessKey })` instead.
+
+To run a project as a node of a celld fleet, next to celld nodes, use `cellb serve`, which takes
+celld's node flags; requests for any cell, at any node, reach the cell's owner
+([A mixed fleet](docs/celld-compatibility.md#a-mixed-fleet-cellb-as-a-celld-peer-node)):
+
+```sh
+AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… npx cellb serve ./counter \
+  --bucket s3://cells/fleet-a --endpoint http://127.0.0.1:9200 --listen 127.0.0.1:8080
+```
 
 A project with a Workers AI binding (`"ai": { "binding": "AI" }`) needs an OpenAI-compatible
 endpoint behind it (llama.cpp, Ollama, a hosted API); without one, `ai` is in `unsupported`:
@@ -396,6 +429,7 @@ Run from `packages/cellb` after `pnpm install` at the repository root.
 | `pnpm interop` | `e2e/` and the celld conformance in Node: `scripts/interop-env.sh` downloads the pinned celld and RustFS into `~/.cache/cellb-interop`, starts a shared RustFS on `127.0.0.1:9200` (`RUSTFS_PORT`), and sets `CELLD_BIN`, `ESBUILD_DIR`, `RUSTFS_ENDPOINT` |
 | `pnpm interop:browser` | the same for Chromium |
 | `pnpm probes:browser` | the exploratory probes in Chromium (`e2e-browser/probes`), measurements printed, not part of `pnpm e2e`; among them the storage labs: `ltx-lab` (SQLite over a cell's LTX files; `LTX_STORE=worker`, `LTX_SYNC=1`) and `sqlite-lab` (SQLite in N workers, six storage modes). Add a spec name to run one |
+| `pnpm bench:cluster` | celld nodes and `cellb serve` nodes on one RustFS bucket (needs `scripts/interop-env.sh`): throughput and latency of celld-only, CellB-only and mixed clusters, failover after a `SIGKILL`, a graceful leave. See [bench/README.md](bench/README.md#hybrid-clusters) |
 | `pnpm bench`, `pnpm bench:browser` | the numbers celld.dev reports, measured for cellb: durability (one writer, acknowledged writes after a `SIGKILL`, durable write latency, failover), speed (stateless requests, waking a hibernated cell) and density (memory per resident cell), on Node and in Chromium. See [bench/README.md](bench/README.md); `bench/results/` holds the last recorded runs |
 | `pnpm mutate`, `pnpm mutate:browser` | mutation harnesses in a throw-away copy, after a baseline run; `MUTANTS=0,3` runs a subset |
 | `pnpm browser:dev` | the demo pages in `e2e-browser/pages`: `/` (one cell worker), `/sharded/`, `/backup/`, and `/host/`, the host app that runs a project folder |
