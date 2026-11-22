@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
-import type { ObjectStore } from "../bucket/object-store.js";
+import { type ObjectStore, PreconditionFailedError } from "../bucket/object-store.js";
 import { toAnotherNode } from "../core/handles.js";
 import { DurableObjectRoutingError } from "../core/object-host.js";
 import type { CellRuntime } from "../core/runtime.js";
@@ -48,10 +48,32 @@ const CONTROL = [
   "x-cells-capacity-handoff",
 ];
 
-/** The fleet's peer secret (celld creates it in the bucket). */
+const PEER_AUTH_KEY = "fleet/peer-auth.json";
+
+/**
+ * The fleet's peer secret, `fleet/peer-auth.json`. A bucket without one gets one, as celld's
+ * first node creates it: a create-only write, so nodes starting at once all end up with the
+ * record that landed first.
+ */
 export async function loadPeerKey(store: ObjectStore): Promise<Uint8Array> {
-  const o = await store.get("fleet/peer-auth.json");
-  if (!o) throw new Error("the fleet has no peer authentication secret; start a celld node first");
+  let o = await store.get(PEER_AUTH_KEY);
+  if (!o) {
+    const body = new TextEncoder().encode(
+      JSON.stringify({ version: 1, key: randomBytes(32).toString("hex") }),
+    );
+    try {
+      await store.put(
+        PEER_AUTH_KEY,
+        body,
+        { ifNoneMatch: "*" },
+        { contentType: "application/json" },
+      );
+    } catch (e) {
+      if (!(e instanceof PreconditionFailedError)) throw e; // another node created it first
+    }
+    o = await store.get(PEER_AUTH_KEY);
+    if (!o) throw new Error("the fleet's peer authentication secret could not be created");
+  }
   const { version, key } = JSON.parse(new TextDecoder().decode(o.body)) as {
     version: number;
     key: string;

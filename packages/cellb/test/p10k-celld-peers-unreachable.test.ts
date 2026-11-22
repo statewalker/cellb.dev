@@ -59,3 +59,29 @@ describe("P10k celldPeers: an owner that cannot be reached", () => {
     expect(() => peers.link()).toThrow(DurableObjectRoutingError);
   });
 });
+
+// celld creates the fleet's peer secret when the bucket has none (If-None-Match); cellb refused
+// to start a peer server instead ("start a celld node first"), so a fleet that a cellb node
+// joins first, or one of cellb nodes only, could not route between its nodes (#208).
+describe("P10k the fleet's peer secret", () => {
+  it("a peer server on a bucket without one creates it, as celld does; racing nodes agree on it", async () => {
+    const { createCellRuntime } = await import("../src/index.js");
+    const { startCelldPeerServer, nodeSqliteOpener } = await import("../src/node.js");
+    const store = memoryObjectStore();
+    const rt = createCellRuntime({ worker: { default: {} }, openSql: nodeSqliteOpener() });
+    const servers = await Promise.all(
+      ["a", "b", "c"].map((node) => startCelldPeerServer({ runtime: rt, store, node })),
+    );
+    try {
+      const o = await store.get("fleet/peer-auth.json");
+      expect(o).toBeTruthy();
+      const rec = JSON.parse(new TextDecoder().decode(o!.body));
+      expect(rec.version).toBe(1);
+      expect(rec.key).toMatch(/^[0-9a-f]{64}$/);
+      expect(o!.attrs?.contentType).toBe("application/json");
+    } finally {
+      await Promise.all(servers.map((s) => s.close()));
+      await rt.close();
+    }
+  });
+});
