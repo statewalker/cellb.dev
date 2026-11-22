@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Duplex } from "node:stream";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { nodeSqliteOpener } from "../adapters/node-sqlite.js";
@@ -10,6 +12,7 @@ import type { CellRuntime } from "../core/runtime.js";
 import { loadNodeProject } from "../project/node-project.js";
 import { withUpgrade } from "../ws/upgrade.js";
 import { bridgeUpgrade, celldPeers, startCelldPeerServer } from "./celld-peer.js";
+import { createLogFollower } from "./log-follower.js";
 
 /**
  * A cellb node in a celld fleet, as `celld --bucket …` runs one: the project's Worker on a
@@ -37,7 +40,11 @@ export interface FleetNodeOptions {
   advertise?: string;
   /** The node lease (default 10 s, celld's). */
   leaseTtlMs?: number;
-  /** A directory for the cells' local SQLite files (default: memory; the bucket is the copy). */
+  /**
+   * A directory for the cells' local SQLite files (default: memory; the bucket is the copy) and
+   * the log-tier segments this node holds for celld leaders (default: a directory of its own under
+   * the OS temp dir). Give one on a disk that survives a restart.
+   */
   data?: string;
   /** On close, how long requests in flight may take to finish (default 5 s). */
   drainMs?: number;
@@ -87,6 +94,11 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
   });
   const { runtime } = project;
   const [peerHost, peerPort] = hostPort(o.internalListen ?? "127.0.0.1:0", "--internal-listen");
+  // celld's log tier recruits this node as a follower: the segments it holds go to disk here.
+  const followerDir = o.data ?? join(tmpdir(), `cellb-follower-${node}`);
+  const follower = createLogFollower({ dir: followerDir, store, node });
+  const followerGc = setInterval(() => void follower.gc().catch(() => {}), 600_000);
+  followerGc.unref();
   const peer = await startCelldPeerServer({
     runtime,
     store,
@@ -94,6 +106,7 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
     host: peerHost,
     port: peerPort,
     probe: (c) => bucket.probe(c),
+    follower,
   });
   const addr = o.advertise ?? peer.addr;
   await bucket.advertise(addr);
@@ -203,6 +216,7 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
         // releases every owned cell (own.json → released) and deletes the node record
         await runtime.close();
         await peer.close();
+        clearInterval(followerGc);
       })()),
   };
 }

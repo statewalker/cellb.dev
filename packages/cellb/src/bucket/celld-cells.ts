@@ -62,14 +62,18 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   /** nodes/<node>.json, renewed every ttl/3; a failed renewal stops every cell (self-fencing). */
   // celld decodes every node record (ownership_store.rs NodeLeaseWire / NodeLoadWire): a record
   // missing a required load field breaks its fleet posture repair. This one is complete. It
-  // reports pressure and zero placement weight, so celld never offers this node a cell — it
-  // takes cells only when a request arrives.
+  // reports zero placement weight and no paced hand-off, so celld never hands or rebalances a cell
+  // to it. A node with a peer server reports headroom: celld's first-readiness gate keeps a
+  // starting celld node unready while any live peer is pressured, and never fails open; a full
+  // celld node may then route a new cell to it, which it serves. A node without one (a browser)
+  // reports pressure, so celld places nothing on a node it cannot reach.
   //
   // The address must not be empty: celld treats a live owner WITHOUT an address as dead and
   // takes its cells over (logic/lib.rs apply_node_lease_result) — a split brain. With an
   // address celld routes a request for our cell to it; a node that does not accept celld's
   // peer protocol (a browser) gets an unroutable placeholder, so the request fails instead.
   let addr = opts.addr || `${opts.node}.cellb.invalid:9`;
+  let advertised = !!opts.addr;
   // celld's per-process generation is its signed-probe public key (Ed25519, peer_probe.rs):
   // `probe_public_key` = `ownership_index_generation`. A real key lets `celld diagnose --peer`
   // verify that a probe reached this node.
@@ -124,8 +128,8 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
         cpu_percent_x100: 0,
         open_fds: 0,
         fd_limit: 0,
-        pressured: true,
-        memory_headroom: false,
+        pressured: !advertised,
+        memory_headroom: advertised,
         shed_cells: 0,
         restoring: 0,
         rebalance_paused: false,
@@ -347,6 +351,7 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     },
     async advertise(address: string) {
       addr = address;
+      advertised = true;
       if (leaseWritten) await writeLease();
     },
     /** Clean shutdown: stop renewing, remove this node's lease record, close the store. */

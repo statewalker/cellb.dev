@@ -68,3 +68,44 @@ describe("P11l taking a cell from a dead celld owner waits for its node log", ()
       }
     });
 });
+
+// celld's first-readiness gate (main.rs, logic/drain.rs fleet_status) keeps a starting celld node
+// unready while any live peer reports memory pressure, and never fails open. cellb's record said
+// `pressured: true, memory_headroom: false` (to be offered no cells), so a celld node started
+// while a cellb node was live never became ready: a rolling deploy of celld stalled. Hand-offs
+// and rebalancing already pass cellb by through `paced_handoff: false` (actor.rs
+// handoff_exclusions, logic/rebalance.rs); a full celld node may route a new cell to it, which
+// cellb serves (statewalker/cellb.dev#208).
+describe("P11l the node record does not hold celld's readiness", () => {
+  it("a node celld can reach reports headroom, no pressure, and no paced hand-off", async () => {
+    const store = memoryObjectStore();
+    const b = celldBucket(store, { node: "cellb-r" });
+    try {
+      await b.advertise("127.0.0.1:7000"); // its peer server
+      await b.ownership.tryAcquire(`Counter/${"3".repeat(64)}`); // writes the node record
+      const rec = JSON.parse(
+        new TextDecoder().decode((await store.get("nodes/cellb-r.json"))!.body),
+      );
+      expect(rec.load).toMatchObject({ pressured: false, memory_headroom: true });
+      expect(rec.paced_handoff).toBe(false);
+      expect(rec.load.placement_weight).toBe(0);
+    } finally {
+      await b.close();
+    }
+  });
+
+  it("a node celld cannot reach (a browser) still reports pressure: celld places no cell on it", async () => {
+    const store = memoryObjectStore();
+    const b = celldBucket(store, { node: "cellb-tab" });
+    try {
+      await b.ownership.tryAcquire(`Counter/${"4".repeat(64)}`);
+      const rec = JSON.parse(
+        new TextDecoder().decode((await store.get("nodes/cellb-tab.json"))!.body),
+      );
+      expect(rec.addr).toBe("cellb-tab.cellb.invalid:9");
+      expect(rec.load).toMatchObject({ pressured: true, memory_headroom: false });
+    } finally {
+      await b.close();
+    }
+  });
+});

@@ -9,6 +9,7 @@ import { deserialize, serialize } from "../v8/serialize.js";
 import { createWebSocketClass } from "../ws/client.js";
 import { CellsResponse, type CfWebSocket, takeClientPort, WebSocketPair } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
+import type { LogFollower } from "./log-follower.js";
 
 /**
  * celld's peer protocol (peer_auth.rs, main/peer_tunnel.rs, protocol 5) for a cellb node
@@ -179,9 +180,14 @@ export function verifyPeerRequest(
   return undefined;
 }
 
-const readBody = async (req: IncomingMessage) => {
+const readBody = async (req: IncomingMessage, limit = Number.POSITIVE_INFINITY) => {
   const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
+  let size = 0;
+  for await (const c of req) {
+    size += (c as Buffer).length;
+    if (size > limit) throw new Error("body too large");
+    chunks.push(c as Buffer);
+  }
   return new Uint8Array(Buffer.concat(chunks));
 };
 
@@ -341,6 +347,11 @@ export async function startCelldPeerServer(opts: {
   port?: number;
   /** Answers celld's signed probe (celldBucket(...).probe): `celld diagnose --peer` reaches us. */
   probe?: (challenge: string) => Promise<unknown>;
+  /**
+   * Serves celld's log tier as a follower (`/peer/log/append`, `/seal`, `/tail`). Without it the
+   * routes answer 404, and celld quarantines the node from its ensembles.
+   */
+  follower?: LogFollower;
 }): Promise<CelldPeerServer> {
   const key = await loadPeerKey(opts.store);
   const seen = new Map<string, number>();
@@ -472,6 +483,47 @@ export async function startCelldPeerServer(opts: {
   });
 
   const server: Server = createServer(async (req, res) => {
+    const logRoute = /^\/peer\/log\/(append|seal|tail)$/.exec(req.url ?? "")?.[1];
+    if (logRoute && opts.follower) {
+      if (req.method !== "POST") return reply(res, 405, {}, "method not allowed");
+      // celld: append bodies up to its request limit plus 1 MiB, the rest up to 64 KiB
+      const limit = logRoute === "append" ? 129 * 1024 * 1024 : 64 * 1024;
+      let body: Uint8Array;
+      try {
+        body = await readBody(req, limit);
+      } catch {
+        return reply(res, 413, { "content-type": "text/plain" }, "body too large");
+      }
+      const denied = verifyPeerRequest(key, opts.node, "POST", req.url!, req.headers, body, seen);
+      if (denied)
+        return reply(res, denied.status, { "content-type": "text/plain" }, denied.message);
+      try {
+        const f = opts.follower;
+        if (logRoute === "append")
+          return reply(
+            res,
+            200,
+            { "content-type": "application/json" },
+            JSON.stringify(await f.append(body)),
+          );
+        const json = JSON.parse(new TextDecoder().decode(body));
+        if (logRoute === "seal")
+          return reply(
+            res,
+            200,
+            { "content-type": "application/json" },
+            JSON.stringify(await f.seal(json)),
+          );
+        return reply(res, 200, { "content-type": "application/octet-stream" }, await f.tail(json));
+      } catch (e) {
+        return reply(
+          res,
+          400,
+          { "content-type": "text/plain" },
+          String((e as Error)?.message ?? e),
+        );
+      }
+    }
     if (req.url === "/peer/probe" && req.method === "GET" && opts.probe) {
       const denied = verifyPeerRequest(
         key,

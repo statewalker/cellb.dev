@@ -127,9 +127,32 @@ sides on Node:
 - `celldPeers({ store, node })`, passed as `peers`, routes a CellB Worker's calls for a celld-owned
   cell through the tunnel. That covers fetch, RPC (V8-serialized) and WebSockets.
 
-CellB is never a log follower and does not accept capacity hand-off (`/peer/handoff`): it
-acknowledges a write only once it is in the bucket, and its node record reports zero placement
-weight, so it owns only the cells requested through it.
+**CellB as a follower in celld's log tier.** In `CELLD_DURABILITY=fleet` (celld's default) a celld
+node ships each commit's LTX segment to up to two followers, chosen among every live node record,
+and acknowledges the write once they hold it on disk, before the bucket does. A CellB node with a
+peer server (`cellb serve`, or `startCelldPeerServer({ follower: createLogFollower(...) })`) is
+such a follower:
+
+- `POST /peer/log/append` (`CLA1` frames of `CLE1` entries): it adopts a leader's epoch only when
+  the leader's node record names it in an open log of that epoch, accepts entries strictly in
+  sequence, and answers `{ok, end, epoch}` only after they are fsynced;
+- `POST /peer/log/seal` fences the epoch for good and reports the held range; `POST
+  /peer/log/tail` returns it (`CLT2`) to the node that recovers a dead leader;
+- the leader's `truncate_to` drops what the bucket holds; a fragment the leader's record has
+  closed (recovered, or a later epoch) is dropped every 10 minutes.
+
+The segments are opaque to CellB (L0 LTX files it never reads). They live under `--data` (or a
+directory of the node's own under the OS temp dir): give a disk that keeps what was fsynced,
+because a celld leader acknowledges on it. A peer server without a follower answers the routes
+with 404, and celld quarantines the node from its ensembles for 5 minutes at a time, its
+acknowledgements falling back to the bucket meanwhile.
+
+CellB itself acknowledges a write only once it is in the bucket (it is never a log leader), and
+does not accept capacity hand-off (`/peer/handoff`). Its node record reports zero placement
+weight and no paced hand-off, so celld neither hands nor rebalances cells to it. A node with a
+peer server reports memory headroom: celld's first-readiness gate keeps a starting celld node
+unready while a live peer reports pressure. A full celld node may route a new cell to it, which it
+serves.
 
 `cellb serve` (or `startFleetNode()` from `@statewalker/cellb/node`) puts the pieces together as a
 fleet node, with celld's node flags and environment:

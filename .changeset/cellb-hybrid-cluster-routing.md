@@ -14,3 +14,5 @@ A leaving node (SIGTERM, `FleetNode.close()`) drains its requests in flight, rel
 
 Routing between nodes is cheaper: `celldPeers` reuses idle peer tunnels (h1 keep-alive inside, as celld does) and the peer server keeps tunnels open for the next call, from celld or cellb; a node remembers where it last reached a cell and calls that owner directly (a non-owner used to open and delete a local database for every routed call), forgetting the route when the owner answers stale-owner, has closed the cell, or cannot be reached.
 
+
+**cellb as a follower in celld's log tier.** celld recruits followers among every live node, a cellb node included; cellb answered 404, celld quarantined it and fell back to bucket acknowledgements. `cellb serve` now serves `/peer/log/append`, `/seal` and `/tail` (`createLogFollower`, `startCelldPeerServer({ follower })`): it holds the leaders' LTX segments on disk (`--data`), so celld acknowledges on it, and hands them to the node that recovers a dead leader. A node with a peer server reports memory headroom in its node record, which celld's first-readiness gate requires: a celld node started while a cellb node was live never became ready.
