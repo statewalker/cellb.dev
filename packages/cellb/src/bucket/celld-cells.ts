@@ -141,7 +141,8 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
   let suspended = false;
   const leaseKey = `nodes/${opts.node}.json`;
   const writeLease = (expiresAt?: number) => {
-    const w = (leaseChain = leaseChain.catch(() => {}).then(() => putLease(expiresAt)));
+    const w = leaseChain.catch(() => {}).then(() => putLease(expiresAt));
+    leaseChain = w;
     // Every write in flight, not only the latest.
     writing = Promise.all([writing, w.catch(() => {})]);
     return w;

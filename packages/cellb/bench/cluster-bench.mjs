@@ -154,7 +154,10 @@ async function cluster(counts) {
               if (n.p.exitCode !== null || n.p.signalCode !== null) return r();
               n.p.once("exit", r);
               n.p.kill("SIGTERM");
-              setTimeout(() => (n.p.kill("SIGKILL"), r()), 15_000).unref();
+              setTimeout(() => {
+                n.p.kill("SIGKILL");
+                r();
+              }, 15_000).unref();
             }),
         ),
       );

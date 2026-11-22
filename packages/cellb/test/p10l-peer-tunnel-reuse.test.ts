@@ -69,11 +69,12 @@ describe("P10l peer tunnels are reused", () => {
   it("sequential calls to an owner share a tunnel (fetch and RPC)", async () => {
     const store = memoryObjectStore();
     const worker = { Counter, default: {} };
+    bucket_owner = celldBucket(store, { node: "owner" });
     const owner = createCellRuntime({
       worker,
       durableObjects: { C: { className: "Counter" } },
       openSql: nodeSqliteOpener(),
-      storage: (bucket_owner = celldBucket(store, { node: "owner" })),
+      storage: bucket_owner,
     });
     const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner" });
     const relay = await countingRelay(peer.addr);
@@ -97,11 +98,12 @@ describe("P10l peer tunnels are reused", () => {
   // its way back included: the caller saw "socket hang up" (p11k's graceful leave, in CI).
   it("closing the peer server lets the calls in flight on its tunnels finish", async () => {
     const store = memoryObjectStore();
+    bucket_owner2 = celldBucket(store, { node: "owner2" });
     const owner = createCellRuntime({
       worker: { Counter, default: {} },
       durableObjects: { C: { className: "Counter" } },
       openSql: nodeSqliteOpener(),
-      storage: (bucket_owner2 = celldBucket(store, { node: "owner2" })),
+      storage: bucket_owner2,
     });
     const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner2" });
     await (await bucket_owner2.ownership.tryAcquire("C/warm-owner2"))?.release();
@@ -127,11 +129,12 @@ describe("P10l peer tunnels are reused", () => {
   it("a call its owner closed while it ran is not answered as stale-owner (it is not re-run)", async () => {
     const { CellOwnedElsewhereError } = await import("../src/index.js");
     const store = memoryObjectStore();
+    bucket_owner3 = celldBucket(store, { node: "owner3" });
     const owner = createCellRuntime({
       worker: { Counter, default: {} },
       durableObjects: { C: { className: "Counter" } },
       openSql: nodeSqliteOpener(),
-      storage: (bucket_owner3 = celldBucket(store, { node: "owner3" })),
+      storage: bucket_owner3,
       closeGraceMs: 50,
     });
     const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner3" });
@@ -155,11 +158,12 @@ describe("P10l peer tunnels are reused", () => {
 
   it("a call that reaches a closed node before it starts is answered as stale-owner", async () => {
     const store = memoryObjectStore();
+    bucket_owner4 = celldBucket(store, { node: "owner4" });
     const owner = createCellRuntime({
       worker: { Counter, default: {} },
       durableObjects: { C: { className: "Counter" } },
       openSql: nodeSqliteOpener(),
-      storage: (bucket_owner4 = celldBucket(store, { node: "owner4" })),
+      storage: bucket_owner4,
     });
     const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner4" });
     await (await bucket_owner4.ownership.tryAcquire("C/warm-owner4"))?.release();
@@ -197,7 +201,6 @@ describe("P10l peer tunnels are reused", () => {
     const x = mk("x-other");
     const py = await startCelldPeerServer({ runtime: y, store, node: "y-owner" });
     const px = await startCelldPeerServer({ runtime: x, store, node: "x-other" });
-    const enc2 = new TextEncoder();
     for (const [n, p] of [
       ["y-owner", py],
       ["x-other", px],

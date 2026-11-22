@@ -182,7 +182,6 @@ describe.skipIf(!CELLD || !BUCKET)(
     it("a celld node follows a cellb leader: the session is active with celld in it, and celld does not complain", async () => {
       const f = await fleet(`n${Date.now().toString(36)}a`);
       const nodes: Proc[] = [];
-      const closers: (() => Promise<void>)[] = [];
       try {
         nodes.push(await f.celld());
         const lead = await f.cellb("cellb-lead-a");
