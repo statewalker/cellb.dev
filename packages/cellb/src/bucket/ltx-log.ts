@@ -30,6 +30,8 @@ export interface LtxLogOptions {
   compact?: boolean;
   /** Checked before each write: false refuses it (this node's authority has lapsed). */
   authorized?: () => boolean;
+  /** True once the bucket is closing: an upload still retrying stops (recovery has the rows). */
+  stopped?: () => boolean;
 }
 
 /**
@@ -45,10 +47,11 @@ export interface SegmentShipper {
     cellEpoch: number;
     txid: number;
     bytes: Uint8Array;
-  }): { confirmed: Promise<void>; uploaded(): void } | undefined;
+  }): { confirmed: Promise<void>; uploaded(): void; abandoned?(): void } | undefined;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) =>
+  new Promise((r) => (setTimeout(r, ms) as { unref?: () => void }).unref?.());
 
 const range = (key: string) => {
   const m = /\/ltx\/e(\d+)\/\d+\/([0-9a-f]{16})-([0-9a-f]{16})\.ltx$/.exec(key);
@@ -88,6 +91,8 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
   // Each cell's uploads, one after the other, in TXID order whatever acknowledged the commits:
   // celld's recovery skips rows at or below the highest TXID it finds in the bucket.
   const uploads = new Map<string, Promise<void>>();
+  /** Cells whose acknowledged segment never reached the bucket: nothing after it lands (a gap). */
+  const poisoned = new Set<string>();
   /**
    * Makes a commit's segment durable: its upload, and (with a shipper) the followers' copy; the
    * commit is acknowledged by whichever comes first. A segment the followers confirmed is in the
@@ -109,18 +114,31 @@ export function ltxLog(store: ObjectStore, o: LtxLogOptions = {}) {
     const upload = prev
       .catch(() => {})
       .then(async () => {
+        if (poisoned.has(cellKey)) {
+          shipped?.abandoned?.();
+          throw new Error(`${cellKey}: an earlier acknowledged segment did not reach the bucket`);
+        }
         for (let attempt = 0; ; attempt++) {
           try {
             await store.put(key, bytes);
             shipped?.uploaded();
             return;
           } catch (e) {
+            if (!fleet || !(await fleet)) {
+              shipped?.abandoned?.(); // not acknowledged: the commit failed
+              throw e;
+            }
+            if (o.stopped?.()) {
+              // Closing with the bucket still down: the followers keep it for recovery; nothing
+              // of the cell after it may land.
+              poisoned.add(cellKey);
+              throw e;
+            }
             // Acknowledged by the followers (or about to be): it must reach the bucket, and it
             // never gives up — not even once this node's authority has lapsed: a write into a
             // superseded epoch prefix is harmless (celld: "only into a superseded prefix"),
             // while a segment left out would leave a TXID gap the next uploads build on and
             // recovery skips (it reads the highest TXID listed).
-            if (!fleet || !(await fleet)) throw e;
             await sleep(Math.min(100 * 2 ** attempt, 2_000));
           }
         }

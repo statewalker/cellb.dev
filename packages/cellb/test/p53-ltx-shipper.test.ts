@@ -225,3 +225,55 @@ describe("P53 releasing a cell whose acknowledged segment is not in the bucket",
     }
   }, 30_000);
 });
+
+// Merge gate #213, pass 2 (high): an acknowledged upload retried for ever, even once its bucket was
+// closed: a node shutting down while the bucket was down never exited. It stops when the bucket
+// closes, and nothing of the cell queued after it lands (no gap): the session stays unsealed and
+// recovery brings the rows back from the followers.
+describe("P53 shutting down while an acknowledged upload cannot land", () => {
+  it("stops retrying once the bucket closes, and lands nothing after it", async () => {
+    const { ltxLog } = await import("../src/bucket/ltx-log.js");
+    const mem = memoryObjectStore();
+    let down = true;
+    const store: ObjectStore = {
+      get: (k) => mem.get(k),
+      list: (p) => mem.list(p),
+      delete: (k) => mem.delete(k),
+      put: async (k, b, c, a) => {
+        if (down && k.includes("/ltx/") && k.endsWith("0000000000000001-0000000000000001.ltx"))
+          throw new Error("bucket unavailable");
+        return mem.put(k, b, c, a);
+      },
+    };
+    let stopped = false;
+    const log = ltxLog(store, { stopped: () => stopped });
+    log.setShipper(fleet().shipper);
+    log.begin(cellKey, 1);
+    await log.committed(cellKey, { seq: 1, image: image(1), epoch: 1 }); // followers hold it
+    await log.committed(cellKey, { seq: 2, image: image(2), epoch: 1 }); // queued behind it
+    stopped = true; // the bucket closes
+    expect(await log.flush(cellKey, 5_000)).toBe(true); // the retries end
+    down = false;
+    await new Promise((r) => setTimeout(r, 2_500));
+    expect(await mem.list(`cells/${scope}/ltx/`)).toEqual([]); // not 2 without 1
+  }, 20_000);
+});
+
+// Merge gate #213, pass 2 (high): taking a cell waited without bound for its segments still on
+// their way, before checking the lease: with the bucket down, the request hung.
+describe("P53 taking a cell whose segments cannot land", () => {
+  it("fails within a lease instead of waiting for the bucket", async () => {
+    const t = await setup();
+    try {
+      t.failNext(1_000_000);
+      await t.b.durability.committed(cellKey, { seq: 1, image: image(1), epoch: t.epoch });
+      await t.lease.release(); // keeps the record (the segment is not in the bucket)
+      const t0 = Date.now();
+      await expect(t.b.ownership.tryAcquire(cellKey)).rejects.toThrow(/on their way/);
+      expect(Date.now() - t0).toBeLessThan(5_000 + 1_500); // at most a lease (setup: 5 s)
+    } finally {
+      t.failNext(0);
+      await t.b.close();
+    }
+  }, 30_000);
+});

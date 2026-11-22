@@ -363,4 +363,41 @@ describe("P54 cellb leads a log tier session", () => {
       await f1.close();
     }
   });
+
+  // Merge gate #213, pass 2 (pre-existing high): a commit neither its followers (one went away)
+  // nor the bucket (a blip) took stayed "pending" for good: no new epoch ever opened, and close()
+  // never sealed. A commit that failed is settled for the barrier.
+  it("a commit that failed both ways does not hold the barrier for good", async () => {
+    const store = memoryObjectStore();
+    const f1 = await followerNode(store, "z1");
+    const f2 = await followerNode(store, "z2");
+    let failPut = false;
+    const failing: ObjectStore = {
+      get: (k) => store.get(k),
+      list: (p) => store.list(p),
+      delete: (k) => store.delete(k),
+      put: async (k, b, c, a) => {
+        if (failPut && k.includes("/ltx/")) throw new Error("bucket blip");
+        return store.put(k, b, c, a);
+      },
+    };
+    const l = await leaderNode(failing);
+    try {
+      await l.leader.maintain();
+      await l.commit();
+      await l.leader.settled();
+      await f2.close(); // a follower goes away
+      failPut = true;
+      await expect(l.commit()).rejects.toThrow(/bucket blip/); // failed both ways
+      await l.leader.settled();
+      failPut = false;
+      await store.delete("nodes/z2.json");
+      await l.leader.maintain();
+      expect((await record(store, "lead")).log).toMatchObject({ epoch: 2, ensemble: ["z1"] });
+    } finally {
+      await l.leader.close();
+      await l.bucket.close();
+      await f1.close();
+    }
+  });
 });

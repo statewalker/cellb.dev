@@ -211,6 +211,12 @@ export function createLogLeader(o: LogLeaderOptions): LogLeader {
           row.uploaded = true;
           advanceTruncate();
         },
+        // Neither acknowledged nor uploaded: the commit failed. Settled for the barrier (no one
+        // relies on it), and the followers may drop it.
+        abandoned: () => {
+          row.uploaded = true;
+          advanceTruncate();
+        },
       };
     },
   };

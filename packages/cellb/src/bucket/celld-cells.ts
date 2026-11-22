@@ -296,14 +296,25 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
 
   // One LTX writer (ltx-log.ts) holds each cell's epoch, TXID and page mirror.
   // A write is acknowledged only while our node lease is still ours (self-fencing).
-  const log = ltxLog(store, { now, authorized: () => !closed && now() < validUntil });
+  const log = ltxLog(store, {
+    now,
+    authorized: () => !closed && now() < validUntil,
+    stopped: () => closed,
+  });
 
   const ownership = {
     async tryAcquire(cellKey: string) {
       await ensureLease();
+      if (now() >= validUntil)
+        throw new Error(
+          `node ${opts.node}: lease lapsed; ${cellKey} is not claimed until it is renewed`,
+        );
       // Our own segments of the cell still on their way (a release that could not wait for
-      // them): in the bucket first, or the restore below would miss them.
-      await log.flush(cellKey);
+      // them): in the bucket first, or the restore below would miss them — for at most a lease.
+      if (!(await log.flush(cellKey, ttl)))
+        throw new Error(
+          `${cellKey}: this node's segments of the cell are still on their way to the bucket`,
+        );
       // No claim while this node's authority has lapsed: no deadline is left to fence a cell
       // taken now, and a late renewal could make its writes acknowledged again after its node
       // record had expired and another node took the cell (a split brain).
