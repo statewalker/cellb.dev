@@ -132,6 +132,14 @@ Dedicated Worker when the runtime has an `isolateScript`. The browser `loadProje
 default; `browserProjectRuntime` and the shard functions do not, and without it loaded Workers run
 in the project's realm ([Security & isolation](security.md#which-entry-points-isolate-loaded-workers)).
 
+An isolate lasts as long as its handle. `dispose()` of what `env.LOADER.load(code)` or
+`env.LOADER.get(id, …)` returned ends it at once, as workerd does: the thread or Dedicated Worker is
+terminated, so a Worker that never yields stops too, and its calls in flight reject with
+`loaded Worker "<id>" was disposed`. A disposed `load()` handle refuses later calls; after
+`get(id)` is disposed, the next `get(id)` loads the code again. A host that runs code per call
+(`load()` per run) disposes each handle when the run ends, or after its own timeout. Isolates still
+running end with the runtime's `close()`.
+
 - Plain values in its `env` are copied; anything that cannot be cloned (a stub, a binding) becomes a
   stub whose calls go back to the parent runtime.
 - Calls cross the port with `@statewalker/webrun-rpc` (`callPort`/`listenPort` on a multiplexed

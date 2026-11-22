@@ -169,6 +169,8 @@ export type ModuleLoader = (
   id: string,
   code: WorkerCode,
   logs?: LogSink,
+  /** Aborted when the handle is disposed: a loader that runs code in an isolate ends it. */
+  signal?: AbortSignal,
 ) => Promise<Record<string, unknown>>;
 
 /**
@@ -187,6 +189,17 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
     logs: TailLog[];
   };
   const cache = new Map<string, Promise<Loaded>>();
+  // Each load's controller: dispose() aborts it, which ends its isolate, loaded or still loading.
+  const ending = new WeakMap<Promise<Loaded>, AbortController>();
+  // Each id's generation moves on when its cached load leaves the cache, so a handle that took
+  // an earlier one cannot end the isolate the id has loaded since.
+  const generations = new Map<string, number>();
+  const generation = (id: string) => generations.get(id) ?? 0;
+  const forget = (id: string, p: Promise<Loaded>) => {
+    if (cache.get(id) !== p) return;
+    cache.delete(id);
+    generations.set(id, generation(id) + 1);
+  };
   let anonymous = 0;
   const loader = {
     /** Compiles and runs code without the id cache (a fresh Worker per call). */
@@ -199,9 +212,14 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
     },
     get(id: string, getCode: () => WorkerCode | Promise<WorkerCode>, cached = true) {
       let own: Promise<Loaded> | undefined; // load(): memoized per handle, not in the id cache
+      let disposed: Error | undefined; // load(): its handle was disposed, so it is not loaded again
+      let gen = generation(id); // get(): the id's generation this handle last used
       const loaded = () => {
+        if (disposed) return Promise.reject(disposed);
+        gen = generation(id);
         let p = cached ? cache.get(id) : own;
         if (!p) {
+          const ctl = new AbortController();
           p = (async () => {
             const code = await getCode();
             // celld takes module source and wasm bytes only, not `data` modules.
@@ -211,20 +229,21 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             const logs: TailLog[] = [];
             const sink: LogSink = (level, message) =>
               logs.push({ level, message, timestamp: Date.now() });
-            const module = await load(id, code, sink);
+            const module = await load(id, code, sink, ctl.signal);
             // Its isolate ended (`abortIsolate()`): the next get() of this id loads it again.
             (
               (module as Record<symbol, unknown>)[ON_ABORT] as
                 | ((forget: () => void) => void)
                 | undefined
             )?.(() => {
-              if (cache.get(id) === p) cache.delete(id);
+              forget(id, p!);
               if (own === p) own = undefined;
             });
             const env = code.env ?? {};
             return { module, env, exports: ctxExports(module, env), code, logs };
           })();
-          p.catch(() => cache.delete(id));
+          ending.set(p, ctl);
+          p.catch(() => forget(id, p!));
           if (cached) cache.set(id, p);
           else own = p;
         }
@@ -295,9 +314,25 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
             return { cls: cls as DurableObjectClass, env };
           });
         },
-        /** Releases the loaded Worker: the id leaves the cache; a later get() loads again. */
+        /**
+         * Releases the loaded Worker. Its isolate ends now, as in workerd: its calls in flight
+         * reject, and a Worker that never yields stops. For `get(id)`, the id leaves the cache and
+         * a later get() loads the code again; a `load()`ed Worker's handle refuses later calls.
+         */
         dispose() {
-          cache.delete(id);
+          let p: Promise<Loaded> | undefined;
+          if (cached) {
+            // A handle of an earlier generation has nothing left to end: its isolate is gone.
+            if (gen !== generation(id)) return;
+            p = cache.get(id);
+            if (p) forget(id, p);
+          } else {
+            p = own;
+            own = undefined;
+            disposed = new Error(`loaded Worker "${id}" was disposed`);
+          }
+          // Loaded or still loading, its isolate ends now (an in-realm module has none).
+          if (p) ending.get(p)?.abort(new Error(`loaded Worker "${id}" was disposed`));
         },
         getEntrypoint(name = "default", options: { props?: unknown } = {}) {
           // Props cross now (workerd serializes them here): a refusal is a rejected promise,

@@ -25,13 +25,16 @@ export function isolatedModuleLoader(opts: {
 }): IsolatedModuleLoader {
   // Every isolate this loader started: `close()` ends them (a project runtime's close does).
   const isolates = new Set<{ terminate(): void; goAway?(): Promise<unknown> }>();
-  const load = async (id: string, code: WorkerCode, logs?: LogSink) => {
+  const load = async (id: string, code: WorkerCode, logs?: LogSink, signal?: AbortSignal) => {
     // The env crosses as any call does: bindings and other stubs by reference.
     const env: Record<string, unknown> = { ...code.env };
     // The loaded code's global fetch(): blocked in the isolate, or sent back here to the Fetcher.
     const fetcher = outboundFetch(code);
     const outbound = code.globalOutbound === null ? "blocked" : fetcher ? "fetcher" : undefined;
+    // Disposed before its isolate starts: none starts (the listener below sees later aborts).
+    signal?.throwIfAborted();
     const where = await opts.prepare(id, code);
+    signal?.throwIfAborted();
     const isolate = opts.spawn(id);
     const running: { terminate(): void; goAway?(): Promise<unknown> } = {
       terminate: () => isolate.terminate(),
@@ -50,6 +53,18 @@ export function isolatedModuleLoader(opts: {
       );
       for (const f of onAbort.splice(0)) f();
     };
+    // Its handle was disposed (`signal` aborted), loaded or still loading: the thread (or
+    // Dedicated Worker) ends at once, so code that never yields stops too, at the top level as
+    // in a method; then the calls in flight, the load among them, reject.
+    let closePort: ((reason: unknown) => Promise<void>) | undefined;
+    const end = () => {
+      if (!isolates.delete(running)) return;
+      aborted = true;
+      isolate.terminate();
+      void closePort?.(signal!.reason);
+      for (const f of onAbort.splice(0)) f();
+    };
+    signal?.addEventListener("abort", end, { once: true });
     const { call, fetch, close } = await hostPort(
       isolate.port,
       async (m) => {
@@ -77,6 +92,11 @@ export function isolatedModuleLoader(opts: {
       },
       fetcher,
     );
+    closePort = close;
+    if (signal?.aborted) {
+      void close(signal.reason);
+      throw signal.reason;
+    }
     // Before it ends, the isolate tells its sockets' clients it is going away (1001): their
     // frames go straight to the isolate (protocol.ts), so only it can.
     running.goAway = () => call({ type: "goAway" });
