@@ -99,30 +99,31 @@ it):
 
 | Nodes | Requests/s | p50 | p99 | CPU s / 1,000 requests |
 |---|---|---|---|---|
-| celld × 1 | 683 | 45 ms | 88 ms | 1.23 |
-| celld × 2 | 1,660 | 18 ms | 69 ms | 1.28 |
-| celld × 4 | 1,336 | 21 ms | 77 ms | 1.72 |
-| cellb × 1 | 660 | 43 ms | 155 ms | 1.29 |
-| cellb × 2 | 564 | 52 ms | 166 ms | 2.15 |
-| cellb × 4 | 455 | 61 ms | 211 ms | 3.29 |
-| celld × 1 + cellb × 1 | 583 | 50 ms | 163 ms | 0.86 + 1.08 |
-| celld × 2 + cellb × 2 | 621 | 43 ms | 209 ms | 1.04 + 1.47 |
+| celld × 1 | 693 | 45 ms | 86 ms | 1.26 |
+| celld × 2 | 1,558 | 19 ms | 71 ms | 1.37 |
+| celld × 4 | 1,244 | 23 ms | 86 ms | 1.85 |
+| cellb × 1 | 641 | 45 ms | 138 ms | 1.40 |
+| cellb × 2 | 587 | 49 ms | 166 ms | 2.15 |
+| cellb × 4 | 457 | 59 ms | 211 ms | 3.31 |
+| celld × 1 + cellb × 1 | 623 | 49 ms | 142 ms | 0.74 + 1.25 |
+| celld × 2 + cellb × 2 | 679 | 38 ms | 193 ms | 1.10 + 1.36 |
 
 | 2 celld + 2 cellb, one node stops | Cells answering again | Longest gap | Failed requests | Lost or repeated values |
 |---|---|---|---|---|
-| a cellb node, `SIGKILL` | 40 / 40 | 10.0 s | 1,168 | 0 |
-| a celld node, `SIGKILL` | 40 / 40 | 10.4 s | 2,236 | 0 |
+| a cellb node, `SIGKILL` | 40 / 40 | 10.1 s | 1,723 | 0 |
+| a celld node, `SIGKILL` | 40 / 40 | 10.0 s | 1,441 | 0 |
 | a cellb node, `SIGTERM` | 40 / 40 | 0.3 s | 0 | 0 |
-| a celld node, `SIGTERM` | 40 / 40 | 0.7 s | 5 | 0 |
+| a celld node, `SIGTERM` | 40 / 40 | 0.7 s | 1 | 0 |
 
 - **One node: the same.** A single node of either runtime answers about 670 requests/s, each
   write acknowledged after its LTX file is in the bucket.
 - **From two nodes, celld acknowledges on a follower.** In its default `CELLD_DURABILITY=fleet`, a
   celld node with another celld node acknowledges a write once that follower has it on disk, and
   uploads to the bucket later; that, not routing, is the jump from one celld node to two. A CellB
-  node is never a follower and always waits for the bucket, so CellB clusters and mixed ones run
-  at the bucket's pace. Joining celld's log tier is the next step for CellB's throughput
-  (statewalker/cellb.dev#208).
+  node follows celld leaders (celld acknowledges on it too: in a mixed fleet the celld nodes ack at
+  that pace), but acknowledges its own writes only once they are in the bucket, so the cells CellB
+  owns run at the bucket's pace. Leading in celld's log tier is the next step for CellB's
+  throughput (statewalker/cellb.dev#209).
 - **Routing costs CellB about 2 ms of CPU per call** (1.7 ms with two nodes, from the CPU column;
   2.7 ms with four, where the CPUs are contended), against about 0.1 ms for celld. Tunnels are
   reused and a node calls the owner it knows directly, but each routed call still crosses two
