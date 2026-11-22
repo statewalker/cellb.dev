@@ -145,4 +145,39 @@ b.dispose();
 return Response.json({ r });`);
     expect(await json(runtime)).toEqual({ r: "running" });
   }, 60_000);
+
+  it("dispose() right after the first call, before the isolate starts, leaves no thread", async () => {
+    const runtime = await project(`
+const out = [];
+for (let i = 0; i < 4; i++) {
+  const w = env.LOADER.load(code());
+  const c = w.getEntrypoint().ping().then(() => "returned", (e) => "rejected: " + e.message);
+  w.dispose();
+  out.push(await c);
+}
+return Response.json(out);`);
+    await json(runtime); // warm up
+    const before = threads();
+    const out = (await json(runtime)) as string[];
+    for (const r of out) expect(r).toMatch(/^rejected: .*disposed/);
+    expect(await threadsDownTo(before)).toBeLessThanOrEqual(before);
+  }, 60_000);
+
+  it("a handle taken before the id's isolate was replaced does not end the new one", async () => {
+    const runtime = await project(`
+const get = () => env.LOADER.get("stale", code);
+const a = get();
+const b = get();
+await a.getEntrypoint().ping();
+a.dispose();
+const c = get();
+await c.getEntrypoint().ping();
+const inflight = c.getEntrypoint().spin().then(() => "returned", (err) => "rejected: " + err.message);
+await new Promise((r) => setTimeout(r, 100));
+b.dispose();
+const r = await Promise.race([inflight, new Promise((r) => setTimeout(() => r("running"), 500))]);
+c.dispose();
+return Response.json({ r });`);
+    expect(await json(runtime)).toEqual({ r: "running" });
+  }, 60_000);
 });

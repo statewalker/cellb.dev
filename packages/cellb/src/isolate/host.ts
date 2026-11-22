@@ -31,7 +31,10 @@ export function isolatedModuleLoader(opts: {
     // The loaded code's global fetch(): blocked in the isolate, or sent back here to the Fetcher.
     const fetcher = outboundFetch(code);
     const outbound = code.globalOutbound === null ? "blocked" : fetcher ? "fetcher" : undefined;
+    // Disposed before its isolate starts: none starts (the listener below sees later aborts).
+    signal?.throwIfAborted();
     const where = await opts.prepare(id, code);
+    signal?.throwIfAborted();
     const isolate = opts.spawn(id);
     const running: { terminate(): void; goAway?(): Promise<unknown> } = {
       terminate: () => isolate.terminate(),

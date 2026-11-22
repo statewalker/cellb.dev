@@ -191,6 +191,15 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
   const cache = new Map<string, Promise<Loaded>>();
   // Each load's controller: dispose() aborts it, which ends its isolate, loaded or still loading.
   const ending = new WeakMap<Promise<Loaded>, AbortController>();
+  // Each id's generation moves on when its cached load leaves the cache, so a handle that took
+  // an earlier one cannot end the isolate the id has loaded since.
+  const generations = new Map<string, number>();
+  const generation = (id: string) => generations.get(id) ?? 0;
+  const forget = (id: string, p: Promise<Loaded>) => {
+    if (cache.get(id) !== p) return;
+    cache.delete(id);
+    generations.set(id, generation(id) + 1);
+  };
   let anonymous = 0;
   const loader = {
     /** Compiles and runs code without the id cache (a fresh Worker per call). */
@@ -204,9 +213,10 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
     get(id: string, getCode: () => WorkerCode | Promise<WorkerCode>, cached = true) {
       let own: Promise<Loaded> | undefined; // load(): memoized per handle, not in the id cache
       let disposed: Error | undefined; // load(): its handle was disposed, so it is not loaded again
-      let ended = false; // dispose() acts once: a stale handle must not end a newer isolate
+      let gen = generation(id); // get(): the id's generation this handle last used
       const loaded = () => {
         if (disposed) return Promise.reject(disposed);
+        gen = generation(id);
         let p = cached ? cache.get(id) : own;
         if (!p) {
           const ctl = new AbortController();
@@ -226,16 +236,14 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
                 | ((forget: () => void) => void)
                 | undefined
             )?.(() => {
-              if (cache.get(id) === p) cache.delete(id);
+              forget(id, p!);
               if (own === p) own = undefined;
             });
             const env = code.env ?? {};
             return { module, env, exports: ctxExports(module, env), code, logs };
           })();
           ending.set(p, ctl);
-          p.catch(() => {
-            if (cache.get(id) === p) cache.delete(id);
-          });
+          p.catch(() => forget(id, p!));
           if (cached) cache.set(id, p);
           else own = p;
         }
@@ -312,12 +320,14 @@ export function workerLoader(load: ModuleLoader, opts: { classes?: ModuleLoader 
          * a later get() loads the code again; a `load()`ed Worker's handle refuses later calls.
          */
         dispose() {
-          if (ended) return;
-          ended = true;
-          const p = cached ? cache.get(id) : own;
+          let p: Promise<Loaded> | undefined;
           if (cached) {
-            if (p) cache.delete(id);
+            // A handle of an earlier generation has nothing left to end: its isolate is gone.
+            if (gen !== generation(id)) return;
+            p = cache.get(id);
+            if (p) forget(id, p);
           } else {
+            p = own;
             own = undefined;
             disposed = new Error(`loaded Worker "${id}" was disposed`);
           }
