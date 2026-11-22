@@ -1,6 +1,20 @@
 export { nodeSqliteOpener } from "./adapters/node-sqlite.js";
 export { sqliteObjectStore } from "./bucket/sqlite-object-store.js";
 export { type CelldPeerServer, celldPeers, startCelldPeerServer } from "./peer/celld-peer.js";
+export {
+  type FleetNode,
+  type FleetNodeOptions,
+  parseServeArgs,
+  type ServeArgs,
+  startFleetNode,
+} from "./peer/fleet-node.js";
+export { createLogFollower, type LogFollower } from "./peer/log-follower.js";
+export { createLogLeader, type LogLeader, type LogLeaderOptions } from "./peer/log-leader.js";
+export {
+  createLogRecoverer,
+  type LogRecoverer,
+  type LogRecovererOptions,
+} from "./peer/log-recoverer.js";
 export { bundleWorkerForBrowser } from "./project/browser-bundle.js";
 export { type BuildProjectOptions, buildProject } from "./project/build.js";
 export type {

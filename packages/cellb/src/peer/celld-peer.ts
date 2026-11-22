@@ -1,13 +1,15 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
-import type { ObjectStore } from "../bucket/object-store.js";
+import { type ObjectStore, PreconditionFailedError } from "../bucket/object-store.js";
 import { toAnotherNode } from "../core/handles.js";
+import { DurableObjectRoutingError } from "../core/object-host.js";
 import type { CellRuntime } from "../core/runtime.js";
 import { deserialize, serialize } from "../v8/serialize.js";
 import { createWebSocketClass } from "../ws/client.js";
 import { CellsResponse, type CfWebSocket, takeClientPort, WebSocketPair } from "../ws/server.js";
 import { withUpgrade } from "../ws/upgrade.js";
+import type { LogFollower } from "./log-follower.js";
 
 /**
  * celld's peer protocol (peer_auth.rs, main/peer_tunnel.rs, protocol 5) for a cellb node
@@ -47,10 +49,32 @@ const CONTROL = [
   "x-cells-capacity-handoff",
 ];
 
-/** The fleet's peer secret (celld creates it in the bucket). */
+const PEER_AUTH_KEY = "fleet/peer-auth.json";
+
+/**
+ * The fleet's peer secret, `fleet/peer-auth.json`. A bucket without one gets one, as celld's
+ * first node creates it: a create-only write, so nodes starting at once all end up with the
+ * record that landed first.
+ */
 export async function loadPeerKey(store: ObjectStore): Promise<Uint8Array> {
-  const o = await store.get("fleet/peer-auth.json");
-  if (!o) throw new Error("the fleet has no peer authentication secret; start a celld node first");
+  let o = await store.get(PEER_AUTH_KEY);
+  if (!o) {
+    const body = new TextEncoder().encode(
+      JSON.stringify({ version: 1, key: randomBytes(32).toString("hex") }),
+    );
+    try {
+      await store.put(
+        PEER_AUTH_KEY,
+        body,
+        { ifNoneMatch: "*" },
+        { contentType: "application/json" },
+      );
+    } catch (e) {
+      if (!(e instanceof PreconditionFailedError)) throw e; // another node created it first
+    }
+    o = await store.get(PEER_AUTH_KEY);
+    if (!o) throw new Error("the fleet's peer authentication secret could not be created");
+  }
   const { version, key } = JSON.parse(new TextDecoder().decode(o.body)) as {
     version: number;
     key: string;
@@ -156,13 +180,18 @@ export function verifyPeerRequest(
   return undefined;
 }
 
-const readBody = async (req: IncomingMessage) => {
+const readBody = async (req: IncomingMessage, limit = Number.POSITIVE_INFINITY) => {
   const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
+  let size = 0;
+  for await (const c of req) {
+    size += (c as Buffer).length;
+    if (size > limit) throw new Error("body too large");
+    chunks.push(c as Buffer);
+  }
   return new Uint8Array(Buffer.concat(chunks));
 };
 
-/** The cell a scope names, as a stub of this runtime (undefined: not a class we host). */
+/** The cell a scope names, as a local stub of this runtime (undefined: not a class we host). */
 function stubFor(runtime: CellRuntime, scope: string, name: string | undefined): any {
   const m = /^([^:]+):([0-9a-f]{64})$/.exec(scope);
   if (!m) return undefined;
@@ -170,13 +199,20 @@ function stubFor(runtime: CellRuntime, scope: string, name: string | undefined):
     ([, cls]) => cls === m[1],
   )?.[0];
   if (!binding) return undefined;
-  const ns = runtime.env[binding] as any;
+  // This node's cell only: a call forwarded here for a cell another node owns is answered
+  // stale-owner (the caller re-resolves), never forwarded again, as celld does.
+  const ns = (runtime.localNamespace?.(binding) ?? runtime.env[binding]) as any;
   return name !== undefined ? ns.getByName(name) : ns.get(ns.idFromString(m[2]));
 }
 
+/** The call did not run here because this node does not (or no longer) own the cell: a node
+ * that is leaving the fleet closed it before the call started, so the caller re-resolves the
+ * owner. A call the closing node had started is not one: it may have written. */
 const notOwner = (e: unknown) =>
   /owned by another|OwnedElsewhere|lease/i.test(String((e as Error)?.message ?? e)) ||
-  (e as Error)?.name === "CellOwnedElsewhereError";
+  (e as Error)?.name === "CellOwnedElsewhereError" ||
+  ((e as Error)?.name === "ObjectClosedError" &&
+    (e as { notStarted?: boolean }).notStarted === true);
 
 function reply(
   res: ServerResponse,
@@ -248,6 +284,74 @@ export function cellSocket(
 }
 
 /**
+ * Answers a WebSocket upgrade on a Node server with a cell's 101: `open()` asks the runtime (a
+ * Request with Upgrade), the cell's WebSocketPair end is bridged to the raw connection, framed
+ * by `ws`. `failed` answers an error thrown by `open()`, `fail` any other refusal.
+ */
+/** What bridgeUpgrade needs of a `ws` WebSocketServer (structural: the published declarations
+ * must not need `@types/ws`). */
+export interface UpgradeServer {
+  handleUpgrade(
+    req: IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+    // biome-ignore lint/suspicious/noExplicitAny: a ws WebSocket, kept untyped on purpose
+    done: (client: any) => void,
+  ): void;
+}
+
+export async function bridgeUpgrade(
+  wss: UpgradeServer,
+  req: IncomingMessage,
+  socket: Duplex,
+  head: Buffer,
+  open: () => Promise<Response>,
+  failed: (e: unknown) => void,
+  fail: (status: number, body: string) => void,
+): Promise<void> {
+  const protocols = req.headers["sec-websocket-protocol"] as string | undefined;
+  let res: Response & { webSocket?: CfWebSocket | null };
+  try {
+    res = await open();
+  } catch (e) {
+    return failed(e);
+  }
+  if (res.status !== 101 || !res.webSocket) return fail(res.status, await res.text());
+  let cell: WebSocket;
+  try {
+    cell = cellSocket(res as Response & { webSocket: CfWebSocket }, protocols);
+  } catch (e) {
+    return fail(400, String((e as Error)?.message ?? e));
+  }
+  const pending: (string | ArrayBuffer)[] = [];
+  let isOpen = false;
+  wss.handleUpgrade(req, socket, head, (client) => {
+    cell.onopen = () => {
+      isOpen = true;
+      for (const m of pending.splice(0)) cell.send(m);
+    };
+    client.on("message", (data: Buffer, isBinary: boolean) => {
+      const m = isBinary ? (new Uint8Array(data).buffer as ArrayBuffer) : data.toString();
+      if (isOpen) cell.send(m);
+      else pending.push(m);
+    });
+    cell.onmessage = (ev: MessageEvent) =>
+      client.send(ev.data instanceof ArrayBuffer ? Buffer.from(ev.data) : ev.data);
+    client.on("close", (code: number, reason: Buffer) =>
+      cell.close(
+        code >= 1000 && code < 5000 && code !== 1005 && code !== 1006 ? code : 1000,
+        reason.toString(),
+      ),
+    );
+    cell.onclose = (ev: CloseEvent) =>
+      client.close(
+        ev.code >= 1000 && ev.code !== 1005 && ev.code !== 1006 ? ev.code : 1000,
+        ev.reason,
+      );
+  });
+}
+
+/**
  * Serves celld's peer tunnel for `runtime` on `host:port` (0: any free port). `node` is this
  * node's name in the fleet (the same as celldBucket's `node`).
  */
@@ -259,6 +363,11 @@ export async function startCelldPeerServer(opts: {
   port?: number;
   /** Answers celld's signed probe (celldBucket(...).probe): `celld diagnose --peer` reaches us. */
   probe?: (challenge: string) => Promise<unknown>;
+  /**
+   * Serves celld's log tier as a follower (`/peer/log/append`, `/seal`, `/tail`). Without it the
+   * routes answer 404, and celld quarantines the node from its ensembles.
+   */
+  follower?: LogFollower;
 }): Promise<CelldPeerServer> {
   const key = await loadPeerKey(opts.store);
   const seen = new Map<string, number>();
@@ -334,11 +443,24 @@ export async function startCelldPeerServer(opts: {
 
   // One inner HTTP/1.1 server per tunnel kind: an upgraded socket becomes its connection.
   // celld's inner RPC requests carry no Host header: Node would answer 400 by default.
+  // Calls being served on tunnels: a closing server lets them finish (for a while) first.
+  let inFlight = 0;
+  let drained: (() => void) | undefined;
+  const counted =
+    (serve: (q: IncomingMessage, s: ServerResponse) => Promise<void>) =>
+    (q: IncomingMessage, s: ServerResponse) => {
+      inFlight++;
+      s.once("close", () => {
+        if (--inFlight === 0) drained?.();
+      });
+      void serve(q, s);
+    };
   const inner = {
-    do: createServer({ requireHostHeader: false }, (q, s) => void serveDo(q, s)),
-    rpc: createServer({ requireHostHeader: false }, (q, s) => void serveRpc(q, s)),
+    do: createServer({ requireHostHeader: false }, counted(serveDo)),
+    rpc: createServer({ requireHostHeader: false }, counted(serveRpc)),
   };
-  for (const s of Object.values(inner)) s.keepAliveTimeout = 0;
+  // Tunnels stay open between calls, so celld (and cellb) callers reuse them; idle ones close.
+  for (const s of Object.values(inner)) s.keepAliveTimeout = 60_000;
   // A tunneled WebSocket (celld: the client's own handshake crosses the tunnel and the owner
   // answers it): the cell's 101 + webSocket is bridged to the raw connection, framed by `ws`.
   const { WebSocketServer } = await import("ws");
@@ -367,56 +489,69 @@ export async function startCelldPeerServer(opts: {
       ? (req.url as string)
       : `http://${req.headers.host ?? "cell"}${req.url ?? "/"}`;
     const protocols = req.headers["sec-websocket-protocol"] as string | undefined;
-    let res: Response & { webSocket?: CfWebSocket | null };
-    try {
-      res = await stub.fetch(
-        withUpgrade(
-          new Request(url, { headers }),
-          "websocket",
-          protocols ? { "Sec-WebSocket-Protocol": protocols } : undefined,
+    await bridgeUpgrade(
+      wss,
+      req,
+      socket,
+      head,
+      () =>
+        stub.fetch(
+          withUpgrade(
+            new Request(url, { headers }),
+            "websocket",
+            protocols ? { "Sec-WebSocket-Protocol": protocols } : undefined,
+          ),
         ),
-      );
-    } catch (e) {
-      return notOwner(e)
-        ? fail(409, "stale route", { "x-cells-route-error": "stale-owner" })
-        : fail(500, String((e as Error)?.message ?? e));
-    }
-    if (res.status !== 101 || !res.webSocket) return fail(res.status, await res.text());
-    let cell: WebSocket;
-    try {
-      cell = cellSocket(res as Response & { webSocket: CfWebSocket }, protocols);
-    } catch (e) {
-      return fail(400, String((e as Error)?.message ?? e));
-    }
-    const pending: (string | ArrayBuffer)[] = [];
-    let open = false;
-    wss.handleUpgrade(req, socket, head, (client) => {
-      cell.onopen = () => {
-        open = true;
-        for (const m of pending.splice(0)) cell.send(m);
-      };
-      client.on("message", (data: Buffer, isBinary: boolean) => {
-        const m = isBinary ? (new Uint8Array(data).buffer as ArrayBuffer) : data.toString();
-        if (open) cell.send(m);
-        else pending.push(m);
-      });
-      cell.onmessage = (ev: MessageEvent) =>
-        client.send(ev.data instanceof ArrayBuffer ? Buffer.from(ev.data) : ev.data);
-      client.on("close", (code: number, reason: Buffer) =>
-        cell.close(
-          code >= 1000 && code < 5000 && code !== 1005 && code !== 1006 ? code : 1000,
-          reason.toString(),
-        ),
-      );
-      cell.onclose = (ev: CloseEvent) =>
-        client.close(
-          ev.code >= 1000 && ev.code !== 1005 && ev.code !== 1006 ? ev.code : 1000,
-          ev.reason,
-        );
-    });
+      (e) =>
+        notOwner(e)
+          ? fail(409, "stale route", { "x-cells-route-error": "stale-owner" })
+          : fail(500, String((e as Error)?.message ?? e)),
+      fail,
+    );
   });
 
   const server: Server = createServer(async (req, res) => {
+    const logRoute = /^\/peer\/log\/(append|seal|tail)$/.exec(req.url ?? "")?.[1];
+    if (logRoute && opts.follower) {
+      if (req.method !== "POST") return reply(res, 405, {}, "method not allowed");
+      // celld: append bodies up to its request limit plus 1 MiB, the rest up to 64 KiB
+      const limit = logRoute === "append" ? 129 * 1024 * 1024 : 64 * 1024;
+      let body: Uint8Array;
+      try {
+        body = await readBody(req, limit);
+      } catch {
+        return reply(res, 413, { "content-type": "text/plain" }, "body too large");
+      }
+      const denied = verifyPeerRequest(key, opts.node, "POST", req.url!, req.headers, body, seen);
+      if (denied)
+        return reply(res, denied.status, { "content-type": "text/plain" }, denied.message);
+      try {
+        const f = opts.follower;
+        if (logRoute === "append")
+          return reply(
+            res,
+            200,
+            { "content-type": "application/json" },
+            JSON.stringify(await f.append(body)),
+          );
+        const json = JSON.parse(new TextDecoder().decode(body));
+        if (logRoute === "seal")
+          return reply(
+            res,
+            200,
+            { "content-type": "application/json" },
+            JSON.stringify(await f.seal(json)),
+          );
+        return reply(res, 200, { "content-type": "application/octet-stream" }, await f.tail(json));
+      } catch (e) {
+        return reply(
+          res,
+          400,
+          { "content-type": "text/plain" },
+          String((e as Error)?.message ?? e),
+        );
+      }
+    }
     if (req.url === "/peer/probe" && req.method === "GET" && opts.probe) {
       const denied = verifyPeerRequest(
         key,
@@ -443,6 +578,10 @@ export async function startCelldPeerServer(opts: {
     }
     reply(res, 404, {}, "not found");
   });
+  // Upgraded tunnels leave the HTTP server's bookkeeping (closeAllConnections() does not reach
+  // them) but still hold server.close() open: a peer's long-lived tunnel, or a WebSocket bridged
+  // through one, would keep a closing node from ever leaving the fleet.
+  const tunnels = new Set<Duplex>();
   server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     const path = req.url ?? "/";
     const refuse = (status: number, message: string, extra: Record<string, string> = {}) => {
@@ -485,18 +624,31 @@ export async function startCelldPeerServer(opts: {
       ].join("\r\n") + "\r\n\r\n",
     );
     if (head?.length) socket.unshift(head);
+    tunnels.add(socket);
+    socket.once("close", () => tunnels.delete(socket));
     inner[kind].emit("connection", socket);
   });
   await new Promise<void>((r) => server.listen(opts.port ?? 0, host, () => r()));
   const port = (server.address() as { port: number }).port;
   return {
     addr: `${host}:${port}`,
-    close: () =>
-      new Promise<void>((r) => {
-        server.closeAllConnections?.();
-        for (const s of Object.values(inner)) s.closeAllConnections?.();
-        server.close(() => r());
-      }),
+    // No new tunnel; idle ones close at once; calls in flight on the others finish (for at most
+    // 5 s, the caller's answer included), then whatever is left is cut.
+    close: async () => {
+      const stopped = new Promise<void>((r) => server.close(() => r()));
+      server.closeIdleConnections?.();
+      for (const s of Object.values(inner)) s.closeIdleConnections?.();
+      if (inFlight > 0)
+        await new Promise<void>((r) => {
+          drained = r;
+          setTimeout(r, 5_000).unref?.();
+        });
+      server.closeAllConnections?.();
+      for (const s of Object.values(inner)) s.closeAllConnections?.();
+      for (const t of tunnels) t.destroy();
+      tunnels.clear();
+      await stopped;
+    },
   };
 }
 
@@ -509,7 +661,7 @@ export async function startCelldPeerServer(opts: {
 async function openTunnel(
   key: Uint8Array,
   source: string,
-  owner: { node: string; addr: string },
+  owner: { node: string; addr: string; cellKey?: string },
   kind: "do" | "rpc",
 ): Promise<import("node:net").Socket> {
   const { request } = await import("node:http");
@@ -539,49 +691,103 @@ async function openTunnel(
         }),
       ),
     );
-    req.on("error", reject);
+    // No connection to the owner (its process is gone, its lease still live): celld's answer.
+    req.on("error", (e) =>
+      reject(new DurableObjectRoutingError(owner.cellKey ?? owner.node, { cause: e })),
+    );
     req.end();
   });
   return socket;
 }
 
-async function tunnelCall(
+/**
+ * Idle tunnels per (caller, owner, address, kind), reused for the next call as celld does
+ * (main/peer_tunnel.rs): h1 keep-alive inside the tunnel, one call at a time on each. An agent
+ * whose connections are signed tunnels: the signature covers the upgrade, once per tunnel.
+ */
+const tunnelAgents = new Map<string, import("node:http").Agent>();
+async function tunnelAgent(
   key: Uint8Array,
   source: string,
   owner: { node: string; addr: string },
   kind: "do" | "rpc",
+): Promise<import("node:http").Agent> {
+  const id = `${source}\n${owner.node}\n${owner.addr}\n${kind}`;
+  let agent = tunnelAgents.get(id);
+  if (!agent) {
+    const { Agent } = await import("node:http");
+    class TunnelAgent extends Agent {
+      override createConnection(
+        _options: import("node:http").ClientRequestArgs,
+        done?: (err: Error | null, stream: Duplex) => void,
+      ): undefined {
+        openTunnel(key, source, owner, kind).then(
+          (socket) => done?.(null, socket),
+          (e) => done?.(e as Error, undefined as never),
+        );
+        return undefined;
+      }
+    }
+    agent = new TunnelAgent({ keepAlive: true, maxFreeSockets: 64, keepAliveMsecs: 30_000 });
+    tunnelAgents.set(id, agent);
+  }
+  return agent;
+}
+
+async function tunnelCall(
+  key: Uint8Array,
+  source: string,
+  owner: { node: string; addr: string; cellKey?: string },
+  kind: "do" | "rpc",
   inner: { method: string; path: string; headers: Record<string, string>; body?: Uint8Array },
 ): Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }> {
   const { request } = await import("node:http");
-  const socket = await openTunnel(key, source, owner, kind);
+  const agent = await tunnelAgent(key, source, { node: owner.node, addr: owner.addr }, kind);
+  const [host, port] = [
+    owner.addr.slice(0, owner.addr.lastIndexOf(":")),
+    Number(owner.addr.slice(owner.addr.lastIndexOf(":") + 1)),
+  ];
+  const once = () =>
+    new Promise<{ status: number; headers: Record<string, string>; body: Uint8Array }>(
+      (resolve, reject) => {
+        const req = request(
+          { agent, host, port, method: inner.method, path: inner.path, headers: inner.headers },
+          async (res) => {
+            try {
+              const chunks: Buffer[] = [];
+              for await (const c of res) chunks.push(c as Buffer);
+              const headers: Record<string, string> = {};
+              for (const [k, v] of Object.entries(res.headers))
+                if (typeof v === "string") headers[k] = v;
+              resolve({
+                status: res.statusCode ?? 500,
+                headers,
+                body: new Uint8Array(Buffer.concat(chunks)),
+              });
+            } catch (e) {
+              reject(e);
+            }
+          },
+        );
+        req.on("error", (e) => reject(Object.assign(e, { reused: req.reusedSocket })));
+        req.end(inner.body);
+      },
+    );
+  const owned = (e: unknown) =>
+    e instanceof DurableObjectRoutingError && owner.cellKey
+      ? new DurableObjectRoutingError(owner.cellKey, { cause: e.cause })
+      : e;
   try {
-    return await new Promise((resolve, reject) => {
-      const req = request(
-        // no agent: the request runs on the upgraded socket itself
-        {
-          createConnection: () => socket,
-          method: inner.method,
-          path: inner.path,
-          headers: inner.headers,
-        },
-        async (res) => {
-          const chunks: Buffer[] = [];
-          for await (const c of res) chunks.push(c as Buffer);
-          const headers: Record<string, string> = {};
-          for (const [k, v] of Object.entries(res.headers))
-            if (typeof v === "string") headers[k] = v;
-          resolve({
-            status: res.statusCode ?? 500,
-            headers,
-            body: new Uint8Array(Buffer.concat(chunks)),
-          });
-        },
-      );
-      req.on("error", reject);
-      req.end(inner.body);
-    });
-  } finally {
-    socket.destroy();
+    return await once();
+  } catch (e) {
+    // A pooled tunnel can close between its last call and this one (the owner's idle timeout):
+    // the body is buffered, so the call goes once more on a fresh tunnel, as celld does.
+    if (!(e as { reused?: boolean }).reused) throw owned(e);
+    try {
+      return await once();
+    } catch (e2) {
+      throw owned(e2);
+    }
   }
 }
 
@@ -604,15 +810,17 @@ export function celldPeers(opts: { store: ObjectStore; node: string }) {
       const own = await json<{ node: string }>(`cells/${cellKey.replace("/", ":")}/own.json`);
       return own?.node && own.node !== opts.node ? own.node : undefined;
     },
-    link(): never {
-      throw new Error("celld owners are reached through endpoint()");
+    /** Reached only when endpoint() found no live node lease for the owner: the cell is about
+     * to move (celld takes it once the lease has expired). */
+    link(owner: string): never {
+      throw new DurableObjectRoutingError(owner, { ownerGone: true });
     },
     async endpoint(owner: string, cellKey: string, name: string | undefined) {
       const lease = await json<{ addr: string; expires_ms: number }>(`nodes/${owner}.json`);
       if (!lease?.addr || lease.expires_ms <= Date.now()) return undefined;
       key ??= loadPeerKey(opts.store);
       const k = await key;
-      const target = { node: owner, addr: lease.addr };
+      const target = { node: owner, addr: lease.addr, cellKey };
       const scope = cellKey.replace("/", ":");
       const control = (h: Record<string, string>) => ({
         ...h,

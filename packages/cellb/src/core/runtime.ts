@@ -25,6 +25,7 @@ import { DurableObjectNamespace, localEndpoint, type ObjectEndpoint } from "./na
 import {
   CellOwnedElsewhereError,
   closingWith,
+  DurableObjectRoutingError,
   ObjectClosedError,
   ObjectHost,
 } from "./object-host.js";
@@ -103,6 +104,11 @@ export interface CellRuntimeOptions {
       name: string | undefined,
     ): Promise<ObjectEndpoint | undefined>;
   };
+  /**
+   * With `peers`: how long a node keeps calling a cell's owner directly after the last call that
+   * reached it (default 60 s); a stale-owner answer or an unreachable owner drops it sooner.
+   */
+  routeTtlMs?: number;
   /** Hibernate objects idle this long (ms); swept every max(1 s, half of it). Off by default. */
   hibernateAfterMs?: number;
   /**
@@ -147,6 +153,13 @@ export interface CellRuntime {
   waitUntil(p: Promise<unknown>): void;
   /** Durable Object binding → class name (the namespace key used by idFromName). */
   readonly durableObjectBindings: Readonly<Record<string, string>>;
+  /**
+   * A binding's namespace whose stubs reach this node's cells only: a cell another node owns
+   * fails with CellOwnedElsewhereError instead of being routed there. What a node serves calls
+   * forwarded to it through (a peer server): celld answers such a call where it owns the cell, or
+   * tells the caller to re-resolve, and never forwards it again.
+   */
+  localNamespace(binding: string): DurableObjectNamespace | undefined;
   /**
    * WebSocket ingress: runs the Worker's fetch with an Upgrade request; on a 101
    * with `webSocket`, returns the client end's MessagePort (to be transferred to
@@ -310,6 +323,14 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     };
   };
 
+  /** An object closed before the call reached it: the call did not run, and may go elsewhere. */
+  const notStartedClosed = (e: unknown) =>
+    (e as { name?: string })?.name === "ObjectClosedError" &&
+    (e as { notStarted?: boolean }).notStarted === true;
+  const localNamespaces = new Map<string, DurableObjectNamespace>();
+  /** Cells last reached on another node, and how: the next call goes there directly. */
+  const routes = new Map<string, { ep: ObjectEndpoint; until: number }>();
+  const ROUTE_TTL_MS = opts.routeTtlMs ?? 60_000;
   for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {
     const cls = opts.worker[className] as DurableObjectClass | undefined;
     if (typeof cls !== "function")
@@ -318,7 +339,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       const cellKey = `${className}/${id.toString()}`;
       // Once close() has closed the cells, none opens again: its storage is closed or handed to
       // the next runtime. Until then (the grace period), work in flight still reaches objects.
-      if (cellsClosed) throw new ObjectClosedError(cellKey);
+      if (cellsClosed) throw new ObjectClosedError(cellKey, { notStarted: true });
       let h = hosts.get(cellKey);
       if (!h || h.broken) {
         if (h) retire(cellKey, h);
@@ -358,12 +379,26 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
       const peers = opts.peers;
       if (!peers) return local;
       // Local first; a cell owned by another node is reached through that node.
-      const viaOwner = async () => {
+      /** The owner's endpoint; undefined when no node owns the cell now (it can be taken here). */
+      const viaOwner = async (): Promise<ObjectEndpoint | undefined> => {
         const owner = await peers.ownerOf(cellKey);
-        if (!owner) throw new CellOwnedElsewhereError(cellKey);
-        const direct = await peers.endpoint?.(owner, cellKey, id.name);
-        if (direct) return direct;
-        return httpEndpoint(postVia(peers.link(owner)), codec, binding, className, id);
+        if (!owner) return undefined;
+        let direct: ObjectEndpoint | undefined;
+        let link: Send;
+        try {
+          direct = await peers.endpoint?.(owner, cellKey, id.name);
+          if (direct) return direct;
+          link = peers.link(owner);
+        } catch (e) {
+          // The record names an owner without a live node record: it left, or its lease ran
+          // out, since the lookup. Nobody to reach; the cell may be claimed here.
+          if (e instanceof DurableObjectRoutingError && e.ownerGone) return undefined;
+          // The owner is named but cannot be reached (its process died, its lease still live):
+          // celld's answer for the same case. The cell moves once the owner's lease expires.
+          if (e instanceof DurableObjectRoutingError) throw e;
+          throw new DurableObjectRoutingError(cellKey, { cause: e });
+        }
+        return httpEndpoint(postVia(link), codec, binding, className, id);
       };
       // The host reports a failed open as a broken object; the cause tells why.
       const elsewhere = (e: unknown): boolean => {
@@ -375,35 +410,105 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
           if (x.name === "CellOwnedElsewhereError") return true;
         return false;
       };
+      // Drop the host whose open found the cell owned elsewhere, but only that one: by now the
+      // map may hold a newer host another request opened, with events of its own queued.
+      const retireBroken = () => {
+        const h = hosts.get(cellKey);
+        if (h?.broken) retire(cellKey, h);
+      };
+      /**
+       * Runs an event here, or on the cell's owner. Each failed attempt was refused before the
+       * event ran (the local claim lost, or the owner answered that it no longer owns the cell),
+       * so it is safe to try again: locally when no node owns the cell any more, as celld
+       * claims a cell whose owner's lease ran out, or on the owner the bucket names now.
+       */
+      const attempts = 6;
+      const run = async <T>(
+        first: () => ObjectEndpoint,
+        go: (ep: ObjectEndpoint) => Promise<T>,
+      ) => {
+        // A cell another node owned on the last call goes straight to that node: trying the
+        // local claim first opened (and deleted) a database per routed call.
+        // A cell this node holds open (taken by an alarm, say, since the route was learned) is
+        // served here, and the route is stale.
+        const open = hosts.get(cellKey);
+        if (open && !open.broken) routes.delete(cellKey);
+        const known = routes.get(cellKey);
+        let viaRoute = !!known && known.until > clock.now();
+        let ep = viaRoute ? known!.ep : first();
+        for (let i = 1; ; i++) {
+          try {
+            const result = await go(ep);
+            // A route in use stays: it expires only once calls stop reaching the owner through it.
+            if (viaRoute && known) known.until = clock.now() + ROUTE_TTL_MS;
+            return result;
+          } catch (e) {
+            if (viaRoute) {
+              viaRoute = false;
+              // The owner moved or left (stale-owner), or cannot be reached: forget the route and
+              // take the usual way, a local claim first. An error of the object's own stands.
+              if (
+                !elsewhere(e) &&
+                !(e instanceof DurableObjectRoutingError) &&
+                !notStartedClosed(e)
+              )
+                throw e;
+              routes.delete(cellKey);
+              ep = first();
+              continue;
+            }
+            if (!elsewhere(e)) throw e;
+            // Neither claimed here nor reached on an owner: celld's answer for a cell it cannot
+            // route (the owner is gone and its cells are not yet free, say).
+            if (i >= attempts) throw new DurableObjectRoutingError(cellKey, { cause: e });
+            retireBroken();
+            // The owner may be releasing the cell this moment (a node leaving the fleet).
+            if (i > 1) await new Promise((r) => setTimeout(r, 25 * 2 ** i));
+            const owner = await viaOwner();
+            if (owner) routes.set(cellKey, { ep: owner, until: clock.now() + ROUTE_TTL_MS });
+            else routes.delete(cellKey);
+            ep = owner ?? local();
+          }
+        }
+      };
       return () => {
-        const l = local();
+        // Made on first use: making it opens the cell, which a call routed elsewhere never needs.
+        let made: ObjectEndpoint | undefined;
+        const l = () => {
+          made ??= local();
+          return made;
+        };
         return {
           get local() {
-            return l.local; // not copied: reading it opens the cell
+            return l().local; // not copied: reading it opens the cell
           },
-          fetch: async (req: Request) => {
+          fetch: (req: Request) => {
             const spare = req.body ? req.clone() : req;
-            try {
-              return await l.fetch(req);
-            } catch (e) {
-              if (!elsewhere(e)) throw e;
-              retire(cellKey);
-              return (await viaOwner()).fetch(spare);
-            }
+            let used = false;
+            return run(l, (ep) => {
+              const r = used ? spare.clone() : req;
+              used = true;
+              return ep.fetch(r);
+            });
           },
-          call: async (method: string, args: unknown[]) => {
-            try {
-              return await l.call(method, args);
-            } catch (e) {
-              if (!elsewhere(e)) throw e;
-              retire(cellKey);
-              return (await viaOwner()).call(method, args);
-            }
-          },
+          call: (method: string, args: unknown[]) => run(l, (ep) => ep.call(method, args)),
         };
       };
     });
     bindingClasses[binding] = className;
+    localNamespaces.set(
+      binding,
+      new DurableObjectNamespace(
+        opts.namespaceKeys?.[className] ?? namespaceKey(opts.scriptName ?? "worker", className),
+        (id) => {
+          const cellKey = `${className}/${id.toString()}`;
+          return localEndpoint(
+            () => hostFor(id),
+            () => (hosts.has(cellKey) ? undefined : opts.openSql.room?.(cellKey)),
+          );
+        },
+      ),
+    );
     // ctx.exports.<Class> of a class with a namespace is also that namespace, as in workerd
     // (`ctx.exports.MyActor.getByName("a")`); it stays usable as a facet class handle.
     const ns = env[binding] as DurableObjectNamespace;
@@ -473,6 +578,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     env,
     exports: exportsObj,
     durableObjectBindings: bindingClasses,
+    localNamespace: (binding: string) => localNamespaces.get(binding),
     backupNow: () => backupAll("manual"),
     async connectWebSocket(url, protocols = [], headers) {
       const h = new Headers(headers);
