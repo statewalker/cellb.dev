@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-22T17:20:07.122Z",
+  "date": "2026-11-22T19:49:44.321Z",
   "machine": {
     "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
     "cpus": 4,
@@ -14,18 +14,19 @@
     "names": 200,
     "durationMs": 10000
   },
+  "cellbDurability": "fleet",
   "throughput": [
     {
       "celld": 1,
       "cellb": 0,
-      "requests": 6962,
-      "rps": 693,
-      "p50Ms": 44.6,
-      "p90Ms": 60.8,
-      "p99Ms": 85.6,
+      "requests": 7024,
+      "rps": 700,
+      "p50Ms": 44.2,
+      "p90Ms": 60.7,
+      "p99Ms": 81.6,
       "crossNodeShare": 0,
       "cpuSecondsPer1kRequests": {
-        "celld": 1.26
+        "celld": 1.24
       },
       "owners": {
         "celld": 200
@@ -37,14 +38,14 @@
     {
       "celld": 2,
       "cellb": 0,
-      "requests": 15628,
-      "rps": 1558,
-      "p50Ms": 18.6,
-      "p90Ms": 28.2,
-      "p99Ms": 70.5,
+      "requests": 15637,
+      "rps": 1555,
+      "p50Ms": 16.8,
+      "p90Ms": 27.1,
+      "p99Ms": 90.6,
       "crossNodeShare": 0.5,
       "cpuSecondsPer1kRequests": {
-        "celld": 1.37
+        "celld": 1.25
       },
       "owners": {
         "celld": 200
@@ -56,14 +57,14 @@
     {
       "celld": 4,
       "cellb": 0,
-      "requests": 12452,
-      "rps": 1244,
-      "p50Ms": 23.1,
-      "p90Ms": 38.2,
-      "p99Ms": 86.2,
+      "requests": 14449,
+      "rps": 1439,
+      "p50Ms": 19.9,
+      "p90Ms": 32,
+      "p99Ms": 82.2,
       "crossNodeShare": 0.75,
       "cpuSecondsPer1kRequests": {
-        "celld": 1.85
+        "celld": 1.66
       },
       "owners": {
         "celld": 200
@@ -75,14 +76,14 @@
     {
       "celld": 0,
       "cellb": 1,
-      "requests": 6439,
-      "rps": 641,
-      "p50Ms": 44.8,
-      "p90Ms": 72.9,
-      "p99Ms": 137.7,
+      "requests": 6693,
+      "rps": 668,
+      "p50Ms": 42.5,
+      "p90Ms": 71.4,
+      "p99Ms": 138.5,
       "crossNodeShare": 0,
       "cpuSecondsPer1kRequests": {
-        "cellb": 1.4
+        "cellb": 1.28
       },
       "owners": {
         "cellb": 200
@@ -94,14 +95,14 @@
     {
       "celld": 0,
       "cellb": 2,
-      "requests": 5886,
-      "rps": 587,
-      "p50Ms": 49.1,
-      "p90Ms": 84.6,
-      "p99Ms": 166.3,
+      "requests": 5954,
+      "rps": 594,
+      "p50Ms": 48.4,
+      "p90Ms": 84.5,
+      "p99Ms": 153.7,
       "crossNodeShare": 0.5,
       "cpuSecondsPer1kRequests": {
-        "cellb": 2.15
+        "cellb": 2.21
       },
       "owners": {
         "cellb": 200
@@ -113,14 +114,14 @@
     {
       "celld": 0,
       "cellb": 4,
-      "requests": 4590,
-      "rps": 457,
-      "p50Ms": 58.8,
-      "p90Ms": 122.5,
-      "p99Ms": 210.6,
+      "requests": 4492,
+      "rps": 447,
+      "p50Ms": 61.4,
+      "p90Ms": 123.2,
+      "p99Ms": 227.6,
       "crossNodeShare": 0.75,
       "cpuSecondsPer1kRequests": {
-        "cellb": 3.31
+        "cellb": 3.83
       },
       "owners": {
         "cellb": 200
@@ -132,19 +133,19 @@
     {
       "celld": 1,
       "cellb": 1,
-      "requests": 6247,
-      "rps": 623,
-      "p50Ms": 49.2,
-      "p90Ms": 95,
-      "p99Ms": 142.2,
+      "requests": 6625,
+      "rps": 662,
+      "p50Ms": 57.3,
+      "p90Ms": 93.2,
+      "p99Ms": 146.4,
       "crossNodeShare": 0.5,
       "cpuSecondsPer1kRequests": {
-        "celld": 0.74,
-        "cellb": 1.25
+        "celld": 0.79,
+        "cellb": 1.28
       },
       "owners": {
-        "celld": 102,
-        "cellb": 98
+        "cellb": 91,
+        "celld": 109
       },
       "errors": {},
       "valuesAckedTwice": 0,
@@ -153,19 +154,19 @@
     {
       "celld": 2,
       "cellb": 2,
-      "requests": 6814,
-      "rps": 679,
-      "p50Ms": 38.3,
-      "p90Ms": 84.3,
-      "p99Ms": 193.2,
+      "requests": 7505,
+      "rps": 748,
+      "p50Ms": 35.3,
+      "p90Ms": 77.5,
+      "p99Ms": 166.9,
       "crossNodeShare": 0.75,
       "cpuSecondsPer1kRequests": {
-        "celld": 1.1,
-        "cellb": 1.36
+        "celld": 1.05,
+        "cellb": 1.42
       },
       "owners": {
-        "celld": 116,
-        "cellb": 84
+        "cellb": 88,
+        "celld": 112
       },
       "errors": {},
       "valuesAckedTwice": 0,
@@ -177,13 +178,13 @@
       "signal": "SIGKILL",
       "victim": "cellb",
       "countersAnsweringAgain": "40/40",
-      "unavailableMsMax": 10074,
-      "unavailableMsP50": 36,
-      "failedRequests": 1723,
+      "unavailableMsMax": 9776,
+      "unavailableMsP50": 82,
+      "failedRequests": 2536,
       "errors": {
-        "cellb: fetch failed": 6,
-        "celld: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 1132,
-        "cellb: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 585
+        "cellb: fetch failed": 8,
+        "celld: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 1695,
+        "cellb: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 833
       },
       "valuesAckedTwice": 0,
       "countersBehind": 0
@@ -192,14 +193,13 @@
       "signal": "SIGKILL",
       "victim": "celld",
       "countersAnsweringAgain": "40/40",
-      "unavailableMsMax": 10019,
-      "unavailableMsP50": 181,
-      "failedRequests": 1441,
+      "unavailableMsMax": 9775,
+      "unavailableMsP50": 108,
+      "failedRequests": 1435,
       "errors": {
         "celld: fetch failed": 7,
-        "cellb: 500 Worker failed: rejected: Error: socket hang up": 1,
-        "celld: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 467,
-        "cellb: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 966
+        "celld: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 463,
+        "cellb: 500 Worker failed: rejected: DurableObjectRoutingError: The Durable Object owner is curren": 965
       },
       "valuesAckedTwice": 0,
       "countersBehind": 0
@@ -210,8 +210,8 @@
       "signal": "SIGTERM",
       "victim": "cellb",
       "countersAnsweringAgain": "40/40",
-      "unavailableMsMax": 258,
-      "unavailableMsP50": 60,
+      "unavailableMsMax": 259,
+      "unavailableMsP50": 29,
       "failedRequests": 0,
       "errors": {},
       "valuesAckedTwice": 0,
@@ -221,11 +221,11 @@
       "signal": "SIGTERM",
       "victim": "celld",
       "countersAnsweringAgain": "40/40",
-      "unavailableMsMax": 726,
-      "unavailableMsP50": 86,
+      "unavailableMsMax": 571,
+      "unavailableMsP50": 63,
       "failedRequests": 1,
       "errors": {
-        "cellb: 500 Worker failed: rejected: Error: socket hang up": 1
+        "cellb: 500 durability unproven: DurabilityUnproven": 1
       },
       "valuesAckedTwice": 0,
       "countersBehind": 0

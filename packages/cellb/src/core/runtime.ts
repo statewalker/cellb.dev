@@ -104,6 +104,11 @@ export interface CellRuntimeOptions {
       name: string | undefined,
     ): Promise<ObjectEndpoint | undefined>;
   };
+  /**
+   * With `peers`: how long a node keeps calling a cell's owner directly after the last call that
+   * reached it (default 60 s); a stale-owner answer or an unreachable owner drops it sooner.
+   */
+  routeTtlMs?: number;
   /** Hibernate objects idle this long (ms); swept every max(1 s, half of it). Off by default. */
   hibernateAfterMs?: number;
   /**
@@ -325,7 +330,7 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
   const localNamespaces = new Map<string, DurableObjectNamespace>();
   /** Cells last reached on another node, and how: the next call goes there directly. */
   const routes = new Map<string, { ep: ObjectEndpoint; until: number }>();
-  const ROUTE_TTL_MS = 60_000;
+  const ROUTE_TTL_MS = opts.routeTtlMs ?? 60_000;
   for (const [binding, { className }] of Object.entries(opts.durableObjects ?? {})) {
     const cls = opts.worker[className] as DurableObjectClass | undefined;
     if (typeof cls !== "function")
@@ -433,7 +438,10 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
         let ep = viaRoute ? known!.ep : first();
         for (let i = 1; ; i++) {
           try {
-            return await go(ep);
+            const result = await go(ep);
+            // A route in use stays: it expires only once calls stop reaching the owner through it.
+            if (viaRoute && known) known.until = clock.now() + ROUTE_TTL_MS;
+            return result;
           } catch (e) {
             if (viaRoute) {
               viaRoute = false;
