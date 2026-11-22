@@ -284,8 +284,20 @@ export function cellSocket(
  * Request with Upgrade), the cell's WebSocketPair end is bridged to the raw connection, framed
  * by `ws`. `failed` answers an error thrown by `open()`, `fail` any other refusal.
  */
+/** What bridgeUpgrade needs of a `ws` WebSocketServer (structural: the published declarations
+ * must not need `@types/ws`). */
+export interface UpgradeServer {
+  handleUpgrade(
+    req: IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+    // biome-ignore lint/suspicious/noExplicitAny: a ws WebSocket, kept untyped on purpose
+    done: (client: any) => void,
+  ): void;
+}
+
 export async function bridgeUpgrade(
-  wss: import("ws").WebSocketServer,
+  wss: UpgradeServer,
   req: IncomingMessage,
   socket: Duplex,
   head: Buffer,
@@ -427,9 +439,21 @@ export async function startCelldPeerServer(opts: {
 
   // One inner HTTP/1.1 server per tunnel kind: an upgraded socket becomes its connection.
   // celld's inner RPC requests carry no Host header: Node would answer 400 by default.
+  // Calls being served on tunnels: a closing server lets them finish (for a while) first.
+  let inFlight = 0;
+  let drained: (() => void) | undefined;
+  const counted =
+    (serve: (q: IncomingMessage, s: ServerResponse) => Promise<void>) =>
+    (q: IncomingMessage, s: ServerResponse) => {
+      inFlight++;
+      s.once("close", () => {
+        if (--inFlight === 0) drained?.();
+      });
+      void serve(q, s);
+    };
   const inner = {
-    do: createServer({ requireHostHeader: false }, (q, s) => void serveDo(q, s)),
-    rpc: createServer({ requireHostHeader: false }, (q, s) => void serveRpc(q, s)),
+    do: createServer({ requireHostHeader: false }, counted(serveDo)),
+    rpc: createServer({ requireHostHeader: false }, counted(serveRpc)),
   };
   // Tunnels stay open between calls, so celld (and cellb) callers reuse them; idle ones close.
   for (const s of Object.values(inner)) s.keepAliveTimeout = 60_000;
@@ -604,14 +628,23 @@ export async function startCelldPeerServer(opts: {
   const port = (server.address() as { port: number }).port;
   return {
     addr: `${host}:${port}`,
-    close: () =>
-      new Promise<void>((r) => {
-        server.closeAllConnections?.();
-        for (const s of Object.values(inner)) s.closeAllConnections?.();
-        for (const t of tunnels) t.destroy();
-        tunnels.clear();
-        server.close(() => r());
-      }),
+    // No new tunnel; idle ones close at once; calls in flight on the others finish (for at most
+    // 5 s, the caller's answer included), then whatever is left is cut.
+    close: async () => {
+      const stopped = new Promise<void>((r) => server.close(() => r()));
+      server.closeIdleConnections?.();
+      for (const s of Object.values(inner)) s.closeIdleConnections?.();
+      if (inFlight > 0)
+        await new Promise<void>((r) => {
+          drained = r;
+          setTimeout(r, 5_000).unref?.();
+        });
+      server.closeAllConnections?.();
+      for (const s of Object.values(inner)) s.closeAllConnections?.();
+      for (const t of tunnels) t.destroy();
+      tunnels.clear();
+      await stopped;
+    },
   };
 }
 

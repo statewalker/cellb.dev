@@ -9,6 +9,10 @@ import { celldPeers, nodeSqliteOpener, startCelldPeerServer } from "../src/node.
 // statewalker/cellb.dev#208). Both sides: cellb's client reuses tunnels, and its server keeps
 // them open for celld's.
 class Counter extends DurableObject {
+  async slow(ms: number) {
+    await new Promise((r) => setTimeout(r, ms));
+    return this.inc();
+  }
   inc() {
     const n = ((this.ctx.storage.kv.get("n") as number | undefined) ?? 0) + 1;
     this.ctx.storage.kv.put("n", n);
@@ -75,6 +79,37 @@ describe("P10l peer tunnels are reused", () => {
       expect(relay.count()).toBeLessThanOrEqual(2); // one `do` tunnel and one `rpc` tunnel
     } finally {
       relay.close();
+      await peer.close();
+      await owner.close();
+    }
+  });
+
+  // A node leaving the fleet closed its peer server by destroying every tunnel, a call still on
+  // its way back included: the caller saw "socket hang up" (p11k's graceful leave, in CI).
+  it("closing the peer server lets the calls in flight on its tunnels finish", async () => {
+    const store = memoryObjectStore();
+    const owner = createCellRuntime({
+      worker: { Counter, default: {} },
+      durableObjects: { C: { className: "Counter" } },
+      openSql: nodeSqliteOpener(),
+      storage: celldBucket(store, { node: "owner2" }),
+    });
+    const peer = await startCelldPeerServer({ runtime: owner, store, node: "owner2" });
+    await store.put(
+      "nodes/owner2.json",
+      new TextEncoder().encode(
+        JSON.stringify({ node: "owner2", addr: peer.addr, expires_ms: Date.now() + 60_000 }),
+      ),
+    );
+    const cellKey = `Counter/${(owner.env.C as any).idFromName("y").toString()}`;
+    const ep = (await celldPeers({ store, node: "caller2" }).endpoint("owner2", cellKey, "y"))!;
+    try {
+      const inFlight = ep.call("slow", [300]);
+      await new Promise((r) => setTimeout(r, 100));
+      const closed = peer.close();
+      expect(await inFlight).toBe(1);
+      await closed;
+    } finally {
       await peer.close();
       await owner.close();
     }
