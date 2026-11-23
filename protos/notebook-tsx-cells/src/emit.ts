@@ -73,7 +73,7 @@ export async function emitPage(pagePath: string, blocks: Block[], outDir: string
       defs.push(define(cell.id, transpileJavaScript(await toJavaScript(cell))));
     }
   }
-  const entry = `import { NotebookRuntime } from "@observablehq/notebook-kit/runtime";
+  const entry = `import { NotebookRuntime, library } from "@observablehq/notebook-kit/runtime";
 import { createRoot } from "react-dom/client";
 import { isValidElement } from "react";
 const __toNode = (value) => {
@@ -83,7 +83,7 @@ const __toNode = (value) => {
   createRoot(node).render(value);
   return node;
 };
-const notebook = new NotebookRuntime({ __toNode: () => __toNode });
+const notebook = new NotebookRuntime({ ...library, __toNode: () => __toNode });
 const state = (id) => ({ root: document.getElementById("cell-" + id), expanded: [], variables: [] });
 ${defs.join("\n")}
 `;

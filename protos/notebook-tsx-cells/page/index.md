@@ -31,6 +31,19 @@ function Counter({ start }) {
 <Counter start={count} />
 ```
 
+## Reactivity: a `Mutable` read as a value
+
+Other cells see `clicks` as a number, and the reactive type check knows it.
+
+```ts
+const clicks = Mutable(0);
+const increment = () => ++clicks.value;
+```
+
+```tsx
+<Button onClick={increment}>Mutable clicks: {clicks}</Button>
+```
+
 ## A `tsx` cell using a real package
 
 ```tsx

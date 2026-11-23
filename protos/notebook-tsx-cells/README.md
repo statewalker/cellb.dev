@@ -24,11 +24,28 @@ pnpm test           # the build seam and the browser seam (headless Chromium)
 
 1. **Parse** (`src/parse.ts`): fenced `js`, `ts`, `jsx` and `tsx` blocks are cells. A fence with
    `run=false` is a snippet, shown and not run. Each cell remembers its Markdown line.
-2. **Type-check** (`src/typecheck.ts`): every cell of the page goes, in page order, into one
-   generated `.tsx` module beside the page, after a prelude that declares the notebook's globals
-   (`display`, `view`, `width`, `invalidation`). The module is checked with the TypeScript compiler
-   API, so imports resolve exactly as the page's own imports do, with the real packages' types.
-   Each diagnostic is mapped back to `file:line:column` in the Markdown. Any error stops the build.
+2. **Type-check** (`src/checkers.ts`, `src/typecheck.ts`): a **plug-in**,
+   `buildPage(page, out, { checker })`.
+   - A checker takes the page's cells and returns errors as `file:line:column` in the Markdown.
+   - Any error stops the build.
+   - Three checkers exist:
+     - **`reactiveChecker`** (the default) models Observable's semantics:
+       - it finds each cell's outputs (top-level declarations) and inputs (names other cells
+         define);
+       - it writes the cells **in dependency order** into one generated `.tsx` module beside the
+         page, so imports resolve as the page's own do, with the real packages' types;
+       - each cell becomes a function whose parameters are its inputs, typed as the **values**
+         other cells see: a `Mutable<T>` as `T`, a generator or `view(…)` as what it yields, a
+         promise as its result;
+       - imports are hoisted;
+       - every source line keeps its mapping to the Markdown, so an error in a moved cell is still
+         reported at its own line.
+     - **`pageOrderChecker`** puts all cells in page order in one module. It is simpler, but it
+       rejects a cell that uses a name defined further down, and it types a `Mutable` as the
+       object.
+     - **`noTypeCheck`** checks nothing.
+   - The prelude declares the notebook's globals (`display`, `view`, `Mutable`, `width`,
+     `invalidation`).
 3. **Emit** (`src/emit.ts`):
    - `ts`/`jsx`/`tsx` cells go through `esbuild.transform` (types erased, JSX to
      `react/jsx-runtime`), then through notebook-kit's `transpileJavaScript`, and run on
@@ -47,12 +64,20 @@ pnpm test           # the build seam and the browser seam (headless Chromium)
   - A type error, an import of an export that `@statewalker/fsm` does not have
     (`startProcesses`), and a wrong shadcn prop (`variant="bogus"`) each fail the build at the
     right Markdown line.
-- **Typing follows page order, not reactivity.** The check sees cells as one module in page order.
-  Observable lets a cell use a name defined later, and gives other cells a `Mutable`'s value rather
-  than the object. Neither is modelled. A `Mutable(0)` shown in another cell's JSX failed to
-  type-check, so the demo uses React state instead.
-  - **(inference)** The standard should say: cells read top to bottom, and React state replaces
-    `Mutable` and `viewof` in `jsx`/`tsx` cells.
+- **Reactivity can be typed.** The human's direction (2026-11-23): type checking is pluggable, and
+  it must take Observable's reactivity into account. Cells may be reordered by their dependencies
+  as long as messages map back to the page.
+  - The reactive checker does exactly that.
+  - Tests show it accepts a cell that uses a name defined further down, and reads a `Mutable` as
+    its value in other cells. The page-order checker rejects both.
+  - An error in a reordered cell is reported at its own Markdown line.
+  - The demo page has a `Mutable` counter: one cell defines it, a `tsx` cell shows it in a shadcn
+    `Button`, and clicking re-runs the reading cell.
+  - Limits of the prototype:
+    - inputs are found by name, so a local variable that shadows another cell's output inside a
+      nested scope is still counted as an input;
+    - `viewof`-style names and Observable's `mutable x` syntax are not modelled (notebook-kit uses
+      `view()` and `Mutable()`).
 - **notebook-kit's standard library imports from esm.sh at load time.** DuckDB, Vega, KaTeX,
   Mermaid, Leaflet and others are imported statically, so a page fails to load where esm.sh is not
   reachable. Here they are stubbed (an error on use). The kit must map them to local packages, as

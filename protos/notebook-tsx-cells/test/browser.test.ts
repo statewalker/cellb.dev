@@ -56,7 +56,7 @@ describe("the demo page in a browser", () => {
 
   it("mounts the jsx cell's shadcn Button with React, and it reacts to clicks", async () => {
     const { page, errors } = await open();
-    const button = page.locator('[data-slot="button"]');
+    const button = page.locator('[data-slot="button"]', { hasText: "Clicked" });
     await expect.poll(() => button.textContent()).toBe("Clicked 3 times");
     await button.click();
     await expect.poll(() => button.textContent()).toBe("Clicked 4 times");
@@ -74,6 +74,15 @@ describe("the demo page in a browser", () => {
   it("shows a run=false fence as code and does not run it", async () => {
     const { page, errors } = await open();
     await expect.poll(() => page.locator("pre code").last().textContent()).toContain("startProcesses({ modules: [] });");
+    expect(errors).toEqual([]);
+  });
+
+  it("re-runs the cells that read a Mutable when it changes", async () => {
+    const { page, errors } = await open();
+    const button = () => page.locator('[data-slot="button"]', { hasText: "Mutable clicks" });
+    await expect.poll(() => button().textContent()).toBe("Mutable clicks: 0");
+    await button().click();
+    await expect.poll(() => button().textContent()).toBe("Mutable clicks: 1");
     expect(errors).toEqual([]);
   });
 });
