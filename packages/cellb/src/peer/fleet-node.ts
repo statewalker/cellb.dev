@@ -261,7 +261,8 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
         );
         if (sockets.size > 0)
           await new Promise((r) => setTimeout(r, Math.min(LINGER_MS, o.drainMs ?? 5_000)));
-        server.closeIdleConnections?.();
+        // http.Server's own close(): drops the idle connections and stops its connection timer
+        server.close();
         if (inFlight > 0)
           await new Promise<void>((r) => {
             drained = r;

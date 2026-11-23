@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import { asyncContextFrameArgs } from "../src/cli.js";
 import type { ContainerEngine, ContainerSpec } from "../src/container.js";
@@ -96,6 +96,8 @@ describe("P50 cellb serve: a fleet node", () => {
     const a = await startFleetNode({ dir, store, node: "a", listen: "127.0.0.1:0" });
     const b = await startFleetNode({ dir, store, node: "b", listen: "127.0.0.1:0" });
     const agent = new http.Agent({ keepAlive: true, maxSockets: 4 });
+    const { Server: NetServer } = await import("node:net");
+    const closes = vi.spyOn(NetServer.prototype, "close");
     const get = (path: string) =>
       new Promise<number | string>((res) => {
         const req = http.get(`${a.url}${path}`, { agent }, (r) => {
@@ -114,7 +116,16 @@ describe("P50 cellb serve: a fleet node", () => {
       const leaving = a.close();
       expect(await Promise.all(sent)).toEqual([200, 200, 200, 200]);
       await leaving;
+      // every HTTP server the node closed stopped its 30 s connection-checking timer, which would
+      // otherwise keep the closed node reachable (http.Server's close() does; net's alone not)
+      const servers = closes.mock.contexts.filter((c) => c instanceof http.Server) as object[];
+      expect(servers.length).toBeGreaterThan(0);
+      for (const srv of servers)
+        for (const k of Object.getOwnPropertySymbols(srv))
+          if (String(k).includes("connectionsCheckingInterval"))
+            expect((srv as Record<symbol, { _destroyed?: boolean }>)[k]?._destroyed).toBe(true);
     } finally {
+      closes.mockRestore();
       agent.destroy();
       await a.close();
       await b.close();

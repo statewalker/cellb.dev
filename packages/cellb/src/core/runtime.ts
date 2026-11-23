@@ -331,11 +331,19 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     return () => {
       let c = containers.get(cellKey);
       if (!c) {
-        c = createContainer(engine, image, {
+        const self: Container = createContainer(engine, image, {
           label: id.name ?? id.toString(),
-          // a closing runtime starts no container: close() would not destroy it
-          refuse: () => (closed ? "the runtime is closing" : undefined),
+          // a closing runtime starts no container: close() would not destroy it; nor does one
+          // whose cell's lease has gone (an event still running on the old instance), which
+          // nothing would destroy either while the next owner runs its own
+          refuse: () =>
+            closed
+              ? "the runtime is closing"
+              : containers.get(cellKey) !== self
+                ? "this node no longer holds the cell"
+                : undefined,
         });
+        c = self;
         containers.set(cellKey, c);
       }
       return c;

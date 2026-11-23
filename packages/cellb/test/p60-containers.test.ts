@@ -80,6 +80,17 @@ class Runner extends DurableObject {
     return c.getTcpPort(8080).fetch(`http://container${url.pathname}`);
   }
 }
+let openGate!: () => void;
+const gated = new Promise<void>((r) => (openGate = r));
+/** Starts its container after a gate the test opens: an event still running when the lease goes. */
+class Slow extends DurableObject {
+  async fetch(req: Request) {
+    const c = (this.ctx as any).container;
+    if (new URL(req.url).pathname === "/wait") await gated;
+    if (!c.running) await c.start({ env: { CELL: this.ctx.id.name } });
+    return new Response("ok");
+  }
+}
 class Plain extends DurableObject {
   async fetch() {
     return Response.json({
@@ -357,6 +368,31 @@ describe("ctx.container under ownership: the container lives with the cell's lea
     leases.partition("A"); // A stays up, but the cell is no longer its own
     for (let i = 0; i < 50 && !destroyed.length; i++) await new Promise((r) => setTimeout(r, 10));
     expect(destroyed).toEqual(["alpha"]);
+  });
+
+  it("an event still running when the lease goes cannot start the cell's container again", async () => {
+    const { engine, starts, destroyed } = fakeEngine();
+    const leases = new MemoryLeases();
+    const runtime = createCellRuntime({
+      worker: {
+        Slow,
+        default: { fetch: (req: Request, env: any) => env.SLOW.getByName("alpha").fetch(req) },
+      },
+      durableObjects: { SLOW: { className: "Slow" } },
+      openSql: nodeSqliteOpener(),
+      storage: { ...filesApiChangeLog(new MemFilesApi()), ownership: leases.for("A") },
+      containers: { engine, images: { Slow: image } },
+    });
+    closers.push(() => runtime.close());
+    await (await runtime.fetch(new Request("http://x/go"))).text();
+    const inflight = runtime.fetch(new Request("http://x/wait"));
+    await new Promise((r) => setTimeout(r, 20));
+    leases.partition("A");
+    for (let i = 0; i < 50 && !destroyed.length; i++) await new Promise((r) => setTimeout(r, 10));
+    openGate();
+    await inflight.catch(() => {}); // refused or failed: not started again
+    expect(starts).toHaveLength(1);
+    expect(engine.running).toBe(0);
   });
 
   it("a cell that stays on its node keeps its container across its object's instances", async () => {
