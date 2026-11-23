@@ -36,14 +36,16 @@ import {
   notebookToDocument,
   numberCells,
   type OutlineEntry,
+  type Position,
   type PtBlock,
   renderProse,
   type SearchSection,
+  scriptStarts,
   toPortableText,
 } from "./portable-text.js";
 import { buildSearchIndex, type SearchIndex } from "./search.js";
 
-export type { OutlineEntry } from "./portable-text.js";
+export type { OutlineEntry, Position } from "./portable-text.js";
 
 export type PageBlock =
   | { kind: "prose"; html: string }
@@ -57,6 +59,8 @@ export type PageBlock =
       run?: boolean;
       /** `hidden`: the cell runs, its output is not shown. */
       hidden?: boolean;
+      /** The notebook file's line where the cell's source starts. */
+      line?: number;
     };
 
 export interface PageModel {
@@ -73,6 +77,10 @@ export interface PageModel {
   stylesUrl: string;
   /** The notebook as Portable Text, cells and expressions numbered (`portable-text.ts`). */
   content: PtBlock[];
+  /** The notebook's file, as the site's sources name it (`/guide/plots.md`). */
+  notebook: string;
+  /** Where each cell and expression (by id) starts in the notebook's file. */
+  positions: Record<number, Position>;
 }
 
 export interface SiteModel {
@@ -250,9 +258,11 @@ function registrations(
 
 /** A notebook's document: Markdown directly, a Notebook Kit document through notebook-build's parser. */
 function documentOf(file: string, text: string, dom: DomEnv): NotebookDocument {
-  return file.endsWith(".md")
-    ? markdownToDocument(text)
-    : notebookToDocument(parseNotebookHtml(text, dom));
+  if (file.endsWith(".md")) return markdownToDocument(text);
+  const nb = parseNotebookHtml(text, dom);
+  const starts = scriptStarts(text);
+  // Positions only when every cell was found: a mismatch would place cells on wrong lines.
+  return notebookToDocument(nb, starts.length === nb.cells.length ? starts : undefined);
 }
 
 /**
@@ -325,6 +335,14 @@ export async function buildPageModels(opts: {
             if (error !== undefined) exprErrors.set(e.id, error);
           }
 
+      const positions: Record<number, Position> = {};
+      for (const p of parts) {
+        if (p.kind === "cell" && p.cell.position) positions[p.cell.id] = p.cell.position;
+        if (p.kind === "prose")
+          for (const e of p.exprs) if (e.position) positions[e.id] = e.position;
+      }
+      const line = (cell: { position?: Position }) =>
+        cell.position ? { line: cell.position.line } : {};
       const outline: OutlineEntry[] = [];
       const used = new Set<string>();
       // Text above the first heading belongs to the page itself (no anchor).
@@ -372,13 +390,13 @@ export async function buildPageModels(opts: {
           ...(cell.attrs.hidden === true ? { hidden: true } : {}),
         };
         if (notRun.has(id)) {
-          blocks.push({ kind: "cell", id, ...view, run: false });
+          blocks.push({ kind: "cell", id, ...view, run: false, ...line(cell) });
           continue;
         }
         const def = compiled.get(id);
-        if (def?.error) blocks.push({ kind: "cell", id, error: def.error, ...view });
+        if (def?.error) blocks.push({ kind: "cell", id, error: def.error, ...view, ...line(cell) });
         else {
-          blocks.push({ kind: "cell", id, ...view });
+          blocks.push({ kind: "cell", id, ...view, ...line(cell) });
           if (def) defines.push(defineCall(def));
         }
       }
@@ -398,6 +416,8 @@ export async function buildPageModels(opts: {
         script,
         stylesUrl,
         content,
+        notebook: file,
+        positions,
       });
     } catch (e) {
       failures.push({ notebook: file, error: String((e as Error)?.message ?? e) });

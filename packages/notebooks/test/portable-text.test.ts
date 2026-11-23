@@ -203,15 +203,16 @@ describe("buildPageModels", () => {
     if (!page) throw new Error("no page");
     expect(page).toMatchObject({ id: "features", path: "/t/features", title: "Features" });
     expect(page.blocks.filter((b) => b.kind === "cell")).toEqual([
-      { kind: "cell", id: 2, source: "const answer = 6 * 7;", mode: "js" },
+      { kind: "cell", id: 2, source: "const answer = 6 * 7;", mode: "js", line: 9 },
       {
         kind: "cell",
         id: 3,
         source: 'fetch("https://example.com") // shown, not run',
         mode: "js",
         run: false,
+        line: 13,
       },
-      { kind: "cell", id: 4 },
+      { kind: "cell", id: 4, line: 19 },
     ]);
     const html = page.blocks.map((b) => (b.kind === "prose" ? b.html : "")).join("");
     expect(html).toContain('<code class="language-python">print(&quot;inert&quot;)</code>');
@@ -228,6 +229,23 @@ describe("buildPageModels", () => {
     ).toBe(true);
     expect(page.content.some((b) => b._type === "code-cell")).toBe(true);
     expect(models.inputs).toContain("answer");
+  });
+
+  it("records where each cell and expression starts in the Markdown file", async () => {
+    const notebooks = new MemFilesApi({ initialFiles: { "/features.md": NOTEBOOK } });
+    const models = await buildPageModels({ notebooks, moduleServer, dom, siteTitle: "S" });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    expect(page.notebook).toBe("/features.md");
+    // Lines count from the file's first line, front matter included (NOTEBOOK's lines 1-3).
+    expect(page.positions).toMatchObject({
+      1: { line: 6, column: 35 }, // `answer` inside "… the answer is ${answer}."
+      2: { line: 9, column: 1 }, // `const answer = 6 * 7;`
+      3: { line: 13, column: 1 }, // the run=false cell
+      4: { line: 19, column: 1 }, // `SELECT 1`
+    });
+    const cells = page.blocks.filter((b) => b.kind === "cell");
+    expect(cells.map((b) => (b as { line?: number }).line)).toEqual([9, 13, 19]);
   });
 
   it("runs jsx and tsx cells: compiled, with React pinned through the module server", async () => {
@@ -253,8 +271,8 @@ describe("buildPageModels", () => {
     if (!page) throw new Error("no page");
     // Code cells, not prose: the tsx cell shows its source (echo), both run.
     expect(page.blocks.filter((b) => b.kind === "cell")).toEqual([
-      { kind: "cell", id: 1, source: expect.stringContaining("const Door"), mode: "tsx" },
-      { kind: "cell", id: 2 },
+      { kind: "cell", id: 1, source: expect.stringContaining("const Door"), mode: "tsx", line: 4 },
+      { kind: "cell", id: 2, line: 8 },
     ]);
     const ids = [...page.script.matchAll(/getElementById\("cell-(\d+)"\)/g)].map((m) => m[1]);
     expect(ids.sort()).toEqual(["1", "2"]);
@@ -307,7 +325,20 @@ describe("buildPageModels", () => {
     expect(prose0).toContain('<h1 id="kit-notebook">Kit notebook</h1>');
     expect(prose0).toContain('A paragraph with <span id="cell-1" class="expr"></span> in it.');
     expect(prose0).toContain("<pre><code>an indented code block\n</code></pre>");
-    expect(page.blocks[1]).toEqual({ kind: "cell", id: 2, source: "const n = 3;", mode: "js" });
-    expect(page.blocks[2]).toEqual({ kind: "cell", id: 3, hidden: true });
+    expect(page.blocks[1]).toEqual({
+      kind: "cell",
+      id: 2,
+      source: "const n = 3;",
+      mode: "js",
+      line: 12,
+    });
+    expect(page.blocks[2]).toEqual({ kind: "cell", id: 3, hidden: true, line: 15 });
+    // A Notebook Kit cell's text is dedented: its column is where the text starts in the file.
+    expect(page.notebook).toBe("/kit.html");
+    expect(page.positions).toEqual({
+      1: { line: 7, column: 24 }, // `n` in "A paragraph with ${n} in it."
+      2: { line: 12, column: 5 },
+      3: { line: 15, column: 5 },
+    });
   });
 });
