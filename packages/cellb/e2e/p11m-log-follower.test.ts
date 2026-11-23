@@ -22,7 +22,6 @@ const env = {
   AWS_ACCESS_KEY_ID: KEYS.accessKeyId,
   AWS_SECRET_ACCESS_KEY: KEYS.secretAccessKey,
   AWS_REGION: "us-east-1",
-  CELLB_DEBUG_FOLLOWER: "1",
 };
 const CLI = resolve(__dirname, "../test/cellb-cli.mjs");
 const examples = resolve(__dirname, "../conformance/celld-examples");
@@ -167,16 +166,6 @@ describe.skipIf(!CELLD || !BUCKET)(
             ),
           ),
         );
-        if ([...complaints(nodes[1].log()), ...complaints(nodes[2].log())].length)
-          for (const n of nodes)
-            console.error(
-              "DEBUG228",
-              n.log()
-                .split("\n")
-                .filter((l) => /evict|append|follower|degrad|quarantin|cellb-f0|WARN|ERROR|DBGF/i.test(l))
-                .slice(-60)
-                .join("\n"),
-            );
         expect([...complaints(nodes[1].log()), ...complaints(nodes[2].log())]).toEqual([]);
         const recs = await f.records();
         const ensembles = Object.values(recs).flatMap((r) => r.log?.ensemble ?? []);

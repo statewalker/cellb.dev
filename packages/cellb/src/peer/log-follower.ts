@@ -484,6 +484,21 @@ export function createLogFollower(opts: {
 
   const reply = (f: State, ok: boolean): AppendResp => ({ ok, end: f.end, epoch: f.fragmentEpoch });
 
+  // Deleting what the bucket holds is no part of an append's promise: it runs after the replies,
+  // one prune at a time per leader, so a reply waits for neither the deletes nor the threads they
+  // take (celld evicts a follower whose appends run slower than its siblings', #228). The base it
+  // prunes to is on disk first (in the segment's header or state.json), so a restart never finds
+  // the range short of what was deleted.
+  const pruning = new Map<string, Promise<void>>();
+  const pruneLater = (leader: string, dir: string, f: Fragment) => {
+    const next = (pruning.get(leader) ?? Promise.resolve())
+      .then(() => prune(dir, f))
+      .catch(() => {})
+      .finally(() => {
+        if (pruning.get(leader) === next) pruning.delete(leader);
+      });
+    pruning.set(leader, next);
+  };
   type Waiter = { req: AppendRequest; done: (r: AppendResp) => void; fail: (e: unknown) => void };
   /** Each leader's appends that arrived since its last write started: the next burst. */
   const queues = new Map<string, Waiter[]>();
@@ -513,10 +528,7 @@ export function createLogFollower(opts: {
       if (entries.length || base !== f.base) {
         try {
           await mkdir(dir, { recursive: true });
-          const tw = performance.now();
           if (entries.length) await writeSegment(dir, f.fragmentEpoch, entries, base, end);
-          if (process.env.CELLB_DEBUG_FOLLOWER && performance.now() - tw > 15)
-            console.error(`DBGF write ${(performance.now() - tw).toFixed(1)}ms n=${entries.length}`);
           else await saveState(dir, { ...f, base, end });
         } catch {
           // not on disk: nothing is confirmed
@@ -529,7 +541,7 @@ export function createLogFollower(opts: {
         f.end = end;
         if (base !== f.base) {
           f.base = base;
-          await prune(dir, f).catch(() => {});
+          pruneLater(leader, dir, f);
         }
       }
       for (const w of ws) w.done(reply(f, f.end >= w.frameLast));
@@ -587,7 +599,6 @@ export function createLogFollower(opts: {
 
   return {
     async append(body) {
-      const t0 = performance.now();
       const req = decodeAppend(body);
       parseLeader(req.leader);
       return new Promise<AppendResp>((done, fail) => {
@@ -597,16 +608,7 @@ export function createLogFollower(opts: {
           queues.set(req.leader, q);
           void locked(req.leader, () => commit(req.leader));
         }
-        q.push({
-          req,
-          done: (r) => {
-            const ms = performance.now() - t0;
-            if (process.env.CELLB_DEBUG_FOLLOWER && ms > 20)
-              console.error(`DBGF append ${ms.toFixed(1)}ms entries=${req.entries.length} queue=${q!.length} ok=${r.ok}`);
-            done(r);
-          },
-          fail,
-        });
+        q.push({ req, done, fail });
       });
     },
 

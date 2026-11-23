@@ -208,6 +208,24 @@ describe("P51 the follower's appends cost what celld's do", () => {
     expect(await again.append(batch(1, [6]))).toEqual({ ok: true, end: 6, epoch: 1 });
   });
 
+  it("an append's reply does not wait for the files the bucket holds to be deleted (#228)", async () => {
+    const { store, follower, dir } = await setup();
+    await leaderRecord(store, { epoch: 1 });
+    await follower.append(batch(1, [1, 2, 3]));
+    // an earlier epoch's segments, all to go once the base moves
+    const d = join(dir, "peerlog", "a", "g1");
+    for (let i = 1; i <= 3_000; i++) writeFileSync(join(d, `seg-9-${i}-${i}.bin`), "");
+    expect(await follower.append(batch(1, [4], 2))).toEqual({ ok: true, end: 4, epoch: 1 });
+    const left = readdirSync(d).filter((n) => n.startsWith("seg-9-")).length;
+    expect(left).toBeGreaterThan(0); // the reply came first
+    for (let i = 0; i < 200 && readdirSync(d).some((n) => n.startsWith("seg-9-")); i++)
+      await new Promise((r) => setTimeout(r, 25));
+    expect(readdirSync(d).filter((n) => n.startsWith("seg-9-"))).toEqual([]); // then they went
+    // and what the follower holds is whole
+    const tail = decodeTail(await follower.tail({ leader: "a/g1", tail_format: 2 }));
+    expect(tail).toMatchObject({ base: 2, end: 4, complete: true });
+  });
+
   it("a torn segment that was never acknowledged is dropped on restart", async () => {
     const { store, follower, dir } = await setup();
     await leaderRecord(store, { epoch: 1 });
