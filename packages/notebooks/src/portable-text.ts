@@ -78,6 +78,8 @@ export const FENCE_MODES: Record<string, string> = {
   javascript: "js",
   ts: "ts",
   typescript: "ts",
+  jsx: "jsx",
+  tsx: "tsx",
   ojs: "ojs",
   sql: "sql",
   html: "html",
@@ -90,7 +92,7 @@ export const FENCE_MODES: Record<string, string> = {
 };
 
 /** The modes whose cells run in the page; the same set as notebook-build's `CODE_MODES`. */
-export const CODE_MODES = new Set(["js", "ts", "ojs", "sql"]);
+export const CODE_MODES = new Set(["js", "ts", "jsx", "tsx", "ojs", "sql"]);
 
 /** Private-use characters: Markdown leaves them as text, HTML escaping leaves them alone. */
 const PH_OPEN = "";

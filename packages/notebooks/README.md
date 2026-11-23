@@ -63,6 +63,11 @@ GET  /nb/<site>/t/<page> ─► the theme's build in a Worker Loader isolate,
 - **A notebook becomes a document first** (`src/portable-text.ts`): code cells (top-level fences
   whose language is a notebook-kit cell mode, with their fence attributes) and prose between them.
   A Notebook Kit document maps cell by cell, its Markdown cells as prose.
+- **`jsx` and `tsx` cells** run as well as `js` and `ts`. notebook-build (0.4) compiles them with
+  sucrase (types erased, JSX to `react/jsx-runtime`). React comes from the module server, pinned
+  like any npm import, so the export carries it. A cell whose value is a React element, or an
+  element passed to `display`, renders with `react-dom/client`. The features notebook has one of
+  each, checked in Chromium on every host.
 - **`${…}` is taken out of the prose before any Markdown parsing**, by a scanner that knows
   JavaScript strings, template literals and comments, skips code spans and honours `\${`. Markdown
   never sees an expression's source, so `${x*2}` or `` ${html`<b>${x}</b>`} `` stay expressions.
