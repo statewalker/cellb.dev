@@ -31,8 +31,8 @@
     "@statewalker/httpeers-access": "^0.1.4",
     "@statewalker/httpeers-core": "^0.1.3",
     "@statewalker/httpeers-hub": "^0.1.4",
-    "@statewalker/httpeers-libp2p": "^0.3.2",
-    "@statewalker/httpeers-member": "^0.3.2",
+    "@statewalker/httpeers-libp2p": "^0.7.0",
+    "@statewalker/httpeers-member": "^0.7.0",
     "libp2p": "^3.5.1",
     "node-datachannel": "^0.33.6"
   },

@@ -244,8 +244,8 @@ importers:
         specifier: ^0.1.3
         version: 0.1.4
       '@statewalker/httpeers-member':
-        specifier: ^0.3.2
-        version: 0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.17.2)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
+        specifier: ^0.7.0
+        version: 0.7.0(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.17.2)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
       '@statewalker/notebook-build':
         specifier: 'catalog:'
         version: 0.3.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -253,17 +253,17 @@ importers:
         specifier: 'catalog:'
         version: 0.3.0(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-site-builder@0.3.0(@statewalker/webrun-files@0.12.0))
       '@statewalker/vcs-commands':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.5.0
+        version: 0.5.0
       '@statewalker/vcs-core':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.5.0
+        version: 0.5.0
       '@statewalker/vcs-store-files':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.5.0
+        version: 0.5.0
       '@statewalker/vcs-working-tree':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.5.0
+        version: 0.5.0
       '@statewalker/webrun-biscuit':
         specifier: ^0.2.3
         version: 0.2.3
@@ -431,11 +431,11 @@ importers:
         specifier: ^0.1.4
         version: 0.1.6(@statewalker/webrun-files@0.12.0)
       '@statewalker/httpeers-libp2p':
-        specifier: ^0.3.2
-        version: 0.3.2(bufferutil@4.2.0)
+        specifier: ^0.7.0
+        version: 0.7.0(bufferutil@4.2.0)
       '@statewalker/httpeers-member':
-        specifier: ^0.3.2
-        version: 0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.7.1)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
+        specifier: ^0.7.0
+        version: 0.7.0(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.17.2)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
       libp2p:
         specifier: ^3.5.1
         version: 3.5.1
@@ -967,24 +967,28 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@astrojs/compiler-binding-linux-arm64-musl@0.5.3':
     resolution: {integrity: sha512-DRcjEOFWcMbaaTsbOEferYozr2zDUf/roDzcF6WxHSSto+rqZ1N87xxj/pjOpz0JtTBlZ3V59nZGONcNiQUSWw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@astrojs/compiler-binding-linux-x64-gnu@0.5.3':
     resolution: {integrity: sha512-8rIMmEFtuVe5mMvwBR59uSHZL7CaJ/CPm5Hh3r3Bd5JLoSPkBbl1xk8kwUkNKJ0QSbGEFdWkUnx73JRZq46i2A==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@astrojs/compiler-binding-linux-x64-musl@0.5.3':
     resolution: {integrity: sha512-+sZCsIXq/PQBiemALIr+GbERKQbQ82mHW2ibJUlCDtsjyFA/8Udm8WGZhS7AGjb2P9ekQ4j7Z8dbxb0f3E0oZw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@astrojs/compiler-binding-wasm32-wasi@0.5.3':
     resolution: {integrity: sha512-cEhZ7XAoZYffJdNYb3MDWci1UKhSEjPN+DMaLEB8X1tKlhlYNw9eVWUyNZTe1gb3nr7JJBVXdXDioqE00dyVLQ==}
@@ -1204,24 +1208,28 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@biomejs/cli-linux-arm64@2.6.7':
     resolution: {integrity: sha512-Qa2edxQClKn17y1ASWkOOuT96K2si1nTLiPbXMOMilNJ79eNsa1as1kaSbgxOXy1kRUENw76sp4pAddneq3l8Q==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@biomejs/cli-linux-x64-musl@2.6.7':
     resolution: {integrity: sha512-+AOQyCsPR4nH5L4Hjzp8T0iaHm4UxY3unjL/KUJKc/8ziLnbkbmL3adtWmQW5ERB1zi6LRA1fsjaSuf/xGnLaQ==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@biomejs/cli-linux-x64@2.6.7':
     resolution: {integrity: sha512-VpHQ33CPNYrlIn0vyDdRS1KUlS3AiM17FiyEE2gwU000NwzyY4MgjzVHEv2KrmMb5D9Ksm3gFkwg+IOx/ULJNQ==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@biomejs/cli-win32-arm64@2.6.7':
     resolution: {integrity: sha512-2nLivZfgcGMIXP/bI8w1FZP5JE2MetP+XZInyMQ7SvJBKlDoGrm/nRjN7uUi9dOaaSlpbRWkHSfb7PqcQR3nXg==}
@@ -1262,21 +1270,25 @@ packages:
     resolution: {integrity: sha512-aeH365GHaqv01wRSiHaGUlpL28U8e9UnV9LxjIF6BOyTj71/M5bop4HKomcis4VxFZjd68fDqNyU22yFkF/h7A==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@bruits/satteri-linux-arm64-musl@0.11.7':
     resolution: {integrity: sha512-72WlBhuwOHm+2Nv4Qf1WzfS75PHOLz81sYkDJnmj0Rm2C4Xax5faSiTDt7vWo1IcK6rDlkuRDNnWIw8uIKWuVQ==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@bruits/satteri-linux-x64-gnu@0.11.7':
     resolution: {integrity: sha512-gDp4v1jjckeNCetLtrMUfDV4CKGYL6fayDPdoaQq09nkDCSrclxEFK7kAmRuHhoalgsao4bZMFqQr3HQtN2NEQ==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@bruits/satteri-linux-x64-musl@0.11.7':
     resolution: {integrity: sha512-zqzSpQLA6V3J/TO2Vjuc1VRQPIQQdoSYmzKKFL+3GwGlbXiFQP2ZUDSLw9xlm0tTKXkCM9ANr4jMiDASZ+JGUw==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@bruits/satteri-wasm32-wasi@0.11.7':
     resolution: {integrity: sha512-L46f6rtlaBR4fsTWGCTFcXtbtka2GyM3l9TsmE0FgTxjXGq+sndYg5X3hzlhWDkNvJpRtCHCmgTRJ5+cIi4o3A==}
@@ -1830,177 +1842,209 @@ packages:
     resolution: {integrity: sha512-JznefmcK9j1JKPz8AkQDh89kjojubyfOasWBPKfzMIhPwsgDy9evpE/naJTXXXmghS1iFwR8u/kTwh/I2/+GCw==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-arm64@1.3.4':
     resolution: {integrity: sha512-Y3dgX/6lE2QhQb+Gxy0WZxfg9MEm/JBjamZpS2IklP7xIQoKN4hzAm7KcMVGtaVDt3neE9OKBC7vAfonA/Lr1A==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-arm@1.3.1':
     resolution: {integrity: sha512-aGGy9aWzXgHBG7HNyQPWorZthlp7+x6fDRoPAQbGO3ThcttuTyKIx3NuSHb6zb4gBNq6/yNn9f1cy9nFKS/Vmg==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-arm@1.3.4':
     resolution: {integrity: sha512-LmRtTsOHuvM2+wlO2Db37dx5MiZhB0FvSunciw48YjdOkZz9KAiRbm8ujeMOA1INqmei5NapFxYEK1D1ZSidmw==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-ppc64@1.3.1':
     resolution: {integrity: sha512-1EkwGNCZk6iWNCMWqrvdJ+r1j0PT1zIz60CNPhYnJlK/zyeWqlsPZIe+ocBVqPF8k/Ssee/NCk+tE9Ryrko6ng==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-ppc64@1.3.4':
     resolution: {integrity: sha512-Le6boB8Tai0Nis+gIxIpKx68UDVVIqdR8Tin5Yf1z2LJJQLDJvCDRqRu+jC2qCoD+eIomonmOwB4smBRxfVpYQ==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-riscv64@1.3.1':
     resolution: {integrity: sha512-Ilays+w2bXdnxzxtQdmXR62u8o8GYa3eL4+Gr+1KiE4xperMZUslRaVPJwwPkzlHEjGfXAfRVAa/7CYCtSqsBw==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-riscv64@1.3.4':
     resolution: {integrity: sha512-aHkkIEHPRdQEegJN20MLmGtxYD9R2wQr3Cwpddnu5+YKMt6Uzax7S9h5gpZTo8wyrGuZSlfQ63OevL5mTyOC7Q==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-s390x@1.3.1':
     resolution: {integrity: sha512-VfBwVHQTbRoj4XlpA/KLZ7ltgMpz+4WSejFzQ+GnoImjo1PtEJ59QB2qR1xQEeRPYIkNrPIm2L4cICMvz4C2ew==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-s390x@1.3.4':
     resolution: {integrity: sha512-ra/mB6MikESDUO7Yg+Mi95bFBb9GsObURuhnOv3OqknjGe9sZrG8tCe9q0xSIGrtLgvgw0gKnFWcK4blSgQOuQ==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-x64@1.3.1':
     resolution: {integrity: sha512-+c8ukgwU62DS54nCAjw7keOfHUkmr0B5QHEdcOqRnodF/MNXJbVI8Eopoj4B/0H8Asr65I+A4Amrn7a85/md6A==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-x64@1.3.4':
     resolution: {integrity: sha512-GJ//SSXbnwSDes02umB3nDJLFcQzw8a18V8fyhqr6tV515tOEMdImjjxj1AoafMRz56F3PHgftnj1QEKSU1zkw==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linuxmusl-arm64@1.3.1':
     resolution: {integrity: sha512-qlKb/pwbkAi1WMsJrYHk7CuDrd12s27U2QnRhFYUoJNrRCmkosMTttuRFat/DDB3IlDm5qE1TJgZ4JDnHX8Ldw==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-libvips-linuxmusl-arm64@1.3.4':
     resolution: {integrity: sha512-hvulFwtjUcagsis6BBxHwGFwWoNZjgYmULGVrZcyfNbjA8hKILbRxGg15/7w5HDyXHXUos/j6baAWqnCyQ2DWA==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-libvips-linuxmusl-x64@1.3.1':
     resolution: {integrity: sha512-yO21HwoUVLN8Qa+/SBjQLMYwBWAVJjeGPNe+hc0OUeMeifEtJqu5a1c4HayE1nNpDih9y3/KkoltfkDodmKAlg==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-libvips-linuxmusl-x64@1.3.4':
     resolution: {integrity: sha512-6zXKeE/p39I1AmA3cJG35eyBGNqNddLnUXjhwBnsGjFPWqf5VKkDBEqaEkPDoTEtkxwi2vv8Tcr2mDyP4So7Fg==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linux-arm64@0.35.2':
     resolution: {integrity: sha512-af12Pnd0ZGu2HfP8NayB0kk6eC/lrfbQE6HlR4jD+34wdJ1Vw9TF6TMn6ZvffT+WgqVsl0hRbmNvz2u/23VmwA==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-arm64@0.35.5':
     resolution: {integrity: sha512-LYVx5JTsOM2CBzmxreh+nl64/3H6Xb09iSLknqH47z2T2DFFxDeFLP5y4dJwe6H7uGQlHPyEEtIqyo3DYsRwdQ==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-arm@0.35.2':
     resolution: {integrity: sha512-SE4kzF2mepn6z+6E7L6lsV8FzuLL6IPQdyX8ZiwROAG/G8td+hP/m7FsFPwidtrF19gvajuC9l6TxAVcsA4S7A==}
     engines: {node: '>=20.9.0'}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-arm@0.35.5':
     resolution: {integrity: sha512-LEaXK2WdXVK5ykcw0buWyPMsmLLL2vpHLD6yrNSW+JGEL3BZPA4tpKN6iaMc4AxTTAoaX/sU1rOL51lcIz48ZQ==}
     engines: {node: '>=20.9.0'}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-ppc64@0.35.2':
     resolution: {integrity: sha512-hYSBm7zcNtDCozCxQHYZJiu63b/bXsgRZuOxCIBZsStMM9Vap47iFHdbX4kCvQsblPB/k+clhELpdQJHQLSHvg==}
     engines: {node: '>=20.9.0'}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-ppc64@0.35.5':
     resolution: {integrity: sha512-QVxAAq8evVRI9ia2vqgwrmWucn5Dfv+JdWzj75pD8omHLPSP7f8p20O8jxzjCcuCEQEOtYOZUmX1hkiZ0kdevA==}
     engines: {node: '>=20.9.0'}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-riscv64@0.35.2':
     resolution: {integrity: sha512-qQt0Kc13+Hoan/Awq/qMSQw3L+RI1NCRPgD5cUJ/1WSSmIoysLOc72jlRM3E0OHN9Yr313jgeQ2T+zW+F03QFA==}
     engines: {node: '>=20.9.0'}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-riscv64@0.35.5':
     resolution: {integrity: sha512-LtdreXguaavKODPIfzJ4kffx7UNt1omwtK0rch4EBbbSTXPnxWmYSayXdLJw0fJzQ97kHt1gL/yh4tvU+nCyRQ==}
     engines: {node: '>=20.9.0'}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-s390x@0.35.2':
     resolution: {integrity: sha512-E4fLLfRPzDLlEeDaTzI98OFLcv++WL5ChLLMwPoVd0CIoZQqupBSNbOisPL5am9XsbQ9T84+iiMpUvbFtkunbA==}
     engines: {node: '>=20.9.0'}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-s390x@0.35.5':
     resolution: {integrity: sha512-UZasTOFiYzotTsGOCu42BfUzP6Tu6Do/947iRm1RsLKvlllxwGcn4RN27LibGWceix4Y+Pmw3jsnTcCQIgWjqA==}
     engines: {node: '>=20.9.0'}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-x64@0.35.2':
     resolution: {integrity: sha512-gi0zFJJRLswfCZmHtJdikXPOc5u7qamSOS3NHedLqLd4W8Q0NqjdBr6TTRIgsfFjqfTsHFgdfvJ9LwqSgcHiAA==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-x64@0.35.5':
     resolution: {integrity: sha512-SxFtLTeJInhAA9Q836kux2vZNeOBQEx658qvbboZScr0wIARym3IcGmW7KpVD5sbVg0Ojy+udFQdayYIZyoNog==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linuxmusl-arm64@0.35.2':
     resolution: {integrity: sha512-siWbOW1u6HFnFLrp0waKyW7VEf7jYvcDWdrXEFa8AkdAQgEvuu5Fz8/Y70w9EeqAdwDtfU012BhEHHaDqvQNzg==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linuxmusl-arm64@0.35.5':
     resolution: {integrity: sha512-9HbMclmI1zlNkFRs3z9/eBtDjfD0sGlrX1z6b1qwmiFY5ElDLh4BC0LPBdVp7z1DXFiKlIcznf+ZlsuZzLxQqg==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linuxmusl-x64@0.35.2':
     resolution: {integrity: sha512-YBqMMcjDi4QGYiSn4vNOYBhmlC4z5AXqkOUUqI2e0AFA4urNv4ESgOgwNl3K+4etQhha0twXlzeF20bbULm9Yg==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linuxmusl-x64@0.35.5':
     resolution: {integrity: sha512-4KOphqB035HrVdqLZfCgMzzERrQkkzOwRhl4OAkRO1YCldbaFjySXMaK534Mo0V+LndnlJk+sbUyLeU0ULyD1A==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-wasm32@0.35.2':
     resolution: {integrity: sha512-Mrv4JQNYVQ94xH+jzZ9r+gowleN8mv2FTgKT+PI6bx5C0G8TdNYndu161pg2i7uoBwxy2ImPMHrJOM2LZef7Bw==}
@@ -2287,21 +2331,25 @@ packages:
     resolution: {integrity: sha512-phMRjx8NEfW70i768LCQDEF2C6Q2vtYsS4DPXv/zbb2cJClaU5fjKFQfQ1XBCNIi1ClfpSd3Cl/rn/7SS+paTQ==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@node-datachannel/linux-arm64-musl@0.33.6':
     resolution: {integrity: sha512-T9bqllJ9YkpgqgRFEfsPpfgfMDXdA7CIiJ4c1XXGPLSeqVFgDbf/WCewkE7q4xA+tKRLoOOtc2XgMGwVnlxXVQ==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@node-datachannel/linux-x64-gnu@0.33.6':
     resolution: {integrity: sha512-NUTbne64++ZxwEJ9uppAAmYnFAfJAggf7gboioPdhr13P17GTQRCUgmipYrh1V0D4333x6NCBZyQaNv0n4WmpQ==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@node-datachannel/linux-x64-musl@0.33.6':
     resolution: {integrity: sha512-dlWP4ycOJrTAl9UvxGofq0zwPhl6iAr1b0ZcBUgDfb2CXmbcJWCvg6OsJ6u8BVSV41eNXALmaRpU0wttas/f1g==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@node-datachannel/win32-arm64-msvc@0.33.6':
     resolution: {integrity: sha512-ttly7XRUrSOcOOGJvtm9gh2beAPUNOBOUc3Hk82LfMHHP7jJMkXNDns/ML+UVGommAcNyPhoZkRH62O7tSVQYw==}
@@ -2681,36 +2729,42 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-arm64-musl@1.2.19':
     resolution: {integrity: sha512-K1SmQp3FFichn8oqrNIwvFoZ5wcvjC7goBzpaMNvLf9FZc+QB/QvLmnpJZgAAGHiD980tP8FZZnXk2K94rvlxg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@rolldown/binding-linux-ppc64-gnu@1.2.19':
     resolution: {integrity: sha512-I0xwD57jP/3A7+5UPZin2w8Y7XHEmEM5zqpYZOcQ45MlNW6tUJUziymV3yRr7rL4vwyfEcRsRksC4a7Kc08p5Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-s390x-gnu@1.2.19':
     resolution: {integrity: sha512-BrtEHT24SNXj9HiXqy+s/kXiSiQGt6EKCPUlRirAoIioVxKGnbXBUEkbZASAei7iZJB0/Ynm+0JP00Ipx7AnSw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-x64-gnu@1.2.19':
     resolution: {integrity: sha512-rm75/9DkHKeU2WnA8w4X94WGYgLlDCFCfkQC+4bguVJmC/jvDRv2B+2wLOYhyE0fVuv7//Ckk39OoOufyCu76Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-x64-musl@1.2.19':
     resolution: {integrity: sha512-irh/4+iYFM4GAzpluDErgjz89bj6NDtqqMAG/6O1LG38Ed3NpyebzCpcVNkFW8uhy+/3/BocUvnXDR33CXWe9A==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@rolldown/binding-openharmony-arm64@1.2.19':
     resolution: {integrity: sha512-+KWTWNoPt+CfSq94CiceWu3yPE+QzkaG+phPyz9G60tmZLwfQkcA4AeksafzvJAw4pvg1mcd5a1TkUqVv0s4JA==}
@@ -2837,8 +2891,8 @@ packages:
   '@statewalker/httpeers-access@0.1.5':
     resolution: {integrity: sha512-2bhBckKxGVFfxHVGkxHQcMJIg1VyBQdDa98y4gvLPMRY8bZjbzXZwyUvU5EUnAWjzWVnEdMYvPDEujR8SqnibA==}
 
-  '@statewalker/httpeers-bridge@0.2.1':
-    resolution: {integrity: sha512-VLqgj2l4JTU22hrjX+p5lQvhrORdpswt+6gYpUIFmmEw+L8IxFdvmaZuItn8dqUIOVLdvgTQFmrhscuWyN6i7A==}
+  '@statewalker/httpeers-bridge@0.4.0':
+    resolution: {integrity: sha512-loVPOS71zPqAnxvZ4LT5sxg/vVJLgSkdElJcQRPpNkmalfJdv8Oe1gsa3eQWiNBDAK/bzUQhM4JzwTOR2cc2Xw==}
 
   '@statewalker/httpeers-core@0.1.4':
     resolution: {integrity: sha512-PsZBkw4nem/JECkbNuzJfroH4M+N1Ohgz3LpwCyAkJcBkUrwtp1H4L9RrfvFe7OHKGjsR+sjhxLTGfjcF5BISA==}
@@ -2851,11 +2905,11 @@ packages:
       '@statewalker/webrun-files':
         optional: true
 
-  '@statewalker/httpeers-libp2p@0.3.2':
-    resolution: {integrity: sha512-0GoehZaKWjo7CebHvvDwYXXAef5GB+PiAngYg4kb4JzYorA2RzYafmVNy/1OR6YdUcGd0z+oaTHWnlxJ7uHkaw==}
+  '@statewalker/httpeers-libp2p@0.7.0':
+    resolution: {integrity: sha512-TE81TEjTuUNoH6Olhwx3eXvgW4bUG+Qz2RnmBZBJbyiWB5V4VTTx/xTnyOjsRk1TAHcoIhscfKXqNCG1pDdqAw==}
 
-  '@statewalker/httpeers-member@0.3.2':
-    resolution: {integrity: sha512-E7qZf721L90BqZo+c4LwgS7EwI9dqOnYW3YNoz6d56hBxa/705UQKunelo96JYy6L3e9vyMxFq9u0HghzKC8oA==}
+  '@statewalker/httpeers-member@0.7.0':
+    resolution: {integrity: sha512-S7gwd2rbzGSFUbHAnBR12VVBtiVWppr+01CIZd6rARsJouh51leWPCeiew36X19BCrZd7s1QUm0Uegc7mtCXOw==}
     peerDependencies:
       '@chainsafe/libp2p-noise': ^17.0.0
       '@chainsafe/libp2p-yamux': ^8.0.1
@@ -2864,7 +2918,7 @@ packages:
       '@libp2p/tcp': ^11.0.28
       '@libp2p/webrtc': ^7.0.2
       '@libp2p/websockets': ^10.1.21
-      '@statewalker/webrun-http-browser': ^0.7.1
+      '@statewalker/webrun-http-browser': ^0.7.1 || ^0.13.0 || ^0.16.0 || ^0.17.1
       idb-keyval: ^6.3.0
       libp2p: ^3.5.1
     peerDependenciesMeta:
@@ -2908,26 +2962,26 @@ packages:
       '@statewalker/webrun-files': ^0.12.0
       '@statewalker/webrun-site-builder': ^0.3.0
 
-  '@statewalker/vcs-commands@0.4.0':
-    resolution: {integrity: sha512-J23uFmce8eW0G1RZSozJdxlBnEnIsiP5Z3zDfM+aOZ+p+qE/VGC/oUxHcOwR+6+L8asyW2M/S1NQ7svl01y85A==}
+  '@statewalker/vcs-commands@0.5.0':
+    resolution: {integrity: sha512-3hrWgDmOCKuEFNTWW0IDFkIaGqKMSoIn7qE1Z3xRvcP3ORHnuIQT8X5zoxEtXlof47dfeC0QBvB1ggOlhiiQMQ==}
 
-  '@statewalker/vcs-core@0.4.0':
-    resolution: {integrity: sha512-m3xbYwkFBA6gUTMLb2SeJyzrlPNNMBv0nLoqHY9IGeRrnhmNt5JpOwWbCQ2katBztSLFRsIyRkRzms7aSc/IsA==}
+  '@statewalker/vcs-core@0.5.0':
+    resolution: {integrity: sha512-lZc2c3Qv0iEn5dQG8AU6yBlbJGhfoC4FbHnnzFWE4ohjktT/fBPjuDIvPVZoQFLblHrn6p4CSdvxw1tu9endiw==}
 
-  '@statewalker/vcs-store-files@0.4.0':
-    resolution: {integrity: sha512-V/JxW3gvhapSWimTXP/imFm7jJm+2Ftm7oAjWZcFbwCszUZ75x/OE2JkbDHeR5tuBCZzhqg5e1ZtdesVqUbg/A==}
+  '@statewalker/vcs-store-files@0.5.0':
+    resolution: {integrity: sha512-WLZhpKLxsNCBCSEgZVNxeuBDbnYIHMEtI7RZ2L38S7baIiFRq4SC7Creh2f/78tX+3fWIaQnyP05je5MJVMT0A==}
 
-  '@statewalker/vcs-store-mem@0.4.0':
-    resolution: {integrity: sha512-X6ycTe2lYcdlzUJvwzcMQrCc5gJdnfafHV7XtkVRQQ9vJe0dGiE0KikDMGEQiZ37IjpkyCXStmZ6tn+vPOVg4g==}
+  '@statewalker/vcs-store-mem@0.5.0':
+    resolution: {integrity: sha512-2qhKA9gSe8GqyWSiyIorqRaOrXa/PF8bFPdlfszqmQSMZenVEdyGteHmbgN94iIllRjJJs2ODFE+BZv41QUlSg==}
 
-  '@statewalker/vcs-transport@0.4.0':
-    resolution: {integrity: sha512-c28h6G2TVgSO8tWpooNYKBi1AaooFMDjdv0kKyDxWkwoPTiAtRqFM1CMwMTmzyFjHAlsWlNWqzL1yUzMpAUnrQ==}
+  '@statewalker/vcs-transport@0.5.0':
+    resolution: {integrity: sha512-Y79DGdUmqT22pFbnwRA6aQLrJ7DoXCayvu/yVlOKUx6CCPFhCw5t0nr1uP2CSI9CsX4dQr5VaD9+pEs49KE/xg==}
 
-  '@statewalker/vcs-utils@0.4.0':
-    resolution: {integrity: sha512-JShO/XqT+Vrs4vNWouGW/Ds4e68jExYClWYSikAhKiyuUirNld57cwZqwgLgNDeOo2hQHmzr64vZlXg4Lb/HPg==}
+  '@statewalker/vcs-utils@0.5.0':
+    resolution: {integrity: sha512-bnBkDzgzbSBEHhnbHxUd6fTdZelWuX1oPh7UzLbF2zd6V9vQNNiboeHuXwLCJLdobClZphsmbLbGF659nTfWsA==}
 
-  '@statewalker/vcs-working-tree@0.4.0':
-    resolution: {integrity: sha512-t9nBI9oPDZqwBAARyy8ZlElLBkapHwzPBUNTaDtrQpT6/lR0rqJ+L+O/ZJaR0qvQTyfWGeF56GfbqZnw9dim1g==}
+  '@statewalker/vcs-working-tree@0.5.0':
+    resolution: {integrity: sha512-UB+1aSnSJGjEKFm6DM2d5u8U0HnDZPDau+PfSXTAjkCJW0FDQQS54ib4S3qHoQKSJ1bDVU4gRxDdK6VR123wbA==}
 
   '@statewalker/webrun-biscuit@0.2.3':
     resolution: {integrity: sha512-OgdQqAzzmDI2OQd8Mt1pWlEkAbshIbql0lbRitBqCVAZG0zuGtAS+K2qSoTEczdDGWUrAH+hm/cD9UdoDOXfJA==}
@@ -2963,17 +3017,8 @@ packages:
   '@statewalker/webrun-http-browser@0.17.2':
     resolution: {integrity: sha512-3KMqiP2RtOhQsJJntzw+8de+ANJBXONzu6JbMYtSVRv4cND5GltjbOVU9G0LIf+B5j6eoFGwq+c5WcZevBYeyg==}
 
-  '@statewalker/webrun-http-browser@0.7.1':
-    resolution: {integrity: sha512-MxRTSu1QXQ6N8QuXYXxJFKTJADZUjmJXDF7gzqrjFhkYZt37BQXZkk0gZvY94p/WsbZSyTST1QONMJsk3ShNAQ==}
-
   '@statewalker/webrun-http-events@0.2.1':
     resolution: {integrity: sha512-s6yNKGPXJwcBngsKt2EnEJm+lyoJCnwEZX7Jlu3cl7BHSczcfcoqGNXXlr+qhyX3OmfiSd2OO+snRWPfIaKTVg==}
-
-  '@statewalker/webrun-http-streams@0.3.2':
-    resolution: {integrity: sha512-hbpnb4TCHYTE8UoFbPE3BGjInPVGrRZzFdGazdfAHjABSDqJrvEzSr9WmqfI7tgp3ss+UnD3bEEBl9Za5mo37Q==}
-
-  '@statewalker/webrun-http-streams@0.6.0':
-    resolution: {integrity: sha512-3ljLxGIxwOQkxMIEhgutCRbQOzhhlHojM4ojbf9gwqJKO6Im50qGH8PS3yF/1aVeWfNdk5pAHJ7p3K8l5bjTNQ==}
 
   '@statewalker/webrun-http-streams@0.8.2':
     resolution: {integrity: sha512-bCEmDUSmXJmduNsn6eLj0Yv7HmfBNpNR3DUqA2Zndtd4Ct+WYVWlcxtblTQXH/eBRDoekRj8xyR1sJo5O3SRYw==}
@@ -2981,11 +3026,11 @@ packages:
   '@statewalker/webrun-modules@0.4.0':
     resolution: {integrity: sha512-F0h6bHGQwxXiXBayjeWzMddf+5C9VGHfW8sRZCKGLeZB4Q71Dv2Jg+GOzz9zmwCDrNoEVZFk3G4UlskHFpqY8Q==}
 
+  '@statewalker/webrun-msgpack@0.14.2':
+    resolution: {integrity: sha512-5n5eRYVtEVK7L4Mm/xM5MkCUH4fbpOf0gVdirSGDXvl/YaI+UciglqcIlP1x9jtEd+a5HUW4RMaXddxtRsyjRg==}
+
   '@statewalker/webrun-rpc@0.15.2':
     resolution: {integrity: sha512-BfgZKmF5bdGpulZ1BSizM3R52m7Zq2iQR3/Iehc2wk37nqyGoeUmu76gbRaF9fBniADDnjqGSKekVISgKy/d4A==}
-
-  '@statewalker/webrun-rpc@0.5.1':
-    resolution: {integrity: sha512-DpnT0dJ0KpdL5QKqKTmN75CnGc1w24iHdZqYfJQLVpSKEIR/GjPb3Vzbzb4NIu9tCHsroW+Dq1CO84Jp6YCXzw==}
 
   '@statewalker/webrun-site-builder@0.3.0':
     resolution: {integrity: sha512-c63MTkT19blI34gaN70omEtP0rhM160Ln9irZXLp6NjzKsRJvLTG4YiO0SST14MBYSPHK4JrFA2+dRDK32Pzhw==}
@@ -3000,8 +3045,8 @@ packages:
   '@statewalker/webrun-storage@0.3.0':
     resolution: {integrity: sha512-wesw3JZy4CAe3iaZESPAPPlfqhQOZ4gN2OGeD0jG9gU+6a+LU+mg0xN3HmDaM0ZBKUWDrVP+1BPEJnASgGvJHQ==}
 
-  '@statewalker/webrun-streams-libp2p@0.1.8':
-    resolution: {integrity: sha512-5a9IKOgCNZsBakENmyZnjyyEfgeSIuh5IwUg0vlbLB8QpfhH1e2eMt/0Kw6/9tyRdKFduJ84mgzCh4I4wdK8Aw==}
+  '@statewalker/webrun-streams-libp2p@0.7.2':
+    resolution: {integrity: sha512-4Dhacc+DE6BLg6kVOu9BsHwl1UVqY9VdXf7ULkvPU9/IX88y2EDxL9dcA0fqeljbVmlJsbbPElz6XlNtISac6g==}
     peerDependencies:
       '@libp2p/interface': ^3.0.0
       '@multiformats/multiaddr': ^13.0.0
@@ -3009,12 +3054,6 @@ packages:
     peerDependenciesMeta:
       libp2p:
         optional: true
-
-  '@statewalker/webrun-streams@0.2.3':
-    resolution: {integrity: sha512-v4+32VDLjt8HzAhjgd7K3bgiasQosU7FooXhLaTU2dQzYyNZ6NbNMOI/24SL0bdmTHkSU3bxktASn0hO3sCwng==}
-
-  '@statewalker/webrun-streams@0.4.0':
-    resolution: {integrity: sha512-7KTDwUH29KKfwInIQUnsCKXMUUGijeOZ8ITxUIm8Jl9c97y6ouD0eSApGLix9ToUTtSs6DQhhwTkNf288OnLmA==}
 
   '@statewalker/webrun-streams@0.6.2':
     resolution: {integrity: sha512-MF3gqrjPi5wdgvgtWHd4IuTgjPr0vEU23Mugf4pL+nw3ufYFT58HgT8o86bPAyuvtM8KcDavyCE24iBhjqiMjg==}
@@ -3062,24 +3101,28 @@ packages:
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@tailwindcss/oxide-linux-arm64-musl@4.3.5':
     resolution: {integrity: sha512-H9lsvO4x9E4nE4Hi8h7NHHw0O/kcVSu+iOyFHNGdYzazGgDjFHZbE6S3hQ8kMcbNXSBlMdNi67LV5EVqtpaJtw==}
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@tailwindcss/oxide-linux-x64-gnu@4.3.5':
     resolution: {integrity: sha512-4uxQvtBvPuIdl13WfUBj9xMZHH14PtHZ8OZdtLmdyDtG66sCa1t599NZT+jagkUzRtWhuul1qRZQ1nAJscXN5g==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@tailwindcss/oxide-linux-x64-musl@4.3.5':
     resolution: {integrity: sha512-0JQAzs7jwbA7O6+z/adU+Jk3AXwsu3npAhtr5escXS7TqEqWcaDV7qHuI+0Vy/KQRuVGnLQREcSJWYauyV3oqg==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@tailwindcss/oxide-wasm32-wasi@4.3.5':
     resolution: {integrity: sha512-OJhFmlEfdzMr+avACdi40RPtnkW0B6hXyxL/8r+tnEHBWZji36CYRjEXrrvgBmaYsD3oEOBqwYFRKsYvzFe7Bw==}
@@ -4460,24 +4503,28 @@ packages:
     engines: {node: '>= 12.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   lightningcss-linux-arm64-musl@1.33.0:
     resolution: {integrity: sha512-yiO5ROMuYQgXbC60yjZU5CYSFZGKXL0HFATXt9mHJn1+zW55oCtMI9NfcVhYLMFDL7gV7oBPon/EmMMGg2OvtQ==}
     engines: {node: '>= 12.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   lightningcss-linux-x64-gnu@1.33.0:
     resolution: {integrity: sha512-ar+Ju7LmcN0Jo4FpL4hpFybwNG9/3A/Br5KW2n2jyODg3MEZXaDYADdemoNS+BDNfMgKvylJLj4S5tyRActuAg==}
     engines: {node: '>= 12.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   lightningcss-linux-x64-musl@1.33.0:
     resolution: {integrity: sha512-RYiYbkokw0trfKqqzfF55lginwEPrD3OJDfTuJzFs1MK6iFnDenaz1fqLLtX4ITG3OktJQXOeTaw1awrBAlZPw==}
     engines: {node: '>= 12.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   lightningcss-wasm@1.33.0:
     resolution: {integrity: sha512-OLAtqEyInBSVWjPrTjpLzcZUMUHO0q+2PFBXKr86nxZOu0P38givj/ZMtRaZ0d38pMTb9wQx+LtaLtHclv+sEA==}
@@ -4798,6 +4845,9 @@ packages:
 
   multiformats@14.0.5:
     resolution: {integrity: sha512-vbIm83F2yZ1pWJGS0yl0ysracIvv56LtbrIyiIQHoLdYDJOMoLfVFsXhh9DUH4SFdkdkFhucyWniihsNzVEjkQ==}
+
+  multiformats@14.0.6:
+    resolution: {integrity: sha512-0YlOSF+MAPh+68ao+Qcya4SkiF/amdpAe0jmOsCH7ztKoWiQJbVjkVKqjgyJK5TApL5zyDExT56aFf6A+H/WIA==}
 
   mz@2.7.0:
     resolution: {integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==}
@@ -7368,7 +7418,7 @@ snapshots:
       '@libp2p/interface': 3.4.0
       '@noble/curves': 2.4.0
       '@noble/hashes': 2.4.0
-      multiformats: 14.0.5
+      multiformats: 14.0.6
       protons-runtime: 7.1.2
       uint8arraylist: 3.0.2
       uint8arrays: 6.1.1
@@ -7460,7 +7510,7 @@ snapshots:
     dependencies:
       '@libp2p/crypto': 5.2.0
       '@libp2p/interface': 3.4.0
-      multiformats: 14.0.5
+      multiformats: 14.0.6
       uint8arrays: 6.1.1
 
   '@libp2p/peer-record@9.0.19':
@@ -7701,7 +7751,7 @@ snapshots:
   '@multiformats/multiaddr@13.0.3':
     dependencies:
       '@chainsafe/is-ip': 2.1.0
-      multiformats: 14.0.5
+      multiformats: 14.0.6
       uint8-varint: 3.0.0
       uint8arrays: 6.1.1
 
@@ -8309,12 +8359,12 @@ snapshots:
       '@statewalker/webrun-biscuit': 0.2.3
       multiformats: 14.0.5
 
-  '@statewalker/httpeers-bridge@0.2.1':
+  '@statewalker/httpeers-bridge@0.4.0':
     dependencies:
       '@statewalker/httpeers-core': 0.1.4
-      '@statewalker/webrun-http-streams': 0.3.2
-      '@statewalker/webrun-rpc': 0.5.1
-      '@statewalker/webrun-streams': 0.2.3
+      '@statewalker/webrun-http-streams': 0.8.2
+      '@statewalker/webrun-rpc': 0.15.2
+      '@statewalker/webrun-streams': 0.6.2
 
   '@statewalker/httpeers-core@0.1.4': {}
 
@@ -8326,7 +8376,7 @@ snapshots:
     optionalDependencies:
       '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/httpeers-libp2p@0.3.2(bufferutil@4.2.0)':
+  '@statewalker/httpeers-libp2p@0.7.0(bufferutil@4.2.0)':
     dependencies:
       '@chainsafe/libp2p-noise': 17.0.0
       '@chainsafe/libp2p-yamux': 8.0.1
@@ -8340,18 +8390,21 @@ snapshots:
       '@libp2p/webrtc': 7.0.2
       '@libp2p/websockets': 10.1.25(bufferutil@4.2.0)
       '@multiformats/multiaddr': 13.0.3
-      '@statewalker/httpeers-bridge': 0.2.1
+      '@statewalker/httpeers-bridge': 0.4.0
       '@statewalker/httpeers-core': 0.1.4
-      '@statewalker/webrun-http-streams': 0.3.2
-      '@statewalker/webrun-streams': 0.2.3
-      '@statewalker/webrun-streams-libp2p': 0.1.8(@libp2p/interface@3.4.0)(@multiformats/multiaddr@13.0.3)(libp2p@3.5.1)
+      '@statewalker/webrun-http-streams': 0.8.2
+      '@statewalker/webrun-msgpack': 0.14.2
+      '@statewalker/webrun-rpc': 0.15.2
+      '@statewalker/webrun-streams': 0.6.2
+      '@statewalker/webrun-streams-libp2p': 0.7.2(@libp2p/interface@3.4.0)(@multiformats/multiaddr@13.0.3)(libp2p@3.5.1)
       libp2p: 3.5.1
+      node-datachannel: 0.33.6
     transitivePeerDependencies:
       - bufferutil
       - react-native-webrtc
       - utf-8-validate
 
-  '@statewalker/httpeers-member@0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.17.2)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)':
+  '@statewalker/httpeers-member@0.7.0(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.17.2)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)':
     dependencies:
       '@libp2p/crypto': 5.2.0
       '@libp2p/interface': 3.4.0
@@ -8359,7 +8412,7 @@ snapshots:
       '@multiformats/multiaddr': 13.0.3
       '@statewalker/httpeers-access': 0.1.5
       '@statewalker/httpeers-core': 0.1.4
-      '@statewalker/httpeers-libp2p': 0.3.2(bufferutil@4.2.0)
+      '@statewalker/httpeers-libp2p': 0.7.0(bufferutil@4.2.0)
     optionalDependencies:
       '@chainsafe/libp2p-noise': 17.0.0
       '@chainsafe/libp2p-yamux': 8.0.1
@@ -8369,31 +8422,6 @@ snapshots:
       '@libp2p/webrtc': 7.0.2
       '@libp2p/websockets': 10.1.25(bufferutil@4.2.0)
       '@statewalker/webrun-http-browser': 0.17.2
-      idb-keyval: 6.3.0
-      libp2p: 3.5.1
-    transitivePeerDependencies:
-      - bufferutil
-      - react-native-webrtc
-      - utf-8-validate
-
-  '@statewalker/httpeers-member@0.3.2(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.7.1)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)':
-    dependencies:
-      '@libp2p/crypto': 5.2.0
-      '@libp2p/interface': 3.4.0
-      '@libp2p/peer-id': 6.0.18
-      '@multiformats/multiaddr': 13.0.3
-      '@statewalker/httpeers-access': 0.1.5
-      '@statewalker/httpeers-core': 0.1.4
-      '@statewalker/httpeers-libp2p': 0.3.2(bufferutil@4.2.0)
-    optionalDependencies:
-      '@chainsafe/libp2p-noise': 17.0.0
-      '@chainsafe/libp2p-yamux': 8.0.1
-      '@libp2p/circuit-relay-v2': 4.2.17
-      '@libp2p/identify': 4.1.18
-      '@libp2p/tcp': 11.0.32
-      '@libp2p/webrtc': 7.0.2
-      '@libp2p/websockets': 10.1.25(bufferutil@4.2.0)
-      '@statewalker/webrun-http-browser': 0.7.1
       idb-keyval: 6.3.0
       libp2p: 3.5.1
     transitivePeerDependencies:
@@ -8443,50 +8471,50 @@ snapshots:
       '@statewalker/webrun-http-events': 0.2.1
       '@statewalker/webrun-site-builder': 0.3.0(@statewalker/webrun-files@0.12.0)
 
-  '@statewalker/vcs-commands@0.4.0':
+  '@statewalker/vcs-commands@0.5.0':
     dependencies:
-      '@statewalker/vcs-core': 0.4.0
-      '@statewalker/vcs-store-files': 0.4.0
-      '@statewalker/vcs-store-mem': 0.4.0
-      '@statewalker/vcs-transport': 0.4.0
-      '@statewalker/vcs-utils': 0.4.0
-      '@statewalker/vcs-working-tree': 0.4.0
+      '@statewalker/vcs-core': 0.5.0
+      '@statewalker/vcs-store-files': 0.5.0
+      '@statewalker/vcs-store-mem': 0.5.0
+      '@statewalker/vcs-transport': 0.5.0
+      '@statewalker/vcs-utils': 0.5.0
+      '@statewalker/vcs-working-tree': 0.5.0
 
-  '@statewalker/vcs-core@0.4.0':
+  '@statewalker/vcs-core@0.5.0':
     dependencies:
-      '@statewalker/vcs-utils': 0.4.0
+      '@statewalker/vcs-utils': 0.5.0
       '@statewalker/webrun-storage': 0.3.0
 
-  '@statewalker/vcs-store-files@0.4.0':
+  '@statewalker/vcs-store-files@0.5.0':
     dependencies:
-      '@statewalker/vcs-core': 0.4.0
-      '@statewalker/vcs-utils': 0.4.0
-      '@statewalker/vcs-working-tree': 0.4.0
+      '@statewalker/vcs-core': 0.5.0
+      '@statewalker/vcs-utils': 0.5.0
+      '@statewalker/vcs-working-tree': 0.5.0
 
-  '@statewalker/vcs-store-mem@0.4.0':
+  '@statewalker/vcs-store-mem@0.5.0':
     dependencies:
-      '@statewalker/vcs-core': 0.4.0
-      '@statewalker/vcs-utils': 0.4.0
-      '@statewalker/vcs-working-tree': 0.4.0
+      '@statewalker/vcs-core': 0.5.0
+      '@statewalker/vcs-utils': 0.5.0
+      '@statewalker/vcs-working-tree': 0.5.0
 
-  '@statewalker/vcs-transport@0.4.0':
+  '@statewalker/vcs-transport@0.5.0':
     dependencies:
-      '@statewalker/vcs-core': 0.4.0
-      '@statewalker/vcs-utils': 0.4.0
-      '@statewalker/webrun-http-streams': 0.6.0
-      '@statewalker/webrun-streams': 0.4.0
+      '@statewalker/vcs-core': 0.5.0
+      '@statewalker/vcs-utils': 0.5.0
+      '@statewalker/webrun-http-streams': 0.8.2
+      '@statewalker/webrun-streams': 0.6.2
 
-  '@statewalker/vcs-utils@0.4.0':
+  '@statewalker/vcs-utils@0.5.0':
     dependencies:
       '@noble/hashes': 2.4.0
       '@statewalker/webrun-files': 0.12.0
       '@statewalker/webrun-files-mem': 0.12.0
       pako: 3.0.3
 
-  '@statewalker/vcs-working-tree@0.4.0':
+  '@statewalker/vcs-working-tree@0.5.0':
     dependencies:
-      '@statewalker/vcs-core': 0.4.0
-      '@statewalker/vcs-utils': 0.4.0
+      '@statewalker/vcs-core': 0.5.0
+      '@statewalker/vcs-utils': 0.5.0
 
   '@statewalker/webrun-biscuit@0.2.3':
     dependencies:
@@ -8534,23 +8562,7 @@ snapshots:
       '@statewalker/webrun-streams': 0.6.2
       idb-keyval: 6.3.0
 
-  '@statewalker/webrun-http-browser@0.7.1':
-    dependencies:
-      '@statewalker/webrun-http-streams': 0.3.2
-      '@statewalker/webrun-rpc': 0.5.1
-      '@statewalker/webrun-streams': 0.2.3
-      idb-keyval: 6.3.0
-    optional: true
-
   '@statewalker/webrun-http-events@0.2.1': {}
-
-  '@statewalker/webrun-http-streams@0.3.2':
-    dependencies:
-      '@statewalker/webrun-streams': 0.2.3
-
-  '@statewalker/webrun-http-streams@0.6.0':
-    dependencies:
-      '@statewalker/webrun-streams': 0.4.0
 
   '@statewalker/webrun-http-streams@0.8.2':
     dependencies:
@@ -8571,13 +8583,13 @@ snapshots:
       semver: 7.8.6
       sucrase: 3.35.1
 
+  '@statewalker/webrun-msgpack@0.14.2':
+    dependencies:
+      '@statewalker/webrun-rpc': 0.15.2
+
   '@statewalker/webrun-rpc@0.15.2':
     dependencies:
       '@statewalker/webrun-streams': 0.6.2
-
-  '@statewalker/webrun-rpc@0.5.1':
-    dependencies:
-      '@statewalker/webrun-streams': 0.2.3
 
   '@statewalker/webrun-site-builder@0.3.0(@statewalker/webrun-files@0.12.0)':
     dependencies:
@@ -8594,17 +8606,15 @@ snapshots:
     dependencies:
       '@statewalker/webrun-files': 0.12.0
 
-  '@statewalker/webrun-streams-libp2p@0.1.8(@libp2p/interface@3.4.0)(@multiformats/multiaddr@13.0.3)(libp2p@3.5.1)':
+  '@statewalker/webrun-streams-libp2p@0.7.2(@libp2p/interface@3.4.0)(@multiformats/multiaddr@13.0.3)(libp2p@3.5.1)':
     dependencies:
       '@libp2p/interface': 3.4.0
       '@multiformats/multiaddr': 13.0.3
-      '@statewalker/webrun-streams': 0.2.3
+      '@statewalker/webrun-msgpack': 0.14.2
+      '@statewalker/webrun-rpc': 0.15.2
+      '@statewalker/webrun-streams': 0.6.2
     optionalDependencies:
       libp2p: 3.5.1
-
-  '@statewalker/webrun-streams@0.2.3': {}
-
-  '@statewalker/webrun-streams@0.4.0': {}
 
   '@statewalker/webrun-streams@0.6.2': {}
 
@@ -10812,6 +10822,8 @@ snapshots:
   multiformats@13.4.2: {}
 
   multiformats@14.0.5: {}
+
+  multiformats@14.0.6: {}
 
   mz@2.7.0:
     dependencies:
