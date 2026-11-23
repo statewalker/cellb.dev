@@ -1,5 +1,16 @@
 # @statewalker/cellb
 
+## 0.13.1
+
+### Patch Changes
+
+- 52e0b35: Under ownership (a fleet), a cell's container lives with the node's lease on the cell (#225). A node that loses the cell while it keeps running (its lease fenced after a pause or a partition) destroys the cell's container at once, and one that gives the cell back destroys it before the release; before, the container stayed until its inactivity timeout (10 minutes by default) while the new owner ran one of its own. A cell that stays on its node keeps its container across its object's instances, as before.
+- 3d555af: A cellb follower in celld's log tier answers an append without waiting for the files the bucket already holds to be deleted (#228). Nearly every append carries celld's truncation watermark; the follower listed its directory and deleted the segments below it before replying, and those deletes also took the threads of Node's pool that the next write needed. Under load the appends ran slow enough for celld to evict the follower ("gray follower") or to count an append as failed, and its acknowledgements fell back to the bucket. The deletes now run after the replies, one prune at a time per leader; the base they prune to is on disk first.
+  
+  Its durable writes (a segment, `state.json`) now run as one synchronous step on a worker thread of their own, as celld's follower writes on a blocking thread: through `fs/promises` each of open, write, fsync, close and the directory's fsync was a trip through Node's 4-thread pool, which the node's other file work fills under load.
+- 52e0b35: A fleet node that leaves (SIGTERM, `FleetNode.close()`) answers the requests a client already sent on a kept-alive connection (#222). It dropped its idle connections at once, so a request on its way, sent by a client or load balancer that had not yet seen the node go, was reset (`ECONNRESET`). The node now stops accepting connections, keeps the open ones for 500 ms (within the drain period), and answers each request meanwhile with `Connection: close`.
+- 3d555af: A leaving node's peer server answers the calls other nodes already sent on its pooled tunnels. It dropped its idle tunnels at once, so a call routed to it at that moment failed with "socket hang up" (a 500 at the node that routed it). It now stops accepting tunnels, keeps the open ones for 500 ms and answers with `Connection: close`; its cells are released by then, so such a call is told to re-resolve the owner and lands on the next one.
+
 ## 0.13.0
 
 ### Minor Changes
