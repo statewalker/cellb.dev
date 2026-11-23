@@ -21,7 +21,7 @@
     "tesseract-wasm": "^0.11.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260702.1",
+    "@cloudflare/workers-types": "^5.20261120.1",
     "@playwright/test": "^1.65.0",
     "@sparticuz/chromium": "^153.0.0",
     "@statewalker/cellb": "~0.11.1",
