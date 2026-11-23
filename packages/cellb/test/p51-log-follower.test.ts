@@ -226,6 +226,24 @@ describe("P51 the follower's appends cost what celld's do", () => {
     expect(tail).toMatchObject({ base: 2, end: 4, complete: true });
   });
 
+  it("an append is written while Node's thread pool is busy with other work (#228)", async () => {
+    const { pbkdf2 } = await import("node:crypto");
+    const { store, follower } = await setup();
+    await leaderRecord(store, { epoch: 1 });
+    await follower.append(batch(1, [1]));
+    // the pool's 4 threads, each held for a while (what fs work of the node's own does under load)
+    const t0 = performance.now();
+    const busy = Array.from(
+      { length: 4 },
+      () => new Promise((r) => pbkdf2("x", "salt", 2_000_000, 32, "sha256", r)),
+    );
+    expect(await follower.append(batch(1, [2]))).toEqual({ ok: true, end: 2, epoch: 1 });
+    const replied = performance.now() - t0;
+    await Promise.all(busy);
+    const poolBusy = performance.now() - t0;
+    expect(replied).toBeLessThan(poolBusy / 2);
+  });
+
   it("a torn segment that was never acknowledged is dropped on restart", async () => {
     const { store, follower, dir } = await setup();
     await leaderRecord(store, { epoch: 1 });
