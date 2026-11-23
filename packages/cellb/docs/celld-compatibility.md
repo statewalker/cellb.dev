@@ -162,8 +162,9 @@ does:
   (404) is left out for 5 minutes; `truncate_to` follows the bucket;
 - SIGTERM stops the shipping, waits for the bucket and seals the session.
 
-A dead leader's session (a celld node's or a cellb node's) is recovered by a 30-second sweep on
-every `cellb serve` node, as celld's nodes do: claim the record (`recovering`), seal the
+A dead leader's session (a celld node's or a cellb node's) is recovered when another node takes
+one of its cells, as celld does at the takeover (`ensure_recovered`), and otherwise by a 30-second
+sweep on every `cellb serve` node: claim the record (`recovering`), seal the
 followers and read their tails, upload what the bucket lacks in TXID order, mark it `sealed`. An
 active session needs one complete witness: while a follower that may come back cannot be reached,
 the recovery waits; when none is left, the loss is recorded in `log/<session>.e<epoch>.loss.json`.
@@ -196,7 +197,10 @@ mixed fleet relies on:
   acknowledges a write once its followers hold it, before it reaches `cells/<cell>/ltx/`. When it
   dies, its node record keeps `log.state` other than `sealed` until a running celld node has
   recovered the log into the cells' prefixes. CellB, like celld (`takeover_gate`), takes none of
-  its cells before then; requests for them answer `DurableObjectRoutingError`.
+  its cells before then: the node that takes one recovers the session first (celld's
+  `ensure_recovered`), so a crashed node's cells answer again once its lease has run out (about
+  10 s) rather than at the next recovery sweep (up to 30 s later). Meanwhile requests for them
+  answer `DurableObjectRoutingError`.
 - **An unreachable owner** answers as on celld: `DurableObjectRoutingError: The Durable Object owner
   is currently unreachable`, until its lease expires and the cell moves.
 - **The fleet's peer secret** (`fleet/peer-auth.json`) is created by the first node of either

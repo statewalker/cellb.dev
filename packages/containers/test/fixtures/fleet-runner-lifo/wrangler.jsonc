@@ -1,0 +1,10 @@
+{
+  "name": "fleet-runner-lifo",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "vars": { "JOB": "node /workspace/job.js" },
+  "durable_objects": { "bindings": [{ "name": "RUNNER", "class_name": "Runner" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Runner"] }],
+  "containers": [{ "class_name": "Runner", "image": "./Dockerfile" }],
+  "cellb": { "containers": { "Runner": { "files": { "job.js": "./job.js" } } } }
+}

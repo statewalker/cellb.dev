@@ -1,13 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import type { Duplex } from "node:stream";
+import { pathToFileURL } from "node:url";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { nodeSqliteOpener } from "../adapters/node-sqlite.js";
 import { celldBucket } from "../bucket/celld-cells.js";
 import type { ObjectStore } from "../bucket/object-store.js";
 import { s3ObjectStore } from "../bucket/s3-object-store.js";
+import type { ContainerEngine } from "../container.js";
 import type { CellRuntime } from "../core/runtime.js";
 import { loadNodeProject } from "../project/node-project.js";
 import { withUpgrade } from "../ws/upgrade.js";
@@ -55,6 +57,13 @@ export interface FleetNodeOptions {
    * are acknowledged once followers hold them; "bucket" acknowledges on the bucket alone.
    */
   durability?: "fleet" | "bucket";
+  /**
+   * The engine that runs the project's `containers` classes (their images under
+   * `cellb.containers`; Wasmer or Lifo from @statewalker/cellb-containers). A cell's container
+   * runs on the node that owns the cell: when the cell moves, the next owner's engine starts the
+   * same image. Without one, those classes are reported in `unsupported`.
+   */
+  containers?: ContainerEngine;
 }
 
 export interface FleetNode {
@@ -104,6 +113,8 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
     recoverPredecessor: async () => {
       await recoverer.recover(node);
     },
+    // a dead owner's session, recovered at the takeover of one of its cells (celld does so)
+    recoverDead: (dead) => recoverer.recover(dead),
     onLogLost: () => leader?.lost(),
   });
   const project = await loadNodeProject(o.dir, {
@@ -111,6 +122,7 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
     files: new MemFilesApi(),
     storage: bucket,
     peers: celldPeers({ store, node }),
+    containers: o.containers,
   });
   const { runtime } = project;
   const [peerHost, peerPort] = hostPort(o.internalListen ?? "127.0.0.1:0", "--internal-listen");
@@ -262,6 +274,8 @@ export interface ServeArgs {
   leaseTtlMs?: number;
   data?: string;
   durability?: "fleet" | "bucket";
+  /** `--containers MODULE` (CELLB_CONTAINERS): a module whose default export makes the engine. */
+  containers?: string;
 }
 
 /**
@@ -283,6 +297,7 @@ export function parseServeArgs(args: string[], env: Record<string, string | unde
     "lease-ttl",
     "data",
     "durability",
+    "containers",
   ];
   let dir: string | undefined;
   for (let i = 0; i < args.length; i++) {
@@ -319,6 +334,28 @@ export function parseServeArgs(args: string[], env: Record<string, string | unde
       throw new Error(`--durability must be fleet or bucket, got ${JSON.stringify(durability)}`);
     out.durability = durability;
   }
+  const containers = flags.containers ?? env.CELLB_CONTAINERS;
+  if (containers) out.containers = containers;
   if (out.endpoint === undefined) delete out.endpoint;
   return out;
+}
+
+/**
+ * The container engine of `--containers MODULE`: the module's default export, an engine or a
+ * function (async or not) that makes one. A path (relative to `cwd`) or a package name.
+ */
+export async function loadContainerEngine(
+  spec: string,
+  cwd = process.cwd(),
+): Promise<ContainerEngine> {
+  const url =
+    spec.startsWith(".") || isAbsolute(spec) ? pathToFileURL(resolve(cwd, spec)).href : spec;
+  const m = (await import(url)) as { default?: unknown };
+  const made = typeof m.default === "function" ? await (m.default as () => unknown)() : m.default;
+  const engine = made as ContainerEngine | undefined;
+  if (!engine || typeof engine.start !== "function" || typeof engine.close !== "function")
+    throw new Error(
+      `--containers ${spec}: its default export must be a container engine or a function that makes one`,
+    );
+  return engine;
 }

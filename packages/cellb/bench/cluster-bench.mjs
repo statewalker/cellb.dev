@@ -16,6 +16,11 @@
 //               cells were unavailable (the node lease, 10 s, plus recovery) and acknowledged
 //               writes lost (must be 0).
 //   leave       the same, with SIGTERM: a graceful leave. Reports failed requests and the gap.
+//   scale       cellb-only clusters of SCALE_NODES nodes (default 4,6,8,10) under heavy load
+//               (SCALE_CLIENTS, default 128, concurrent clients over NAMES counters): requests/s,
+//               latency percentiles (p50, p90, p99, p99.9, max) for the cluster and for the requests
+//               entering each node, each node's CPU, resident memory (sampled every 500 ms: average
+//               and peak), and cells owned, then the counters checked (no value twice, none lost).
 //
 // Every node runs on this one machine, so the numbers show how the runtimes compare and what
 // routing costs, not how a fleet of machines scales: N nodes share the same CPUs.
@@ -63,6 +68,19 @@ const cpuSeconds = (pid) => {
       .trim()
       .split(/\s+/))
       if (child) total += cpuSeconds(Number(child));
+  } catch {}
+  return total;
+};
+/** Resident memory (MB) of a process and its descendants. */
+const rssMB = (pid) => {
+  let total = 0;
+  try {
+    const m = /VmRSS:\s+(\d+) kB/.exec(readFileSync(`/proc/${pid}/status`, "utf8"));
+    total += m ? Number(m[1]) / 1024 : 0;
+    for (const child of readFileSync(`/proc/${pid}/task/${pid}/children`, "utf8")
+      .trim()
+      .split(/\s+/))
+      if (child) total += rssMB(Number(child));
   } catch {}
   return total;
 };
@@ -137,6 +155,15 @@ async function cluster(counts) {
   });
   return {
     nodes,
+    async ownersByNode() {
+      const by = {};
+      for (const k of (await store.list("cells/")).filter((k) => k.endsWith("/own.json"))) {
+        const node =
+          JSON.parse(new TextDecoder().decode((await store.get(k)).body)).node || "released";
+        by[node] = (by[node] ?? 0) + 1;
+      }
+      return by;
+    },
     async owners() {
       const by = {};
       for (const k of (await store.list("cells/")).filter((k) => k.endsWith("/own.json"))) {
@@ -169,6 +196,7 @@ async function cluster(counts) {
 async function load(c, { until, names = NAMES, clients = CLIENTS, onAck }) {
   const acks = new Map();
   const lat = [];
+  const byNode = new Map(); // node name -> latencies of the requests that entered there
   const errors = {};
   await Promise.all(
     Array.from({ length: clients }, async () => {
@@ -183,7 +211,10 @@ async function load(c, { until, names = NAMES, clients = CLIENTS, onAck }) {
           });
           const text = await r.text();
           if (r.status !== 200) throw new Error(`${r.status} ${text.slice(0, 100)}`);
-          lat.push(performance.now() - t);
+          const ms = performance.now() - t;
+          lat.push(ms);
+          if (!byNode.has(node.name)) byNode.set(node.name, []);
+          byNode.get(node.name).push(ms);
           const n = JSON.parse(text).n;
           if (!acks.has(name)) acks.set(name, []);
           acks.get(name).push(n);
@@ -198,7 +229,7 @@ async function load(c, { until, names = NAMES, clients = CLIENTS, onAck }) {
       }
     }),
   );
-  return { acks, lat, errors };
+  return { acks, lat, byNode, errors };
 }
 
 /** Values acknowledged twice, and counters whose next value does not follow every ack. */
@@ -318,8 +349,106 @@ async function failover(signal) {
   return out;
 }
 
-const all = { throughput, failover: () => failover("SIGKILL"), leave: () => failover("SIGTERM") };
-const chosen = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(all);
+const percentiles = (xs) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return {
+    p50Ms: round(pct(s, 0.5)),
+    p90Ms: round(pct(s, 0.9)),
+    p99Ms: round(pct(s, 0.99)),
+    p999Ms: round(pct(s, 0.999)),
+    maxMs: round(s.at(-1) ?? 0),
+  };
+};
+
+async function scale() {
+  const sizes = (process.env.SCALE_NODES ?? "4,6,8,10").split(",").map(Number);
+  const clients = Number(process.env.SCALE_CLIENTS ?? 128);
+  const rows = [];
+  for (const size of sizes) {
+    const c = await cluster({ cellb: size });
+    try {
+      let warm = 1_000;
+      await load(c, { until: () => warm-- <= 0, clients }); // every cell opened, owners settled
+      const cpu0 = c.nodes.map((n) => cpuSeconds(n.p.pid));
+      // What else shares the machine: this process (the clients) and the S3 server.
+      const rustfs = Number(
+        execFileSync("pgrep", ["-o", "rustfs"], { encoding: "utf8" }).trim() || 0,
+      );
+      const client0 = process.cpuUsage();
+      const rustfs0 = rustfs ? cpuSeconds(rustfs) : 0;
+      const mem = c.nodes.map(() => []);
+      const sampler = setInterval(() => {
+        for (const [i, n] of c.nodes.entries()) mem[i].push(rssMB(n.p.pid));
+      }, 500);
+      const t0 = performance.now();
+      const { acks, lat, byNode, errors } = await load(c, {
+        clients,
+        until: () => performance.now() - t0 > DURATION_MS,
+      });
+      clearInterval(sampler);
+      const secs = (performance.now() - t0) / 1000;
+      const client = process.cpuUsage(client0);
+      const machine = {
+        clientCpuShare: round((client.user + client.system) / 1e6 / secs, 2),
+        s3CpuShare: rustfs ? round((cpuSeconds(rustfs) - rustfs0) / secs, 2) : null,
+      };
+      const owned = await c.ownersByNode();
+      const nodes = c.nodes.map((n, i) => {
+        const l = byNode.get(n.name) ?? [];
+        const m = mem[i];
+        return {
+          node: n.name.replace(/^cellb-bench-[^-]+-[^-]+-/, "cellb-"),
+          requests: l.length,
+          ...percentiles(l),
+          cpuSeconds: round(cpuSeconds(n.p.pid) - cpu0[i], 2),
+          cpuShare: round((cpuSeconds(n.p.pid) - cpu0[i]) / secs, 2),
+          rssMBAvg: round(m.reduce((a, b) => a + b, 0) / Math.max(1, m.length), 0),
+          rssMBPeak: round(Math.max(0, ...m), 0),
+          cellsOwned: owned[n.name] ?? 0,
+        };
+      });
+      const row = {
+        nodes: size,
+        clients,
+        requests: lat.length,
+        rps: round(lat.length / secs, 0),
+        ...percentiles(lat),
+        cpuSecondsPer1kRequests: round(
+          (nodes.reduce((a, n) => a + n.cpuSeconds, 0) / lat.length) * 1000,
+          2,
+        ),
+        rssMBTotalPeak: round(
+          nodes.reduce((a, n) => a + n.rssMBPeak, 0),
+          0,
+        ),
+        nodesCpuShare: round(
+          nodes.reduce((a, n) => a + n.cpuShare, 0),
+          2,
+        ),
+        ...machine,
+        cellsOwned: Object.values(owned).reduce((a, b) => a + b, 0),
+        errors,
+        ...(await verify(c, acks)),
+        perNode: nodes,
+      };
+      rows.push(row);
+      console.log(JSON.stringify(row));
+    } finally {
+      await c.close();
+    }
+  }
+  return rows;
+}
+
+const all = {
+  scale,
+  throughput,
+  failover: () => failover("SIGKILL"),
+  leave: () => failover("SIGTERM"),
+};
+const chosen = process.argv.slice(2).length
+  ? process.argv.slice(2)
+  : Object.keys(all).filter((k) => k !== "scale");
 const results = {
   date: new Date().toISOString(),
   machine: {

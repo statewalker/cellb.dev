@@ -341,6 +341,41 @@ times are reported from `lastModified` and `setTimes` is accepted but not stored
   the pools), images stored as WEBC with a build (packages come from the registry and its cache),
   `max_instances`.
 
+### On a fleet of cellb nodes
+
+`cellb serve --containers MODULE` gives a fleet node an engine (the module's default export
+makes it); this package has two such modules:
+
+```sh
+cellb serve ./project --bucket s3://cells/fleet --containers ./serve/lifo.ts     # Lifo, in a worker
+cellb serve ./project --bucket s3://cells/fleet --containers ./serve/wasmer.ts   # Wasmer (WASIX)
+```
+
+A cell's container runs on the node that owns the cell. When the node dies or leaves, another
+node takes the cell, starts the same image (`cellb.containers.<class>` of the project) and runs
+the same scripts; the cell's storage goes on from where it was, the container's own files do not
+(a new container, as on celld). Lifo runs in a worker of its own (`serve/lifo-worker.ts`): it
+guards the network of the realm it runs in, which must not be the node's, whose bucket and peers
+are reached with `fetch`. Behind an HTTP proxy, Wasmer reaches its registry from Node with
+`NODE_USE_ENV_PROXY=1`.
+
+`test/fleet-migration.test.ts` runs three `cellb serve` nodes on one RustFS bucket, six cells each
+running a job script in its container on every call, then crashes (SIGKILL, the node's process
+group) and stops (SIGTERM) the node owning the most cells. Every cell answers again on a live node,
+its job runs in a new container there, and its run count goes on. Recorded in
+`bench/results/fleet-migration.json` (Node 22, one 4-vCPU VM):
+
+| | Lifo (`node job.js`) | Wasmer (`python job.py`) |
+| --- | --- | --- |
+| A cell's first call: container start / whole call | 26 ms / 171 ms | 2.8 s / 4.0 s |
+| A call to a running container: the script / whole call (p50) | 64 ms / 70 ms | 249 ms / 262 ms |
+| Its node crashes (SIGKILL): the cells answer again after | 9.0 s | 8.7 s |
+| Its node leaves (SIGTERM): the cells answer again after | 0.19 s | 4.9 s (a new Python container starts) |
+
+After a crash the cells wait for the dead node's lease (10 s from its last renewal), then the node
+taking them recovers its log tier session first, as celld does. After a graceful leave they move
+at once; what remains is the new container's start.
+
 ## Measured
 
 | | Node 22 | Chromium |

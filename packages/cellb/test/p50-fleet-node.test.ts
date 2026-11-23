@@ -2,8 +2,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
 import { asyncContextFrameArgs } from "../src/cli.js";
+import type { ContainerEngine, ContainerSpec } from "../src/container.js";
 import { memoryObjectStore } from "../src/index.js";
-import { parseServeArgs, startFleetNode } from "../src/node.js";
+import { loadContainerEngine, parseServeArgs, startFleetNode } from "../src/node.js";
 
 // `cellb serve`: a cellb node that joins a celld fleet the way a celld node does — one bucket,
 // celld's ownership records, celld's peer tunnel, a public HTTP listener (statewalker/cellb.dev#208).
@@ -156,6 +157,122 @@ describe("P50 cellb serve: a fleet node", () => {
 // sent to the process group (Ctrl-C, systemd's KillMode=control-group) reaches the child twice:
 // from the group, and forwarded by the parent. The child's handler was `once`, so the second
 // copy found none and killed the node before it had released its cells.
+/** A container engine that runs nothing: it records the containers started and the commands run. */
+function recordingEngine() {
+  const starts: ContainerSpec[] = [];
+  const execs: string[][] = [];
+  const engine: ContainerEngine = {
+    running: 0,
+    async start(spec) {
+      starts.push(spec);
+      let running = true;
+      return {
+        get running() {
+          return running;
+        },
+        monitor: () => new Promise(() => {}),
+        waitForPort: async () => {},
+        fetch: async () => new Response("no server"),
+        connect: () => {
+          throw new Error("no socket");
+        },
+        exec: async (argv) => {
+          execs.push(argv);
+          const file = spec.files?.[argv[1].replace("/workspace/", "")];
+          return {
+            exitCode: 0,
+            stdout: `${file ? "script found" : "no script"} ${argv[2]}`,
+            stderr: "",
+          };
+        },
+        signal: async () => {},
+        destroy: async () => {
+          running = false;
+        },
+      };
+    },
+    async close() {},
+  };
+  return { engine, starts, execs };
+}
+
+// Containers on fleet nodes: a node given a container engine runs the project's `containers`
+// classes. A cell's container lives on the node that owns the cell; when the cell moves, the next
+// owner starts the same image (cellb.containers.<class> of the project) and runs the same scripts.
+describe("P50 containers on fleet nodes", () => {
+  const dir = join(__dirname, "fixtures/container-runner");
+
+  it("parses --containers, the module that makes the engine", () => {
+    expect(
+      parseServeArgs(["proj", "--bucket", "s3://cells", "--containers", "./engine.mjs"], {}),
+    ).toMatchObject({ containers: "./engine.mjs" });
+  });
+
+  it("loads the engine from the module: its default export makes it", async () => {
+    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const d = mkdtempSync(join(tmpdir(), "engine-"));
+    writeFileSync(
+      join(d, "engine.mjs"),
+      "export default async () => ({ running: 0, start: async () => ({}), close: async () => {}, made: 'here' });",
+    );
+    writeFileSync(join(d, "object.mjs"), "export default { running: 0, start() {}, close() {} };");
+    writeFileSync(join(d, "none.mjs"), "export default 42;");
+    expect(await loadContainerEngine("./engine.mjs", d)).toMatchObject({ made: "here" });
+    expect(await loadContainerEngine(join(d, "object.mjs"))).toMatchObject({ running: 0 });
+    await expect(loadContainerEngine("./none.mjs", d)).rejects.toThrow(/container engine/);
+  });
+
+  it("runs a cell's container scripts on its owner, and on the next owner once it moves", async () => {
+    const store = memoryObjectStore();
+    const ea = recordingEngine();
+    const eb = recordingEngine();
+    const a = await startFleetNode({
+      dir,
+      store,
+      node: "a",
+      listen: "127.0.0.1:0",
+      containers: ea.engine,
+    });
+    const b = await startFleetNode({
+      dir,
+      store,
+      node: "b",
+      listen: "127.0.0.1:0",
+      containers: eb.engine,
+    });
+    try {
+      expect(a.unsupported).toEqual([]);
+      // first claimed through a: a owns it, a's engine runs the script, twice
+      expect(await json(await fetch(`${a.url}/?cell=job`))).toEqual({
+        runs: 1,
+        exitCode: 0,
+        out: "script found 1",
+      });
+      expect(await json(await fetch(`${b.url}/?cell=job`))).toEqual({
+        runs: 2,
+        exitCode: 0,
+        out: "script found 2",
+      });
+      expect(ea.starts).toHaveLength(1);
+      expect(eb.starts).toHaveLength(0);
+      await a.close(); // a leaves: the cell is released, b takes it on the next request
+      expect(await json(await fetch(`${b.url}/?cell=job`))).toEqual({
+        runs: 3,
+        exitCode: 0,
+        out: "script found 3",
+      });
+      expect(eb.starts).toHaveLength(1);
+      expect(eb.starts[0].files).toEqual(ea.starts[0].files);
+      expect(eb.starts[0].entrypoint).toEqual(ea.starts[0].entrypoint);
+      expect(eb.execs).toEqual([["bash", "/workspace/job.sh", "3"]]);
+    } finally {
+      await a.close();
+      await b.close();
+    }
+  });
+});
+
 describe("P50 stopping on signals", () => {
   it("a second SIGINT during the graceful stop does not kill the process", async () => {
     const { spawn } = await import("node:child_process");

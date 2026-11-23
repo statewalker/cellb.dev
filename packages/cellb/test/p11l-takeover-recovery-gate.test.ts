@@ -69,6 +69,60 @@ describe("P11l taking a cell from a dead celld owner waits for its node log", ()
     });
 });
 
+// celld runs the dead owner's recovery at the takeover itself (node_log.rs ensure_recovered:
+// "anything else runs it now"); cellb waited for its recoverer's sweep (every 30 s), so a cell of
+// a crashed node came back 10 to 40 s after the crash instead of once the lease had run out.
+describe("P11l a takeover recovers the dead owner's node log at once", () => {
+  const sealing =
+    (store: ReturnType<typeof memoryObjectStore>, calls: string[]) => async (dead: string) => {
+      calls.push(dead);
+      await new Promise((r) => setTimeout(r, 20));
+      const rec = JSON.parse(
+        new TextDecoder().decode((await store.get(`nodes/${dead}.json`))!.body),
+      );
+      rec.log.state = "sealed";
+      await store.put(`nodes/${dead}.json`, enc.encode(JSON.stringify(rec)));
+    };
+
+  it("recovers the session, then takes the cell; concurrent takeovers share one recovery", async () => {
+    const store = await deadCelldOwner(logOf("open"));
+    const other = `Counter/${"3".repeat(64)}`;
+    await store.put(
+      `cells/Counter:${"3".repeat(64)}/own.json`,
+      enc.encode('{"node":"node_dead","epoch":1}'),
+    );
+    const calls: string[] = [];
+    const b = celldBucket(store, { node: "cellb-1", recoverDead: sealing(store, calls) });
+    try {
+      const [l1, l2] = await Promise.all([
+        b.ownership.tryAcquire(cellKey),
+        b.ownership.tryAcquire(other),
+      ]);
+      expect([l1?.epoch, l2?.epoch]).toEqual([4, 2]);
+      expect(calls).toEqual(["node_dead"]);
+    } finally {
+      await b.close();
+    }
+  });
+
+  it("still refuses the cell when the recovery leaves the session open", async () => {
+    const store = await deadCelldOwner(logOf("open"));
+    const calls: string[] = [];
+    const b = celldBucket(store, {
+      node: "cellb-1",
+      recoverDead: async (dead) => {
+        calls.push(dead);
+      },
+    });
+    try {
+      expect(await b.ownership.tryAcquire(cellKey)).toBeUndefined();
+      expect(calls).toEqual(["node_dead"]);
+    } finally {
+      await b.close();
+    }
+  });
+});
+
 // celld's first-readiness gate (main.rs, logic/drain.rs fleet_status) keeps a starting celld node
 // unready while any live peer reports memory pressure, and never fails open. cellb's record said
 // `pressured: true, memory_headroom: false` (to be offered no cells), so a celld node started
