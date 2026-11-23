@@ -1,5 +1,16 @@
 # @statewalker/cellb
 
+## 0.13.0
+
+### Minor Changes
+
+- 923683f: Fleet nodes run containers. `startFleetNode({ containers })` and `cellb serve --containers MODULE` (`CELLB_CONTAINERS`) give the node a container engine for the project's `containers` classes; the module's default export is the engine or a function that makes one (`loadContainerEngine` from `@statewalker/cellb/node`). A cell's container runs on the node that owns the cell: when the cell moves (its node dies or leaves), the next owner starts the same image (`cellb.containers.<class>`) and runs the same scripts, and the cell's storage goes on. Before, a fleet node reported every `containers` class as unsupported.
+
+### Patch Changes
+
+- bcad763: A cellb follower in celld's log tier keeps its place under load. celld evicts a follower whose appends stay slower than max(4 × its siblings', 25 ms) for 2 s ("gray follower evicted"), and its acknowledgements then fall back to the bucket. cellb's follower fsynced two files per append, a segment and `state.json`, one append at a time, so on a slow disk celld dropped it. As celld's follower does, the appends that arrive while a leader's last write is on its way to disk are now written together, as one segment file headed by the fragment's range: one file and one directory fsync per burst. `state.json` changes only with the epoch, a seal or a truncation without entries. Segments written by 0.12.0 still load.
+- 923683f: A cell of a crashed node answers again once the node's lease has run out (about 10 s). The node taking the cell recovers the dead node's log tier session first, as celld does at the takeover (`ensure_recovered`); before, it waited for a recoverer's sweep, every 30 s, so the cells came back 10 to 40 s after the crash. `celldBucket(…, { recoverDead })` is the hook; `startFleetNode` wires it to its recoverer.
+
 ## 0.12.0
 
 ### Minor Changes
