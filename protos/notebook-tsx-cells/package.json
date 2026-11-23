@@ -4,7 +4,7 @@
   "description": "PROTOTYPE, throwaway: ts/jsx/tsx notebook cells (statewalker/statewalker-root#236). Never merged.",
   "type": "module",
   "scripts": {
-    "build": "tsx src/cli.ts page/index.md dist",
+    "build": "tsx src/cli.ts page/index.md dist --static",
     "serve": "pnpm build && npx --yes serve dist",
     "test": "vitest run"
   },
@@ -13,6 +13,9 @@
     "@observablehq/runtime": "^6.1.0",
     "@radix-ui/react-slot": "^1.5.0",
     "@statewalker/fsm": "^0.39.3",
+    "@statewalker/webrun-bundler": "^0.2.0",
+    "@statewalker/webrun-files-node": "^0.12.0",
+    "@statewalker/webrun-modules": "^0.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "esbuild": "^0.28.2",

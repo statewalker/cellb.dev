@@ -48,13 +48,29 @@ pnpm test           # the build seam and the browser seam (headless Chromium)
      `invalidation`).
 3. **Emit** (`src/emit.ts`):
    - `ts`/`jsx`/`tsx` cells go through `esbuild.transform` (types erased, JSX to
-     `react/jsx-runtime`), then through notebook-kit's `transpileJavaScript`, and run on
-     notebook-kit's `NotebookRuntime` (reactive cells, `display`, the inspector).
+     `react/jsx-runtime`), then through notebook-kit's `transpileJavaScript`.
    - An expression cell is wrapped as `display(__toNode(…))`. `__toNode` is a builtin that mounts
-     a React element into a node with `createRoot`.
+     a React element with `createRoot`.
    - `${…}` in prose becomes an inline cell.
-   - esbuild bundles everything into `page.js`: the runtime, the cells, React, the shadcn
-     component and `@statewalker/fsm`.
+   - **webrun-bundler** bundles the cells with React, the page's own modules (the shadcn button)
+     and its packages (`@statewalker/fsm`), through a FilesApi and `nodeModulesPackages()`, with
+     `conditions: ["source", "browser"]`. It writes a minified `page.js` (261 KB) with a source map
+     back to the original files.
+   - **notebook-kit's runtime is not bundled.** An import map points `@observablehq/notebook-kit/runtime`
+     at the module server (`/_m/`, **webrun-modules**), so the standard library stays lazy.
+4. **Module server** (`src/modules.ts`, `src/site.ts`): webrun-modules wrapped with cellb.dev's
+   **`withLocalBuiltins`**. Every `https://esm.sh/…` that notebook-kit names becomes a `/_m/~esm/…`
+   URL, resolved to a local npm package the first time a cell uses that library. `pnpm test`
+   serves pages this way.
+5. **Static export** (`src/export.ts`, `pnpm build` = `--static`): writes `/_m/` as files (83 files,
+   520 KB):
+   - notebook-kit's runtime and stylesheet, with their static imports;
+   - the built-in libraries the cells use, from cellb.dev's **`builtinClosure`**, with the `~esm/`
+     redirects replaced by the pinned URLs;
+   - `?module` CSS as `.css.module.js`.
+
+   A plain static host then serves the page with no request to any other host. This is what a CI
+   build needs.
 
 ## Findings
 
@@ -78,15 +94,29 @@ pnpm test           # the build seam and the browser seam (headless Chromium)
       nested scope is still counted as an input;
     - `viewof`-style names and Observable's `mutable x` syntax are not modelled (notebook-kit uses
       `view()` and `Mutable()`).
-- **notebook-kit's standard library imports from esm.sh at load time.** DuckDB, Vega, KaTeX,
-  Mermaid, Leaflet and others are imported statically, so a page fails to load where esm.sh is not
-  reachable. Here they are stubbed (an error on use). The kit must map them to local packages, as
-  cellb.dev's notebooks package does, or load the standard library lazily.
-- **Bundle size.** `page.js` is 2.2 MB unminified, mostly notebook-kit's whole standard library
-  and React. Splitting and minifying are kit work.
+- **esm.sh, solved by reuse.** notebook-kit's standard library imports DuckDB, Vega, KaTeX,
+  Mermaid, htl and others from esm.sh. Bundling it would make them eager, and blocking esm.sh
+  would break every page. Keeping the runtime unbundled behind webrun-modules + `withLocalBuiltins`
+  (served) or `builtinClosure` (static) maps each one to a local package, lazily. A test shows the
+  `html` (htl) built-in loads with no esm.sh request.
+- **Bundle size.** `page.js` dropped from 2.2 MB to 261 KB minified (React, the button, fsm, the
+  cells). The runtime is shared and lazy under `/_m/`.
+- **Notebook globals need types.** The checker's prelude declares `html`/`svg` and leaves the other
+  recommended libraries (`Plot`, `d3`, `Inputs`, …) as `any`. The kit should take their types from
+  their packages.
 - **TypeScript 5 API.** The check uses the `typescript@5` compiler API, because TypeScript 7 has
   none (the same issue as the API-reference research, statewalker-root#234). The kit needs a
   separate tools package on TypeScript 5/6.
+- **What the kit reuses** (review of webrun-sites and statewalker-knowledge, 2026-11-23):
+  - webrun-bundler for bundling;
+  - webrun-modules + cellb.dev's `withLocalBuiltins`/`builtinClosure` for the runtime and the
+    built-ins;
+  - notebook-build once it handles `ts`/`jsx`/`tsx` cells (a fix is in progress in
+    statewalker-knowledge);
+  - cellb.dev's `portable-text.ts`/`page-models.ts` for `${…}`, fence attributes and page models;
+  - Astro's Tailwind integration for CSS.
+
+  The reactive type checker and React mounting are new code.
 - **Not covered here:**
   - styling (Tailwind and the shadcn theme are not compiled, so the button is unstyled);
   - the Astro theme;

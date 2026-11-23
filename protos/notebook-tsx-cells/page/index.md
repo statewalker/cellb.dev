@@ -70,6 +70,14 @@ const door: FsmStateConfig = {
 </table>
 ```
 
+## A built-in library, without esm.sh
+
+notebook-kit loads `html` (htl) from esm.sh; here it comes from the local module server.
+
+```js
+html`<b class="from-htl">Rendered by htl</b>`
+```
+
 ## Code that only shows
 
 ```ts run=false

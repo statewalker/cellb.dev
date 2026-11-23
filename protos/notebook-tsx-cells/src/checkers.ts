@@ -16,6 +16,11 @@ declare function display<T>(value: T): T;
 declare function view<T extends { value: unknown }>(element: T): AsyncGenerator<T["value"]>;
 declare const width: number;
 declare const invalidation: Promise<void>;
+declare const html: (strings: TemplateStringsArray, ...values: unknown[]) => HTMLElement;
+declare const svg: (strings: TemplateStringsArray, ...values: unknown[]) => SVGElement;
+// notebook-kit's other recommended libraries, untyped here (the kit would take their packages' types).
+declare const _: any, aq: any, Arrow: any, d3: any, dot: any, duckdb: any, echarts: any, Inputs: any,
+  L: any, mermaid: any, Plot: any, tex: any, topojson: any, vl: any;
 /** What other cells see of a cell's output: a Mutable's value, a generator's yield, a promise's result. */
 type __Value<T> = T extends Mutable<infer V> ? V : T extends AsyncGenerator<infer V, any, any> ? V
   : T extends Generator<infer V, any, any> ? V : Awaited<T>;
