@@ -336,7 +336,9 @@ times are reported from `lastModified` and `setTimes` is accepted but not stored
   an image, or a host without an engine, is reported in `unsupported`, saying which is missing.
 - **Lifecycle.** One container per cell, kept by the runtime across the object's instances
   (hibernation, resets), as celld keeps it across idle evictions. A container with no call for its
-  inactivity timeout (10 minutes by default) is destroyed; `project.close()` destroys them all.
+  inactivity timeout (10 minutes by default) is destroyed; `project.close()` destroys them all. On
+  a fleet the container lives with the node's lease on the cell: a node that loses the cell, or
+  gives it back, destroys its container, so a cell never has two.
 - **Not yet:** named host mounts in the manifest (a FilesApi is mounted from the host's code, see
   the pools), images stored as WEBC with a build (packages come from the registry and its cache),
   `max_instances`.

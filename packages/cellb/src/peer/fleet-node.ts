@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
+import { Server as NetServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import type { Duplex } from "node:stream";
@@ -77,6 +78,9 @@ export interface FleetNode {
   /** Stops listening, releases every cell and deletes the node record. Idempotent. */
   close(): Promise<void>;
 }
+
+/** How long a leaving node keeps its open connections for requests already sent on them. */
+const LINGER_MS = 500;
 
 const hostPort = (s: string, what: string): [string, number] => {
   const i = s.lastIndexOf(":");
@@ -162,8 +166,11 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
   };
   let inFlight = 0;
   let drained: (() => void) | undefined;
+  let leaving = false;
   const server: Server = createServer(async (req, res) => {
     inFlight++;
+    // Leaving: answered, and the client told not to send more on this connection.
+    if (leaving) res.setHeader("connection", "close");
     res.once("close", () => {
       if (--inFlight === 0) drained?.();
     });
@@ -190,6 +197,11 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
     }
   });
   server.keepAliveTimeout = 65_000;
+  const sockets = new Set<Socket>();
+  server.on("connection", (s: Socket) => {
+    sockets.add(s);
+    s.once("close", () => sockets.delete(s));
+  });
   const { WebSocketServer } = await import("ws");
   const wss = new WebSocketServer({ noServer: true });
   // Upgraded sockets hold server.close() open and closeAllConnections() does not reach them.
@@ -240,7 +252,15 @@ export async function startFleetNode(o: FleetNodeOptions): Promise<FleetNode> {
         // (for at most the grace period); then the cells are released while the peer server
         // still answers, so a request routed here meanwhile is told to re-resolve the owner
         // (stale-owner) instead of finding no one; then the peer server stops.
-        const listening = new Promise<void>((r) => server.close(() => r()));
+        // A request a client sent on a kept-alive connection just before the leave began is still
+        // on its way: the open connections stay a moment (http.Server's close() would drop the
+        // idle ones at once, resetting it), and every answer meanwhile closes its connection.
+        leaving = true;
+        const listening = new Promise<void>((r) =>
+          NetServer.prototype.close.call(server, () => r()),
+        );
+        if (sockets.size > 0)
+          await new Promise((r) => setTimeout(r, Math.min(LINGER_MS, o.drainMs ?? 5_000)));
         server.closeIdleConnections?.();
         if (inFlight > 0)
           await new Promise<void>((r) => {

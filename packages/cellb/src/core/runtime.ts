@@ -206,10 +206,29 @@ export function createCellRuntime(opts: CellRuntimeOptions): CellRuntime {
     });
     releasing.set(cellKey, done);
   };
+  // Under ownership a cell's container lives with the cell's lease on this node: once the lease
+  // is lost (fenced: the node paused or was cut off, and another node may own the cell now) or
+  // given back, the container goes, and the next owner starts its own (statewalker/cellb.dev#225).
+  // Without ownership it stays across the object's instances, as below.
+  const dropContainer = (key: string) => {
+    const c = containers.get(key);
+    if (!c) return;
+    containers.delete(key);
+    void c.destroy().catch(() => {});
+  };
   const acquireAfterRelease = ownership
     ? async (key: string) => {
         await releasing.get(key);
-        return ownership.tryAcquire(key);
+        const lease = await ownership.tryAcquire(key);
+        if (!lease) return lease;
+        lease.lost.addEventListener("abort", () => dropContainer(key), { once: true });
+        return {
+          ...lease,
+          release: async () => {
+            dropContainer(key); // before the cell is given back: never two containers for it
+            await lease.release();
+          },
+        };
       }
     : undefined;
   const background = new Set<Promise<unknown>>();

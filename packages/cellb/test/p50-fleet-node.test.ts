@@ -89,6 +89,38 @@ describe("P50 cellb serve: a fleet node", () => {
     }
   }, 60_000);
 
+  it("a request sent on a kept-alive connection as the node leaves is answered (statewalker/cellb.dev#222)", async () => {
+    const http = await import("node:http");
+    const store = memoryObjectStore();
+    const dir = join(examples, "counter");
+    const a = await startFleetNode({ dir, store, node: "a", listen: "127.0.0.1:0" });
+    const b = await startFleetNode({ dir, store, node: "b", listen: "127.0.0.1:0" });
+    const agent = new http.Agent({ keepAlive: true, maxSockets: 4 });
+    const get = (path: string) =>
+      new Promise<number | string>((res) => {
+        const req = http.get(`${a.url}${path}`, { agent }, (r) => {
+          r.resume();
+          r.on("end", () => res(r.statusCode ?? 0));
+        });
+        req.on("error", (e: NodeJS.ErrnoException) => res(e.code ?? e.message));
+      });
+    try {
+      // connections to a, kept alive and idle
+      expect(await Promise.all([0, 1, 2, 3].map((i) => get(`/increment?name=k${i}`)))).toEqual([
+        200, 200, 200, 200,
+      ]);
+      // the client sends as the node starts to leave: a load balancer that has not yet seen it go
+      const sent = [0, 1, 2, 3].map((i) => get(`/increment?name=k${i}`));
+      const leaving = a.close();
+      expect(await Promise.all(sent)).toEqual([200, 200, 200, 200]);
+      await leaving;
+    } finally {
+      agent.destroy();
+      await a.close();
+      await b.close();
+    }
+  });
+
   it("a WebSocket on the public listener reaches the cell, on its owner or through it", async () => {
     const store = memoryObjectStore();
     const dir = join(examples, "wsecho");
