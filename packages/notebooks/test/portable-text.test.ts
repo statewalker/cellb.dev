@@ -237,7 +237,7 @@ describe("buildPageModels", () => {
           "# React",
           "",
           "```tsx echo",
-          "const Door = ({ open }: { open: boolean }) => <b>{open ? \"open\" : \"closed\"}</b>;",
+          'const Door = ({ open }: { open: boolean }) => <b>{open ? "open" : "closed"}</b>;',
           "```",
           "",
           "```jsx",
