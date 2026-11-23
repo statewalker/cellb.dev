@@ -279,6 +279,74 @@ export interface LogFollower {
   gc(): Promise<void>;
 }
 
+// ---- durable writes, on a thread of their own --------------------------------------------------
+
+/**
+ * The follower's durable writes (open, write, fsync, close, fsync the directory) run as one
+ * synchronous step on a worker thread of their own, as celld's follower does on a blocking
+ * thread: through `fs/promises` each step was a trip through Node's 4-thread pool, which the
+ * node's other file work fills under load, and celld evicts a follower whose appends run slower
+ * than its siblings' (#228). Inline code, `node:fs` only: it loads from the sources and the
+ * build alike.
+ */
+const WRITER = `
+const { parentPort } = require("node:worker_threads");
+const fs = require("node:fs");
+const syncDir = (dir) => { const d = fs.openSync(dir, "r"); try { fs.fsyncSync(d); } finally { fs.closeSync(d); } };
+const writeSynced = (file, bytes) => {
+  const fd = fs.openSync(file, "w");
+  try { let at = 0; while (at < bytes.length) at += fs.writeSync(fd, bytes, at); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+};
+parentPort.on("message", (m) => {
+  try {
+    if (m.op === "segment") {
+      try { writeSynced(m.file, m.bytes); syncDir(m.dir); }
+      catch (e) { try { fs.rmSync(m.file, { force: true }); } catch {} throw e; }
+    } else {
+      writeSynced(m.tmp, m.bytes); fs.renameSync(m.tmp, m.file); syncDir(m.dir);
+    }
+    parentPort.postMessage({ id: m.id });
+  } catch (e) {
+    parentPort.postMessage({ id: m.id, error: String(e && e.message || e) });
+  }
+});`;
+type DiskWrite =
+  | { op: "segment"; dir: string; file: string; bytes: Uint8Array }
+  | { op: "atomic"; dir: string; file: string; tmp: string; bytes: Uint8Array };
+let writer: { post(w: DiskWrite): Promise<void> } | undefined;
+const diskWrite = async (w: DiskWrite): Promise<void> => {
+  if (!writer) {
+    const { Worker } = await import("node:worker_threads");
+    const worker = new Worker(WRITER, { eval: true });
+    worker.unref(); // idle, it keeps no process alive
+    const pending = new Map<number, { resolve(): void; reject(e: Error): void }>();
+    let next = 0;
+    worker.on("message", (m: { id: number; error?: string }) => {
+      const p = pending.get(m.id);
+      pending.delete(m.id);
+      if (pending.size === 0) worker.unref();
+      if (m.error) p?.reject(new Error(m.error));
+      else p?.resolve();
+    });
+    worker.on("error", (e: Error) => {
+      for (const p of pending.values()) p.reject(e);
+      pending.clear();
+      writer = undefined;
+    });
+    writer = {
+      post: (m) =>
+        new Promise<void>((resolve, reject) => {
+          const id = next++;
+          pending.set(id, { resolve, reject });
+          worker.ref(); // a write in progress keeps the process up until it lands
+          worker.postMessage({ ...m, id });
+        }),
+    };
+  }
+  return writer.post(w);
+};
+
 export function createLogFollower(opts: {
   /** A directory on a disk that keeps what was fsynced: the follower's promise to the leader. */
   dir: string;
@@ -291,6 +359,13 @@ export function createLogFollower(opts: {
   const fragments = new Map<string, Promise<Fragment>>();
   const locks = new Map<string, Promise<unknown>>();
   const dirOf = (node: string, gen: string) => join(root, node, gen);
+  // Directories made already: an append does not ask the filesystem again (a pool thread each).
+  const dirs = new Set<string>();
+  const made = async (dir: string) => {
+    if (dirs.has(dir)) return;
+    await mkdir(dir, { recursive: true });
+    dirs.add(dir);
+  };
 
   /** One leader's operations, one at a time. */
   const locked = <T>(leader: string, fn: () => Promise<T>): Promise<T> => {
@@ -303,27 +378,9 @@ export function createLogFollower(opts: {
     return run;
   };
 
-  const fsyncDir = async (dir: string) => {
-    const fd = await open(dir, "r");
-    try {
-      await fd.sync();
-    } finally {
-      await fd.close();
-    }
-  };
   /** Writes `bytes` to `file` atomically and durably: a temp file, fsync, rename, fsync dir. */
-  const durableWrite = async (dir: string, file: string, bytes: Uint8Array) => {
-    const tmp = join(dir, `.${file}.tmp`);
-    const fd = await open(tmp, "w");
-    try {
-      await fd.writeFile(bytes);
-      await fd.sync();
-    } finally {
-      await fd.close();
-    }
-    await rename(tmp, join(dir, file));
-    await fsyncDir(dir);
-  };
+  const durableWrite = (dir: string, file: string, bytes: Uint8Array) =>
+    diskWrite({ op: "atomic", dir, file: join(dir, file), tmp: join(dir, `.${file}.tmp`), bytes });
   const saveState = (dir: string, s: State) =>
     durableWrite(
       dir,
@@ -354,21 +411,9 @@ export function createLogFollower(opts: {
     for (const e of entries) writeEntry(body, e);
     const signed = body.done();
     const file = join(dir, segName(epoch, entries[0].seq, end));
-    try {
-      const fd = await open(file, "w");
-      try {
-        await fd.writeFile(
-          new Writer().magic(MAGIC.segment).bytes(sha256(signed)).bytes(signed).done(),
-        );
-        await fd.sync();
-      } finally {
-        await fd.close();
-      }
-      await fsyncDir(dir);
-    } catch (e) {
-      await rm(file, { force: true }).catch(() => {}); // never confirmed: not held either
-      throw e;
-    }
+    const bytes = new Writer().magic(MAGIC.segment).bytes(sha256(signed)).bytes(signed).done();
+    // the writer removes a file whose write failed: never confirmed, so not held either
+    await diskWrite({ op: "segment", dir, file, bytes });
   };
 
   const load = async (node: string, gen: string): Promise<Fragment> => {
@@ -484,6 +529,21 @@ export function createLogFollower(opts: {
 
   const reply = (f: State, ok: boolean): AppendResp => ({ ok, end: f.end, epoch: f.fragmentEpoch });
 
+  // Deleting what the bucket holds is no part of an append's promise: it runs after the replies,
+  // one prune at a time per leader, so a reply waits for neither the deletes nor the threads they
+  // take (celld evicts a follower whose appends run slower than its siblings', #228). The base it
+  // prunes to is on disk first (in the segment's header or state.json), so a restart never finds
+  // the range short of what was deleted.
+  const pruning = new Map<string, Promise<void>>();
+  const pruneLater = (leader: string, dir: string, f: Fragment) => {
+    const next = (pruning.get(leader) ?? Promise.resolve())
+      .then(() => prune(dir, f))
+      .catch(() => {})
+      .finally(() => {
+        if (pruning.get(leader) === next) pruning.delete(leader);
+      });
+    pruning.set(leader, next);
+  };
   type Waiter = { req: AppendRequest; done: (r: AppendResp) => void; fail: (e: unknown) => void };
   /** Each leader's appends that arrived since its last write started: the next burst. */
   const queues = new Map<string, Waiter[]>();
@@ -512,7 +572,7 @@ export function createLogFollower(opts: {
       staged = [];
       if (entries.length || base !== f.base) {
         try {
-          await mkdir(dir, { recursive: true });
+          await made(dir);
           if (entries.length) await writeSegment(dir, f.fragmentEpoch, entries, base, end);
           else await saveState(dir, { ...f, base, end });
         } catch {
@@ -526,7 +586,7 @@ export function createLogFollower(opts: {
         f.end = end;
         if (base !== f.base) {
           f.base = base;
-          await prune(dir, f).catch(() => {});
+          pruneLater(leader, dir, f);
         }
       }
       for (const w of ws) w.done(reply(f, f.end >= w.frameLast));

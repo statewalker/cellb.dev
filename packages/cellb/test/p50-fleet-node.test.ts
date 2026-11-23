@@ -132,6 +132,37 @@ describe("P50 cellb serve: a fleet node", () => {
     }
   });
 
+  it("calls routed through a peer tunnel while the owner leaves are answered (statewalker/cellb.dev#228)", async () => {
+    const store = memoryObjectStore();
+    const dir = join(examples, "counter");
+    const a = await startFleetNode({ dir, store, node: "a", listen: "127.0.0.1:0" });
+    const b = await startFleetNode({ dir, store, node: "b", listen: "127.0.0.1:0" });
+    const names = Array.from({ length: 8 }, (_, i) => `t${i}`);
+    try {
+      // a owns the cells; b reaches them through its pooled tunnels to a
+      for (const n of names) await (await fetch(`${a.url}/increment?name=${n}`)).text();
+      for (const n of names) await (await fetch(`${b.url}/increment?name=${n}`)).text();
+      let left = false;
+      const errors: string[] = [];
+      const clients = names.map(async (n) => {
+        while (!left) {
+          const r = await fetch(`${b.url}/increment?name=${n}`).catch((e) => e as Error);
+          if (r instanceof Error) errors.push(r.message);
+          else if (r.status !== 200) errors.push(`${r.status} ${(await r.text()).slice(0, 120)}`);
+          else await r.text();
+        }
+      });
+      await a.close();
+      await new Promise((r) => setTimeout(r, 100));
+      left = true;
+      await Promise.all(clients);
+      expect(errors).toEqual([]);
+    } finally {
+      await a.close();
+      await b.close();
+    }
+  });
+
   it("a WebSocket on the public listener reaches the cell, on its owner or through it", async () => {
     const store = memoryObjectStore();
     const dir = join(examples, "wsecho");
