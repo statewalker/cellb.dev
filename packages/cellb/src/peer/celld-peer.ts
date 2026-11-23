@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { Server as NetServer } from "node:net";
 import type { Duplex } from "node:stream";
 import { type ObjectStore, PreconditionFailedError } from "../bucket/object-store.js";
 import { toAnotherNode } from "../core/handles.js";
@@ -31,6 +32,8 @@ import type { LogFollower } from "./log-follower.js";
  * re-resolves the owner.
  */
 const PROTOCOL = "5";
+/** How long a closing peer server keeps its open tunnels for calls already sent on them. */
+const LINGER_MS = 500;
 const DOMAIN = "cells-peer-request-v1";
 const CLOCK_WINDOW_MS = 30_000;
 const PEER_HEADERS = {
@@ -446,10 +449,13 @@ export async function startCelldPeerServer(opts: {
   // Calls being served on tunnels: a closing server lets them finish (for a while) first.
   let inFlight = 0;
   let drained: (() => void) | undefined;
+  let leaving = false;
   const counted =
     (serve: (q: IncomingMessage, s: ServerResponse) => Promise<void>) =>
     (q: IncomingMessage, s: ServerResponse) => {
       inFlight++;
+      // Leaving: answered, and the tunnel closed after it, so the caller does not reuse it.
+      if (leaving) s.setHeader("connection", "close");
       s.once("close", () => {
         if (--inFlight === 0) drained?.();
       });
@@ -632,11 +638,15 @@ export async function startCelldPeerServer(opts: {
   const port = (server.address() as { port: number }).port;
   return {
     addr: `${host}:${port}`,
-    // No new tunnel; idle ones close at once; calls in flight on the others finish (for at most
-    // 5 s, the caller's answer included), then whatever is left is cut.
+    // No new tunnel. A call a peer already sent on a pooled tunnel is still on its way: the open
+    // tunnels stay a moment and answer (closing after the answer), as a leaving node's public
+    // listener does, instead of cutting the call ("socket hang up", #228). Then idle ones close;
+    // calls in flight on the others finish (for at most 5 s), then whatever is left is cut.
     close: async () => {
-      const stopped = new Promise<void>((r) => server.close(() => r()));
-      server.closeIdleConnections?.();
+      leaving = true;
+      const stopped = new Promise<void>((r) => NetServer.prototype.close.call(server, () => r()));
+      if (tunnels.size > 0) await new Promise((r) => setTimeout(r, LINGER_MS));
+      server.close(); // http.Server's own: drops idle connections, stops its connection timer
       for (const s of Object.values(inner)) s.closeIdleConnections?.();
       if (inFlight > 0)
         await new Promise<void>((r) => {
