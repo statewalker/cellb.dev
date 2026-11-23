@@ -32,6 +32,12 @@ export interface CelldBucketOptions {
    * installs a new lease). Without it the node waits until another node has recovered it.
    */
   recoverPredecessor?: (session: string, record: NodeRecord) => Promise<void>;
+  /**
+   * A cell's dead owner left a log tier session that is not sealed: recover it now, as celld does
+   * at the takeover (node_log.rs ensure_recovered), so the cell is taken once the owner's lease
+   * has run out rather than at a recoverer's next sweep. Takeovers of one owner share a call.
+   */
+  recoverDead?: (node: string) => Promise<unknown>;
   /** Our log tier session was taken over by a recoverer (a refused renewal): stop leading. */
   onLogLost?: () => void;
   /** The waker-role lease (celld: 3 × its due-scan tick); match 3 × the runtime's wakePollMs. */
@@ -148,6 +154,21 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
     return w;
   };
   /** Before our first write: a record under our name from an earlier process. */
+  // One recovery per dead owner at a time, whichever of its cells asked first.
+  const recovering = new Map<string, Promise<void>>();
+  const recoverDead = (node: string) => {
+    let p = recovering.get(node);
+    if (!p) {
+      p = Promise.resolve(opts.recoverDead?.(node))
+        .then(
+          () => {},
+          () => {},
+        )
+        .finally(() => recovering.delete(node));
+      recovering.set(node, p);
+    }
+    return p;
+  };
   const adoptPredecessor = async () => {
     for (;;) {
       const cur = await readJson<NodeRecord>(leaseKey);
@@ -356,7 +377,12 @@ export function celldBucket(store: ObjectStore & { close?(): void }, opts: Celld
             // cell's prefix. Until a celld node has recovered the dead owner's node log into
             // the per-cell prefixes and marked it sealed, the bucket is not complete for this
             // cell: not ours to take. A record without `log` never acknowledged past the bucket.
-            const log = lease?.value.log;
+            let log = lease?.value.log;
+            if (log && log.state !== "sealed" && opts.recoverDead) {
+              await recoverDead(holder);
+              log = (await readJson<{ log?: { state?: string } }>(`nodes/${holder}.json`))?.value
+                .log;
+            }
             if (log && log.state !== "sealed") return undefined;
           }
           epoch = cur.value.epoch + 1; // every activation advances the epoch

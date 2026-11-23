@@ -132,3 +132,57 @@ it):
   runtime gains from the third and fourth node here.
 - **A dead node's cells wait for its lease** (10 s), then for its log's recovery when it was a
   celld node. A node that leaves with `SIGTERM` releases its cells, and they move at once.
+
+## cellb-only clusters, 4 to 10 nodes
+
+`cluster-bench.mjs scale` runs N `cellb serve` nodes (no celld) on one bucket of a local RustFS,
+loads them with closed-loop clients over 200 counters for 15 s, every request to a random node,
+then checks every counter. Besides the cluster's requests/s and latency percentiles, it reports
+for each node the latency of the requests that entered there, its CPU, its resident memory
+(sampled every 500 ms; a node on Node 22 is two processes, `cellb serve` and the process it
+relaunches itself as, counted together) and the cells it owns.
+
+```sh
+pnpm build
+SCALE_NODES=4,6,8,10 DURATION_MS=15000 BENCH_JSON=bench/results/scale.json \
+  scripts/interop-env.sh node bench/cluster-bench.mjs scale             # 128 clients (default)
+SCALE_CLIENTS=16 BENCH_JSON=bench/results/scale-light.json …             # a light load
+```
+
+Heavy load, 128 clients (`results/scale.json`; Node 22, one 4-vCPU VM shared by every node, RustFS
+and the clients):
+
+| Nodes | Requests/s | p50 | p90 | p99 | p99.9 | CPU s / 1,000 req | Cores: nodes / RustFS | RSS per node (peak) | Cells per node | p99 per node | Errors / repeated / lost |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 4 | 598 | 172 ms | 397 ms | 800 ms | 1,322 ms | 2.57 | 1.53 / 1.65 | 269–285 MB | 45–58 | 739 ms–849 ms | 0 / 0 / 0 |
+| 6 | 588 | 178 ms | 400 ms | 779 ms | 1,064 ms | 3.13 | 1.84 / 1.52 | 232–261 MB | 21–40 | 638 ms–849 ms | 0 / 0 / 0 |
+| 8 | 491 | 215 ms | 498 ms | 885 ms | 1,158 ms | 3.97 | 1.94 / 1.39 | 220–239 MB | 17–34 | 741 ms–994 ms | 0 / 0 / 0 |
+| 10 | 405 | 260 ms | 596 ms | 1,017 ms | 1,301 ms | 4.86 | 1.95 / 1.27 | 209–233 MB | 15–26 | 938 ms–1,126 ms | 0 / 0 / 0 |
+
+Light load, 16 clients (`results/scale-light.json`):
+
+| Nodes | Requests/s | p50 | p90 | p99 | p99.9 | CPU s / 1,000 req | Cores: nodes / RustFS | RSS per node (peak) | Cells per node | p99 per node | Errors / repeated / lost |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 4 | 384 | 38 ms | 63 ms | 106 ms | 146 ms | 4.42 | 1.7 / 1.22 | 234–253 MB | 39–56 | 102 ms–113 ms | 0 / 0 / 0 |
+| 6 | 336 | 43 ms | 78 ms | 128 ms | 165 ms | 5.74 | 1.92 / 1.14 | 225–240 MB | 22–48 | 114 ms–144 ms | 0 / 0 / 0 |
+| 8 | 299 | 45 ms | 93 ms | 175 ms | 256 ms | 6.76 | 2.02 / 1.02 | 199–228 MB | 20–31 | 149 ms–217 ms | 0 / 0 / 0 |
+| 10 | 274 | 50 ms | 104 ms | 170 ms | 218 ms | 7.86 | 2.15 / 0.99 | 217–229 MB | 15–26 | 155 ms–198 ms | 0 / 0 / 0 |
+
+- **The cluster is correct at every size**: no failed request, no value acknowledged twice, no
+  counter behind its acknowledged values, and every one of the 200 cells owned by one node. Cells
+  and requests spread evenly: each node's latency percentiles are within a few percent of the
+  cluster's.
+- **These numbers are of one machine, not of a fleet.** At 128 clients the 4 vCPUs are saturated
+  (the nodes take 1.5–2 cores, RustFS 1.3–1.7, the clients 0.15), so latency is queueing: 128
+  clients / ~600 requests/s ≈ 210 ms, Little's law. Each node added on the same CPUs adds its own
+  event loop and routing (with N nodes, (N-1)/N of the requests cross to the owner), so
+  throughput falls from 598 to 405 requests/s between 4 and 10 nodes. On machines of their own,
+  nodes add capacity; here they share it.
+- **A request costs 2.6–4.9 ms of CPU at heavy load, 4.4–7.9 ms at light load.** Under load,
+  commits batch: one follower append and one bucket upload carry several requests' rows. An idle
+  node costs about 1% of a core (lease renewals, log maintenance), and RustFS 0.15 cores for an
+  idle 4-node cluster, so the difference is not a fixed overhead.
+- **A node's memory stays at 200–290 MB** (both processes) from 4 to 10 nodes and at either load:
+  it does not grow with the cells or the load measured here.
+- **RustFS is the second largest consumer** (1–1.7 cores): every acknowledged write ends as an LTX
+  file PUT, and every node renews its lease and polls its wake index.

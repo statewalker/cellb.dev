@@ -1,0 +1,92 @@
+{
+  "date": "2026-11-23T08:39:57.276Z",
+  "node": "v22.23.5",
+  "results": {
+    "lifo": {
+      "engine": "lifo",
+      "nodes": 3,
+      "cells": 6,
+      "coldStartMs": {
+        "p50": 26,
+        "max": 35
+      },
+      "coldCallMs": {
+        "p50": 171,
+        "max": 183
+      },
+      "warmExecMs": {
+        "p50": 64,
+        "p90": 65
+      },
+      "warmCallMs": {
+        "p50": 70,
+        "p90": 88
+      },
+      "SIGKILL": {
+        "cellsMoved": 2,
+        "backAfterMs": {
+          "p50": 9014,
+          "max": 9014
+        },
+        "newContainerStartMs": {
+          "p50": 3,
+          "max": 3
+        }
+      },
+      "SIGTERM": {
+        "cellsMoved": 3,
+        "backAfterMs": {
+          "p50": 190,
+          "max": 196
+        },
+        "newContainerStartMs": {
+          "p50": 2,
+          "max": 4
+        }
+      }
+    },
+    "wasmer": {
+      "engine": "wasmer",
+      "nodes": 3,
+      "cells": 6,
+      "coldStartMs": {
+        "p50": 2762,
+        "max": 2771
+      },
+      "coldCallMs": {
+        "p50": 4023,
+        "max": 4153
+      },
+      "warmExecMs": {
+        "p50": 249,
+        "p90": 305
+      },
+      "warmCallMs": {
+        "p50": 262,
+        "p90": 358
+      },
+      "SIGKILL": {
+        "cellsMoved": 3,
+        "backAfterMs": {
+          "p50": 8668,
+          "max": 8675
+        },
+        "newContainerStartMs": {
+          "p50": 1,
+          "max": 1
+        }
+      },
+      "SIGTERM": {
+        "cellsMoved": 6,
+        "backAfterMs": {
+          "p50": 4851,
+          "max": 5024
+        },
+        "newContainerStartMs": {
+          "p50": 1875,
+          "max": 1878
+        }
+      }
+    }
+  }
+}

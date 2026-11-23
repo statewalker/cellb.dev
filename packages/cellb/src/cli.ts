@@ -17,14 +17,17 @@ const USAGE = `Usage:
   cellb serve [project-dir] --bucket s3://NAME[/PREFIX] [--endpoint URL] [--region REGION]
               [--listen IP:PORT] [--internal-listen IP:PORT] [--advertise ADDR:PORT]
               [--node NAME] [--lease-ttl MS] [--data DIR] [--durability fleet|bucket]
+              [--containers MODULE]
 
     Runs the project as a node of a celld fleet: the same bucket, ownership records and peer
     tunnel as \`celld --bucket\`, so celld and cellb nodes serve one set of cells together.
     Credentials: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (AWS_SESSION_TOKEN). Defaults:
     CELLD_BUCKET, S3_ENDPOINT, AWS_REGION; --listen 127.0.0.1:8080, --internal-listen
     127.0.0.1:0. --durability (CELLD_DURABILITY), as celld: "fleet" (default) acknowledges a
-    write once follower nodes hold it, "bucket" once the bucket does. SIGTERM or SIGINT releases
-    the node's cells and leaves the fleet.`;
+    write once follower nodes hold it, "bucket" once the bucket does. --containers
+    (CELLB_CONTAINERS): a module whose default export makes the container engine for the
+    project's \`containers\` classes (Wasmer or Lifo); a cell's container runs on its owner.
+    SIGTERM or SIGINT releases the node's cells and leaves the fleet.`;
 
 /** Runs the command line `args` (without node and the script); returns the exit code. */
 export async function main(args: string[]): Promise<number> {
@@ -134,7 +137,9 @@ async function serve(args: string[]): Promise<number> {
     // the channel only watches the parent: it must not keep this process alive after close()
     (process.channel as { unref?: () => void } | undefined)?.unref?.();
   }
-  const { parseServeArgs, startFleetNode } = await import("./peer/fleet-node.js");
+  const { loadContainerEngine, parseServeArgs, startFleetNode } = await import(
+    "./peer/fleet-node.js"
+  );
   let o: ReturnType<typeof parseServeArgs>;
   try {
     o = parseServeArgs(args, process.env);
@@ -149,11 +154,15 @@ async function serve(args: string[]): Promise<number> {
   }
   const credentials = { accessKeyId, secretAccessKey, sessionToken: process.env.AWS_SESSION_TOKEN };
   if (!credentials.sessionToken) delete credentials.sessionToken;
+  const { containers: containersModule, ...serve } = o;
   let node: Awaited<ReturnType<typeof startFleetNode>>;
+  let engine: Awaited<ReturnType<typeof loadContainerEngine>> | undefined;
   try {
-    node = await startFleetNode({ ...o, credentials });
+    if (containersModule) engine = await loadContainerEngine(containersModule);
+    node = await startFleetNode({ ...serve, credentials, containers: engine });
   } catch (err) {
     console.error(`cellb serve: ${(err as Error).message ?? err}`);
+    await engine?.close().catch(() => {});
     return 1;
   }
   if (node.unsupported.length)
@@ -163,7 +172,8 @@ async function serve(args: string[]): Promise<number> {
   );
   return onStopSignals(async () => {
     console.log(`cellb serve: node ${node.node} leaving the fleet`);
-    await node.close();
+    await node.close(); // destroys the node's containers
+    await engine?.close();
   });
 }
 

@@ -1,0 +1,12 @@
+{
+  "name": "fleet-runner-wasmer",
+  "main": "index.js",
+  "compatibility_date": "2026-01-01",
+  "vars": { "JOB": "python /workspace/job.py" },
+  "durable_objects": { "bindings": [{ "name": "RUNNER", "class_name": "Runner" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Runner"] }],
+  "containers": [{ "class_name": "Runner", "image": "./Dockerfile" }],
+  "cellb": {
+    "containers": { "Runner": { "packages": ["python/python"], "files": { "job.py": "./job.py" } } }
+  }
+}

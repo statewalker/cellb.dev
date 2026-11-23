@@ -4,6 +4,7 @@ export { type CelldPeerServer, celldPeers, startCelldPeerServer } from "./peer/c
 export {
   type FleetNode,
   type FleetNodeOptions,
+  loadContainerEngine,
   parseServeArgs,
   type ServeArgs,
   startFleetNode,
