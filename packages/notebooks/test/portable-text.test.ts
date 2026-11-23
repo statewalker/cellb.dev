@@ -341,4 +341,39 @@ describe("buildPageModels", () => {
       3: { line: 15, column: 5 },
     });
   });
+
+  it("maps Notebook Kit cells as notebook-kit dedents them: same-line text, 4-space indents, a leading blank line, quoted `>`", async () => {
+    const html = [
+      "<notebook>",
+      '  <script id="1" type="text/markdown">First ${a}',
+      "    Second ${b}",
+      "      Third ${c}",
+      "  Fourth ${d}",
+      "  </script>",
+      '  <script id="2" type="module" output="x>y">',
+      "",
+      "",
+      "    const e = 1;",
+      "  </script>",
+      "</notebook>",
+      "<script>analytics()</script>",
+    ].join("\n");
+    // Where a name really is in the file, found by searching the text: an oracle independent of
+    // the parser.
+    const at = (needle: string) => {
+      const offset = html.indexOf(needle);
+      const before = html.slice(0, offset).split("\n");
+      return { line: before.length, column: (before.at(-1) ?? "").length + 1 };
+    };
+    const notebooks = new MemFilesApi({ initialFiles: { "/kit.html": html } });
+    const models = await buildPageModels({ notebooks, moduleServer, dom, siteTitle: "S" });
+    expect(models.failures).toEqual([]);
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    const exprs = [at("a}"), at("b}"), at("c}"), at("d}")];
+    expect([1, 2, 3, 4].map((id) => page.positions[id])).toEqual(exprs);
+    // The cell's text is "\n\n\n    const e = 1;\n  ": notebook-kit drops the trailing blank line and
+    // one leading one (the rest of the tag's line), so its value starts with the blank line 8.
+    expect(page.positions[5]).toEqual({ line: 8, column: 1 });
+  });
 });

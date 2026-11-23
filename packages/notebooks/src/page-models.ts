@@ -40,7 +40,7 @@ import {
   type PtBlock,
   renderProse,
   type SearchSection,
-  scriptStarts,
+  scriptOrigins,
   toPortableText,
 } from "./portable-text.js";
 import { buildSearchIndex, type SearchIndex } from "./search.js";
@@ -260,9 +260,9 @@ function registrations(
 function documentOf(file: string, text: string, dom: DomEnv): NotebookDocument {
   if (file.endsWith(".md")) return markdownToDocument(text);
   const nb = parseNotebookHtml(text, dom);
-  const starts = scriptStarts(text);
+  const origins = scriptOrigins(text);
   // Positions only when every cell was found: a mismatch would place cells on wrong lines.
-  return notebookToDocument(nb, starts.length === nb.cells.length ? starts : undefined);
+  return notebookToDocument(nb, origins.length === nb.cells.length ? origins : undefined);
 }
 
 /**

@@ -259,28 +259,23 @@ function splitFrontMatter(source: string): { meta: Record<string, string>; body:
 
 const md = new MarkdownIt({ html: true });
 
-/** The position in the file of `offset` in `text`, a slice starting at `base` (its lines indented by `indent` columns in the file, as a dedented Notebook Kit cell's are). */
-function positionIn(
-  text: string,
-  offset: number,
-  base: { line: number; indent: number },
-): Position {
-  const before = text.slice(0, offset);
-  const lines = before.split("\n");
-  const column = (lines[lines.length - 1] ?? "").length + 1 + base.indent;
-  return { line: base.line + lines.length - 1, column };
+/** Where line `k` (0-based) of a cell's text starts in the notebook's file. */
+export type LineOrigin = (k: number) => Position;
+
+/** The position in the file of `offset` in `text`, whose lines start where `origin` says. */
+function positionIn(text: string, offset: number, origin: LineOrigin): Position {
+  const lines = text.slice(0, offset).split("\n");
+  const start = origin(lines.length - 1);
+  return { line: start.line, column: start.column + (lines[lines.length - 1] ?? "").length };
 }
 
-function prosePart(
-  markdown: string,
-  base?: { line: number; indent: number },
-): ProsePart | undefined {
+function prosePart(markdown: string, origin?: LineOrigin): ProsePart | undefined {
   if (!markdown.trim()) return undefined;
   const { offsets, ...rest } = extractExpressions(markdown);
   return {
     kind: "prose",
     ...rest,
-    ...(base ? { positions: offsets.map((o) => positionIn(markdown, o, base)) } : {}),
+    ...(origin ? { positions: offsets.map((o) => positionIn(markdown, o, origin)) } : {}),
   };
 }
 
@@ -306,10 +301,11 @@ export function markdownToDocument(source: string): NotebookDocument {
     const { lang, attrs } = parseInfo(token.info ?? "");
     const mode = FENCE_MODES[lang];
     if (!mode) continue;
-    const prose = prosePart(lines.slice(from, token.map[0]).join("\n"), {
-      line: skipped + from + 1,
-      indent: 0,
-    });
+    const chunkStart = skipped + from + 1;
+    const prose = prosePart(lines.slice(from, token.map[0]).join("\n"), (k) => ({
+      line: chunkStart + k,
+      column: 1,
+    }));
     if (prose) parts.push(prose);
     const cellSource = token.content.replace(/\n$/, "");
     // The source starts on the line after the opening fence.
@@ -320,7 +316,8 @@ export function markdownToDocument(source: string): NotebookDocument {
     });
     from = token.map[1];
   }
-  const rest = prosePart(lines.slice(from).join("\n"), { line: skipped + from + 1, indent: 0 });
+  const restStart = skipped + from + 1;
+  const rest = prosePart(lines.slice(from).join("\n"), (k) => ({ line: restStart + k, column: 1 }));
   if (rest) parts.push(rest);
   // The title is plain text: an expression in the h1 shows as its source.
   return {
@@ -330,20 +327,52 @@ export function markdownToDocument(source: string): NotebookDocument {
   };
 }
 
+/** notebook-kit's `isEmpty` (lib/text.js): a line of whitespace only. */
+const isBlank = (line: string | undefined) => line !== undefined && !/\S/.test(line);
+
 /**
- * Where each `<script>` cell of a Notebook Kit document starts: the first non-blank character of
- * its text (notebook-kit drops a leading blank line and dedents the text, so this is where its
- * value's first line starts in the file). Cells in document order, as `parseNotebookHtml` reads them.
+ * Where each line of each `<script>` cell of a Notebook Kit document starts in the file, in
+ * document order (as `parseNotebookHtml` reads them). It follows notebook-kit's `dedent`
+ * (lib/serialize.js): a trailing blank line and one leading blank line are dropped, then each line
+ * loses exactly four leading spaces when it has them. So a cell's text line `k` maps to one raw
+ * line, at column 1 (or where the text starts, on the tag's own line), plus 4 when it was dedented.
+ * Only the `<notebook>` element is scanned; a tag's quoted attributes may hold `>`.
  */
-export function scriptStarts(html: string): Position[] {
-  const out: Position[] = [];
-  const notebook = html.search(/<notebook\b/i);
-  const open = /<script\b[^>]*>/gi;
-  open.lastIndex = Math.max(0, notebook);
-  for (let m = open.exec(html); m; m = open.exec(html)) {
+export function scriptOrigins(html: string): LineOrigin[] {
+  const lineStarts = [0];
+  for (let i = html.indexOf("\n"); i >= 0; i = html.indexOf("\n", i + 1)) lineStarts.push(i + 1);
+  const positionOf = (offset: number): Position => {
+    let lo = 0;
+    let hi = lineStarts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if ((lineStarts[mid] ?? 0) <= offset) lo = mid;
+      else hi = mid - 1;
+    }
+    return { line: lo + 1, column: offset - (lineStarts[lo] ?? 0) + 1 };
+  };
+  const start = html.search(/<notebook\b/i);
+  if (start < 0) return [];
+  const close = html.slice(start).search(/<\/notebook\s*>/i);
+  const end = close < 0 ? html.length : start + close;
+  const open = /<script\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
+  open.lastIndex = start;
+  const out: LineOrigin[] = [];
+  for (let m = open.exec(html); m && m.index < end; m = open.exec(html)) {
     const textStart = m.index + m[0].length;
-    const first = html.slice(textStart).search(/\S/);
-    out.push(positionIn(html, textStart + Math.max(0, first), { line: 1, indent: 0 }));
+    const closing = html.slice(textStart).search(/<\/script\s*>/i);
+    const raw = html.slice(textStart, closing < 0 ? end : textStart + closing);
+    const rawLines = raw.split(/\r\n?|\n/);
+    let kept = rawLines.map((_, r) => r);
+    if (isBlank(rawLines[kept[kept.length - 1] ?? -1])) kept = kept.slice(0, -1);
+    if (isBlank(rawLines[kept[0] ?? -1])) kept = kept.slice(1);
+    const first = positionOf(textStart);
+    out.push((k) => {
+      const r = kept[k] ?? kept[kept.length - 1] ?? 0;
+      const base = r === 0 ? first.column : 1;
+      return { line: first.line + r, column: base + (/^ {4}/.test(rawLines[r] ?? "") ? 4 : 0) };
+    });
+    open.lastIndex = textStart + Math.max(0, closing);
   }
   return out;
 }
@@ -353,15 +382,15 @@ export function scriptStarts(html: string): Position[] {
  * (their `${…}` expressions, as notebook-kit's md template literals have them), the others cells.
  * `pinned` (notebook-kit's "show the source") is `echo`; `hidden` hides the cell's output.
  */
-export function notebookToDocument(nb: Notebook, starts?: readonly Position[]): NotebookDocument {
+export function notebookToDocument(
+  nb: Notebook,
+  origins?: readonly LineOrigin[],
+): NotebookDocument {
   const parts: Part[] = [];
   for (const [i, cell] of nb.cells.entries()) {
-    const start = starts?.[i];
+    const origin = origins?.[i];
     if (cell.mode === "md") {
-      const prose = prosePart(
-        cell.value,
-        start ? { line: start.line, indent: start.column - 1 } : undefined,
-      );
+      const prose = prosePart(cell.value, origin);
       if (prose) parts.push(prose);
       continue;
     }
@@ -378,7 +407,7 @@ export function notebookToDocument(nb: Notebook, starts?: readonly Position[]): 
         mode: cell.mode,
         source: cell.value,
         attrs,
-        ...(start ? { position: start } : {}),
+        ...(origin ? { position: origin(0) } : {}),
       },
     });
   }
