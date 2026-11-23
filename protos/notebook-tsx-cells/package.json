@@ -1,0 +1,32 @@
+{
+  "name": "proto-notebook-tsx-cells",
+  "private": true,
+  "description": "PROTOTYPE, throwaway: ts/jsx/tsx notebook cells (statewalker/statewalker-root#236). Never merged.",
+  "type": "module",
+  "scripts": {
+    "build": "tsx src/cli.ts page/index.md dist",
+    "serve": "pnpm build && npx --yes serve dist",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@observablehq/notebook-kit": "2.11.0",
+    "@observablehq/runtime": "^6.1.0",
+    "@radix-ui/react-slot": "^1.5.0",
+    "@statewalker/fsm": "^0.39.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "esbuild": "^0.28.2",
+    "markdown-it": "^15.0.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwind-merge": "^3.7.1",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.1"
+  }
+}
