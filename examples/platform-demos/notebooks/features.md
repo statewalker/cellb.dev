@@ -32,12 +32,19 @@ SELECT region, SUM(amount) AS total FROM sales WHERE region <> 'none\tsuch' GROU
 
 ## React
 
-A `tsx` cell with types and JSX, and a `jsx` cell showing a React element.
+A `tsx` cell with types and JSX, a `jsx` cell whose value is a React element, and a `jsx` cell
+that passes one to `display`.
 
 ```tsx echo
-const Door = ({ open }: { open: boolean }) => <b id="door">{open ? "open" : "closed"}</b>;
+const Door = ({ id, open }: { id: string; open: boolean }) => (
+  <b id={id}>{open ? "open" : "closed"}</b>
+);
 ```
 
 ```jsx
-<Door open={answer === 42} />
+<Door id="door" open={answer === 42} />
+```
+
+```jsx
+display(<Door id="door-shut" open={false} />);
 ```

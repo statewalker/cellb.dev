@@ -353,10 +353,14 @@ async function reactCells(host: string, site: string, t: Tools) {
       const door = await page.textContent("#door");
       // `answer` is 42 in another cell: the jsx cell reads it reactively.
       assert(door === "open", `door: ${door}`);
+      // An element passed to `display` renders too.
+      await page.waitForSelector("#door-shut", { timeout: 30000 });
+      const shut = await page.textContent("#door-shut");
+      assert(shut === "closed", `door-shut: ${shut}`);
       assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
       // React comes from the site's module server like any npm import.
       assert(offOrigin.length === 0, `off-origin requests: ${offOrigin.join("; ")}`);
-      return "a tsx component rendered by a jsx cell, React from the module server";
+      return "a tsx component rendered by a jsx cell's value and by display(), React from the module server";
     } finally {
       await b.close();
     }
