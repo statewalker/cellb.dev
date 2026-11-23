@@ -3,11 +3,13 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MemFilesApi } from "@statewalker/webrun-files-mem";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ContainerEngine, ContainerHandle, ContainerSpec } from "../src/container.js";
 import { createContainer } from "../src/container.js";
-import { createCellRuntime, DurableObject } from "../src/index.js";
+import { createCellRuntime, DurableObject, filesApiChangeLog } from "../src/index.js";
 import { buildProject, loadNodeProject, nodeSqliteOpener } from "../src/node.js";
+import { MemoryLeases } from "./memory-lease.js";
 
 /** An engine whose containers answer HTTP with what they were started with. */
 function fakeEngine(delays: { startMs?: number; execMs?: number } = {}) {
@@ -76,6 +78,17 @@ class Runner extends DurableObject {
     }
     if (!c.running) await c.start({ env: { CELL: this.ctx.id.name } });
     return c.getTcpPort(8080).fetch(`http://container${url.pathname}`);
+  }
+}
+let openGate!: () => void;
+const gated = new Promise<void>((r) => (openGate = r));
+/** Starts its container after a gate the test opens: an event still running when the lease goes. */
+class Slow extends DurableObject {
+  async fetch(req: Request) {
+    const c = (this.ctx as any).container;
+    if (new URL(req.url).pathname === "/wait") await gated;
+    if (!c.running) await c.start({ env: { CELL: this.ctx.id.name } });
+    return new Response("ok");
   }
 }
 class Plain extends DurableObject {
@@ -320,5 +333,75 @@ describe("createContainer: lifecycle edges", () => {
     const c = createContainer(engine, image, { refuse: () => "the runtime is closing" });
     await expect(c.start()).rejects.toThrow(/the runtime is closing/);
     expect(starts).toEqual([]);
+  });
+});
+
+// A cell's container belongs to the node that owns the cell (statewalker/cellb.dev#225). Under
+// ownership (a fleet), a node that loses a cell while it keeps running (its lease fenced after a
+// pause or a partition) used to keep the cell's container until its inactivity timeout, while the
+// new owner started one of its own: two containers for one cell.
+describe("ctx.container under ownership: the container lives with the cell's lease", () => {
+  function owned(engine: ContainerEngine) {
+    const leases = new MemoryLeases();
+    const runtime = createCellRuntime({
+      worker: {
+        Runner,
+        default: {
+          fetch: (req: Request, env: any) =>
+            env.RUNNER.getByName(new URL(req.url).searchParams.get("name") ?? "a").fetch(req),
+        },
+      },
+      durableObjects: { RUNNER: { className: "Runner" } },
+      openSql: nodeSqliteOpener(),
+      storage: { ...filesApiChangeLog(new MemFilesApi()), ownership: leases.for("A") },
+      containers: { engine, images: { Runner: image } },
+    });
+    closers.push(() => runtime.close());
+    return { runtime, leases };
+  }
+
+  it("a node that loses the cell's lease while it keeps running destroys the cell's container", async () => {
+    const { engine, starts, destroyed } = fakeEngine();
+    const { runtime, leases } = owned(engine);
+    await (await runtime.fetch(new Request("http://x/?name=alpha"))).text();
+    expect(starts).toHaveLength(1);
+    leases.partition("A"); // A stays up, but the cell is no longer its own
+    for (let i = 0; i < 50 && !destroyed.length; i++) await new Promise((r) => setTimeout(r, 10));
+    expect(destroyed).toEqual(["alpha"]);
+  });
+
+  it("an event still running when the lease goes cannot start the cell's container again", async () => {
+    const { engine, starts, destroyed } = fakeEngine();
+    const leases = new MemoryLeases();
+    const runtime = createCellRuntime({
+      worker: {
+        Slow,
+        default: { fetch: (req: Request, env: any) => env.SLOW.getByName("alpha").fetch(req) },
+      },
+      durableObjects: { SLOW: { className: "Slow" } },
+      openSql: nodeSqliteOpener(),
+      storage: { ...filesApiChangeLog(new MemFilesApi()), ownership: leases.for("A") },
+      containers: { engine, images: { Slow: image } },
+    });
+    closers.push(() => runtime.close());
+    await (await runtime.fetch(new Request("http://x/go"))).text();
+    const inflight = runtime.fetch(new Request("http://x/wait"));
+    await new Promise((r) => setTimeout(r, 20));
+    leases.partition("A");
+    for (let i = 0; i < 50 && !destroyed.length; i++) await new Promise((r) => setTimeout(r, 10));
+    openGate();
+    await inflight.catch(() => {}); // refused or failed: not started again
+    expect(starts).toHaveLength(1);
+    expect(engine.running).toBe(0);
+  });
+
+  it("a cell that stays on its node keeps its container across its object's instances", async () => {
+    const { engine, starts, destroyed } = fakeEngine();
+    const { runtime } = owned(engine);
+    await (await runtime.fetch(new Request("http://x/?name=alpha"))).text();
+    expect(runtime.hibernateIdle(0)).toBe(1); // its instance goes; the node keeps the cell
+    await (await runtime.fetch(new Request("http://x/?name=alpha"))).text();
+    expect(starts).toHaveLength(1);
+    expect(destroyed).toEqual([]);
   });
 });
