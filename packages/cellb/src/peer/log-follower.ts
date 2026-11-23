@@ -513,7 +513,10 @@ export function createLogFollower(opts: {
       if (entries.length || base !== f.base) {
         try {
           await mkdir(dir, { recursive: true });
+          const tw = performance.now();
           if (entries.length) await writeSegment(dir, f.fragmentEpoch, entries, base, end);
+          if (process.env.CELLB_DEBUG_FOLLOWER && performance.now() - tw > 15)
+            console.error(`DBGF write ${(performance.now() - tw).toFixed(1)}ms n=${entries.length}`);
           else await saveState(dir, { ...f, base, end });
         } catch {
           // not on disk: nothing is confirmed
@@ -584,6 +587,7 @@ export function createLogFollower(opts: {
 
   return {
     async append(body) {
+      const t0 = performance.now();
       const req = decodeAppend(body);
       parseLeader(req.leader);
       return new Promise<AppendResp>((done, fail) => {
@@ -593,7 +597,16 @@ export function createLogFollower(opts: {
           queues.set(req.leader, q);
           void locked(req.leader, () => commit(req.leader));
         }
-        q.push({ req, done, fail });
+        q.push({
+          req,
+          done: (r) => {
+            const ms = performance.now() - t0;
+            if (process.env.CELLB_DEBUG_FOLLOWER && ms > 20)
+              console.error(`DBGF append ${ms.toFixed(1)}ms entries=${req.entries.length} queue=${q!.length} ok=${r.ok}`);
+            done(r);
+          },
+          fail,
+        });
       });
     },
 
