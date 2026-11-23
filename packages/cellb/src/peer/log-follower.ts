@@ -1,5 +1,6 @@
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { sha256 } from "@noble/hashes/sha2.js";
 import type { ObjectStore } from "../bucket/object-store.js";
 
 /**
@@ -20,6 +21,12 @@ import type { ObjectStore } from "../bucket/object-store.js";
  *   seal(e): sealedTo = max(sealedTo, e);
  *   truncate(t) (the leader's bucket-covered watermark, carried by appends): base = max(base, t).
  * A reply leaves only after the accepted entries and the state are on disk (fsync).
+ *
+ * As celld's follower does, the appends that arrive while a leader's last write is on its way to
+ * disk are written together, as one segment file whose header carries the fragment's (base, end]:
+ * one file and one directory fsync per burst. `state.json` changes only with the epoch, a seal or
+ * a truncation that comes without entries. celld evicts a follower whose appends stay slower than
+ * max(4 x its siblings', 25 ms) for 2 s.
  */
 export interface ShipEntry {
   seq: number;
@@ -59,7 +66,17 @@ export interface Tail {
 
 const te = new TextEncoder();
 const td = new TextDecoder("utf-8", { fatal: true });
-const MAGIC = { append: "CLA1", entry: "CLE1", tail2: "CLT2", tail1: "CLT1" } as const;
+const MAGIC = {
+  append: "CLA1",
+  entry: "CLE1",
+  tail2: "CLT2",
+  tail1: "CLT1",
+  /**
+   * cellb's own: a segment file's header, the fragment's (base, end] once the file is on disk,
+   * and the SHA-256 of both and the entries: a torn write fails it (celld's batch digest).
+   */
+  segment: "CBS1",
+} as const;
 
 class Writer {
   #parts: Uint8Array[] = [];
@@ -322,6 +339,37 @@ export function createLogFollower(opts: {
     );
   const segName = (epoch: number, first: number, last: number) =>
     `seg-${epoch}-${first}-${last}.bin`;
+  /**
+   * Writes a burst's entries durably as one segment, headed by the fragment's (base, end): the
+   * file and its directory fsynced, no rename (a torn file was never acknowledged, `load` drops it).
+   */
+  const writeSegment = async (
+    dir: string,
+    epoch: number,
+    entries: ShipEntry[],
+    base: number,
+    end: number,
+  ) => {
+    const body = new Writer().u64(base).u64(end);
+    for (const e of entries) writeEntry(body, e);
+    const signed = body.done();
+    const file = join(dir, segName(epoch, entries[0].seq, end));
+    try {
+      const fd = await open(file, "w");
+      try {
+        await fd.writeFile(
+          new Writer().magic(MAGIC.segment).bytes(sha256(signed)).bytes(signed).done(),
+        );
+        await fd.sync();
+      } finally {
+        await fd.close();
+      }
+      await fsyncDir(dir);
+    } catch (e) {
+      await rm(file, { force: true }).catch(() => {}); // never confirmed: not held either
+      throw e;
+    }
+  };
 
   const load = async (node: string, gen: string): Promise<Fragment> => {
     const dir = dirOf(node, gen);
@@ -344,20 +392,48 @@ export function createLogFollower(opts: {
     } catch {
       // segments without a state: nothing they hold was acknowledged
     }
+    // The range state.json last recorded holds acknowledged entries; segments with a header may
+    // extend it (and raise the base). A segment that cannot be read back was never acknowledged
+    // (its fsync did not finish), unless state.json counts it: then the range is damaged.
+    const acked = f.end;
+    let base = f.base;
+    let end = f.end;
+    const entries = new Map<number, ShipEntry>();
     for (const name of names) {
       const m = /^seg-(\d+)-(\d+)-(\d+)\.bin$/.exec(name);
       if (!m || Number(m[1]) !== f.fragmentEpoch) continue;
-      if (Number(m[3]) <= f.base || Number(m[2]) > f.end) continue;
       try {
-        const r = new Reader(new Uint8Array(await readFile(join(dir, name))));
-        while (r.at < r.b.length) {
-          const e = readEntry(r);
-          if (e.seq > f.base && e.seq <= f.end) f.entries.set(e.seq, e);
+        const bytes = new Uint8Array(await readFile(join(dir, name)));
+        const held: ShipEntry[] = [];
+        let range: [number, number] | undefined;
+        if (bytes.length >= 4 && String.fromCharCode(...bytes.subarray(0, 4)) === MAGIC.segment) {
+          // Whole or nothing: the digest, then entries running from the name's first to `end`.
+          const signed = bytes.subarray(36);
+          const digest = sha256(signed);
+          if (!bytes.subarray(4, 36).every((b, i) => b === digest[i]))
+            throw new Error("torn segment");
+          const r = new Reader(signed);
+          range = [r.u64(), r.u64()];
+          while (r.at < r.b.length) held.push(readEntry(r));
+          if (held.some((e, i) => e.seq !== Number(m[2]) + i) || held.at(-1)?.seq !== range[1])
+            throw new Error("torn segment");
+        } else {
+          if (Number(m[2]) > acked) continue; // an earlier cellb's, never acknowledged
+          const r = new Reader(bytes);
+          while (r.at < r.b.length) held.push(readEntry(r));
         }
+        if (range) {
+          base = Math.max(base, range[0]);
+          end = Math.max(end, range[1]);
+        }
+        for (const e of held) entries.set(e.seq, e);
       } catch {
-        f.damaged = true;
+        if (Number(m[2]) <= acked) f.damaged = true;
       }
     }
+    f.base = base;
+    f.end = end;
+    for (const [seq, e] of entries) if (seq > base && seq <= end) f.entries.set(seq, e);
     return f;
   };
   const fragmentOf = (node: string, gen: string) => {
@@ -408,15 +484,58 @@ export function createLogFollower(opts: {
 
   const reply = (f: State, ok: boolean): AppendResp => ({ ok, end: f.end, epoch: f.fragmentEpoch });
 
-  return {
-    async append(body) {
-      const req = decodeAppend(body);
-      const [node, gen] = parseLeader(req.leader);
-      return locked(req.leader, async () => {
-        const f = await fragmentOf(node, gen);
-        const dir = dirOf(node, gen);
+  type Waiter = { req: AppendRequest; done: (r: AppendResp) => void; fail: (e: unknown) => void };
+  /** Each leader's appends that arrived since its last write started: the next burst. */
+  const queues = new Map<string, Waiter[]>();
+  /** Writes one leader's burst: its accepted entries as one segment, then every reply. */
+  const commit = async (leader: string) => {
+    const q = queues.get(leader) ?? [];
+    queues.delete(leader);
+    const [node, gen] = parseLeader(leader);
+    const dir = dirOf(node, gen);
+    let f: Fragment;
+    try {
+      f = await fragmentOf(node, gen);
+    } catch (e) {
+      for (const w of q) w.fail(e);
+      return;
+    }
+    // The burst so far, at f.fragmentEpoch: its entries, the range they make, and who waits.
+    let staged: ShipEntry[] = [];
+    let end = f.end;
+    let base = f.base;
+    let waiting: { done: (r: AppendResp) => void; frameLast: number }[] = [];
+    const flush = async () => {
+      const ws = waiting;
+      const entries = staged;
+      waiting = [];
+      staged = [];
+      if (entries.length || base !== f.base) {
+        try {
+          await mkdir(dir, { recursive: true });
+          if (entries.length) await writeSegment(dir, f.fragmentEpoch, entries, base, end);
+          else await saveState(dir, { ...f, base, end });
+        } catch {
+          // not on disk: nothing is confirmed
+          end = f.end;
+          base = f.base;
+          for (const w of ws) w.done(reply(f, false));
+          return;
+        }
+        for (const e of entries) f.entries.set(e.seq, e);
+        f.end = end;
+        if (base !== f.base) {
+          f.base = base;
+          await prune(dir, f).catch(() => {});
+        }
+      }
+      for (const w of ws) w.done(reply(f, f.end >= w.frameLast));
+    };
+    for (const { req, done, fail } of q) {
+      try {
         const frameLast = req.entries.at(-1)?.seq ?? 0;
         if (req.epoch !== f.fragmentEpoch) {
+          await flush();
           // A new epoch of this leader: only one the leader's record says this node follows.
           if (
             !req.entries.length ||
@@ -424,51 +543,57 @@ export function createLogFollower(opts: {
             req.epoch < f.fragmentEpoch ||
             req.entries[0].seq !== 1 ||
             !(await adoptable(node, gen, req.epoch))
-          )
-            return reply(f, false);
+          ) {
+            done(reply(f, false));
+            continue;
+          }
+          // On disk first: a failed write leaves the fragment as it was, so nothing of the new
+          // epoch is confirmed. Then the old epoch's segments go.
           await mkdir(dir, { recursive: true });
+          await saveState(dir, { ...f, fragmentEpoch: req.epoch, base: 0, end: 0 });
           Object.assign(f, { fragmentEpoch: req.epoch, base: 0, end: 0, damaged: false });
           f.entries.clear();
-          await prune(dir, f);
-          await saveState(dir, f);
+          end = f.end;
+          base = f.base;
+          await prune(dir, f).catch(() => {});
         }
-        if (f.fragmentEpoch <= f.sealedTo) return reply(f, false); // sealed: never again
-        // Entries the follower holds already (a hedged copy) are skipped; the rest must follow on.
-        const accepted: ShipEntry[] = [];
-        let next = f.end + 1;
+        if (f.fragmentEpoch <= f.sealedTo) {
+          done(reply(f, false)); // sealed: never again
+          continue;
+        }
+        // Entries the burst holds already (a hedged copy) are skipped; the rest must follow on.
+        let next = end + 1;
         for (const e of req.entries) {
           if (e.seq < next) continue;
           if (e.seq !== next) break;
-          accepted.push(e);
+          staged.push(e);
           next++;
         }
-        const newEnd = next - 1;
-        const firstAccepted = accepted[0]?.seq;
-        const truncateTo = Math.min(
-          req.truncateTo,
-          firstAccepted !== undefined ? firstAccepted - 1 : req.truncateTo,
-          newEnd,
-        );
-        const newBase = Math.max(f.base, truncateTo);
-        if (!accepted.length && newBase === f.base) return reply(f, f.end >= frameLast);
-        try {
-          await mkdir(dir, { recursive: true });
-          if (accepted.length) {
-            const w = new Writer();
-            for (const e of accepted) writeEntry(w, e);
-            await durableWrite(dir, segName(f.fragmentEpoch, accepted[0].seq, newEnd), w.done());
-          }
-          await saveState(dir, { ...f, end: newEnd, base: newBase });
-        } catch {
-          return reply(f, false); // not on disk: nothing is confirmed
+        end = next - 1;
+        // The truncation stays below the burst's first entry, so its segment outlives a prune;
+        // the rest comes with the leader's next watermark (celld caps it the same way).
+        const first = staged[0]?.seq;
+        base = Math.max(base, Math.min(req.truncateTo, first !== undefined ? first - 1 : end, end));
+        waiting.push({ done, frameLast });
+      } catch (e) {
+        fail(e);
+      }
+    }
+    await flush();
+  };
+
+  return {
+    async append(body) {
+      const req = decodeAppend(body);
+      parseLeader(req.leader);
+      return new Promise<AppendResp>((done, fail) => {
+        let q = queues.get(req.leader);
+        if (!q) {
+          q = [];
+          queues.set(req.leader, q);
+          void locked(req.leader, () => commit(req.leader));
         }
-        for (const e of accepted) f.entries.set(e.seq, e);
-        f.end = newEnd;
-        if (newBase !== f.base) {
-          f.base = newBase;
-          await prune(dir, f).catch(() => {});
-        }
-        return reply(f, f.end >= frameLast);
+        q.push({ req, done, fail });
       });
     },
 
