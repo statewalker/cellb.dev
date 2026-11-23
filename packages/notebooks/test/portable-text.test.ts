@@ -230,6 +230,45 @@ describe("buildPageModels", () => {
     expect(models.inputs).toContain("answer");
   });
 
+  it("runs jsx and tsx cells: compiled, with React pinned through the module server", async () => {
+    const notebooks = new MemFilesApi({
+      initialFiles: {
+        "/react.md": [
+          "# React",
+          "",
+          "```tsx echo",
+          'const Door = ({ open }: { open: boolean }) => <b>{open ? "open" : "closed"}</b>;',
+          "```",
+          "",
+          "```jsx",
+          "<Door open={true} />",
+          "```",
+          "",
+        ].join("\n"),
+      },
+    });
+    const models = await buildPageModels({ notebooks, moduleServer, dom, siteTitle: "S" });
+    expect(models.failures).toEqual([]);
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    // Code cells, not prose: the tsx cell shows its source (echo), both run.
+    expect(page.blocks.filter((b) => b.kind === "cell")).toEqual([
+      { kind: "cell", id: 1, source: expect.stringContaining("const Door"), mode: "tsx" },
+      { kind: "cell", id: 2 },
+    ]);
+    const ids = [...page.script.matchAll(/getElementById\("cell-(\d+)"\)/g)].map((m) => m[1]);
+    expect(ids.sort()).toEqual(["1", "2"]);
+    // JSX compiled away; the runtime and React come from the module server's pins.
+    expect(page.script).not.toContain("<b>");
+    expect(page.script).toContain("/m/react@1.0.0/jsx-runtime.js");
+    // Pinned for the static export too (its module closure starts from the pins).
+    expect(models.pins).toMatchObject({
+      "react/jsx-runtime": "/m/react@1.0.0/jsx-runtime.js",
+      "react-dom/client": "/m/react-dom@1.0.0/client.js",
+    });
+    expect(models.inputs).toContain("Door");
+  });
+
   it("shows a broken expression's error in place and does not define it", async () => {
     const notebooks = new MemFilesApi({ initialFiles: { "/b.md": "# B\n\nBroken: ${)}.\n" } });
     const models = await buildPageModels({ notebooks, moduleServer, dom, siteTitle: "S" });

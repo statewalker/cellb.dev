@@ -331,6 +331,40 @@ async function themedDemo(host: string, site: string, t: Tools) {
       await b.close();
     }
   });
+  await reactCells(host, site, t);
+}
+
+/** The features notebook's `tsx` and `jsx` cells render React in the themed page. */
+async function reactCells(host: string, site: string, t: Tools) {
+  const { check, playwright } = t;
+  const assert: Tools["assert"] = t.assert;
+  await check(host, "notebooks: jsx and tsx cells render React in Chromium", async () => {
+    const b = await playwright().chromium.launch(chromiumOptions());
+    try {
+      const page = await b.newPage();
+      const errors: string[] = [];
+      const offOrigin: string[] = [];
+      page.on("pageerror", (e: Error) => errors.push(e.message));
+      page.on("request", (r: { url(): string }) => {
+        if (new URL(r.url()).origin !== new URL(site).origin) offOrigin.push(r.url());
+      });
+      await page.goto(`${site}/t/features`);
+      await page.waitForSelector("#door", { timeout: 60000 });
+      const door = await page.textContent("#door");
+      // `answer` is 42 in another cell: the jsx cell reads it reactively.
+      assert(door === "open", `door: ${door}`);
+      // An element passed to `display` renders too.
+      await page.waitForSelector("#door-shut", { timeout: 30000 });
+      const shut = await page.textContent("#door-shut");
+      assert(shut === "closed", `door-shut: ${shut}`);
+      assert(errors.length === 0, `page errors: ${errors.join("; ")}`);
+      // React comes from the site's module server like any npm import.
+      assert(offOrigin.length === 0, `off-origin requests: ${offOrigin.join("; ")}`);
+      return "a tsx component rendered by a jsx cell's value and by display(), React from the module server";
+    } finally {
+      await b.close();
+    }
+  });
 }
 
 /** Types `query` into the themed page's search box and returns the result links' hrefs. */

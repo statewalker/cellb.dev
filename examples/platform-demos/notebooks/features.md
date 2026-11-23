@@ -29,3 +29,22 @@ result (the `\t` in the query is cooked to a tab, as the page's template does): 
 ```sql database=warehouse output=sales
 SELECT region, SUM(amount) AS total FROM sales WHERE region <> 'none\tsuch' GROUP BY region ORDER BY region
 ```
+
+## React
+
+A `tsx` cell with types and JSX, a `jsx` cell whose value is a React element, and a `jsx` cell
+that passes one to `display`.
+
+```tsx echo
+const Door = ({ id, open }: { id: string; open: boolean }) => (
+  <b id={id}>{open ? "open" : "closed"}</b>
+);
+```
+
+```jsx
+<Door id="door" open={answer === 42} />
+```
+
+```jsx
+display(<Door id="door-shut" open={false} />);
+```

@@ -25,8 +25,8 @@ catalogs:
       specifier: 1.2.7
       version: 1.2.7
     '@statewalker/notebook-build':
-      specifier: ^0.3.0
-      version: 0.3.0
+      specifier: ^0.4.0
+      version: 0.4.0
     '@statewalker/notebook-site':
       specifier: ^0.3.0
       version: 0.3.0
@@ -248,7 +248,7 @@ importers:
         version: 0.7.0(@chainsafe/libp2p-noise@17.0.0)(@chainsafe/libp2p-yamux@8.0.1)(@libp2p/circuit-relay-v2@4.2.17)(@libp2p/identify@4.1.18)(@libp2p/tcp@11.0.32)(@libp2p/webrtc@7.0.2)(@libp2p/websockets@10.1.25(bufferutil@4.2.0))(@statewalker/webrun-http-browser@0.17.2)(bufferutil@4.2.0)(idb-keyval@6.3.0)(libp2p@3.5.1)
       '@statewalker/notebook-build':
         specifier: 'catalog:'
-        version: 0.3.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 0.4.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@statewalker/notebook-site':
         specifier: 'catalog:'
         version: 0.3.0(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-site-builder@0.3.0(@statewalker/webrun-files@0.12.0))
@@ -744,7 +744,7 @@ importers:
         version: link:../platform-core
       '@statewalker/notebook-build':
         specifier: 'catalog:'
-        version: 0.3.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+        version: 0.4.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@statewalker/notebook-db':
         specifier: ^0.2.0
         version: 0.2.0(@statewalker/db-api@0.1.4)(@statewalker/webrun-files@0.12.0)
@@ -2997,8 +2997,8 @@ packages:
       libp2p:
         optional: true
 
-  '@statewalker/notebook-build@0.3.0':
-    resolution: {integrity: sha512-X4ugHsN/CmhUnTVO46B593STty7nKqqlsvCA6/mCx3FF7lKoGz2sKx/h7hG2V51O2lRug/w5MN5czythSAryuA==}
+  '@statewalker/notebook-build@0.4.0':
+    resolution: {integrity: sha512-xRUSn0AdaB/zEOb4eCmieM8tYlPUzK2r1lPdLyy5/rBS4mrCnwWYxwvYFyBwyQxzZIbgAGapVR/c9h4k92mVcQ==}
     peerDependencies:
       '@statewalker/webrun-builder': ^0.5.0
       '@statewalker/webrun-files': ^0.12.0
@@ -8576,13 +8576,14 @@ snapshots:
       - react-native-webrtc
       - utf-8-validate
 
-  '@statewalker/notebook-build@0.3.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
+  '@statewalker/notebook-build@0.4.0(@statewalker/webrun-builder@0.5.0)(@statewalker/webrun-files@0.12.0)(@statewalker/webrun-modules@0.4.0)(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)':
     dependencies:
       '@observablehq/notebook-kit': 2.11.0(@types/markdown-it@14.2.0)(@types/node@26.6.6)(bufferutil@4.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
       '@statewalker/webrun-builder': 0.5.0
       '@statewalker/webrun-files': 0.12.0
       '@statewalker/webrun-modules': 0.4.0
       markdown-it: 15.0.3
+      sucrase: 3.35.1
     transitivePeerDependencies:
       - '@databricks/sql'
       - '@duckdb/node-api'
