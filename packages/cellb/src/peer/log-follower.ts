@@ -1,5 +1,6 @@
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { sha256 } from "@noble/hashes/sha2.js";
 import type { ObjectStore } from "../bucket/object-store.js";
 
 /**
@@ -70,7 +71,10 @@ const MAGIC = {
   entry: "CLE1",
   tail2: "CLT2",
   tail1: "CLT1",
-  /** cellb's own: a segment file's header, the fragment's (base, end] once it is on disk. */
+  /**
+   * cellb's own: a segment file's header, the fragment's (base, end] once the file is on disk,
+   * and the SHA-256 of both and the entries: a torn write fails it (celld's batch digest).
+   */
   segment: "CBS1",
 } as const;
 
@@ -346,16 +350,25 @@ export function createLogFollower(opts: {
     base: number,
     end: number,
   ) => {
-    const w = new Writer().magic(MAGIC.segment).u64(base).u64(end);
-    for (const e of entries) writeEntry(w, e);
-    const fd = await open(join(dir, segName(epoch, entries[0].seq, end)), "w");
+    const body = new Writer().u64(base).u64(end);
+    for (const e of entries) writeEntry(body, e);
+    const signed = body.done();
+    const file = join(dir, segName(epoch, entries[0].seq, end));
     try {
-      await fd.writeFile(w.done());
-      await fd.sync();
-    } finally {
-      await fd.close();
+      const fd = await open(file, "w");
+      try {
+        await fd.writeFile(
+          new Writer().magic(MAGIC.segment).bytes(sha256(signed)).bytes(signed).done(),
+        );
+        await fd.sync();
+      } finally {
+        await fd.close();
+      }
+      await fsyncDir(dir);
+    } catch (e) {
+      await rm(file, { force: true }).catch(() => {}); // never confirmed: not held either
+      throw e;
     }
-    await fsyncDir(dir);
   };
 
   const load = async (node: string, gen: string): Promise<Fragment> => {
@@ -390,14 +403,29 @@ export function createLogFollower(opts: {
       const m = /^seg-(\d+)-(\d+)-(\d+)\.bin$/.exec(name);
       if (!m || Number(m[1]) !== f.fragmentEpoch) continue;
       try {
-        const r = new Reader(new Uint8Array(await readFile(join(dir, name))));
+        const bytes = new Uint8Array(await readFile(join(dir, name)));
         const held: ShipEntry[] = [];
-        if (r.b.length >= 4 && td.decode(r.b.subarray(0, 4)) === MAGIC.segment) {
-          r.magic(MAGIC.segment);
-          base = Math.max(base, r.u64());
-          end = Math.max(end, r.u64());
-        } else if (Number(m[2]) > acked) continue; // an earlier cellb's, never acknowledged
-        while (r.at < r.b.length) held.push(readEntry(r));
+        let range: [number, number] | undefined;
+        if (bytes.length >= 4 && String.fromCharCode(...bytes.subarray(0, 4)) === MAGIC.segment) {
+          // Whole or nothing: the digest, then entries running from the name's first to `end`.
+          const signed = bytes.subarray(36);
+          const digest = sha256(signed);
+          if (!bytes.subarray(4, 36).every((b, i) => b === digest[i]))
+            throw new Error("torn segment");
+          const r = new Reader(signed);
+          range = [r.u64(), r.u64()];
+          while (r.at < r.b.length) held.push(readEntry(r));
+          if (held.some((e, i) => e.seq !== Number(m[2]) + i) || held.at(-1)?.seq !== range[1])
+            throw new Error("torn segment");
+        } else {
+          if (Number(m[2]) > acked) continue; // an earlier cellb's, never acknowledged
+          const r = new Reader(bytes);
+          while (r.at < r.b.length) held.push(readEntry(r));
+        }
+        if (range) {
+          base = Math.max(base, range[0]);
+          end = Math.max(end, range[1]);
+        }
         for (const e of held) entries.set(e.seq, e);
       } catch {
         if (Number(m[2]) <= acked) f.damaged = true;
@@ -519,13 +547,15 @@ export function createLogFollower(opts: {
             done(reply(f, false));
             continue;
           }
+          // On disk first: a failed write leaves the fragment as it was, so nothing of the new
+          // epoch is confirmed. Then the old epoch's segments go.
           await mkdir(dir, { recursive: true });
+          await saveState(dir, { ...f, fragmentEpoch: req.epoch, base: 0, end: 0 });
           Object.assign(f, { fragmentEpoch: req.epoch, base: 0, end: 0, damaged: false });
           f.entries.clear();
-          await prune(dir, f);
-          await saveState(dir, f);
           end = f.end;
           base = f.base;
+          await prune(dir, f).catch(() => {});
         }
         if (f.fragmentEpoch <= f.sealedTo) {
           done(reply(f, false)); // sealed: never again

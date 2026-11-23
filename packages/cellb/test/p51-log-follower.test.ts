@@ -219,6 +219,40 @@ describe("P51 the follower's appends cost what celld's do", () => {
     expect(await again.append(batch(1, [3]))).toEqual({ ok: true, end: 3, epoch: 1 });
   });
 
+  it("a torn segment whose header reached disk is dropped too: the leader's resend is taken", async () => {
+    const { store, follower, dir } = await setup();
+    await leaderRecord(store, { epoch: 1 });
+    await follower.append(batch(1, [1, 2]));
+    await follower.append(batch(1, [3, 4]));
+    // a crash while [3, 4] was written: the header and part of entry 3 reached disk
+    const d = join(dir, "peerlog", "a", "g1");
+    const seg = readdirSync(d).find((n) => n.startsWith("seg-1-3-"))!;
+    writeFileSync(join(d, seg), readFileSync(join(d, seg)).subarray(0, 60));
+    const again = createLogFollower({ dir, store, node: "me" });
+    const tail = decodeTail(await again.tail({ leader: "a/g1", tail_format: 2 }));
+    expect(tail).toMatchObject({ end: 2, complete: true });
+    expect(await again.append(batch(1, [3, 4]))).toEqual({ ok: true, end: 4, epoch: 1 });
+    const after = createLogFollower({ dir, store, node: "me" });
+    const held = decodeTail(await after.tail({ leader: "a/g1", tail_format: 2 }));
+    expect(held).toMatchObject({ end: 4, complete: true });
+    expect(held.entries.map((e) => e.seq)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("a new epoch whose state cannot be written confirms nothing of that epoch", async () => {
+    const { store, follower, dir } = await setup();
+    await leaderRecord(store, { epoch: 1 });
+    await follower.append(batch(1, [1, 2, 3]));
+    await leaderRecord(store, { epoch: 2 });
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(join(dir, "peerlog", "a", "g1", ".state.json.tmp")); // the state write fails
+    const replies = await Promise.all(
+      [1, 2, 3, 4].map((s) =>
+        follower.append(batch(2, [s])).catch((e) => ({ ok: false, error: String(e) })),
+      ),
+    );
+    expect(replies.filter((r) => r.ok)).toEqual([]);
+  });
+
   it("reads the segments an earlier cellb wrote (no header, the range in state.json)", async () => {
     const { store, dir } = await setup();
     await leaderRecord(store, { epoch: 1 });
