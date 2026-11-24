@@ -1,5 +1,7 @@
 // biome-ignore-all lint/suspicious/noTemplateCurlyInString: these tests feed `${…}` expressions to the notebook parser as plain strings
+import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import { parse } from "acorn";
 import { DOMParser, parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import { buildPageModels } from "../src/page-models.js";
@@ -224,11 +226,169 @@ describe("buildPageModels", () => {
     expect(page.script).toContain("warehouse");
     expect(
       page.script.startsWith(
-        'import {define} from "/m/@observablehq/notebook-kit@1.0.0/runtime.js";',
+        'import {define, observe} from "/m/@observablehq/notebook-kit@1.0.0/runtime.js";',
       ),
     ).toBe(true);
     expect(page.content.some((b) => b._type === "code-cell")).toBe(true);
     expect(models.inputs).toContain("answer");
+  });
+
+  it("maps the page script back to the Markdown: an inline source map and a sourceURL", async () => {
+    const notebooks = new MemFilesApi({ initialFiles: { "/features.md": NOTEBOOK } });
+    const models = await buildPageModels({
+      notebooks,
+      moduleServer,
+      dom,
+      siteTitle: "S",
+      base: "/t",
+    });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    // The whole script is valid module JavaScript (helpers included).
+    expect(() => parse(page.script, { ecmaVersion: "latest", sourceType: "module" })).not.toThrow();
+    const lines = page.script.split("\n");
+    expect(lines.at(-2)).toBe("//# sourceURL=/t/features.page.js");
+    const prefix = "//# sourceMappingURL=data:application/json;base64,";
+    expect(lines.at(-1)?.startsWith(prefix)).toBe(true);
+    const map = JSON.parse(
+      Buffer.from((lines.at(-1) ?? "").slice(prefix.length), "base64").toString(),
+    );
+    expect(map.sources).toEqual(["/features.md"]);
+    expect(map.sourcesContent).toEqual([NOTEBOOK]);
+    // A token's generated position, found by searching the script, maps to the Markdown.
+    const where = (needle: string, from = 0) => {
+      // A needle starting with a newline points at the character after it.
+      const offset = page.script.indexOf(needle, from) + (needle.startsWith("\n") ? 1 : 0);
+      const before = page.script.slice(0, offset).split("\n");
+      return { line: before.length, column: (before.at(-1) ?? "").length };
+    };
+    const trace = new TraceMap(map);
+    // `6 * 7` in cell 2 is on line 9 of NOTEBOOK. The inline map keeps one segment per run (a
+    // compact map: devtools get the line, and the run's start column, 0 here); the error display
+    // extrapolates exact columns (next test).
+    expect(originalPositionFor(trace, where("6 * 7"))).toMatchObject({
+      source: "/features.md",
+      line: 9,
+      column: 0,
+    });
+    // The expression cell 1 is `answer`, on a line of its own in its body (`(answer) => {` before
+    // it is generated): line 6, column 34 (0-based) in its prose, a run of its own.
+    const exprBody = page.script.indexOf('"id":1,"body":');
+    expect(originalPositionFor(trace, where("\nanswer\n", exprBody + 1))).toMatchObject({
+      source: "/features.md",
+      line: 6,
+      column: 34,
+    });
+  });
+
+  it("locates a stack frame of the page script in the Markdown, as the error display does", async () => {
+    const notebooks = new MemFilesApi({ initialFiles: { "/features.md": NOTEBOOK } });
+    const models = await buildPageModels({
+      notebooks,
+      moduleServer,
+      dom,
+      siteTitle: "S",
+      base: "/t",
+    });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    // The helpers sit between the last define() and the sourceURL comment.
+    const helpers = page.script.slice(
+      page.script.indexOf("const __positions"),
+      page.script.indexOf("//# sourceURL="),
+    );
+    const locate = new Function("observe", `${helpers}\nreturn __locate;`)(() => ({})) as (
+      e: unknown,
+    ) => string | undefined;
+    // `6 * 7` is on line 8 of the script; a frame at its `6` (1-based column 16) is features.md
+    // line 9, column 16 ("const answer = 6 * 7;").
+    const frame = (line: number, column: number) => ({
+      stack: `Error: x\n    at <anonymous> (http://example.com/t/features.page.js:${line}:${column})`,
+    });
+    const line = page.script.split("\n").findIndex((l) => l.includes("6 * 7")) + 1;
+    expect(locate(frame(line, 16))).toBe("features.md:9:16");
+    // A frame elsewhere (a package, or an unmapped helper line) is not located.
+    expect(locate({ stack: "Error: x\n    at f (http://example.com/m/x.js:1:1)" })).toBeUndefined();
+    expect(locate(frame(1, 1))).toBeUndefined();
+  });
+
+  it("keeps unmapped cells out of the map and the error display; maps multi-line Kit expressions", async () => {
+    const html = [
+      "<notebook>",
+      '  <script id="1" type="module">',
+      '    const s = "<\\/script>";',
+      "    throw new Error(s);",
+      "  </script>",
+      '  <script id="2" type="text/markdown">',
+      "    A ${",
+      "      n +",
+      "      boom(n)}",
+      "  </script>",
+      '  <script id="3" type="module">',
+      "    const n = 3;",
+      "    function boom(a) {",
+      '      throw new Error("boom " + a);',
+      "    }",
+      "  </script>",
+      "</notebook>",
+    ].join("\n");
+    const notebooks = new MemFilesApi({ initialFiles: { "/kit.html": html } });
+    const models = await buildPageModels({
+      notebooks,
+      moduleServer,
+      dom,
+      siteTitle: "S",
+      base: "/t",
+    });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    const lines = page.script.split("\n");
+    const prefix = "//# sourceMappingURL=data:application/json;base64,";
+    const map = JSON.parse(
+      Buffer.from((lines.at(-1) ?? "").slice(prefix.length), "base64").toString(),
+    );
+    // Cell 1 cannot be rebuilt from the file (`<\/script` is unescaped by notebook-kit): it has no
+    // map, and leaves no `cell-1.js` source behind.
+    expect(map.sources).toEqual(["/kit.html"]);
+    const helpers = page.script.slice(
+      page.script.indexOf("const __positions"),
+      page.script.indexOf("//# sourceURL="),
+    );
+    const locate = new Function("observe", `${helpers}\nreturn __locate;`)(() => ({})) as (
+      e: unknown,
+    ) => string | undefined;
+    const frame = (needle: string, column: number) => {
+      const line = lines.findIndex((l) => l.includes(needle)) + 1;
+      return { stack: `Error: x\n    at f (http://example.com/t/kit.page.js:${line}:${column})` };
+    };
+    // An error in the unmapped cell is not located (never labelled with another file or line).
+    expect(locate(frame("throw new Error(s)", 1))).toBeUndefined();
+    // The 3-line expression is mapped through its markdown cell's dedent: `boom(n)` is on
+    // kit.html line 9, column 7 (1-based).
+    const at = lines.find((l) => l.includes("boom(n)")) ?? "";
+    expect(locate(frame("boom(n)", at.indexOf("boom(n)") + 1))).toBe("kit.html:9:7");
+  });
+
+  it("keeps the page script small on a big notebook", async () => {
+    const cells = Array.from(
+      { length: 200 },
+      (_, i) =>
+        `\`\`\`js\nconst v${i} = [${Array.from({ length: 8 }, (_, j) => i * j).join(", ")}];\nconst w${i} = v${i}.map((x) => x * 2).filter((x) => x > 3);\n\`\`\``,
+    );
+    const text = `# Big\n\n${cells.join("\n\n")}\n`;
+    const notebooks = new MemFilesApi({ initialFiles: { "/big.md": text } });
+    const models = await buildPageModels({ notebooks, moduleServer, dom, siteTitle: "S" });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    const table = page.script.slice(
+      page.script.indexOf("const __positions"),
+      page.script.indexOf("function __observe"),
+    );
+    // One row where a run of characters starts, not one per character: smaller than the notebook.
+    expect(table.length).toBeLessThan(text.length);
+    // The script (defines, table, inline map with the notebook as its content) stays within a few
+    // times the notebook.
+    expect(page.script.length).toBeLessThan(text.length * 5);
   });
 
   it("records where each cell and expression starts in the Markdown file", async () => {

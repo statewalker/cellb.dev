@@ -16,6 +16,8 @@
  * output, `run=false` shows the source and does not run it, `hidden` runs it with its output hidden,
  * `database`/`output` go to the SQL cell.
  */
+
+import remapping from "@jridgewell/remapping";
 import { toNotebook } from "@observablehq/notebook-kit";
 import {
   type CellDefinition,
@@ -31,6 +33,7 @@ import { parse } from "acorn";
 import {
   CODE_MODES,
   type CodeCell,
+  type LineOrigin,
   markdownToDocument,
   type NotebookDocument,
   notebookToDocument,
@@ -44,6 +47,15 @@ import {
   toPortableText,
 } from "./portable-text.js";
 import { buildSearchIndex, type SearchIndex } from "./search.js";
+import {
+  cellToFileMap,
+  errorObserver,
+  lineStarts,
+  originFrom,
+  pageScript,
+  type ScriptCell,
+  type SourceMap,
+} from "./source-maps.js";
 
 export type { OutlineEntry, Position } from "./portable-text.js";
 
@@ -165,17 +177,22 @@ const RUNTIME_SPECIFIER = "npm:@observablehq/notebook-kit/runtime";
 
 /**
  * One `define()` call, as notebook-build's `renderPage` writes it (`renderDefineCall` in
- * render.ts, not exported): `state` is notebook-kit's `DefineState`, and `output` (the singular
- * name of a `sql` cell's variable) is emitted only when there is one.
+ * render.ts, not exported), with the page's error observer (`__observe`, `source-maps.ts`):
+ * `state` is notebook-kit's `DefineState`, and `output` (the singular name of a `sql` cell's
+ * variable) is emitted only when there is one. The body stays a source of its own for the map.
  */
-function defineCall(cell: CellDefinition): string {
+function scriptCell(cell: CellDefinition, map: SourceMap | undefined): ScriptCell {
   const state = `{root: document.getElementById("cell-${cell.id}"), variables: [], expanded: []}`;
   const output = cell.output === undefined ? "" : `"output":${JSON.stringify(cell.output)},`;
-  return (
-    `define(${state}, {"id":${cell.id},"body":${cell.body},` +
-    `"inputs":${JSON.stringify(cell.inputs)},"outputs":${JSON.stringify(cell.outputs)},` +
-    `${output}"autodisplay":${JSON.stringify(cell.autodisplay)}});`
-  );
+  return {
+    id: cell.id,
+    prefix: `define(${state}, {"id":${cell.id},"body":`,
+    body: cell.body,
+    suffix:
+      `,"inputs":${JSON.stringify(cell.inputs)},"outputs":${JSON.stringify(cell.outputs)},` +
+      `${output}"autodisplay":${JSON.stringify(cell.autodisplay)}}, __observe);`,
+    ...(map ? { map } : {}),
+  };
 }
 
 const escapeHtml = (s: string) =>
@@ -312,7 +329,8 @@ export async function buildPageModels(opts: {
     }
     seen.add(id);
     try {
-      const doc = documentOf(file, await readText(opts.notebooks, file), opts.dom);
+      const fileText = await readText(opts.notebooks, file);
+      const doc = documentOf(file, fileText, opts.dom);
       const { parts, cells: specs } = numberCells(doc);
       // `run=false`: shown, not run, so not compiled either.
       const notRun = new Set<number>();
@@ -325,6 +343,31 @@ export async function buildPageModels(opts: {
       const pins = await resolveNotebook(nb, { moduleServer: opts.moduleServer }, file);
       for (const [k, v] of pins) allPins[k] = v;
       const compiled = new Map(transpileNotebook(nb, pins).map((c) => [c.id, c]));
+      // Each cell's and expression's map to the notebook file, composed with notebook-build's
+      // body → cell map: body → file (`source-maps.ts`).
+      const starts = lineStarts(fileText);
+      const bodyMaps = new Map<number, SourceMap>();
+      const mapCell = (id: number, source: string, origin: LineOrigin | undefined) => {
+        const def = compiled.get(id);
+        if (!origin || !def?.map) return;
+        const toFile = cellToFileMap(fileText, starts, source, origin, file);
+        if (!toFile) return;
+        try {
+          const sourceName = def.map.sources[0];
+          const map = remapping(def.map as never, (f) =>
+            f === sourceName ? (toFile as never) : null,
+          );
+          bodyMaps.set(id, map as unknown as SourceMap);
+        } catch {
+          // no map for this cell
+        }
+      };
+      for (const p of parts) {
+        if (p.kind === "cell") mapCell(p.cell.id, p.cell.source, p.cell.origin);
+        else
+          for (const e of p.exprs)
+            mapCell(e.id, e.source, e.origin ?? (e.position && originFrom(e.position)));
+      }
       for (const cell of compiled.values()) for (const name of cell.inputs) allInputs.add(name);
       // An expression that does not compile shows its error in its span, as a cell does in place.
       const exprErrors = new Map<number, string>();
@@ -349,7 +392,7 @@ export async function buildPageModels(opts: {
       const sections: SearchSection[] = [{ heading: "", anchor: "", text: "" }];
       sectionsOf.set(id, sections);
       const blocks: PageBlock[] = [];
-      const defines: string[] = [];
+      const defines: ScriptCell[] = [];
       for (const part of parts) {
         if (part.kind === "prose") {
           blocks.push({
@@ -358,7 +401,7 @@ export async function buildPageModels(opts: {
           });
           for (const e of part.exprs) {
             const def = compiled.get(e.id);
-            if (def && !def.error) defines.push(defineCall(def));
+            if (def && !def.error) defines.push(scriptCell(def, bodyMaps.get(def.id)));
           }
           continue;
         }
@@ -397,16 +440,21 @@ export async function buildPageModels(opts: {
         if (def?.error) blocks.push({ kind: "cell", id, error: def.error, ...view, ...line(cell) });
         else {
           blocks.push({ kind: "cell", id, ...view, ...line(cell) });
-          if (def) defines.push(defineCall(def));
+          if (def) defines.push(scriptCell(def, bodyMaps.get(def.id)));
         }
       }
       const content = toPortableText(parts);
       const files = registrations(file, opts.dataFiles ?? [], base, parts);
-      const imports = files.length ? "define, registerFile" : "define";
-      // A literal `</script` would end the inline script early; `<\/script` is the same string.
-      const script = [`import {${imports}} from "${runtimeUrl}";`, ...files, ...defines]
-        .join("\n")
-        .replace(/<\/script/gi, "<\\/script");
+      const imports = files.length ? "define, observe, registerFile" : "define, observe";
+      const sourceUrl = `${base}/${id}.page.js`;
+      // A literal `</script` would end the inline script early; `<\/script` is the same string
+      // (a column after it on its line maps one character off).
+      const script = pageScript({
+        head: [`import {${imports}} from "${runtimeUrl}";`, ...files],
+        cells: defines,
+        tail: (map) => errorObserver(sourceUrl, map, file),
+        sourceUrl,
+      }).replace(/<\/script/gi, "<\\/script");
       pages.push({
         id,
         path: pagePath(base, id),

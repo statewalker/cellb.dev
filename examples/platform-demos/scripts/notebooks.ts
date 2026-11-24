@@ -188,7 +188,9 @@ async function themedDemo(host: string, site: string, t: Tools) {
       assert(html.includes('class="site-nav"'), "no navigation");
       assert(/aria-current="page"/.test(html), "the current page is not marked");
       assert(
-        html.includes('<script type="module">import {define} from "/nb/demo/_m/'),
+        /<script type="module">import \{define, observe(, registerFile)?\} from "\/nb\/demo\/_m\//.test(
+          html,
+        ),
         "no define() script",
       );
       assert(html.includes('href="/nb/demo/t/"'), "no link to the themed home page");
@@ -332,6 +334,7 @@ async function themedDemo(host: string, site: string, t: Tools) {
     }
   });
   await reactCells(host, site, t);
+  await errorPositions(host, site, t);
 }
 
 /** The features notebook's `tsx` and `jsx` cells render React in the themed page. */
@@ -361,6 +364,27 @@ async function reactCells(host: string, site: string, t: Tools) {
       // React comes from the site's module server like any npm import.
       assert(offOrigin.length === 0, `off-origin requests: ${offOrigin.join("; ")}`);
       return "a tsx component rendered by a jsx cell's value and by display(), React from the module server";
+    } finally {
+      await b.close();
+    }
+  });
+}
+
+/** A cell that throws shows its position in the notebook, mapped through the page's source map. */
+async function errorPositions(host: string, site: string, t: Tools) {
+  const { check, playwright } = t;
+  const assert: Tools["assert"] = t.assert;
+  await check(host, "notebooks: a cell's error shows its position in the Markdown", async () => {
+    const b = await playwright().chromium.launch(chromiumOptions());
+    try {
+      const page = await b.newPage();
+      await page.goto(`${site}/t/features`);
+      await page.waitForSelector(".cell-position", { timeout: 60000 });
+      const where = await page.textContent(".cell-position");
+      // features.md line 58: `  throw new Error("an error, on purpose");` (V8 places an error at
+      // its `new`, column 9).
+      assert(where === "features.md:58:9", `position: ${where}`);
+      return `the cell's error shows ${where}`;
     } finally {
       await b.close();
     }
