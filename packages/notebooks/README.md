@@ -114,9 +114,10 @@ Each themed page's module script maps back to its notebook (`src/source-maps.ts`
 Browsers don't apply source maps to `error.stack`, so the page also carries a position table decoded at build time. Its cell observer (`__observe`, around notebook-kit's `observe`) adds `features.md:58:9` under a cell's error: the first frame of the page script, looked up in the table. The page loads no source-map library, and the static export needs no extra module. The features demo has a cell that throws, checked in Chromium on every host.
 
 Known limits:
+- The inline map is compact: one segment per run of text copied unchanged (same line, same column offset). Devtools get exact lines, and the run's start as the column. The error display extrapolates within a run, so its columns are exact.
 - sucrase's coarse JSX columns (after a `key` prop);
 - tokens inside notebook-kit's hoisted import header map to the statement's start;
-- a cell whose text cannot be rebuilt from the file (a fence indented in Markdown, an escaped `<\/script` in a Notebook Kit cell) has no map.
+- a cell whose text cannot be rebuilt from the file (a fence indented in Markdown, an escaped `<\/script` in a Notebook Kit cell) has no map, and its errors show no position. It leaves no source of its own in the map.
 
 ### Search
 

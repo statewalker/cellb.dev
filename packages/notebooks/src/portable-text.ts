@@ -63,6 +63,8 @@ export interface ProsePart {
   exprs: string[];
   /** Where each expression's source starts in the notebook's file, when known. */
   positions?: Position[];
+  /** Where each line of each expression starts in the file (not serialized: functions). */
+  origins?: LineOrigin[];
 }
 export interface CellPart {
   kind: "cell";
@@ -82,7 +84,7 @@ export type NumberedPart =
   | {
       kind: "prose";
       markdown: string;
-      exprs: { id: number; source: string; position?: Position }[];
+      exprs: { id: number; source: string; position?: Position; origin?: LineOrigin }[];
     }
   | { kind: "cell"; cell: CodeCell & { id: number } };
 
@@ -274,10 +276,21 @@ function positionIn(text: string, offset: number, origin: LineOrigin): Position 
 function prosePart(markdown: string, origin?: LineOrigin): ProsePart | undefined {
   if (!markdown.trim()) return undefined;
   const { offsets, ...rest } = extractExpressions(markdown);
+  if (!origin) return { kind: "prose", ...rest };
+  // An expression's line k starts after the k-th newline from its start, wherever its prose's
+  // origin puts that (a Notebook Kit cell's dedent included).
+  const exprOrigin =
+    (offset: number): LineOrigin =>
+    (k) => {
+      let at = offset;
+      for (let n = 0; n < k; n++) at = markdown.indexOf("\n", at) + 1;
+      return positionIn(markdown, at, origin);
+    };
   return {
     kind: "prose",
     ...rest,
-    ...(origin ? { positions: offsets.map((o) => positionIn(markdown, o, origin)) } : {}),
+    positions: offsets.map((o) => positionIn(markdown, o, origin)),
+    origins: offsets.map(exprOrigin),
   };
 }
 
@@ -452,7 +465,13 @@ export function numberCells(doc: NotebookDocument): {
     }
     const exprs = part.exprs.map((source, i) => {
       const position = part.positions?.[i];
-      const e = { id: id++, source, ...(position ? { position } : {}) };
+      const origin = part.origins?.[i];
+      const e = {
+        id: id++,
+        source,
+        ...(position ? { position } : {}),
+        ...(origin ? { origin } : {}),
+      };
       cells.push({ id: e.id, mode: "js", value: source });
       return e;
     });

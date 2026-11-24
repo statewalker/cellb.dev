@@ -16,7 +16,7 @@
  * source-map library and the static export needs no extra module.
  */
 import remapping, { type SourceMapInput } from "@jridgewell/remapping";
-import { decode } from "@jridgewell/sourcemap-codec";
+import { decode, encode, type SourceMapSegment } from "@jridgewell/sourcemap-codec";
 import MagicString, { Bundle } from "magic-string";
 import type { LineOrigin, Position } from "./portable-text.js";
 
@@ -69,7 +69,12 @@ export function cellToFileMap(
     return undefined;
   }
   if (s.toString() !== source) return undefined;
-  return s.generateMap({ source: file, hires: true, includeContent: true }) as unknown as SourceMap;
+  // Word boundaries, not every character: as precise for stack frames, much smaller.
+  return s.generateMap({
+    source: file,
+    hires: "boundary",
+    includeContent: true,
+  }) as unknown as SourceMap;
 }
 
 /** A cell's origin from its first position only: later lines start at column 1. */
@@ -102,13 +107,18 @@ export function pageScript(opts: {
   for (const line of opts.head) bundle.addSource({ content: new MagicString(line) });
   const maps = new Map<string, SourceMap>();
   for (const cell of opts.cells) {
-    const filename = `cell-${cell.id}.js`;
     const s = new MagicString(cell.body).prepend(cell.prefix).append(cell.suffix);
+    if (!cell.map) {
+      // No map to the notebook: no source, so no mappings that would point elsewhere.
+      bundle.addSource({ content: s });
+      continue;
+    }
+    const filename = `cell-${cell.id}.js`;
     bundle.addSource({ filename, content: s });
-    if (cell.map) maps.set(filename, cell.map);
+    maps.set(filename, cell.map);
   }
   // No `file`: magic-string would write the sources relative to it, and the loader matches names.
-  const generated = bundle.generateMap({ hires: true, includeContent: false });
+  const generated = bundle.generateMap({ hires: "boundary", includeContent: false });
   let map: SourceMap;
   try {
     map = remapping(generated as unknown as SourceMapInput, (file) => maps.get(file) ?? null, {
@@ -118,6 +128,7 @@ export function pageScript(opts: {
     map = { version: 3, sources: [], names: [], mappings: "" };
   }
   // Sources no cell map resolved (`cell-<id>.js` of an unmapped cell) stay as they are.
+  map.mappings = compactRuns(map.mappings);
   map.file = opts.sourceUrl;
   const withoutContent = { ...map, sourcesContent: undefined };
   const code = `${bundle.toString()}\n${opts.tail(withoutContent)}`;
@@ -126,15 +137,61 @@ export function pageScript(opts: {
 }
 
 /**
- * The map's mappings as a lookup table: for each generated line (1-based) that has segments,
- * `[generated column (0-based), source line (1-based), source column (0-based)]`, sorted by column.
+ * Mappings with one segment per run: a segment that continues the previous one on its line (same
+ * source, same source line, same column offset) is dropped, since it maps the same way a reader
+ * extrapolating from the run's start would. Segments without a source end a run and are kept.
  */
-export function positionTable(map: SourceMap): Record<number, [number, number, number][]> {
+export function compactRuns(mappings: string): string {
+  return encode(
+    decode(mappings).map((segments) => {
+      const out: SourceMapSegment[] = [];
+      for (const s of segments) {
+        const last = out[out.length - 1];
+        if (
+          last &&
+          s.length >= 4 &&
+          last.length >= 4 &&
+          s[1] === last[1] &&
+          s[2] === last[2] &&
+          (s[3] ?? 0) - s[0] === (last[3] ?? 0) - last[0] &&
+          s.length === last.length
+        )
+          continue;
+        out.push(s);
+      }
+      return out;
+    }),
+  );
+}
+
+/**
+ * The map's mappings into `source` as a lookup table: for each generated line (1-based) with
+ * segments, rows `[generated column (0-based), source line (1-based), source column (0-based)]`
+ * sorted by column, one row where a run starts: a segment that continues the previous one (same
+ * source line, same column offset) adds none, and a lookup extrapolates within the run.
+ */
+export function positionTable(
+  map: SourceMap,
+  source: string,
+): Record<number, [number, number, number][]> {
+  const index = map.sources.indexOf(source);
   const table: Record<number, [number, number, number][]> = {};
+  if (index < 0) return table;
   for (const [i, segments] of decode(map.mappings).entries()) {
     const rows: [number, number, number][] = [];
-    for (const s of segments) if (s.length >= 4) rows.push([s[0], (s[2] ?? 0) + 1, s[3] ?? 0]);
-    if (rows.length) table[i + 1] = rows;
+    for (const s of segments) {
+      if (s.length < 4) continue;
+      const last = rows[rows.length - 1];
+      // A segment into another source (an unmapped cell's body) ends the run: no row covers it.
+      if (s[1] !== index) {
+        if (last && last[1] !== -1) rows.push([s[0], -1, 0]);
+        continue;
+      }
+      const row: [number, number, number] = [s[0], (s[2] ?? 0) + 1, s[3] ?? 0];
+      if (last && last[1] === row[1] && last[2] - last[0] === row[2] - row[0]) continue;
+      rows.push(row);
+    }
+    if (rows.some((r) => r[1] !== -1)) table[i + 1] = rows;
   }
   return table;
 }
@@ -142,13 +199,13 @@ export function positionTable(map: SourceMap): Record<number, [number, number, n
 /**
  * The error display: an observer around notebook-kit's `observe` that adds the notebook position
  * of the first page-script frame of a cell's error (`features.md:12:7`) under the error, looked up
- * in the page's position table (the last segment at or before the frame's column on its line).
+ * in the page's position table (the run at or before the frame's column on its line).
  */
-export function errorObserver(sourceUrl: string, map: SourceMap): string {
+export function errorObserver(sourceUrl: string, map: SourceMap, notebook: string): string {
   const name = sourceUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const file = (map.sources[0] ?? "").replace(/^\//, "");
+  const file = notebook.replace(/^\//, "");
   return [
-    `const __positions = ${JSON.stringify(positionTable(map))};`,
+    `const __positions = ${JSON.stringify(positionTable(map, notebook))};`,
     "function __observe(state, definition) {",
     "  const o = observe(state, definition);",
     "  const rejected = o.rejected;",
@@ -170,8 +227,8 @@ export function errorObserver(sourceUrl: string, map: SourceMap): string {
     "  const column = Number(m[2]) - 1;",
     "  let found;",
     "  for (const row of rows) if (row[0] <= column) found = row;",
-    "  if (!found) return undefined;",
-    `  return ${JSON.stringify(file)} + ":" + found[1] + ":" + (found[2] + 1);`,
+    "  if (!found || found[1] < 0) return undefined;",
+    `  return ${JSON.stringify(file)} + ":" + found[1] + ":" + (found[2] + column - found[0] + 1);`,
     "}",
   ].join("\n");
 }

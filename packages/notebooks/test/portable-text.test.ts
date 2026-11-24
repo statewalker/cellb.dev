@@ -263,14 +263,16 @@ describe("buildPageModels", () => {
       return { line: before.length, column: (before.at(-1) ?? "").length };
     };
     const trace = new TraceMap(map);
-    // `6 * 7` in cell 2: line 9 of NOTEBOOK, column 15 (0-based) in "const answer = 6 * 7;".
+    // `6 * 7` in cell 2 is on line 9 of NOTEBOOK. The inline map keeps one segment per run (a
+    // compact map: devtools get the line, and the run's start column, 0 here); the error display
+    // extrapolates exact columns (next test).
     expect(originalPositionFor(trace, where("6 * 7"))).toMatchObject({
       source: "/features.md",
       line: 9,
-      column: 15,
+      column: 0,
     });
     // The expression cell 1 is `answer`, on a line of its own in its body (`(answer) => {` before
-    // it is generated): line 6, column 34 (0-based) in its prose.
+    // it is generated): line 6, column 34 (0-based) in its prose, a run of its own.
     const exprBody = page.script.indexOf('"id":1,"body":');
     expect(originalPositionFor(trace, where("\nanswer\n", exprBody + 1))).toMatchObject({
       source: "/features.md",
@@ -308,6 +310,85 @@ describe("buildPageModels", () => {
     // A frame elsewhere (a package, or an unmapped helper line) is not located.
     expect(locate({ stack: "Error: x\n    at f (http://example.com/m/x.js:1:1)" })).toBeUndefined();
     expect(locate(frame(1, 1))).toBeUndefined();
+  });
+
+  it("keeps unmapped cells out of the map and the error display; maps multi-line Kit expressions", async () => {
+    const html = [
+      "<notebook>",
+      '  <script id="1" type="module">',
+      '    const s = "<\\/script>";',
+      "    throw new Error(s);",
+      "  </script>",
+      '  <script id="2" type="text/markdown">',
+      "    A ${",
+      "      n +",
+      "      boom(n)}",
+      "  </script>",
+      '  <script id="3" type="module">',
+      "    const n = 3;",
+      "    function boom(a) {",
+      '      throw new Error("boom " + a);',
+      "    }",
+      "  </script>",
+      "</notebook>",
+    ].join("\n");
+    const notebooks = new MemFilesApi({ initialFiles: { "/kit.html": html } });
+    const models = await buildPageModels({
+      notebooks,
+      moduleServer,
+      dom,
+      siteTitle: "S",
+      base: "/t",
+    });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    const lines = page.script.split("\n");
+    const prefix = "//# sourceMappingURL=data:application/json;base64,";
+    const map = JSON.parse(
+      Buffer.from((lines.at(-1) ?? "").slice(prefix.length), "base64").toString(),
+    );
+    // Cell 1 cannot be rebuilt from the file (`<\/script` is unescaped by notebook-kit): it has no
+    // map, and leaves no `cell-1.js` source behind.
+    expect(map.sources).toEqual(["/kit.html"]);
+    const helpers = page.script.slice(
+      page.script.indexOf("const __positions"),
+      page.script.indexOf("//# sourceURL="),
+    );
+    const locate = new Function("observe", `${helpers}\nreturn __locate;`)(() => ({})) as (
+      e: unknown,
+    ) => string | undefined;
+    const frame = (needle: string, column: number) => {
+      const line = lines.findIndex((l) => l.includes(needle)) + 1;
+      return { stack: `Error: x\n    at f (http://example.com/t/kit.page.js:${line}:${column})` };
+    };
+    // An error in the unmapped cell is not located (never labelled with another file or line).
+    expect(locate(frame("throw new Error(s)", 1))).toBeUndefined();
+    // The 3-line expression is mapped through its markdown cell's dedent: `boom(n)` is on
+    // kit.html line 9, column 7 (1-based).
+    const at = lines.find((l) => l.includes("boom(n)")) ?? "";
+    expect(locate(frame("boom(n)", at.indexOf("boom(n)") + 1))).toBe("kit.html:9:7");
+  });
+
+  it("keeps the page script small on a big notebook", async () => {
+    const cells = Array.from(
+      { length: 200 },
+      (_, i) =>
+        `\`\`\`js\nconst v${i} = [${Array.from({ length: 8 }, (_, j) => i * j).join(", ")}];\nconst w${i} = v${i}.map((x) => x * 2).filter((x) => x > 3);\n\`\`\``,
+    );
+    const text = `# Big\n\n${cells.join("\n\n")}\n`;
+    const notebooks = new MemFilesApi({ initialFiles: { "/big.md": text } });
+    const models = await buildPageModels({ notebooks, moduleServer, dom, siteTitle: "S" });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    const table = page.script.slice(
+      page.script.indexOf("const __positions"),
+      page.script.indexOf("function __observe"),
+    );
+    // One row where a run of characters starts, not one per character: smaller than the notebook.
+    expect(table.length).toBeLessThan(text.length);
+    // The script (defines, table, inline map with the notebook as its content) stays within a few
+    // times the notebook.
+    expect(page.script.length).toBeLessThan(text.length * 5);
   });
 
   it("records where each cell and expression starts in the Markdown file", async () => {

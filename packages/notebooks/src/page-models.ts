@@ -364,7 +364,9 @@ export async function buildPageModels(opts: {
       };
       for (const p of parts) {
         if (p.kind === "cell") mapCell(p.cell.id, p.cell.source, p.cell.origin);
-        else for (const e of p.exprs) mapCell(e.id, e.source, e.position && originFrom(e.position));
+        else
+          for (const e of p.exprs)
+            mapCell(e.id, e.source, e.origin ?? (e.position && originFrom(e.position)));
       }
       for (const cell of compiled.values()) for (const name of cell.inputs) allInputs.add(name);
       // An expression that does not compile shows its error in its span, as a cell does in place.
@@ -450,7 +452,7 @@ export async function buildPageModels(opts: {
       const script = pageScript({
         head: [`import {${imports}} from "${runtimeUrl}";`, ...files],
         cells: defines,
-        tail: (map) => errorObserver(sourceUrl, map),
+        tail: (map) => errorObserver(sourceUrl, map, file),
         sourceUrl,
       }).replace(/<\/script/gi, "<\\/script");
       pages.push({
