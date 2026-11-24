@@ -51,6 +51,8 @@ export interface CodeCell {
   id?: number;
   /** Where the cell's first source line starts in the notebook's file. */
   position?: Position;
+  /** Where each of its lines starts in the file (not serialized: a function). */
+  origin?: LineOrigin;
 }
 
 export interface ProsePart {
@@ -310,9 +312,10 @@ export function markdownToDocument(source: string): NotebookDocument {
     const cellSource = token.content.replace(/\n$/, "");
     // The source starts on the line after the opening fence.
     const position = { line: skipped + token.map[0] + 2, column: 1 };
+    const origin: LineOrigin = (k) => ({ line: position.line + k, column: 1 });
     parts.push({
       kind: "cell",
-      cell: { _type: "code-cell", _key: "", mode, source: cellSource, attrs, position },
+      cell: { _type: "code-cell", _key: "", mode, source: cellSource, attrs, position, origin },
     });
     from = token.map[1];
   }
@@ -407,7 +410,7 @@ export function notebookToDocument(
         mode: cell.mode,
         source: cell.value,
         attrs,
-        ...(origin ? { position: origin(0) } : {}),
+        ...(origin ? { position: origin(0), origin } : {}),
       },
     });
   }
@@ -610,8 +613,11 @@ function splitPlaceholders<T>(node: T, exprs: readonly { id: number; source: str
 export function toPortableText(parts: readonly NumberedPart[]): PtBlock[] {
   const blocks: PtBlock[] = [];
   for (const part of parts) {
-    if (part.kind === "cell") blocks.push(part.cell as unknown as PtBlock);
-    else
+    if (part.kind === "cell") {
+      // `origin` is a function, for the build only: not part of the document.
+      const { origin: _origin, ...cell } = part.cell;
+      blocks.push(cell as unknown as PtBlock);
+    } else
       blocks.push(
         ...splitPlaceholders(
           markdownToPortableText(part.markdown) as unknown as PtBlock[],

@@ -48,3 +48,14 @@ const Door = ({ id, open }: { id: string; open: boolean }) => (
 ```jsx
 display(<Door id="door-shut" open={false} />);
 ```
+
+## Errors
+
+A cell that throws shows where, in this notebook.
+
+```js
+function explode() {
+  throw new Error("an error, on purpose");
+}
+explode();
+```

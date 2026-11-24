@@ -1,5 +1,7 @@
 // biome-ignore-all lint/suspicious/noTemplateCurlyInString: these tests feed `${…}` expressions to the notebook parser as plain strings
+import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import { MemFilesApi } from "@statewalker/webrun-files-mem";
+import { parse } from "acorn";
 import { DOMParser, parseHTML } from "linkedom";
 import { describe, expect, it } from "vitest";
 import { buildPageModels } from "../src/page-models.js";
@@ -224,11 +226,88 @@ describe("buildPageModels", () => {
     expect(page.script).toContain("warehouse");
     expect(
       page.script.startsWith(
-        'import {define} from "/m/@observablehq/notebook-kit@1.0.0/runtime.js";',
+        'import {define, observe} from "/m/@observablehq/notebook-kit@1.0.0/runtime.js";',
       ),
     ).toBe(true);
     expect(page.content.some((b) => b._type === "code-cell")).toBe(true);
     expect(models.inputs).toContain("answer");
+  });
+
+  it("maps the page script back to the Markdown: an inline source map and a sourceURL", async () => {
+    const notebooks = new MemFilesApi({ initialFiles: { "/features.md": NOTEBOOK } });
+    const models = await buildPageModels({
+      notebooks,
+      moduleServer,
+      dom,
+      siteTitle: "S",
+      base: "/t",
+    });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    // The whole script is valid module JavaScript (helpers included).
+    expect(() => parse(page.script, { ecmaVersion: "latest", sourceType: "module" })).not.toThrow();
+    const lines = page.script.split("\n");
+    expect(lines.at(-2)).toBe("//# sourceURL=/t/features.page.js");
+    const prefix = "//# sourceMappingURL=data:application/json;base64,";
+    expect(lines.at(-1)?.startsWith(prefix)).toBe(true);
+    const map = JSON.parse(
+      Buffer.from((lines.at(-1) ?? "").slice(prefix.length), "base64").toString(),
+    );
+    expect(map.sources).toEqual(["/features.md"]);
+    expect(map.sourcesContent).toEqual([NOTEBOOK]);
+    // A token's generated position, found by searching the script, maps to the Markdown.
+    const where = (needle: string, from = 0) => {
+      // A needle starting with a newline points at the character after it.
+      const offset = page.script.indexOf(needle, from) + (needle.startsWith("\n") ? 1 : 0);
+      const before = page.script.slice(0, offset).split("\n");
+      return { line: before.length, column: (before.at(-1) ?? "").length };
+    };
+    const trace = new TraceMap(map);
+    // `6 * 7` in cell 2: line 9 of NOTEBOOK, column 15 (0-based) in "const answer = 6 * 7;".
+    expect(originalPositionFor(trace, where("6 * 7"))).toMatchObject({
+      source: "/features.md",
+      line: 9,
+      column: 15,
+    });
+    // The expression cell 1 is `answer`, on a line of its own in its body (`(answer) => {` before
+    // it is generated): line 6, column 34 (0-based) in its prose.
+    const exprBody = page.script.indexOf('"id":1,"body":');
+    expect(originalPositionFor(trace, where("\nanswer\n", exprBody + 1))).toMatchObject({
+      source: "/features.md",
+      line: 6,
+      column: 34,
+    });
+  });
+
+  it("locates a stack frame of the page script in the Markdown, as the error display does", async () => {
+    const notebooks = new MemFilesApi({ initialFiles: { "/features.md": NOTEBOOK } });
+    const models = await buildPageModels({
+      notebooks,
+      moduleServer,
+      dom,
+      siteTitle: "S",
+      base: "/t",
+    });
+    const page = models.pages[0];
+    if (!page) throw new Error("no page");
+    // The helpers sit between the last define() and the sourceURL comment.
+    const helpers = page.script.slice(
+      page.script.indexOf("const __positions"),
+      page.script.indexOf("//# sourceURL="),
+    );
+    const locate = new Function("observe", `${helpers}\nreturn __locate;`)(() => ({})) as (
+      e: unknown,
+    ) => string | undefined;
+    // `6 * 7` is on line 8 of the script; a frame at its `6` (1-based column 16) is features.md
+    // line 9, column 16 ("const answer = 6 * 7;").
+    const frame = (line: number, column: number) => ({
+      stack: `Error: x\n    at <anonymous> (http://example.com/t/features.page.js:${line}:${column})`,
+    });
+    const line = page.script.split("\n").findIndex((l) => l.includes("6 * 7")) + 1;
+    expect(locate(frame(line, 16))).toBe("features.md:9:16");
+    // A frame elsewhere (a package, or an unmapped helper line) is not located.
+    expect(locate({ stack: "Error: x\n    at f (http://example.com/m/x.js:1:1)" })).toBeUndefined();
+    expect(locate(frame(1, 1))).toBeUndefined();
   });
 
   it("records where each cell and expression starts in the Markdown file", async () => {

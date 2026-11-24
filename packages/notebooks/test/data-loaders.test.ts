@@ -132,7 +132,7 @@ describe("data files in pages", () => {
       dataFiles: ["/numbers.json", "/guide/data/x.csv", "/unused.csv"],
     });
     const plots = models.pages.find((p) => p.id === "guide/plots");
-    expect(plots?.script).toContain("import {define, registerFile} from");
+    expect(plots?.script).toContain("import {define, observe, registerFile} from");
     expect(plots?.script).toContain('registerFile("../numbers.json", {"path":"/t/numbers.json"});');
     expect(plots?.script).toContain('registerFile("data/x.csv", {"path":"/t/guide/data/x.csv"});');
     expect(plots?.script).not.toContain("unused");

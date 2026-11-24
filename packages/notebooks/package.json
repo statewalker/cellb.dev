@@ -19,6 +19,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@jridgewell/remapping": "catalog:",
+    "@jridgewell/sourcemap-codec": "catalog:",
     "@observablehq/notebook-kit": "^2.11.0",
     "@portabletext/markdown": "^2.9.4",
     "@portabletext/to-html": "^6.0.0",
@@ -34,10 +36,12 @@
     "@statewalker/webrun-modules": "catalog:",
     "acorn": "^8.19.0",
     "linkedom": "catalog:",
+    "magic-string": "catalog:",
     "markdown-it": "^15.0.3",
     "urlpattern-polyfill": "catalog:"
   },
   "devDependencies": {
+    "@jridgewell/trace-mapping": "catalog:",
     "@portabletext/types": "^4.0.2",
     "@types/markdown-it": "^14.2.0",
     "@types/node": "catalog:",
