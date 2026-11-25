@@ -37,7 +37,7 @@ worker is started that way (checked with a Vite build, see `scripts/pack-check.m
 | Import | What it gives |
 |---|---|
 | `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime` with `loadProjectBindings`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes (and `withUpgrade`, for an upgrade request a browser can make), and the errors embedders catch |
-| `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `startProjectShards` (a project over worker threads), `applyNodeD1Migrations`, celld's peer protocol (`startCelldPeerServer`, `celldPeers`), and `startFleetNode` (the `cellb serve` command: a node of a celld fleet) |
+| `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `createFragmentHost` (many projects side by side, at `/fragments/{id}/`), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `startProjectShards` (a project over worker threads), `applyNodeD1Migrations`, celld's peer protocol (`startCelldPeerServer`, `celldPeers`), and `startFleetNode` (the `cellb serve` command: a node of a celld fleet) |
 | `@statewalker/cellb/browser` | `loadProject` (a `cellb build` folder by URL, or sources with a compiler), `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
 | `@statewalker/cellb/tabs` | the tab side and the ServiceWorker side of a project shared by the tabs (`joinProjectShards`, `installProjectRouter`, `shardOwner`) without the shard runtime: what a page and its ServiceWorker import |
 | `@statewalker/cellb/site` | `createProjectSite`: a project's sources compiled in the browser and served by an in-browser HTTP server (`browserProjectRuntime({ site })`); `siteCompiler` for `loadProject`, and `siteHostOverPort` / `hostSitesForWorker` to host a worker's site from its page. Needs the optional peer dependencies `@statewalker/webrun-modules`, `@statewalker/webrun-site-builder` and `@statewalker/webrun-site-host` (the ServiceWorker host) |
@@ -161,6 +161,35 @@ const runtime = createCellRuntime({
 const res = await runtime.fetch(new Request("http://local/counter/a")); // {"n":1}
 await runtime.close();
 ```
+
+### Many projects side by side: the fragment host
+
+`createFragmentHost` (Node) holds the server halves of a fragment platform's fragments (#191;
+statewalker-root ADR 2026-11-21-fragment-host-and-routing). Each one is a wrangler project loaded
+from its sources into a namespace of its own, so two projects may use the same Worker name, class
+and binding names without sharing a cell or any binding's data. Projects come and go while the
+host runs. A request to `/fragments/{id}/{path}` reaches the project's **fragment DO**, the object
+at `idFromName(<id>)` of its `FRAGMENT` binding (or of its only Durable Object binding, or of
+`{ entry }`), with the path `/{path}`:
+
+```ts
+import { createFragmentHost } from "@statewalker/cellb/node";
+
+const host = createFragmentHost({ data: "./data" }); // each fragment under ./data/fragments/<id>/
+const notes = await host.add("org.example.notes", "./fragments/notes/server");
+notes.unsupported; // this project's unsupported configuration only
+const res = await host.fetch(new Request("http://local/fragments/org.example.notes/list"));
+await host.remove("org.example.notes"); // stops its objects; its data is kept
+```
+
+A single-project host's data at the top of `data` is never touched by the fragment host. Built
+folders (`cellb build`) are refused: their bundle reads the process's globals, so only one runs per
+process. Add a fragment's source folder instead. Fragment ids are lowercase path segments
+(`org.example.notes`).
+
+One thing is still shared: with `nodejs_compat`, a project's text vars land in the process's
+`process.env` (Node shares its real process with the Worker), so a project reading
+`process.env.X` may see another project's value. `env.X` is always the project's own.
 
 ### A wrangler project over several worker threads
 

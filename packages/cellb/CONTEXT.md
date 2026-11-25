@@ -46,6 +46,11 @@ _Avoid_: script (except in "script name"), app
 A Worker together with its wrangler configuration, assets and bindings, as celld deploys it.
 _Avoid_: site, app
 
+**Fragment host**:
+One runtime holding the server halves of many fragments, each a project in a namespace of its own,
+reached at `/fragments/{id}/…`. A fragment's entry is its **fragment DO**, at `idFromName(<id>)`.
+_Avoid_: multi-tenant runtime, project pool
+
 **Script name**:
 The `name` in a project's configuration. It is part of every object id the project derives, so a
 renamed project gets a new set of cells, and the old ones stay under their old keys.

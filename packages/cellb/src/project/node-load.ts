@@ -183,7 +183,8 @@ async function runBuilt(
 }
 
 /** The folder a source names on this machine: a path or a `file:` URL. */
-function localDir(source: ProjectSource): string | undefined {
+/** The local folder a source names (a path, a `file:` URL or URL), or undefined (a URL, a FilesApi). */
+export function localDir(source: ProjectSource): string | undefined {
   if (typeof source === "string") {
     if (/^https?:\/\//i.test(source)) return undefined;
     return resolve(source.startsWith("file:") ? fileURLToPath(source) : source);
