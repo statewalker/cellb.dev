@@ -92,12 +92,22 @@ export interface FragmentHost {
   add(id: string, source: ProjectSource, options?: AddFragmentOptions): Promise<HostedFragment>;
   /** Stop a fragment's objects and drop it from the host; its data is kept. */
   remove(id: string): Promise<void>;
-  /** The fragments held, in the order they were added. */
+  /**
+   * Stop a fragment's objects and keep it as disabled (statewalker-root#259): its requests answer
+   * 503 without waking its DO, and bindings to it are unavailable. Its data is kept.
+   */
+  disable(id: string): Promise<void>;
+  /** Load a disabled fragment again, from the source and options it was added with. */
+  enable(id: string): Promise<HostedFragment>;
+  /** Its state, or undefined for a fragment the host does not have. */
+  state(id: string): "enabled" | "disabled" | undefined;
+  /** The fragments the host has, enabled or disabled, in the order they were added. */
   ids(): string[];
   project(id: string): HostedFragment | undefined;
   /**
-   * `/fragments/{id}/{path}`: to the fragment DO of `id` at `idFromName(id)`, with the path
-   * `/{path}` (the prefix stripped). 404 for a fragment the host does not hold, and for any
+   * `/fragments/{id}/{path}` (or `/peers/{peerId}/fragments/{id}/{path}` with this host's own
+   * `peerId`): to the fragment DO of `id` at `idFromName(id)`, with the path `/{path}` (the prefix
+   * stripped). 503 for a disabled fragment. 404 for a fragment the host does not hold, and for any
    * other path.
    */
   fetch(request: Request): Promise<Response>;
@@ -166,17 +176,34 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
   const loaded = new Map<string, { fragment: HostedFragment; project: LoadedProject }>();
   // Adds in flight, by id: a remove or a close during one cancels it (it closes its project).
   const adding = new Map<string, { cancelled?: string; done: Promise<unknown> }>();
+  // Every fragment the host has, in the order added: its state and what it was added from.
+  const known = new Map<
+    string,
+    { state: "enabled" | "disabled"; source: ProjectSource; options: AddFragmentOptions }
+  >();
   let closed = false;
 
   async function add(
     id: string,
     source: ProjectSource,
-    { entry }: AddFragmentOptions = {},
+    options: AddFragmentOptions = {},
   ): Promise<HostedFragment> {
     if (closed) throw new Error("the fragment host is closed");
     if (!FRAGMENT_ID.test(id))
       throw new Error(`"${id}" is not a fragment id: lowercase letters, digits, ".", "_", "-"`);
-    if (loaded.has(id) || adding.has(id)) throw new Error(`"${id}" is already on this host`);
+    if (loaded.has(id) || adding.has(id) || known.has(id))
+      throw new Error(`"${id}" is already on this host`);
+    const fragment = await start(id, source, options);
+    known.set(id, { state: "enabled", source, options });
+    return fragment;
+  }
+
+  async function start(
+    id: string,
+    source: ProjectSource,
+    { entry }: AddFragmentOptions,
+  ): Promise<HostedFragment> {
+    if (adding.has(id)) throw new Error(`"${id}" is already being added`);
     const pending: { cancelled?: string; done: Promise<unknown> } = { done: Promise.resolve() };
     adding.set(id, pending);
     const work = load(id, source, entry, pending);
@@ -236,6 +263,36 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
   }
 
   async function remove(id: string, why = "removed"): Promise<void> {
+    known.delete(id);
+    await stop(id, why);
+  }
+
+  async function disable(id: string): Promise<void> {
+    const entry = known.get(id);
+    if (!entry) throw new Error(`"${id}" is not on this host`);
+    if (entry.state === "disabled") return;
+    // Unrouted first (503), then stopped.
+    entry.state = "disabled";
+    await stop(id, "disabled");
+  }
+
+  async function enable(id: string): Promise<HostedFragment> {
+    const entry = known.get(id);
+    if (!entry) throw new Error(`"${id}" is not on this host`);
+    const held = loaded.get(id);
+    if (entry.state === "enabled" && held) return held.fragment;
+    if (closed) throw new Error("the fragment host is closed");
+    const fragment = await start(id, entry.source, entry.options);
+    // Removed while it loaded: it does not stay running.
+    if (known.get(id) !== entry) {
+      await stop(id, "removed");
+      throw new Error(`"${id}" was removed while it was being enabled`);
+    }
+    entry.state = "enabled";
+    return fragment;
+  }
+
+  async function stop(id: string, why: string): Promise<void> {
     const pending = adding.get(id);
     if (pending) {
       pending.cancelled = why;
@@ -254,7 +311,13 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
     const target = fragmentPath(pathname);
     if (!target) return notFound("not a fragment id");
     const held = loaded.get(target.id);
-    if (!held) return notFound(`no fragment "${target.id}" on this host`);
+    if (!held)
+      return known.get(target.id)?.state === "disabled"
+        ? new Response(`fragment "${target.id}" is disabled`, {
+            status: 503,
+            headers: { "content-type": "text/plain" },
+          })
+        : notFound(`no fragment "${target.id}" on this host`);
     const url = new URL(request.url);
     const forwarded = new URL(target.path, url);
     forwarded.search = url.search;
@@ -262,16 +325,24 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
     return ns.get(ns.idFromName(target.id)).fetch(new Request(forwarded, request));
   }
 
+  /** The request's path, `/peers/{peerId}/` taken off when it names this host's own peer id. */
+  const ownPath = (request: Request): string => {
+    const { pathname } = new URL(request.url);
+    const self = peerId !== undefined ? `/peers/${encodeURIComponent(peerId)}/` : undefined;
+    return self && pathname.startsWith(self) ? pathname.slice(self.length - 1) : pathname;
+  };
+
   return {
     add,
     remove,
-    ids: () => [...loaded.keys()],
+    disable,
+    enable,
+    state: (id) => known.get(id)?.state,
+    ids: () => [...known.keys()],
     project: (id) => loaded.get(id)?.fragment,
-    fetch: (request) => fetchFragment(request, new URL(request.url).pathname),
+    fetch: (request) => fetchFragment(request, ownPath(request)),
     async serveLink(request) {
-      let { pathname } = new URL(request.url);
-      const self = peerId !== undefined ? `/peers/${encodeURIComponent(peerId)}/` : undefined;
-      if (self && pathname.startsWith(self)) pathname = pathname.slice(self.length - 1);
+      const pathname = ownPath(request);
       if (!isServiceCall(request)) return fetchFragment(request, pathname);
       const target = fragmentPath(pathname);
       return serveServiceCall(
@@ -282,7 +353,8 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
     },
     async close() {
       closed = true;
-      for (const id of [...adding.keys(), ...loaded.keys()]) await remove(id, "closed");
+      for (const id of [...adding.keys(), ...loaded.keys()]) await stop(id, "closed");
+      known.clear();
     },
   };
 }
