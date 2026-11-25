@@ -71,7 +71,8 @@ Dedicated Workers all work in Firefox 157, and the whole suite passes there. Wha
 - **Configuration CellB does not support** is reported in `createProjectRuntime(...).unsupported`,
   instead of being silently ignored: `migrations.renamed_classes`,
   `durable_objects.bindings[].script_name`, `containers` without an engine or a `cellb.containers`
-  image ([Containers](services/containers.md)), service bindings to other scripts, the
+  image ([Containers](services/containers.md)), service bindings to other scripts outside a
+  fragment host (a fragment host binds them, README "Service bindings between fragments"), the
   Workers AI binding (`ai`) when the host names no OpenAI-compatible endpoint for it, queue
   consumers without a `queue()` handler, cron triggers without a `scheduled()` handler, and
   compatibility flags it does not know. Renaming a Flue agent renames its class, so it needs

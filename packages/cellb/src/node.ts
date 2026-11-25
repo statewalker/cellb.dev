@@ -33,6 +33,7 @@ export {
   type FragmentHostOptions,
   type HostedFragment,
 } from "./project/fragment-host.js";
+export type { FragmentRoute, FragmentRoutes } from "./project/fragment-routes.js";
 export { loadProject, type NodeLoadProjectOptions } from "./project/node-load.js";
 export { applyNodeD1Migrations, loadNodeProject } from "./project/node-project.js";
 export {
@@ -40,3 +41,9 @@ export {
   type NodeProjectShardsOptions,
   startProjectShards,
 } from "./project/node-shards.js";
+export {
+  type ServiceBindingConfig,
+  type ServicePlacement,
+  type ServiceResolver,
+  ServiceUnavailableError,
+} from "./project/service-bindings.js";

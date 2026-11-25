@@ -27,6 +27,12 @@ export const H = {
   // Set-Cookie values come back URI-encoded and comma-separated (browser-cookies.ts).
   cookie: "x-cellb-cookie",
   setCookie: "x-cellb-set-cookie",
+  // A call through a service binding (project/service-bindings.ts): the target's entrypoint
+  // ("" for its default export), the binding's props (URI-encoded JSON), and a fetch's url (the
+  // routers between shards and hosts rewrite the request's own url, and H.url with it).
+  entrypoint: "x-cellb-entrypoint",
+  props: "x-cellb-props",
+  serviceUrl: "x-cellb-service-url",
 } as const;
 
 export type Send = (req: Request) => Promise<Response>;

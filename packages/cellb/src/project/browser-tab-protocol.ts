@@ -5,6 +5,7 @@
  * constants.
  */
 import type { BrowserBucket, BrowserProjectOptions } from "./browser-host.js";
+import type { FragmentRoute } from "./fragment-routes.js";
 
 /**
  * A shard of a project shared by the tabs of an origin (`joinProjectShards`): it serves through
@@ -50,6 +51,13 @@ export interface FragmentShardInit {
    * reaches fragment `id`'s fragment DO at `/<path>`.
    */
   prefix: string;
+  /**
+   * The route table (#192): where fragments this host does not serve are; a service binding to one
+   * goes there over HTTP. Unlisted fragments are local.
+   */
+  routes?: Record<string, FragmentRoute>;
+  /** The origin of the HTTPeers gateway serving `/peers/{peerId}/…`, for `peer:` routes. */
+  peers?: string;
 }
 
 /** A fragment, as a shard worker of the fragment host loads it. */

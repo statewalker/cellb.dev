@@ -17,6 +17,11 @@ import { filesApiBlobService } from "../miniflare-compat/blob-service.js";
 import { simulatorFetcher } from "../miniflare-compat/simulator-fetcher.js";
 import { systemClock } from "../ports.js";
 import type { ModuleRule } from "./module-rules.js";
+import {
+  registerProjectEntrypoints,
+  type ServiceResolver,
+  serviceBinding,
+} from "./service-bindings.js";
 
 /** The subset of wrangler.json(c) that celld deploys (and cellb reads). */
 export interface WranglerConfig {
@@ -176,6 +181,11 @@ export interface ProjectHost
   bindings?: ProjectBindings;
   /** Runs the project's `containers` (images from its `cellb.containers` key); without it they are reported. */
   containers?: ContainerEngine;
+  /**
+   * Where the projects that `services` to other scripts name run (a fragment host's projects,
+   * #192), asked per call; without it such bindings are reported.
+   */
+  services?: ServiceResolver;
 }
 
 /**
@@ -347,7 +357,7 @@ export function createProjectRuntime(
       `ai[${config.ai.binding}] (Workers AI: give the host an OpenAI-compatible \`ai\`)`,
     );
   for (const s of config.services ?? [])
-    if (s.service !== config.name)
+    if (s.service !== config.name && !host.services)
       unsupported.push(
         `services[${s.binding}] → "${s.service}" (only this script's own entrypoints)`,
       );
@@ -395,6 +405,7 @@ export function createProjectRuntime(
         : undefined,
   });
   const env = runtime.env as Record<string, unknown>;
+  registerProjectEntrypoints(runtime, module, env);
   if (config.ai && host.ai) env[config.ai.binding] = workersAi(host.ai);
   // KV: celld's own client against celld's own namespace cell (cell name "<id>/<shard>").
   for (const ns of config.kv_namespaces ?? [])
@@ -480,7 +491,11 @@ export function createProjectRuntime(
   // Service bindings to this script's own entrypoints (a celld fleet runs one application):
   // default export or a named WorkerEntrypoint, with fetch() and JS RPC.
   for (const s of config.services ?? []) {
-    if (s.service !== config.name) continue;
+    if (s.service !== config.name) {
+      // Another project: wherever the host places it at each call.
+      if (host.services) env[s.binding] = serviceBinding(s, host.services);
+      continue;
+    }
     const target = s.entrypoint ? module[s.entrypoint] : module.default;
     if (!target)
       unsupported.push(`services[${s.binding}].entrypoint "${s.entrypoint}" is not exported`);

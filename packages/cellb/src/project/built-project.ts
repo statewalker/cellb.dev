@@ -14,6 +14,7 @@ import type { WorkersAiOptions } from "../bindings/workers-ai.js";
 import type { ContainerEngine } from "../container.js";
 import type { CellRuntime } from "../core/runtime.js";
 import { parseJsonc } from "./jsonc.js";
+import type { ServiceResolver } from "./service-bindings.js";
 import type { WranglerConfig } from "./wrangler.js";
 
 /** The manifest's file name in a built folder. */
@@ -72,6 +73,11 @@ export interface LoadProjectOptions<Bucket = unknown> {
   sqlite3?: unknown;
   /** The container engine for the project's `containers` (e.g. Wasmer, from @statewalker/cellb-containers). */
   containers?: ContainerEngine;
+  /**
+   * Where the projects its `services` to other scripts name run, asked per call (a fragment host
+   * gives it, #192); without it such bindings are reported unsupported.
+   */
+  services?: ServiceResolver;
 }
 
 /** A running project. */

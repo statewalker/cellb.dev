@@ -4,6 +4,7 @@ import { DurableObjectNamespace, type DurableObjectStub } from "../core/namespac
 import { withUrl } from "../core/request-body.js";
 import type { CellRuntime } from "../core/runtime.js";
 import type { ValueCodec } from "../ports.js";
+import { isServiceCall, serveServiceCall } from "../project/service-bindings.js";
 import { v8Codec } from "../v8/codec.js";
 import { type CfWebSocket, takeClientPort } from "../ws/server.js";
 import { withHeaders, withUpgrade } from "../ws/upgrade.js";
@@ -73,6 +74,8 @@ export function cellsHttpHandler(
             ]),
           ),
         });
+      // A call through a service binding between projects (#192), to this project's entrypoint.
+      if (isServiceCall(req)) return serveServiceCall(req, runtime);
       const stub = stubOf(
         runtime,
         req.headers.get(H.binding) ?? "",

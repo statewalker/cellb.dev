@@ -122,6 +122,7 @@ function nodeHost(options: NodeLoadProjectOptions): Omit<ProjectHost, "loadModul
     storage: options.bucket,
     ai: options.ai,
     containers: options.containers,
+    services: options.services,
   };
 }
 

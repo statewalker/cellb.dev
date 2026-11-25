@@ -17,6 +17,7 @@
  */
 import { serveHttpInWorker, type WorkerHttpService } from "@statewalker/webrun-http-browser/sw";
 import type { DurableObjectNamespace } from "../core/namespace.js";
+import type { CellRuntimeOptions } from "../core/runtime.js";
 import { cellsHttpHandler, servePageRequest } from "../transport/cells-http.js";
 import { CfWebSocket } from "../ws/server.js";
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
@@ -31,6 +32,8 @@ import {
   type FragmentShardInit,
   INTERNAL_ORIGIN,
 } from "./browser-tab-protocol.js";
+import { hostOf, linkTo, remoteBase } from "./fragment-routes.js";
+import type { ServicePlacement, ServiceResolver } from "./service-bindings.js";
 
 const CLOSE = "cellb:shard-close";
 /** The Durable Object binding taken as a fragment DO when the fragment names none. */
@@ -40,7 +43,11 @@ interface Loaded {
   host: Awaited<ReturnType<typeof browserProjectRuntime>>;
   handler: (req: Request) => Promise<Response>;
   entry: string;
+  /** Where its cells are: the shard that owns one, or undefined for this one. */
+  route: NonNullable<CellRuntimeOptions["route"]>;
 }
+
+const unavailable = (reason: string): ServicePlacement => ({ kind: "unavailable", reason });
 
 const text = (status: number, message: string) =>
   new Response(message, { status, headers: { "content-type": "text/plain" } });
@@ -128,11 +135,42 @@ export function serveFragmentShard(opts: {
     );
   }
 
+  /**
+   * Where the service bindings of fragment `caller` find `service` (#192), at each call: the
+   * target's fragment DO decides. On this shard, JS RPC in the runtime; on another, a request
+   * through the router (a MessagePort); on another host by the route table, HTTP.
+   */
+  const servicesOf =
+    (caller: string): ServiceResolver =>
+    (service) => {
+      if (closing || !fragments.has(caller))
+        return unavailable(`the calling fragment "${caller}" is not active`);
+      const host = hostOf(init?.routes, service);
+      if (host !== "local") {
+        const base = remoteBase(host, service, init?.peers);
+        return base
+          ? { kind: "link", send: linkTo(base, (r) => fetch(r)) }
+          : unavailable(`fragment "${service}" is at ${host}, and this host has no way there`);
+      }
+      const target = fragments.get(service);
+      if (!target) return unavailable(`no fragment "${service}" is active in this shard`);
+      const ns = target.host.runtime.env[target.entry] as DurableObjectNamespace;
+      const id = ns.idFromName(service);
+      const className = target.host.runtime.durableObjectBindings[target.entry];
+      const send = target.route(`${className}/${id}`, id);
+      return send ? { kind: "link", send } : { kind: "runtime", runtime: target.host.runtime };
+    };
+
   async function add(msg: FragmentShardAdd): Promise<string[]> {
     if (!init) throw new Error("the shard is not started");
     if (closing) throw new Error("the shard is closing");
     if (fragments.has(msg.id)) return fragments.get(msg.id)?.host.unsupported ?? [];
     const entry = entryOf(msg);
+    const route = throughRouter(
+      init,
+      serviceReady,
+      `${INTERNAL_ORIGIN}/${FRAGMENTS_KEY}/${encodeURIComponent(msg.id)}/`,
+    );
     const host = await browserProjectRuntime({
       config: msg.config,
       code: msg.code,
@@ -144,11 +182,8 @@ export function serveFragmentShard(opts: {
       filesDir: `${FRAGMENTS_KEY}-${msg.id}-files-${init.shard}`,
       isolateScript: opts.isolateScript,
       ownDatabasesScope: init.shards > 1 ? `s${init.shard}` : undefined,
-      route: throughRouter(
-        init,
-        serviceReady,
-        `${INTERNAL_ORIGIN}/${FRAGMENTS_KEY}/${encodeURIComponent(msg.id)}/`,
-      ),
+      route,
+      services: servicesOf(msg.id),
     });
     // Closed while it loaded: it never serves here.
     if (closing) {
@@ -158,6 +193,7 @@ export function serveFragmentShard(opts: {
     fragments.set(msg.id, {
       host,
       entry,
+      route,
       handler: cellsHttpHandler(host.runtime, { passUpgrades: true }),
     });
     return host.unsupported;

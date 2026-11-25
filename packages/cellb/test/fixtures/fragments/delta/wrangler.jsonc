@@ -1,0 +1,18 @@
+// A fragment calling another through service bindings (statewalker/cellb.dev#192).
+{
+  "name": "fragment",
+  "main": "worker.js",
+  "compatibility_date": "2025-06-01",
+  "vars": { "LABEL": "delta" },
+  "durable_objects": { "bindings": [{ "name": "FRAGMENT", "class_name": "Fragment" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fragment"] }],
+  "services": [
+    {
+      "binding": "API",
+      "service": "org.example.gamma",
+      "entrypoint": "Api",
+      "props": { "who": "delta" }
+    },
+    { "binding": "GAMMA", "service": "org.example.gamma" }
+  ]
+}
