@@ -3,6 +3,13 @@ export { idbObjectStore } from "./bucket/idb-object-store.js";
 export { type FilesRpcOptions, rpcFilesClient, serveFilesApi } from "./ltx/files-rpc.js";
 export { filesApiPort, type ServeLtxStoreOptions, serveLtxStore } from "./ltx/ltx-host.js";
 export type { LtxStoreFiles } from "./ltx/ltx-page-server.js";
+export { serveFragmentShard } from "./project/browser-fragment-shard.js";
+export {
+  type BrowserFragment,
+  type FragmentTabs,
+  type FragmentTabsOptions,
+  joinFragmentShards,
+} from "./project/browser-fragment-tabs.js";
 export {
   type BrowserBucket,
   type BrowserProjectOptions,

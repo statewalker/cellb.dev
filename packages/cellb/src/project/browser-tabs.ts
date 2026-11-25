@@ -98,8 +98,57 @@ interface Held {
 /** A shard's handler id under the project's key: the router's `route` picks shards by it. */
 const shardId = (shard: number) => `shard:${shard}`;
 
+/** What a shard worker answered when it was started. */
+export interface ShardStarted {
+  ok: boolean;
+  error?: string;
+  unsupported?: string[];
+}
+
+/** Asks a shard worker: a message with a reply port, and the reply. */
+export type AskShard = (w: Worker, data: unknown, ports?: MessagePort[]) => Promise<ShardStarted>;
+
+/**
+ * A pool of shard workers shared by the tabs of an origin (`joinProjectShards`, and the fragment
+ * host's `joinFragmentShards`): the locks, the shards' owners, the ServiceWorker's links. What a
+ * worker is told when it starts is `start`'s; `started` and `stopped` follow the workers this tab
+ * runs.
+ */
+export interface ShardPoolOptions
+  extends Pick<
+    ProjectTabsOptions,
+    "name" | "shards" | "spawn" | "serviceWorker" | "onChange" | "checkMs" | "drainMs"
+  > {
+  start(worker: Worker, shard: number, ask: AskShard): Promise<ShardStarted>;
+  started?(shard: number, worker: Worker): void;
+  stopped?(shard: number): void;
+  /** What a started shard's warning names (default: `project <name>`). */
+  label?: string;
+}
+
 /** The page side: this tab takes part in running the project's shards. */
-export async function joinProjectShards(opts: ProjectTabsOptions): Promise<ProjectTabs> {
+export function joinProjectShards(opts: ProjectTabsOptions): Promise<ProjectTabs> {
+  return joinShardPool({
+    ...opts,
+    start: (w, shard, ask) =>
+      ask(w, {
+        type: TAB_INIT,
+        name: opts.name,
+        shard,
+        shards: opts.shards,
+        config: opts.config,
+        code: opts.code,
+        assetFiles: opts.assetFiles,
+        ai: opts.ai,
+        bucket: opts.bucket && { ...opts.bucket, node: `${opts.bucket.node}-s${shard}` },
+        pool: `${opts.name}-shard-${shard}`,
+        filesDir: `${opts.name}-files-${shard}`,
+      } satisfies TabShardInit),
+  });
+}
+
+/** The tab's side of a pool of shard workers (see `ShardPoolOptions`). */
+export async function joinShardPool(opts: ShardPoolOptions): Promise<ProjectTabs> {
   const prefix = `cellb:${opts.name}`;
   const tabId = `${Date.now().toString(36).padStart(9, "0")}-${crypto.randomUUID()}`;
   const presenceLock = `${prefix}:tab:${tabId}`;
@@ -124,12 +173,8 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
     return ids.includes(tabId) ? ids : [...ids, tabId];
   };
 
-  const ask = (w: Worker, data: unknown, ports: MessagePort[] = []) =>
-    new Promise<{
-      ok: boolean;
-      error?: string;
-      unsupported?: string[];
-    }>((resolve) => {
+  const ask: AskShard = (w, data, ports = []) =>
+    new Promise<ShardStarted>((resolve) => {
       const { port1, port2 } = new MessageChannel();
       port1.onmessage = (e) => {
         port1.close();
@@ -168,25 +213,13 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
         const w = opts.spawn(shard);
         h.worker = w;
         try {
-          const started = await ask(w, {
-            type: TAB_INIT,
-            name: opts.name,
-            shard,
-            shards: opts.shards,
-            config: opts.config,
-            code: opts.code,
-            assetFiles: opts.assetFiles,
-            ai: opts.ai,
-            bucket: opts.bucket && { ...opts.bucket, node: `${opts.bucket.node}-s${shard}` },
-            pool: `${opts.name}-shard-${shard}`,
-            filesDir: `${opts.name}-files-${shard}`,
-          } satisfies TabShardInit);
+          const started = await opts.start(w, shard, ask);
           if (!started.ok) throw new Error(started.error);
           // What the configuration asks for and this runtime does not provide (a cron trigger
           // without a scheduled() handler, say): said once, not silently ignored.
           if (started.unsupported?.length)
             console.warn(
-              `cellb: project ${opts.name} shard ${shard}: unsupported: ${started.unsupported.join("; ")}`,
+              `cellb: ${opts.label ?? `project ${opts.name}`} shard ${shard}: unsupported: ${started.unsupported.join("; ")}`,
             );
           if (!h.stop.signal.aborted) {
             links.set(
@@ -198,6 +231,7 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
               }),
             );
             running.add(shard);
+            opts.started?.(shard, w);
             changed();
             await new Promise<void>((r) =>
               h.stop.signal.aborted ? r() : h.stop.signal.addEventListener("abort", () => r()),
@@ -211,6 +245,7 @@ export async function joinProjectShards(opts: ProjectTabsOptions): Promise<Proje
           if (link && running.has(shard))
             await link.drain({ ms: opts.drainMs ?? 5_000 }).catch(() => {});
           running.delete(shard);
+          opts.stopped?.(shard);
           await ask(w, { type: "cellb:shard-close" }).catch(() => {});
           w.terminate();
           changed();

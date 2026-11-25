@@ -30,3 +30,36 @@ export interface TabShardInit {
   pool: string;
   filesDir: string;
 }
+
+/** The router's key of the fragment host's shard pool: `<basePath>fragments/<id>/…`. */
+export const FRAGMENTS_KEY = "fragments";
+/** A shard worker of the fragment host is started (`joinFragmentShards` → `serveFragmentShard`). */
+export const FRAGMENT_SHARD_INIT = "cellb:fragment-shard";
+/** A fragment is loaded into a shard worker of the fragment host. */
+export const FRAGMENT_ADD = "cellb:fragment-add";
+/** A fragment leaves a shard worker of the fragment host (its data is kept). */
+export const FRAGMENT_REMOVE = "cellb:fragment-remove";
+
+/** What a shard worker of the fragment host is told when it starts. */
+export interface FragmentShardInit {
+  type: typeof FRAGMENT_SHARD_INIT;
+  shard: number;
+  shards: number;
+  /**
+   * The path page requests for fragments start with (`<basePath>fragments/`): `<prefix><id>/<path>`
+   * reaches fragment `id`'s fragment DO at `/<path>`.
+   */
+  prefix: string;
+}
+
+/** A fragment, as a shard worker of the fragment host loads it. */
+export interface FragmentShardAdd {
+  type: typeof FRAGMENT_ADD;
+  id: string;
+  config: BrowserProjectOptions["config"];
+  code: BrowserProjectOptions["code"];
+  assetFiles?: BrowserProjectOptions["assetFiles"];
+  ai?: BrowserProjectOptions["ai"];
+  /** The Durable Object binding of its fragment DO (default: FRAGMENT, or the only one). */
+  entry?: string;
+}

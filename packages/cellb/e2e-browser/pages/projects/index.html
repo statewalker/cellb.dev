@@ -15,6 +15,18 @@
         w.onerror = (e) => resolve({ ok: false, error: e.message });
         w.postMessage(job, [port2]);
       });
+    // Several projects in one Dedicated Worker, at once (`jobs`): the fragment host's realm.
+    window.__runProjects = (jobs) =>
+      new Promise((resolve) => {
+        const w = new Worker(new URL("./project-worker.ts", import.meta.url), { type: "module" });
+        const { port1, port2 } = new MessageChannel();
+        port1.onmessage = (e) => {
+          resolve(e.data);
+          w.terminate();
+        };
+        w.onerror = (e) => resolve([{ ok: false, error: e.message }]);
+        w.postMessage({ jobs }, [port2]);
+      });
     document.body.dataset.ready = "true";
   </script>
 </body>

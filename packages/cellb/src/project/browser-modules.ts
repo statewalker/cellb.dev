@@ -25,9 +25,11 @@ const WORKERS_CLASSES =
  * `exports` from `globalThis.__cellsProjectScope` (set by `browserProjectRuntime`, and by
  * `serveIsolate` for the loaded Worker an isolate runs). The shim is
  * bundled with the Worker, so it declares no names beyond its exports: esbuild would rename the
- * Worker's own variables of the same name, and those names show in error messages.
+ * Worker's own variables of the same name, and those names show in error messages. All three are
+ * taken when the bundle is evaluated (`waitUntil` holds the scope it found), so several projects
+ * can share one realm: the fragment host's shard workers (#191) load each from its own scope.
  */
-export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env = globalThis.__cellsProjectScope?.env ?? {}, exports = globalThis.__cellsProjectScope?.exports ?? {}, waitUntil = (p) => globalThis.__cellsProjectScope?.waitUntil(p);`;
+export const PROJECT_WORKERS_MODULE_SHIM = `${WORKERS_CLASSES} export const env = globalThis.__cellsProjectScope?.env ?? {}, exports = globalThis.__cellsProjectScope?.exports ?? {}, waitUntil = ((s) => (p) => s?.waitUntil(p))(globalThis.__cellsProjectScope);`;
 
 /**
  * Worker Loader in a browser realm: each module of a WorkerCode becomes a Blob-URL ES
