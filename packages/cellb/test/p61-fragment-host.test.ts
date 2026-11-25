@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { buildProject, createFragmentHost, loadProject } from "@statewalker/cellb/node";
 import { afterEach, describe, expect, test } from "vitest";
+import { projectDir } from "../conformance/projects.js";
 
 const PKG = resolve(import.meta.dirname, "..");
 const ALPHA = join(PKG, "test/fixtures/fragments/alpha");
@@ -114,6 +115,16 @@ describe("the fragment host on Node", () => {
     await host.add("counter", COUNTER);
     const res = await host.fetch(req("/fragments/counter/increment?name=a"));
     expect(res.status).toBeLessThan(500);
+  });
+
+  test("takes a project's one declared Durable Object binding as its entry, beside D1 or KV", async () => {
+    const host = track(createFragmentHost());
+    // The runtime's own hidden bindings (KV, D1, queues) are not the project's: never its entry.
+    const d1 = await host.add("d1-details", projectDir("d1-details"));
+    expect(d1.entry).toBe("OBJ");
+    await expect(host.add("hidden", ALPHA, { entry: "__CELLS_KV_OBJECTS" })).rejects.toThrow(
+      /no Durable Object binding/,
+    );
   });
 
   test("refuses a built folder: its bundle reads the process's globals, one project per process", async () => {
