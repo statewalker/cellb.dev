@@ -130,6 +130,7 @@ export function serveFragmentShard(opts: {
 
   async function add(msg: FragmentShardAdd): Promise<string[]> {
     if (!init) throw new Error("the shard is not started");
+    if (closing) throw new Error("the shard is closing");
     if (fragments.has(msg.id)) return fragments.get(msg.id)?.host.unsupported ?? [];
     const entry = entryOf(msg);
     const host = await browserProjectRuntime({
@@ -149,6 +150,11 @@ export function serveFragmentShard(opts: {
         `${INTERNAL_ORIGIN}/${FRAGMENTS_KEY}/${encodeURIComponent(msg.id)}/`,
       ),
     });
+    // Closed while it loaded: it never serves here.
+    if (closing) {
+      await host.close().catch(() => {});
+      throw new Error("the shard is closing");
+    }
     fragments.set(msg.id, {
       host,
       entry,
@@ -168,11 +174,19 @@ export function serveFragmentShard(opts: {
   // One message at a time: loading a fragment sets the realm's `cloudflare:workers` scope and
   // then imports its bundle, so two loads at once would give the second's scope to the first
   // (its module `env` would be another fragment's). Removals wait for the loads before them.
+  // A close does not wait in line: a load that never ends must not keep the shard (and its lock)
+  // from the next tab. It refuses what is queued, and a load that finishes after it closes itself.
   let queue: Promise<void> = Promise.resolve();
+  let closing = false;
   scope.addEventListener("message", (e: MessageEvent) => {
     const data = e.data as { type?: string } | undefined;
     if (![FRAGMENT_SHARD_INIT, FRAGMENT_ADD, FRAGMENT_REMOVE, CLOSE].includes(data?.type ?? ""))
       return;
+    if (data?.type === CLOSE) {
+      closing = true;
+      void handle(e, data);
+      return;
+    }
     queue = queue.then(() => handle(e, data));
   });
 
