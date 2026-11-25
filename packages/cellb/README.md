@@ -38,8 +38,8 @@ worker is started that way (checked with a Vite build, see `scripts/pack-check.m
 |---|---|
 | `@statewalker/cellb` | the runtime (`createCellRuntime`, `createProjectRuntime` with `loadProjectBindings`), `DurableObject` and `WorkerEntrypoint`, the ports and `CellStorage`, `celldBucket`, the object stores (`s3ObjectStore`, `memoryObjectStore`, `filesApiObjectStore`), `filesApiLtxLog`, `filesApiChangeLog`, `filesApiBackup`, `wasmMemoryOpener` (in-memory SQLite WASM), links over ports, `CellRouter`, `createShardWorker`, the WebSocket classes (and `withUpgrade`, for an upgrade request a browser can make), and the errors embedders catch |
 | `@statewalker/cellb/node` | `loadProject` and `buildProject` (the `cellb build` command), `createFragmentHost` (many projects side by side, at `/fragments/{id}/`), `nodeSqliteOpener`, `sqliteObjectStore` (celld dev's local bucket), `loadNodeProject`, `startProjectShards` (a project over worker threads), `applyNodeD1Migrations`, celld's peer protocol (`startCelldPeerServer`, `celldPeers`), and `startFleetNode` (the `cellb serve` command: a node of a celld fleet) |
-| `@statewalker/cellb/browser` | `loadProject` (a `cellb build` folder by URL, or sources with a compiler), `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
-| `@statewalker/cellb/tabs` | the tab side and the ServiceWorker side of a project shared by the tabs (`joinProjectShards`, `installProjectRouter`, `shardOwner`) without the shard runtime: what a page and its ServiceWorker import |
+| `@statewalker/cellb/browser` | `loadProject` (a `cellb build` folder by URL, or sources with a compiler), `browserProjectRuntime`, `startProjectShards`, `joinProjectShards` and `serveProjectShard` (shards in workers and tabs), `joinFragmentShards` and `serveFragmentShard` (the fragment host's pool), `installProjectRouter` (the ServiceWorker side), `sahpoolOpener`, `idbObjectStore`, `serviceWorkerConnector` |
+| `@statewalker/cellb/tabs` | the tab side and the ServiceWorker side of a project shared by the tabs (`joinProjectShards`, `installProjectRouter`, `shardOwner`), and of the fragment host's pool (`joinFragmentShards`), without the shard runtime: what a page and its ServiceWorker import |
 | `@statewalker/cellb/site` | `createProjectSite`: a project's sources compiled in the browser and served by an in-browser HTTP server (`browserProjectRuntime({ site })`); `siteCompiler` for `loadProject`, and `siteHostOverPort` / `hostSitesForWorker` to host a worker's site from its page. Needs the optional peer dependencies `@statewalker/webrun-modules`, `@statewalker/webrun-site-builder` and `@statewalker/webrun-site-host` (the ServiceWorker host) |
 | `@statewalker/cellb/bundle` | `bundleCompiler`: a project's sources bundled in the browser for `loadProject`, with webrun-bundler on esbuild-wasm. Needs the optional peer dependency `@statewalker/webrun-bundler`; the caller passes esbuild-wasm, initialized |
 | `@statewalker/cellb/host-modules` | for bundlers other than cellb's own (webrun-bundler in a browser, say): the sources of `cloudflare:workers`, `node:*` and the Workers globals as cellb's realms provide them (`cellbHostModule`, `CELLS_GLOBALS_MODULE`) |
@@ -187,7 +187,25 @@ folders (`cellb build`) are refused: their bundle reads the process's globals, s
 process. Add a fragment's source folder instead. Fragment ids are lowercase path segments
 (`org.example.notes`).
 
-One thing is still shared: with `nodejs_compat`, a project's text vars land in the process's
+**In a browser**, the fragment host is one pool of shard workers shared by the origin's tabs, each
+worker holding every fragment, each fragment in OPFS pools of its own. The ServiceWorker's router
+(`installProjectRouter`, unchanged) sends `<basePath>fragments/<id>/…` to the pool, and the
+shard that takes a request reaches the fragment DO in the shard that owns it, as any call between
+shards:
+
+```ts
+// ServiceWorker
+installProjectRouter(self, { basePath: "/" });
+// shard worker
+serveFragmentShard({ sqlite3 });
+// each page (every tab adds the same fragments)
+const pool = await joinFragmentShards({ shards: 2, basePath: "/", spawn, serviceWorker });
+const { unsupported } = await pool.add("org.example.notes", { config, code: { bundle } });
+await fetch("/fragments/org.example.notes/list");
+await pool.remove("org.example.notes"); // its data is kept
+```
+
+One thing is still shared on Node: with `nodejs_compat`, a project's text vars land in the process's
 `process.env` (Node shares its real process with the Worker), so a project reading
 `process.env.X` may see another project's value. `env.X` is always the project's own.
 

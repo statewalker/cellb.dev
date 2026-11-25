@@ -1,6 +1,8 @@
 // A tab of a project shared by every tab of the origin: it takes its share of the shards
 // (joinProjectShards) and sends requests through the ServiceWorker's router.
 import {
+  type FragmentTabs,
+  joinFragmentShards,
   joinProjectShards,
   type ProjectTabs,
   serviceWorkerConnector,
@@ -143,3 +145,26 @@ serviceWorker().then(
   () => (document.body.dataset.ready = "true"),
   (e) => (document.body.dataset.error = String(e?.stack ?? e)),
 );
+
+// The fragment host's pool of shard workers (joinFragmentShards): fragments at
+// /tabs/app/fragments/<id>/…, through the same ServiceWorker router.
+let fragmentTabs: FragmentTabs | undefined;
+Object.assign(window, {
+  __joinFragments: async (job: { shards: number }) => {
+    fragmentTabs = await joinFragmentShards({
+      shards: job.shards,
+      basePath: "/tabs/app/",
+      spawn: () =>
+        new Worker(new URL("./fragment-shard-worker.ts", import.meta.url), { type: "module" }),
+      serviceWorker,
+      onChange: (owned) => (document.body.dataset.fragmentsOwned = owned.join(",")),
+      checkMs: 300,
+    });
+    return true;
+  },
+  __addFragment: async (job: { id: string; config: WranglerConfig; code: string }) =>
+    fragmentTabs?.add(job.id, { config: job.config, code: { bundle: job.code } }),
+  __removeFragment: (id: string) => fragmentTabs?.remove(id),
+  __fragmentIds: () => fragmentTabs?.ids() ?? [],
+  __leaveFragments: () => fragmentTabs?.close(),
+});

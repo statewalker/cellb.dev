@@ -60,14 +60,7 @@ export function cellsHttpHandler(
   return async (incoming) => {
     const req = await restoreScheme(await restoreRoute(incoming));
     const kind = req.headers.get(H.kind);
-    if (!kind) {
-      const cookie = req.headers.get(H.cookie);
-      if (cookie === null) return runtime.fetch(stripControl(req));
-      // From a ServiceWorker: the cookies in, the Worker's Set-Cookie out, under H.cookie and
-      // H.setCookie (a browser drops both headers from every Request and Response it builds).
-      const inner = cookie ? withHeaders(stripControl(req), { cookie }) : stripControl(req);
-      return tunnelSetCookies(await runtime.fetch(inner));
-    }
+    if (!kind) return servePageRequest(req, (inner) => runtime.fetch(inner));
     try {
       if (kind === "describe")
         return Response.json({
@@ -87,7 +80,9 @@ export function cellsHttpHandler(
       );
       if (kind === "fetch") {
         const wsId = req.headers.get(H.ws);
-        let inner = stripControl(req);
+        // The caller's Cookie, carried as H.cookie (a browser drops it from a rebuilt Request).
+        const cookie = req.headers.get(H.cookie);
+        let inner = cookie ? withHeaders(stripControl(req), { cookie }) : stripControl(req);
         const upgrade = req.headers.get(H.upgrade);
         if (upgrade) {
           const offered = req.headers.get(H.wsProtocol);
@@ -98,7 +93,8 @@ export function cellsHttpHandler(
           );
         }
         const res = (await stub.fetch(inner)) as Response & { webSocket?: CfWebSocket | null };
-        if (res.status !== 101 || !res.webSocket) return res;
+        // Its Set-Cookie, carried as H.setCookie (a browser drops it from a rebuilt Response).
+        if (res.status !== 101 || !res.webSocket) return tunnelSetCookies(res);
         if (opts.passUpgrades && !wsId) return res;
         if (!wsId || !opts.onUpgrade)
           throw new Error("WebSocket upgrade cannot cross this link (no control channel)");
@@ -196,6 +192,22 @@ function tunnelSetCookies(res: Response): Response {
   for (const [k, v] of res.headers) if (k !== "set-cookie") headers.append(k, v);
   headers.set(H.setCookie, cookies.map(encodeURIComponent).join(","));
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+/**
+ * A page's request, as the ServiceWorker's router passes it on: its control headers dropped, and,
+ * from a ServiceWorker, the page's cookies (H.cookie) back in `cookie` and the answer's
+ * Set-Cookie tunnelled out under H.setCookie (a browser drops both headers from every Request
+ * and Response it builds). A project's Worker gets these, and so does a fragment DO.
+ */
+export async function servePageRequest(
+  req: Request,
+  fetch: (req: Request) => Promise<Response>,
+): Promise<Response> {
+  const cookie = req.headers.get(H.cookie);
+  if (cookie === null) return fetch(stripControl(req));
+  const inner = cookie ? withHeaders(stripControl(req), { cookie }) : stripControl(req);
+  return tunnelSetCookies(await fetch(inner));
 }
 
 export function stripControl(req: Request, keep: string[] = []): Request {

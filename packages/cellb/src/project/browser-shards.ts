@@ -104,7 +104,11 @@ export function serveProjectShard(opts: {
           filesDir: init.filesDir,
           isolateScript: opts.isolateScript,
           ownDatabasesScope: init.shards > 1 ? `s${init.shard}` : undefined,
-          route: throughRouter(init, serviceReady),
+          route: throughRouter(
+            init,
+            serviceReady,
+            `${INTERNAL_ORIGIN}/${encodeURIComponent(init.name)}/`,
+          ),
         });
         // Served through the ServiceWorker's router, which the tab attaches this worker to. The
         // package keeps the link: an owner lock the router watches, re-linking after a restart,
@@ -150,7 +154,7 @@ export function serveProjectShard(opts: {
  * A 101 with a Workers WebSocket, as the ServiceWorker's router hands sockets over: the client
  * end's port in webrun-http-browser's 101.
  */
-function upgradeOverPort(res: Response): Response {
+export function upgradeOverPort(res: Response): Response {
   const ws = (res as Response & { webSocket?: CfWebSocket | null }).webSocket;
   if (res.status !== 101 || !ws) return res;
   return webSocketUpgradeResponse(
@@ -160,15 +164,17 @@ function upgradeOverPort(res: Response): Response {
 }
 
 /**
- * The cells of other shards, through the ServiceWorker's router: a call goes to
- * `http://cellb.internal/<project>/` (the router's key for the project) naming its shard, with the
- * url it was made with in `H.url`; a socket opens through the router the same way.
+ * The cells of other shards, through the ServiceWorker's router: a call goes to `target`
+ * (`http://cellb.internal/<project>/`, the router's key for the project, or a fragment's
+ * `…/fragments/<id>/`) naming its shard, with the url it was made with in `H.url`; a socket opens
+ * through the router the same way.
  */
-function throughRouter(
-  init: { name: string; shard: number; shards: number },
+export function throughRouter(
+  init: { shard: number; shards: number },
   service: Promise<WorkerHttpService>,
+  /** The router's internal URL of this runtime's cells: `http://cellb.internal/<key>/…`. */
+  target: string,
 ): NonNullable<CellRuntimeOptions["route"]> {
-  const target = `${INTERNAL_ORIGIN}/${encodeURIComponent(init.name)}/`;
   return (_key, id) => {
     const owner = shardOf(id.toString(), init.shards);
     if (owner === init.shard) return undefined;
