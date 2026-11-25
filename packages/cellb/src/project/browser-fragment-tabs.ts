@@ -46,14 +46,11 @@ export interface FragmentTabsOptions
   routes?: FragmentShardInit["routes"];
   /** The origin of the HTTPeers gateway serving `/peers/{peerId}/…`, for `peer:` routes. */
   peers?: string;
-<<<<<<< HEAD
   /**
    * This origin's own peer id (#259): the ServiceWorker serves `<basePath>peers/<peerId>/…` as
    * `<basePath>…`.
    */
   peerId?: string;
-=======
->>>>>>> origin/main
 }
 
 export interface FragmentTabs extends ProjectTabs {
