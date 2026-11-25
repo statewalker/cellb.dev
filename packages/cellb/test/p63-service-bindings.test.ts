@@ -67,6 +67,17 @@ async function contractChecks(env: Env) {
   expect(await env.API.echo(value)).toEqual(value);
   // A stream in, a stream out.
   expect(await read(await env.API.upper(text("one two three")))).toBe("ONE TWO THREE ");
+  // A value shaped like the link's own framing stays a value (no stream sent).
+  expect(await env.API.echo({ $cellbStream: 0 })).toEqual({ $cellbStream: 0 });
+  expect(await env.API.echo([{ $cellbStream: 0 }, { s: text("x") }])).toMatchObject([
+    { $cellbStream: 0 },
+    { s: expect.any(ReadableStream) },
+  ]);
+  // A stream crosses inside arrays and plain objects, not inside a Map or Set.
+  await expect(env.API.echo(new Map([["s", text("x")]]))).rejects.toMatchObject({
+    name: "DataCloneError",
+    message: expect.stringContaining("a stream inside a Map or Set"),
+  });
   // An error the call throws comes back as itself.
   await expect(env.API.fail()).rejects.toMatchObject({
     name: "RangeError",

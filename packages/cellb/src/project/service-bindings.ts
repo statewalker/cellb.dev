@@ -104,7 +104,7 @@ export function checkContract(
   call: string,
 ): ReadableStream | undefined {
   let stream: ReadableStream | undefined;
-  const walk = (v: unknown, at: string): void => {
+  const walk = (v: unknown, at: string, inCollection = false): void => {
     if (v === null || (typeof v !== "object" && typeof v !== "function")) return;
     const refused = (v as Record<symbol, unknown>)[REFUSE];
     if (typeof refused === "string") throw refuse("not serializable", at, call);
@@ -123,64 +123,75 @@ export function checkContract(
         call,
       );
     if (v instanceof NativeReadableStream) {
+      if (inCollection)
+        throw refuse("a stream inside a Map or Set (put it in an array or an object)", at, call);
       if (stream) throw refuse("a second stream (one stream per call and per answer)", at, call);
       stream = v;
       return;
     }
     if (Array.isArray(v)) {
       v.forEach((x, i) => {
-        walk(x, `${at}[${i}]`);
+        walk(x, `${at}[${i}]`, inCollection);
       });
       return;
     }
     if (Object.getPrototypeOf(v) === Object.prototype)
-      for (const [k, x] of Object.entries(v)) walk(x, `${at}.${k}`);
+      for (const [k, x] of Object.entries(v)) walk(x, `${at}.${k}`, inCollection);
     if (v instanceof Map)
       for (const [k, x] of v) {
-        walk(k, `${at} key`);
-        walk(x, `${at}.get(…)`);
+        walk(k, `${at} key`, true);
+        walk(x, `${at}.get(…)`, true);
       }
-    if (v instanceof Set) for (const x of v) walk(x, `${at} entry`);
+    if (v instanceof Set) for (const x of v) walk(x, `${at} entry`, true);
   };
   walk(value, path);
   return stream;
 }
 
-// On a link: [4-byte length][V8 values][the stream's bytes]. The stream's place in the values
-// is a marker object.
-const MARK = "$cellbStream";
+// On a link: [4-byte length][V8 `[values, path]`][the stream's bytes]. `path` is where the stream
+// sits in the values (array indexes and object keys; `undefined` there on the wire), or null
+// when no stream follows: no value of the caller's is ever read as a stream.
+type StreamPath = (string | number)[];
 
-function replaceStream(v: unknown, stream: ReadableStream): unknown {
-  if (v === stream) return { [MARK]: 0 };
-  if (Array.isArray(v)) return v.map((x) => replaceStream(x, stream));
-  if (v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype)
-    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, replaceStream(x, stream)]));
-  if (v instanceof Map)
-    return new Map([...v].map(([k, x]) => [replaceStream(k, stream), replaceStream(x, stream)]));
-  if (v instanceof Set) return new Set([...v].map((x) => replaceStream(x, stream)));
-  return v;
+/** The values with the stream's slot left undefined, and the path to that slot. */
+function takeStream(v: unknown, stream: ReadableStream): { value: unknown; path?: StreamPath } {
+  if (v === stream) return { value: undefined, path: [] };
+  if (Array.isArray(v)) {
+    const out = [...v];
+    for (const [i, x] of v.entries()) {
+      const taken = takeStream(x, stream);
+      if (taken.path) {
+        out[i] = taken.value;
+        return { value: out, path: [i, ...taken.path] };
+      }
+    }
+  } else if (v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype) {
+    for (const [k, x] of Object.entries(v)) {
+      const taken = takeStream(x, stream);
+      if (taken.path) return { value: { ...v, [k]: taken.value }, path: [k, ...taken.path] };
+    }
+  }
+  return { value: v };
 }
 
-function restoreStream(v: unknown, stream: ReadableStream): unknown {
-  if (v && typeof v === "object") {
-    if (Object.getPrototypeOf(v) === Object.prototype) {
-      const o = v as Record<string, unknown>;
-      if (Object.keys(o).length === 1 && o[MARK] === 0) return stream;
-      return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, restoreStream(x, stream)]));
-    }
-    if (Array.isArray(v)) return v.map((x) => restoreStream(x, stream));
-    if (v instanceof Map)
-      return new Map([...v].map(([k, x]) => [restoreStream(k, stream), restoreStream(x, stream)]));
-    if (v instanceof Set) return new Set([...v].map((x) => restoreStream(x, stream)));
+/** The stream put back at `path` in values decoded from a link. */
+function putStream(value: unknown, path: StreamPath, stream: ReadableStream): unknown {
+  if (!path.length) return stream;
+  let at = value as Record<string | number, unknown>;
+  for (const key of path.slice(0, -1)) {
+    at = at?.[key] as Record<string | number, unknown>;
+    if (!at || typeof at !== "object") throw new Error("a service link's stream path is invalid");
   }
-  return v;
+  at[path[path.length - 1]] = stream;
+  return value;
 }
 
 /** The values (and their stream) as a body: the values first, then the stream's bytes. */
 function encodeFrame(value: unknown, stream: ReadableStream | undefined, call: string): BodyInit {
   let bytes: Uint8Array;
   try {
-    bytes = v8Codec.encode(stream ? replaceStream(value, stream) : value);
+    const taken = stream ? takeStream(value, stream) : { value };
+    bytes = v8Codec.encode([taken.value, taken.path ?? null]);
   } catch (err) {
     const e = new DOMException(`${call}: ${(err as Error)?.message ?? err}`, "DataCloneError");
     throw Object.defineProperty(e, "name", { value: e.name, enumerable: true });
@@ -224,9 +235,9 @@ async function decodeFrame(body: ReadableStream<Uint8Array> | null): Promise<unk
   await need(4);
   const length = new DataView(buf.buffer, buf.byteOffset, 4).getUint32(0);
   await need(4 + length);
-  const value = v8Codec.decode(buf.subarray(4, 4 + length));
+  const [value, path] = v8Codec.decode(buf.subarray(4, 4 + length)) as [unknown, StreamPath | null];
   const rest = buf.subarray(4 + length);
-  if (!hasMark(value)) {
+  if (!path) {
     reader.releaseLock();
     return value;
   }
@@ -241,18 +252,7 @@ async function decodeFrame(body: ReadableStream<Uint8Array> | null): Promise<unk
     },
     cancel: (why) => reader.cancel(why),
   });
-  return restoreStream(value, stream);
-}
-
-function hasMark(v: unknown): boolean {
-  if (!v || typeof v !== "object") return false;
-  if (Array.isArray(v)) return v.some(hasMark);
-  if (v instanceof Map) return [...v].some(([k, x]) => hasMark(k) || hasMark(x));
-  if (v instanceof Set) return [...v].some(hasMark);
-  if (Object.getPrototypeOf(v) !== Object.prototype) return false;
-  const o = v as Record<string, unknown>;
-  if (Object.keys(o).length === 1 && o[MARK] === 0) return true;
-  return Object.values(o).some(hasMark);
+  return putStream(value, path, stream);
 }
 
 /** The request kinds of a service link. */
@@ -283,7 +283,7 @@ export function serviceBinding(
     return placement;
   };
   const props = config.props ?? {};
-  return asyncStub(
+  const stub = asyncStub(
     async (method, args) => {
       const call = callName(config, method);
       const stream = checkContract(args, "the arguments", call);
@@ -329,6 +329,23 @@ export function serviceBinding(
       );
     },
   );
+  // The contract is checked before the stub copies the arguments (structured clone would refuse
+  // some first, without naming the call).
+  return new Proxy(stub, {
+    get(target, prop) {
+      const member = target[prop as string];
+      if (typeof prop === "symbol" || prop === "fetch" || prop === "dup") return member;
+      if (typeof member !== "function") return member;
+      return (...args: unknown[]) => {
+        try {
+          checkContract(args, "the arguments", callName(config, prop));
+        } catch (err) {
+          return Promise.reject(err);
+        }
+        return member(...args);
+      };
+    },
+  });
 }
 
 function linkHeaders(config: ServiceBindingConfig, method?: string): Record<string, string> {
