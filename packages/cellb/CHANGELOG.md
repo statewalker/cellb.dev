@@ -1,5 +1,18 @@
 # @statewalker/cellb
 
+## 0.14.0
+
+### Minor Changes
+
+- ee5c4d7: The fragment host in a browser (#191): `joinFragmentShards` (`@statewalker/cellb/tabs` and `/browser`) runs one pool of shard workers shared by the origin's tabs, and `serveFragmentShard` is its worker side. Every worker holds every fragment (each in OPFS pools of its own), fragments are added and removed while it runs, and the ServiceWorker's router sends `<basePath>fragments/<id>/…` to the pool, then to the fragment DO at `idFromName(<id>)` in the shard that owns it. A project's own `cloudflare:workers` `waitUntil` now holds the scope it was loaded with, so several projects share one realm.
+- 77ee968: `createFragmentHost` (`@statewalker/cellb/node`): many wrangler projects side by side in one runtime, each in a namespace of its own (`<data>/fragments/<id>/`), added and removed while it runs, each reached at `/fragments/{id}/…` through its fragment DO at `idFromName(<id>)`, with unsupported configuration reported per project (#191). A single-project host's data layout is unchanged.
+- 2a6a38a: Service bindings between the projects of a fragment host (#192): `services` naming another fragment gives a working binding (`fetch` and JS RPC) whose call runs where the target's fragment DO is: in the runtime on the same shard, through the router across shards, and over HTTP (`<url>/fragments/{id}/`, `/peers/{peerId}/fragments/{id}/`) on another host by the route table (`createFragmentHost({ routes, remote, peerId })`, `joinFragmentShards({ routes, peers })`, `FragmentHost.serveLink`). Only structured-cloneable values and one stream per call cross, in every placement, and a function, stub or `Request` fails with a `DataCloneError` naming the call; a call while the target or the caller is not active fails at once with `ServiceUnavailableError`. `ProjectHost.services` / `LoadProjectOptions.services` take a `ServiceResolver` for other hosts.
+- a94c59d: Fragment states and the host's own peer path (statewalker-root#259): `FragmentHost.disable`/`enable`/`state` on Node and `joinFragmentShards`' `disable`/`enable`/`state` in browsers keep a fragment known while it is stopped. A disabled fragment answers 503 and an unknown one 404 without waking a DO; in a browser the ServiceWorker's router answers both itself, from the fragment table the tabs tell it. `/peers/{peerId}/fragments/{id}/…` with the host's own `peerId` (`createFragmentHost({ peerId })`, `joinFragmentShards({ peerId })`) answers as `/fragments/{id}/…`.
+
+### Patch Changes
+
+- 9c798a0: The fragment host's default entry is the project's one declared Durable Object binding even when it also has D1, KV, queues or workflows (the runtime's hidden bindings are never an entry), and conformance runs celld's examples side by side in one fragment host (#191).
+
 ## 0.13.1
 
 ### Patch Changes
