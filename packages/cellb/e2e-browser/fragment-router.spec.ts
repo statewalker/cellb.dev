@@ -88,3 +88,65 @@ test("/peers/<self>/fragments/<id>/… answers as /fragments/<id>/…; other pee
   const other = await get(page, `peers/peer-other/fragments/${id}/x`);
   expect(other.body).not.toContain('"label"');
 });
+
+// The merge gate's pass 1 on #248 (H2–H4).
+test("a remove during an add wins: the fragment is not left enabled", async ({ page }) => {
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  await openPool(page);
+  const f = await alpha();
+  const outcome = await page.evaluate(
+    async ([job, i]) => {
+      const w = window as any;
+      const adding = w.__addFragment(job).then(
+        () => "added",
+        (e: Error) => `refused: ${e.message}`,
+      );
+      await w.__removeFragment(i);
+      return { add: await adding, ids: w.__fragmentIds() };
+    },
+    [{ id, ...f }, id] as const,
+  );
+  expect(outcome.ids).toEqual([]);
+  expect((await get(page, `fragments/${id}/x`)).status).toBe(404);
+});
+
+test("after a ServiceWorker restart: every tab's table counts, and /peers/<self>/ still answers", async ({
+  page,
+  context,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "stops the ServiceWorker through CDP (Chromium only)");
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  await openPool(page, "peer-self");
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...(await alpha()) });
+  expect((await get(page, `fragments/${id}/x`)).status).toBe(200);
+
+  // A second tab whose table is empty (it knows no fragment), answering at once.
+  const other = await context.newPage();
+  await other.goto("/tabs/index.html");
+  await other.waitForFunction(() => document.body.dataset.ready === "true");
+  await other.evaluate(() => {
+    const table = { type: "cellb:fragment-table", fragments: {} };
+    navigator.serviceWorker.addEventListener("message", (e) => {
+      if (e.data?.type === "cellb:need-fragment-table")
+        navigator.serviceWorker.controller?.postMessage(table);
+    });
+    navigator.serviceWorker.controller?.postMessage(table);
+  });
+
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("ServiceWorker.enable");
+  // The own-peer path first: nothing has refilled the tables yet.
+  await cdp.send("ServiceWorker.stopAllWorkers");
+  const viaPeer = await get(page, `peers/peer-self/fragments/${id}/x`);
+  expect(viaPeer.status, viaPeer.body).toBe(200);
+  expect(JSON.parse(viaPeer.body)).toMatchObject({ label: "alpha" });
+  // Then a plain request, each restart again: the empty table must not hide the first tab's.
+  for (let i = 0; i < 3; i++) {
+    await cdp.send("ServiceWorker.stopAllWorkers");
+    const res = await get(page, `fragments/${id}/x`);
+    expect(res.status, res.body).toBe(200);
+  }
+});

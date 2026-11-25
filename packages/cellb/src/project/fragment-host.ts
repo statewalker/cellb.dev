@@ -270,7 +270,11 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
   async function disable(id: string): Promise<void> {
     const entry = known.get(id);
     if (!entry) throw new Error(`"${id}" is not on this host`);
-    if (entry.state === "disabled") return;
+    if (entry.state === "disabled") {
+      // An enable still loading it: cancelled (it rejects), so the fragment stays disabled.
+      if (adding.has(id)) await stop(id, "disabled");
+      return;
+    }
     // Unrouted first (503), then stopped.
     entry.state = "disabled";
     await stop(id, "disabled");

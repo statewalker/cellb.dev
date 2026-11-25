@@ -220,3 +220,21 @@ describe("disabled fragments and the host's own peer path", () => {
     );
   });
 });
+
+// The merge gate's pass 1 on #248 (H1): a disable that comes while an enable loads wins.
+describe("a disable during an enable", () => {
+  test("cancels the enable: the fragment stays disabled", async () => {
+    const host = track(createFragmentHost({ data: tmp("cellb-disable-race-") }));
+    await host.add("org.example.alpha", ALPHA);
+    await host.disable("org.example.alpha");
+    const enabling = host.enable("org.example.alpha");
+    await host.disable("org.example.alpha");
+    await expect(enabling).rejects.toThrow(/disabled/);
+    expect(host.state("org.example.alpha")).toBe("disabled");
+    expect(host.project("org.example.alpha")).toBeUndefined();
+    expect((await host.fetch(req("/fragments/org.example.alpha/x"))).status).toBe(503);
+    // And it can be enabled again afterwards.
+    await host.enable("org.example.alpha");
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ label: "alpha" });
+  });
+});

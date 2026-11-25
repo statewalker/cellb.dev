@@ -227,6 +227,9 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
         }
         throw (failed as PromiseRejectedResult).reason;
       }
+      // Removed or disabled while it loaded: that wins (the shards let it go already).
+      if (fragments.get(id) !== fragment)
+        throw new Error(`"${id}" was removed or disabled while it was being added`);
       states.set(id, "enabled");
       await announce();
       // With no shard running in this tab yet, a shard that loads it later warns what is unsupported.

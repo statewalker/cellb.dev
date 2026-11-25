@@ -520,7 +520,10 @@ export function installProjectRouter(
   // The fragment host's tables (#259), per tab: which fragments exist, enabled or disabled, and
   // the origin's own peer id. With none (no tab told it yet), fragments are routed as before.
   const tables = new Map<string, { fragments: Record<string, FragmentState>; peerId?: string }>();
+  // The tabs that told it their table since this worker started, and what waits for more.
+  const heard = new Set<string>();
   let tableWaiters: (() => void)[] = [];
+  let collected: Promise<void> | undefined;
   const peerIds = () => new Set([...tables.values()].flatMap((t) => (t.peerId ? [t.peerId] : [])));
 
   /** The fragment's state as the tabs see it: enabled anywhere wins; unknown everywhere is absent. */
@@ -533,13 +536,29 @@ export function installProjectRouter(
     return disabled ? "disabled" : "absent";
   };
 
-  /** The tables, asking the tabs for them once if there are none yet (a restarted worker). */
-  const awaitTables = async (ms = 500): Promise<boolean> => {
-    if (tables.size) return true;
-    const arrived = new Promise<void>((r) => tableWaiters.push(r));
-    const clients = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
-    for (const c of clients) c.postMessage({ type: NEED_FRAGMENT_TABLE });
-    await Promise.race([arrived, new Promise((r) => setTimeout(r, ms))]);
+  /**
+   * Once per worker start (a restarted worker has no tables): asks every tab for its table and
+   * waits until each window answered, or `ms`. A decision taken from the first table alone would
+   * hide the fragments of the tabs that answer later.
+   */
+  const collectTables = (ms = 500): Promise<void> =>
+    (collected ??= (async () => {
+      const clients = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const want = clients.map((c) => c.id);
+      const all = new Promise<void>((resolve) => {
+        const check = () => {
+          if (want.every((id) => heard.has(id))) resolve();
+          else tableWaiters.push(check);
+        };
+        check();
+      });
+      for (const c of clients) c.postMessage({ type: NEED_FRAGMENT_TABLE });
+      await Promise.race([all, new Promise((r) => setTimeout(r, ms))]);
+    })());
+
+  /** The tables, collected first after a start; false when no tab has one (route as before). */
+  const awaitTables = async (): Promise<boolean> => {
+    await collectTables();
     return tables.size > 0;
   };
 
@@ -590,10 +609,26 @@ export function installProjectRouter(
 
   sw.addEventListener("fetch", (e: FetchEvent) => {
     const req = e.request;
-    const own = ownPeerPath(new URL(req.url));
-    const url = own ?? new URL(req.url);
+    const asked = new URL(req.url);
+    // Under `<base>peers/`: whether it is this origin's own peer is known from the tables only,
+    // so they are collected first (a restarted worker has none); another peer's goes on as it is.
+    if (asked.origin === sw.location.origin && asked.pathname.startsWith(`${base}peers/`)) {
+      e.respondWith(
+        collectTables().then(() => {
+          const own = ownPeerPath(asked);
+          const project = own && split(own);
+          if (!own || !project) return fetch(req);
+          if (project.name !== FRAGMENTS_KEY) return serve(project, req, false, own.href);
+          return fragmentAnswer(project.path).then(
+            (answer) => answer ?? serve(project, req, false, own.href),
+          );
+        }),
+      );
+      return;
+    }
+    const url = asked;
     const root = atRoot(url);
-    if (!root && req.mode === "navigate" && !own) return; // the pages under basePath are the host's
+    if (!root && req.mode === "navigate") return; // the pages under basePath are the host's
     const project = split(url);
     if (!project) return;
     if (!root && project.name === FRAGMENTS_KEY) {
@@ -625,6 +660,7 @@ export function installProjectRouter(
     const m = e.data;
     if (m?.type === FRAGMENT_TABLE) {
       const from = (e.source as { id?: string } | null)?.id ?? "";
+      heard.add(from);
       const t = m as FragmentTable;
       if (t.fragments === null) tables.delete(from);
       else tables.set(from, { fragments: { ...t.fragments }, peerId: t.peerId });
