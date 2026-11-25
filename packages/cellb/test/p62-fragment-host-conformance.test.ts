@@ -1,8 +1,10 @@
 // Conformance with several projects in one fragment host (#191): celld's examples loaded side by
 // side, each twice, into one runtime, their scenarios run at the same time. Every transcript must
-// match celld's recording (conformance/golden) as when the project runs alone (p09): two copies of
-// one project, with the same Worker name, classes and bindings, start from nothing each, so
-// neither sees the other's cells, KV, D1, queues or files.
+// match celld's recording (conformance/golden) as when the project runs alone (p09). Two copies of
+// one project have the same Worker name, classes and bindings; the scenarios that build on what
+// they stored (counter, rpc, storage-details, d1-details, queues-api, sql-ingest) only match if
+// each copy starts from nothing, so a copy that saw the other's cells, D1 or queues fails them.
+// Same-named KV and the rest are kept apart by p61.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createFragmentHost, type FragmentHost } from "@statewalker/cellb/node";
