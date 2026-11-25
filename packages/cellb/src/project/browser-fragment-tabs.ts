@@ -12,9 +12,13 @@ import {
   FRAGMENT_ADD,
   FRAGMENT_REMOVE,
   FRAGMENT_SHARD_INIT,
+  FRAGMENT_TABLE,
   FRAGMENTS_KEY,
   type FragmentShardAdd,
   type FragmentShardInit,
+  type FragmentState,
+  type FragmentTable,
+  NEED_FRAGMENT_TABLE,
 } from "./browser-tab-protocol.js";
 import {
   type AskShard,
@@ -42,6 +46,11 @@ export interface FragmentTabsOptions
   routes?: FragmentShardInit["routes"];
   /** The origin of the HTTPeers gateway serving `/peers/{peerId}/…`, for `peer:` routes. */
   peers?: string;
+  /**
+   * This origin's own peer id (#259): the ServiceWorker serves `<basePath>peers/<peerId>/…` as
+   * `<basePath>…`.
+   */
+  peerId?: string;
 }
 
 export interface FragmentTabs extends ProjectTabs {
@@ -50,10 +59,22 @@ export interface FragmentTabs extends ProjectTabs {
    * its configuration declares that this host does not support (the first shard's answer).
    */
   add(id: string, fragment: BrowserFragment): Promise<{ unsupported: string[] }>;
-  /** Stop a fragment in the shards this tab runs; its data is kept. */
+  /**
+   * Stop a fragment in the shards this tab runs; its data is kept. The ServiceWorker then answers
+   * 404 for it, without waking a shard, unless another tab still has it.
+   */
   remove(id: string): Promise<void>;
-  /** The fragments this tab added, in order. */
+  /**
+   * Stop a fragment and keep it known as disabled: the ServiceWorker answers 503 for it, without
+   * waking a shard, unless another tab has it enabled. Its data is kept.
+   */
+  disable(id: string): Promise<void>;
+  /** Load a disabled fragment again. */
+  enable(id: string): Promise<{ unsupported: string[] }>;
+  /** The fragments this tab added (enabled or disabled), in order. */
   ids(): string[];
+  /** The fragment's state in this tab, or undefined if it never added it. */
+  state(id: string): FragmentState | undefined;
 }
 
 /** A fragment id: a path segment of lowercase letters, digits, `.`, `_` and `-`. */
@@ -76,6 +97,34 @@ function checkEntry(id: string, fragment: BrowserFragment): void {
 export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<FragmentTabs> {
   const base = opts.basePath.endsWith("/") ? opts.basePath : `${opts.basePath}/`;
   const fragments = new Map<string, BrowserFragment>();
+  // Fragments disabled in this tab: known to the router (503), loaded in no shard.
+  const disabled = new Map<string, BrowserFragment>();
+  // Every fragment this tab knows, in the order it was added, with its state.
+  const states = new Map<string, FragmentState>();
+
+  /** Tells the ServiceWorker this tab's table, and waits until it has it. */
+  const announce = async (fragmentsOf: FragmentTable["fragments"] = Object.fromEntries(states)) => {
+    const sw = await opts.serviceWorker();
+    const { port1, port2 } = new MessageChannel();
+    const acked = new Promise<void>((resolve) => {
+      port1.onmessage = () => resolve();
+      setTimeout(resolve, 2_000); // an older router never answers
+    });
+    sw.postMessage(
+      {
+        type: FRAGMENT_TABLE,
+        fragments: fragmentsOf,
+        ...(opts.peerId ? { peerId: opts.peerId } : {}),
+      } satisfies FragmentTable,
+      [port2],
+    );
+    await acked;
+    port1.close();
+  };
+  const onNeedTable = (e: MessageEvent) => {
+    if (e.data?.type === NEED_FRAGMENT_TABLE) void announce().catch(() => {});
+  };
+  navigator.serviceWorker.addEventListener("message", onNeedTable);
   // Per running worker, each fragment's load as it was sent: set at once, so a fragment is sent
   // once, and a removal waits for a load still in flight.
   const workers = new Map<number, { worker: Worker; held: Map<string, Promise<string[]>> }>();
@@ -155,13 +204,13 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
     },
   });
 
-  return {
+  const pool: FragmentTabs = {
     ...tabs,
-    ids: () => [...fragments.keys()],
+    ids: () => [...states.keys()],
     async add(id, fragment) {
       if (!FRAGMENT_ID.test(id))
         throw new Error(`"${id}" is not a fragment id: lowercase letters, digits, ".", "_", "-"`);
-      if (fragments.has(id)) throw new Error(`"${id}" is already on this host`);
+      if (fragments.has(id) || disabled.has(id)) throw new Error(`"${id}" is already on this host`);
       checkEntry(id, fragment);
       fragments.set(id, fragment);
       const running = [...workers.values()];
@@ -178,27 +227,82 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
         }
         throw (failed as PromiseRejectedResult).reason;
       }
+      // Removed or disabled while it loaded: that wins (the shards let it go already).
+      if (fragments.get(id) !== fragment)
+        throw new Error(`"${id}" was removed or disabled while it was being added`);
+      states.set(id, "enabled");
+      await announce();
       // With no shard running in this tab yet, a shard that loads it later warns what is unsupported.
       const first = results[0];
       return { unsupported: first?.status === "fulfilled" ? first.value : [] };
     },
+    state: (id) => states.get(id),
     async remove(id) {
-      if (!fragments.delete(id)) return;
-      for (const w of [...workers.values()]) {
-        const loading = w.held.get(id);
-        if (!loading) continue;
-        w.held.delete(id);
-        // A load still in flight finishes first (the worker takes messages in order anyway).
-        if (
-          !(await loading.then(
-            () => true,
-            () => false,
-          ))
-        )
-          continue;
-        const answer = await ask(w.worker, { type: FRAGMENT_REMOVE, id });
-        if (!answer.ok) throw new Error(answer.error);
+      if (disabled.delete(id)) {
+        states.delete(id);
+        await announce();
+        return;
+      }
+      if (!fragments.has(id)) return;
+      // Unrouted first (404 from the router), then stopped.
+      states.delete(id);
+      await announce();
+      await unload(id);
+    },
+    async disable(id) {
+      const fragment = fragments.get(id);
+      if (!fragment) {
+        if (disabled.has(id)) return;
+        throw new Error(`"${id}" is not on this host`);
+      }
+      // Unrouted first (503 from the router), then stopped.
+      disabled.set(id, fragment);
+      states.set(id, "disabled");
+      await announce();
+      await unload(id);
+    },
+    async enable(id) {
+      const fragment = disabled.get(id);
+      if (!fragment) {
+        if (fragments.has(id)) return { unsupported: [] };
+        throw new Error(`"${id}" is not on this host`);
+      }
+      disabled.delete(id);
+      states.delete(id);
+      try {
+        return await pool.add(id, fragment);
+      } catch (err) {
+        disabled.set(id, fragment);
+        states.set(id, "disabled");
+        await announce().catch(() => {});
+        throw err;
       }
     },
+    async close() {
+      navigator.serviceWorker.removeEventListener("message", onNeedTable);
+      await announce(null).catch(() => {});
+      await tabs.close();
+    },
   };
+  return pool;
+
+  /** Stops a fragment in the shards this tab runs. */
+  async function unload(id: string): Promise<void> {
+    if (!fragments.delete(id)) return;
+    for (const w of [...workers.values()]) {
+      const loading = w.held.get(id);
+      if (!loading) continue;
+      w.held.delete(id);
+      // A load still in flight finishes first (the worker takes messages in order anyway).
+      if (
+        !(await loading.then(
+          () => true,
+          () => false,
+        ))
+      )
+        continue;
+      const answer = await ask(w.worker, { type: FRAGMENT_REMOVE, id });
+      if (!answer.ok) throw new Error(answer.error);
+    }
+  }
 }

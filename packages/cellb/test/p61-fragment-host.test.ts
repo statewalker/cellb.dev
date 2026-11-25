@@ -178,3 +178,63 @@ describe("the storage layout", () => {
     expect(n.n).toBe(2);
   });
 });
+
+// statewalker-root#259: a disabled fragment answers 503 and an unknown one 404 without waking a
+// DO, and `/peers/{self}/…` is `/…`.
+describe("disabled fragments and the host's own peer path", () => {
+  test("a disabled fragment answers 503 without waking its DO; enabled again, it counts on", async () => {
+    // On disk: enabling loads the project again, and its cells must still be there.
+    const host = track(createFragmentHost({ data: tmp("cellb-disable-") }));
+    await host.add("org.example.alpha", ALPHA);
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 1 });
+    await host.disable("org.example.alpha");
+    expect(host.state("org.example.alpha")).toBe("disabled");
+    expect(host.ids()).toEqual(["org.example.alpha"]);
+    expect(host.project("org.example.alpha")).toBeUndefined();
+    for (let i = 0; i < 3; i++) {
+      const res = await host.fetch(req("/fragments/org.example.alpha/x"));
+      expect(res.status).toBe(503);
+      expect(await res.text()).toBe('fragment "org.example.alpha" is disabled');
+    }
+    expect((await host.fetch(req("/fragments/org.example.nope/x"))).status).toBe(404);
+    await host.enable("org.example.alpha");
+    expect(host.state("org.example.alpha")).toBe("enabled");
+    // Its DO saw none of the 503s.
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 2 });
+    // Removed: unknown.
+    await host.disable("org.example.alpha");
+    await host.remove("org.example.alpha");
+    expect(host.state("org.example.alpha")).toBeUndefined();
+    expect((await host.fetch(req("/fragments/org.example.alpha/x"))).status).toBe(404);
+    await expect(host.enable("org.example.alpha")).rejects.toThrow("not on this host");
+  });
+
+  test("/peers/{self}/fragments/{id}/… answers as /fragments/{id}/…; another peer's does not", async () => {
+    const host = track(createFragmentHost({ peerId: "peer-self" }));
+    await host.add("org.example.alpha", ALPHA);
+    const direct = await json(host, "/fragments/org.example.alpha/notes/1");
+    const viaPeer = await json(host, "/peers/peer-self/fragments/org.example.alpha/notes/1");
+    expect(viaPeer).toMatchObject({ n: 2, path: "/notes/1", id: direct.id });
+    expect((await host.fetch(req("/peers/peer-other/fragments/org.example.alpha/x"))).status).toBe(
+      404,
+    );
+  });
+});
+
+// The merge gate's pass 1 on #248 (H1): a disable that comes while an enable loads wins.
+describe("a disable during an enable", () => {
+  test("cancels the enable: the fragment stays disabled", async () => {
+    const host = track(createFragmentHost({ data: tmp("cellb-disable-race-") }));
+    await host.add("org.example.alpha", ALPHA);
+    await host.disable("org.example.alpha");
+    const enabling = host.enable("org.example.alpha");
+    await host.disable("org.example.alpha");
+    await expect(enabling).rejects.toThrow(/disabled/);
+    expect(host.state("org.example.alpha")).toBe("disabled");
+    expect(host.project("org.example.alpha")).toBeUndefined();
+    expect((await host.fetch(req("/fragments/org.example.alpha/x"))).status).toBe(503);
+    // And it can be enabled again afterwards.
+    await host.enable("org.example.alpha");
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ label: "alpha" });
+  });
+});

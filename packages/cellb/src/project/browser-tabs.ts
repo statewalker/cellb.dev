@@ -30,7 +30,16 @@ import { H } from "../transport/cells-link.js";
 import { SW_SOCKET } from "../ws/sw-connector.js";
 import { applyWorkerCookies, withPageCookies } from "./browser-cookies.js";
 import type { BrowserBucket, BrowserProjectOptions } from "./browser-host.js";
-import { INTERNAL_ORIGIN, TAB_INIT, type TabShardInit } from "./browser-tab-protocol.js";
+import {
+  FRAGMENT_TABLE,
+  FRAGMENTS_KEY,
+  type FragmentState,
+  type FragmentTable,
+  INTERNAL_ORIGIN,
+  NEED_FRAGMENT_TABLE,
+  TAB_INIT,
+  type TabShardInit,
+} from "./browser-tab-protocol.js";
 
 /** The ServiceWorker asks a project's tabs to attach their shards again (a host page's wait). */
 const NEED_LINKS = "cellb:need-links";
@@ -478,6 +487,8 @@ export function installProjectRouter(
     { name, prefix }: { name: string; prefix: string },
     req: Request,
     root: boolean,
+    /** The url to serve it at, when not the request's own (a `/peers/<self>/…` request). */
+    at: string = req.url,
   ): Promise<Response> => {
     try {
       // A project no tab has ever served is not the router's: the page's own request goes to the
@@ -487,10 +498,10 @@ export function installProjectRouter(
       if (!dispatcher.serves(name)) return await fetch(req);
       const headers = await withPageCookies(
         sw,
-        new Request(req.url, { headers: routed(req, prefix, root) }),
+        new Request(at, { headers: routed(req, prefix, root) }),
       );
       const res = await dispatcher.dispatch(
-        new Request(req.url, {
+        new Request(at, {
           method: req.method,
           headers,
           body: req.body,
@@ -506,13 +517,128 @@ export function installProjectRouter(
     }
   };
 
+  // The fragment host's tables (#259), per tab: which fragments exist, enabled or disabled, and
+  // the origin's own peer id. With none (no tab told it yet), fragments are routed as before.
+  const tables = new Map<string, { fragments: Record<string, FragmentState>; peerId?: string }>();
+  // The tabs that told it their table since this worker started, and what waits for more.
+  const heard = new Set<string>();
+  let tableWaiters: (() => void)[] = [];
+  let collected: Promise<void> | undefined;
+  const peerIds = () => new Set([...tables.values()].flatMap((t) => (t.peerId ? [t.peerId] : [])));
+
+  /** The fragment's state as the tabs see it: enabled anywhere wins; unknown everywhere is absent. */
+  const fragmentState = (id: string): FragmentState | "absent" => {
+    let disabled = false;
+    for (const t of tables.values()) {
+      if (t.fragments[id] === "enabled") return "enabled";
+      if (t.fragments[id] === "disabled") disabled = true;
+    }
+    return disabled ? "disabled" : "absent";
+  };
+
+  /**
+   * Once per worker start (a restarted worker has no tables): asks every tab for its table and
+   * waits until each window answered, or `ms`. A decision taken from the first table alone would
+   * hide the fragments of the tabs that answer later.
+   */
+  const collectTables = (ms = 500): Promise<void> =>
+    (collected ??= (async () => {
+      const clients = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const want = clients.map((c) => c.id);
+      const all = new Promise<void>((resolve) => {
+        const check = () => {
+          if (want.every((id) => heard.has(id))) resolve();
+          else tableWaiters.push(check);
+        };
+        check();
+      });
+      for (const c of clients) c.postMessage({ type: NEED_FRAGMENT_TABLE });
+      await Promise.race([all, new Promise((r) => setTimeout(r, ms))]);
+    })());
+
+  /** The tables, collected first after a start; false when no tab has one (route as before). */
+  const awaitTables = async (): Promise<boolean> => {
+    await collectTables();
+    return tables.size > 0;
+  };
+
+  /**
+   * `<base>peers/<self>/<rest>` → `<base><rest>`: the origin's own peer answers as itself. Another
+   * peer's path is not the router's (the HTTPeers gateway's).
+   */
+  const ownPeerPath = (url: URL): URL | undefined => {
+    const peers = `${base}peers/`;
+    if (url.origin !== sw.location.origin || !url.pathname.startsWith(peers)) return undefined;
+    const rest = url.pathname.slice(peers.length);
+    const slash = rest.indexOf("/");
+    if (slash < 0) return undefined;
+    let peer: string;
+    try {
+      peer = decodeURIComponent(rest.slice(0, slash));
+    } catch {
+      return undefined;
+    }
+    if (!peerIds().has(peer)) return undefined;
+    const own = new URL(url);
+    own.pathname = `${base}${rest.slice(slash + 1)}`;
+    return own;
+  };
+
+  const text = (status: number, message: string) =>
+    new Response(message, { status, headers: { "content-type": "text/plain" } });
+
+  /**
+   * A fragment request the router answers itself (404 or 503) when the tabs' tables say so, without
+   * waking a shard; undefined to dispatch it.
+   */
+  const fragmentAnswer = async (path: string): Promise<Response | undefined> => {
+    if (!(await awaitTables())) return undefined;
+    const slash = path.indexOf("/", 1);
+    let id: string;
+    try {
+      id = decodeURIComponent(slash < 0 ? path.slice(1) : path.slice(1, slash));
+    } catch {
+      return text(404, "cellb: not a fragment id");
+    }
+    const state = fragmentState(id);
+    if (state === "enabled") return undefined;
+    return state === "disabled"
+      ? text(503, `cellb: fragment "${id}" is disabled`)
+      : text(404, `cellb: no fragment "${id}" on this host`);
+  };
+
   sw.addEventListener("fetch", (e: FetchEvent) => {
     const req = e.request;
-    const url = new URL(req.url);
+    const asked = new URL(req.url);
+    // Under `<base>peers/`: whether it is this origin's own peer is known from the tables only,
+    // so they are collected first (a restarted worker has none); another peer's goes on as it is.
+    if (asked.origin === sw.location.origin && asked.pathname.startsWith(`${base}peers/`)) {
+      e.respondWith(
+        collectTables().then(() => {
+          const own = ownPeerPath(asked);
+          const project = own && split(own);
+          if (!own || !project) return fetch(req);
+          if (project.name !== FRAGMENTS_KEY) return serve(project, req, false, own.href);
+          return fragmentAnswer(project.path).then(
+            (answer) => answer ?? serve(project, req, false, own.href),
+          );
+        }),
+      );
+      return;
+    }
+    const url = asked;
     const root = atRoot(url);
     if (!root && req.mode === "navigate") return; // the pages under basePath are the host's
     const project = split(url);
     if (!project) return;
+    if (!root && project.name === FRAGMENTS_KEY) {
+      e.respondWith(
+        fragmentAnswer(project.path).then(
+          (answer) => answer ?? serve(project, req, root, url.href),
+        ),
+      );
+      return;
+    }
     const hostPage = root && req.mode === "navigate" ? opts.root?.hostPage : undefined;
     if (hostPage)
       e.respondWith(
@@ -525,13 +651,32 @@ export function installProjectRouter(
               ),
         ),
       );
-    else e.respondWith(serve(project, req, root));
+    else e.respondWith(serve(project, req, root, url.href));
   });
 
   // A page's socket (`serviceWorkerConnector`): routed as a fetch would be, without the page's
   // headers.
   sw.addEventListener("message", (e: ExtendableMessageEvent) => {
     const m = e.data;
+    if (m?.type === FRAGMENT_TABLE) {
+      const from = (e.source as { id?: string } | null)?.id ?? "";
+      heard.add(from);
+      const t = m as FragmentTable;
+      if (t.fragments === null) tables.delete(from);
+      else tables.set(from, { fragments: { ...t.fragments }, peerId: t.peerId });
+      // Tabs gone without leaving (a crash) are forgotten.
+      e.waitUntil(
+        sw.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+          const live = new Set(clients.map((c) => c.id));
+          for (const id of [...tables.keys()]) if (!live.has(id)) tables.delete(id);
+        }),
+      );
+      const waiting = tableWaiters;
+      tableWaiters = [];
+      for (const w of waiting) w();
+      e.ports[0]?.postMessage({ ok: true });
+      return;
+    }
     if (m?.type !== SOCKET) return;
     const reply = e.ports[0];
     e.waitUntil(

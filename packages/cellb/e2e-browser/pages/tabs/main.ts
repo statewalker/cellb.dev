@@ -150,9 +150,10 @@ serviceWorker().then(
 // /tabs/app/fragments/<id>/…, through the same ServiceWorker router.
 let fragmentTabs: FragmentTabs | undefined;
 Object.assign(window, {
-  __joinFragments: async (job: { shards: number }) => {
+  __joinFragments: async (job: { shards: number; peerId?: string }) => {
     fragmentTabs = await joinFragmentShards({
       shards: job.shards,
+      ...(job.peerId ? { peerId: job.peerId } : {}),
       basePath: "/tabs/app/",
       spawn: () =>
         new Worker(new URL("./fragment-shard-worker.ts", import.meta.url), { type: "module" }),
@@ -165,6 +166,8 @@ Object.assign(window, {
   __addFragment: async (job: { id: string; config: WranglerConfig; code: string }) =>
     fragmentTabs?.add(job.id, { config: job.config, code: { bundle: job.code } }),
   __removeFragment: (id: string) => fragmentTabs?.remove(id),
+  __disableFragment: (id: string) => fragmentTabs?.disable(id),
+  __enableFragment: (id: string) => fragmentTabs?.enable(id),
   __fragmentIds: () => fragmentTabs?.ids() ?? [],
   __leaveFragments: () => fragmentTabs?.close(),
 });

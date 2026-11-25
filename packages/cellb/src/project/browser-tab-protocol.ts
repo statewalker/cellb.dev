@@ -71,3 +71,22 @@ export interface FragmentShardAdd {
   /** The Durable Object binding of its fragment DO (default: FRAGMENT, or the only one). */
   entry?: string;
 }
+
+/**
+ * A tab tells the ServiceWorker its fragment table (#259): the fragments it knows, enabled or
+ * disabled, and the peer id this origin answers to. `fragments: null`: the tab leaves. The router
+ * answers 404 for a fragment no tab knows and 503 for one that is disabled everywhere, itself,
+ * without waking a shard; `<basePath>peers/<peerId>/…` is served as `<basePath>…`.
+ */
+export const FRAGMENT_TABLE = "cellb:fragment-table";
+/** The ServiceWorker asks the tabs for their fragment tables (it started with none). */
+export const NEED_FRAGMENT_TABLE = "cellb:need-fragment-table";
+
+export type FragmentState = "enabled" | "disabled";
+
+export interface FragmentTable {
+  type: typeof FRAGMENT_TABLE;
+  fragments: Record<string, FragmentState> | null;
+  /** This origin's own peer id: `/peers/<peerId>/…` is `/…`. */
+  peerId?: string;
+}
