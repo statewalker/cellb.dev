@@ -1,0 +1,10 @@
+// A fragment that others bind to (statewalker/cellb.dev#192): its `Api` entrypoint and its default
+// export are the targets of the service bindings of `delta`.
+{
+  "name": "fragment",
+  "main": "worker.js",
+  "compatibility_date": "2025-06-01",
+  "vars": { "LABEL": "gamma" },
+  "durable_objects": { "bindings": [{ "name": "FRAGMENT", "class_name": "Fragment" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fragment"] }]
+}

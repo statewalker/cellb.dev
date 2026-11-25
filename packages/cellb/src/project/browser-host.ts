@@ -20,6 +20,7 @@ import { installAsyncContext } from "../node-compat/async_hooks.js";
 import { installNodeGlobals } from "../node-compat/install.js";
 import { browserModuleLoader } from "./browser-modules.js";
 import * as workersModule from "./cloudflare-workers.js";
+import type { ServiceResolver } from "./service-bindings.js";
 import { siteModuleLoader, workersHostRegistry } from "./site-loader.js";
 import { type WorkerScope, workerScope } from "./worker-scope.js";
 import * as workersGlobals from "./workers-globals-module.js";
@@ -137,6 +138,11 @@ export interface BrowserProjectOptions {
    * one runtime per worker and `shardOf` as the placement, cells run in parallel threads.
    */
   route?: CellRuntimeOptions["route"];
+  /**
+   * Where the projects its `services` to other scripts name run, asked per call (the fragment
+   * host's shards give it, #192); without it such bindings are reported unsupported.
+   */
+  services?: ServiceResolver;
   /**
    * On an `ltx` bucket shared by several runtimes (the shards of one project): a name that keeps
    * this runtime's own databases (`__cellb/alarms`, `__cellb/cron`) apart from the other
@@ -363,6 +369,7 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       : undefined,
     storage: shared, // R2 objects in the fleet bucket too, as celld keeps them
     route: opts.route,
+    services: opts.services,
     ai: opts.ai,
     containers: opts.containers,
   });

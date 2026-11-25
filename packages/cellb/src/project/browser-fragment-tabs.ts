@@ -35,6 +35,13 @@ export interface FragmentTabsOptions
   spawn: (shard: number) => Worker;
   /** The ServiceWorker router's `basePath`: fragments are served at `<basePath>fragments/<id>/`. */
   basePath: string;
+  /**
+   * Where fragments this host does not serve are (#192): a service binding to one of them goes
+   * there over HTTP, from the shard. Unlisted fragments are local.
+   */
+  routes?: FragmentShardInit["routes"];
+  /** The origin of the HTTPeers gateway serving `/peers/{peerId}/…`, for `peer:` routes. */
+  peers?: string;
 }
 
 export interface FragmentTabs extends ProjectTabs {
@@ -128,6 +135,8 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
         shard,
         shards: opts.shards,
         prefix: `${base}${FRAGMENTS_KEY}/`,
+        ...(opts.routes ? { routes: opts.routes } : {}),
+        ...(opts.peers ? { peers: opts.peers } : {}),
       } satisfies FragmentShardInit);
       if (!started.ok) return started;
       // Every fragment before the router can send it a request.

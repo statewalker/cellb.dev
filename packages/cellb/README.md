@@ -205,6 +205,34 @@ await fetch("/fragments/org.example.notes/list");
 await pool.remove("org.example.notes"); // its data is kept
 ```
 
+**Service bindings between fragments** (#192). A project's `services: [{ binding, service,
+entrypoint?, props? }]` naming another fragment of the host (by its id) is a working binding,
+`fetch` and JS RPC, on Node and in a browser. Where a call runs follows the target's fragment DO:
+on the caller's shard it is JS RPC in the runtime, on another shard a request through the router
+(MessagePorts), and on another host, by the route table the host is given, HTTP to
+`<url>/fragments/{id}/` or to `/peers/{peerId}/fragments/{id}/` through an HTTPeers gateway:
+
+```ts
+const a = createFragmentHost({
+  routes: { "org.example.search": { host: "peer:peer-b" } }, // unlisted fragments are local
+  remote: { peers: "https://gateway.example", fetch: meshFetch },
+});
+// on peer-b, behind its authenticated link: entrypoint calls and the fragments' fetch
+const b = createFragmentHost({ peerId: "peer-b" });
+serveAuthenticatedLink((request) => b.serveLink(request));
+```
+
+Contracts between fragments carry only structured-cloneable values and streams, in every
+placement, so a binding behaves the same when a fragment moves: a function, an `RpcTarget`, a stub
+or a `Request` in an argument or a result fails with a `DataCloneError` naming the call
+(`services[API] → "org.example.search" Api.find(): the arguments[0].cb is a function; …`), and
+at most one `ReadableStream` crosses per call and per answer. A binding is resolved at each call:
+it works once its target is added, and a call while the target or the caller is not active
+(removed, never added, or a host that cannot be reached) fails at once with
+`ServiceUnavailableError`. `host.fetch` never runs entrypoint calls; `serveLink` does, so mount it
+only where the peer is authenticated. `durable_objects.bindings[].script_name` stays unsupported:
+a fragment reaches another's objects through its entrypoint.
+
 One thing is still shared on Node: with `nodejs_compat`, a project's text vars land in the process's
 `process.env` (Node shares its real process with the Worker), so a project reading
 `process.env.X` may see another project's value. `env.X` is always the project's own.

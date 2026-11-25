@@ -40,6 +40,13 @@ export { type FilesRpcOptions, rpcFilesClient, serveFilesApi } from "./ltx/files
 export * from "./ports.js";
 export { parseJsonc } from "./project/jsonc.js";
 export {
+  type ServiceBindingConfig,
+  type ServicePlacement,
+  type ServiceResolver,
+  ServiceUnavailableError,
+  serviceBinding,
+} from "./project/service-bindings.js";
+export {
   createProjectRuntime,
   loadProjectBindings,
   type ProjectBindings,

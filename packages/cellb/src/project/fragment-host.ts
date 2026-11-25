@@ -20,7 +20,14 @@ import {
   type LoadedProject,
   type ProjectSource,
 } from "./built-project.js";
+import { type FragmentRoutes, hostOf, linkTo, remoteBase } from "./fragment-routes.js";
 import { loadProject, localDir, type NodeLoadProjectOptions } from "./node-load.js";
+import {
+  isServiceCall,
+  type ServicePlacement,
+  type ServiceResolver,
+  serveServiceCall,
+} from "./service-bindings.js";
 
 /**
  * A fragment id: a path segment of lowercase letters, digits, `.`, `_` and `-`, at most 128
@@ -34,12 +41,28 @@ export const FRAGMENTS_PREFIX = "/fragments/";
 /** The Durable Object binding taken as a project's fragment DO when it names none. */
 export const FRAGMENT_BINDING = "FRAGMENT";
 
-export interface FragmentHostOptions extends Omit<NodeLoadProjectOptions, "data" | "bucket"> {
+export interface FragmentHostOptions
+  extends Omit<NodeLoadProjectOptions, "data" | "bucket" | "services"> {
   /**
    * Where the fragments keep their data: each one under `<data>/fragments/<id>/`. Default:
    * memory, each project its own.
    */
   readonly data?: string;
+  /**
+   * Where fragments this host does not serve are (#192): a project's service binding to one of
+   * them goes there over HTTP. Read at each call, so a function may answer from a table that
+   * changes. Default: every fragment is local.
+   */
+  readonly routes?: FragmentRoutes;
+  /** How service calls reach other hosts. */
+  readonly remote?: {
+    /** Sends a request to another host. Default: `fetch`. */
+    readonly fetch?: (request: Request) => Promise<Response>;
+    /** The origin of the HTTPeers gateway that serves `/peers/{peerId}/…`, for `peer:` routes. */
+    readonly peers?: string;
+  };
+  /** This host's peer id: `serveLink` answers `/peers/{peerId}/fragments/…` as `/fragments/…`. */
+  readonly peerId?: string;
 }
 
 export interface AddFragmentOptions {
@@ -78,6 +101,12 @@ export interface FragmentHost {
    * other path.
    */
   fetch(request: Request): Promise<Response>;
+  /**
+   * What another host's service bindings call (#192): `fetch`, plus the calls to the fragments'
+   * entrypoints that service bindings send. Mount it only behind an authenticated link (HTTPeers
+   * checks the peer's capability): it runs the methods of every fragment's entrypoints.
+   */
+  serveLink(request: Request): Promise<Response>;
   /** Remove every fragment. */
   close(): Promise<void>;
 }
@@ -96,8 +125,44 @@ async function isBuilt(source: ProjectSource): Promise<boolean> {
 const notFound = (message: string) =>
   new Response(message, { status: 404, headers: { "content-type": "text/plain" } });
 
+const unavailable = (reason: string): ServicePlacement => ({ kind: "unavailable", reason });
+
+/** `/fragments/{id}/{path}` → the id and `/{path}`; undefined for any other path. */
+function fragmentPath(pathname: string): { id: string; path: string } | undefined {
+  if (!pathname.startsWith(FRAGMENTS_PREFIX)) return undefined;
+  const rest = pathname.slice(FRAGMENTS_PREFIX.length);
+  const slash = rest.indexOf("/");
+  try {
+    const id = decodeURIComponent(slash < 0 ? rest : rest.slice(0, slash));
+    return { id, path: slash < 0 ? "/" : rest.slice(slash) };
+  } catch {
+    return undefined;
+  }
+}
+
 export function createFragmentHost(options: FragmentHostOptions = {}): FragmentHost {
-  const { data, ...loadOptions } = options;
+  const { data, routes, remote, peerId, ...loadOptions } = options;
+
+  /** Where the service bindings of the fragment `caller` find `service`, at each call. */
+  const servicesOf =
+    (caller: string): ServiceResolver =>
+    (service) => {
+      if (closed || !loaded.has(caller))
+        return unavailable(`the calling fragment "${caller}" is not active`);
+      const host = hostOf(routes, service);
+      if (host === "local") {
+        const held = loaded.get(service);
+        return held
+          ? { kind: "runtime", runtime: held.project.runtime }
+          : unavailable(`no fragment "${service}" is active on this host`);
+      }
+      const base = remoteBase(host, service, remote?.peers);
+      if (!base)
+        return unavailable(
+          `fragment "${service}" is at ${host}, and this host has no way there (remote.peers)`,
+        );
+      return { kind: "link", send: linkTo(base, remote?.fetch ?? ((r) => fetch(r))) };
+    };
   const loaded = new Map<string, { fragment: HostedFragment; project: LoadedProject }>();
   // Adds in flight, by id: a remove or a close during one cancels it (it closes its project).
   const adding = new Map<string, { cancelled?: string; done: Promise<unknown> }>();
@@ -135,6 +200,7 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
       );
     const project = await loadProject(source, {
       ...loadOptions,
+      services: servicesOf(id),
       ...(data !== undefined ? { data: join(data, "fragments", id) } : {}),
     });
     // The project's own bindings, as its configuration declares them: not the runtime's hidden
@@ -182,29 +248,37 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
     await held.project.close();
   }
 
+  async function fetchFragment(request: Request, pathname: string): Promise<Response> {
+    if (!pathname.startsWith(FRAGMENTS_PREFIX) && pathname !== "/fragments")
+      return notFound("not a fragment path");
+    const target = fragmentPath(pathname);
+    if (!target) return notFound("not a fragment id");
+    const held = loaded.get(target.id);
+    if (!held) return notFound(`no fragment "${target.id}" on this host`);
+    const url = new URL(request.url);
+    const forwarded = new URL(target.path, url);
+    forwarded.search = url.search;
+    const ns = held.project.runtime.env[held.fragment.entry] as DurableObjectNamespace;
+    return ns.get(ns.idFromName(target.id)).fetch(new Request(forwarded, request));
+  }
+
   return {
     add,
     remove,
     ids: () => [...loaded.keys()],
     project: (id) => loaded.get(id)?.fragment,
-    async fetch(request) {
-      const url = new URL(request.url);
-      if (!url.pathname.startsWith(FRAGMENTS_PREFIX) && url.pathname !== "/fragments")
-        return notFound("not a fragment path");
-      const rest = url.pathname.slice(FRAGMENTS_PREFIX.length);
-      const slash = rest.indexOf("/");
-      let id: string;
-      try {
-        id = decodeURIComponent(slash < 0 ? rest : rest.slice(0, slash));
-      } catch {
-        return notFound("not a fragment id");
-      }
-      const held = loaded.get(id);
-      if (!held) return notFound(`no fragment "${id}" on this host`);
-      const forwarded = new URL(slash < 0 ? "/" : rest.slice(slash), url);
-      forwarded.search = url.search;
-      const ns = held.project.runtime.env[held.fragment.entry] as DurableObjectNamespace;
-      return ns.get(ns.idFromName(id)).fetch(new Request(forwarded, request));
+    fetch: (request) => fetchFragment(request, new URL(request.url).pathname),
+    async serveLink(request) {
+      let { pathname } = new URL(request.url);
+      const self = peerId !== undefined ? `/peers/${encodeURIComponent(peerId)}/` : undefined;
+      if (self && pathname.startsWith(self)) pathname = pathname.slice(self.length - 1);
+      if (!isServiceCall(request)) return fetchFragment(request, pathname);
+      const target = fragmentPath(pathname);
+      return serveServiceCall(
+        request,
+        target && loaded.get(target.id)?.project.runtime,
+        `no fragment "${target?.id ?? ""}" is active on this host`,
+      );
     },
     async close() {
       closed = true;
