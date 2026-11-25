@@ -4,6 +4,7 @@
 import { existsSync, mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { buildProject, createFragmentHost, loadProject } from "@statewalker/cellb/node";
 import { afterEach, describe, expect, test } from "vitest";
 
@@ -69,6 +70,8 @@ describe("the fragment host on Node", () => {
     await host.add("org.example.alpha", ALPHA);
     expect((await host.fetch(req("/fragments/org.example.nope/x"))).status).toBe(404);
     expect((await host.fetch(req("/elsewhere"))).status).toBe(404);
+    // A malformed escape is a fragment it does not hold, not an error.
+    expect((await host.fetch(req("/fragments/%E0/x"))).status).toBe(404);
   });
 
   test("reports a project's unsupported bindings for that project only", async () => {
@@ -100,6 +103,9 @@ describe("the fragment host on Node", () => {
     await host.add("org.example.alpha", ALPHA);
     await expect(host.add("org.example.alpha", BETA)).rejects.toThrow(/already/);
     await expect(host.add("../escape", BETA)).rejects.toThrow(/id/);
+    // Ids are lowercase: two that differ in case would share a data directory on a
+    // case-insensitive filesystem.
+    await expect(host.add("org.example.Beta", BETA)).rejects.toThrow(/id/);
   });
 
   test("names its entry binding when the project has no FRAGMENT binding", async () => {
@@ -115,6 +121,28 @@ describe("the fragment host on Node", () => {
     await buildProject(ALPHA, out);
     const host = track(createFragmentHost());
     await expect(host.add("org.example.alpha", out)).rejects.toThrow(/source/);
+    // However it is named: a file: URL string or URL, or an http(s) URL (always a built folder).
+    await expect(host.add("org.example.a1", pathToFileURL(out).href)).rejects.toThrow(/source/);
+    await expect(host.add("org.example.a2", pathToFileURL(out))).rejects.toThrow(/source/);
+    await expect(host.add("org.example.a3", "https://example.org/built/")).rejects.toThrow(
+      /source/,
+    );
+    // A source folder named by a file: URL is a source folder.
+    await host.add("org.example.alpha", pathToFileURL(ALPHA));
+    expect(host.ids()).toEqual(["org.example.alpha"]);
+  });
+
+  test("a remove or a close during an add wins: the project does not stay running", async () => {
+    const host = track(createFragmentHost());
+    const adding = host.add("org.example.alpha", ALPHA);
+    await host.remove("org.example.alpha");
+    await expect(adding).rejects.toThrow(/removed/);
+    expect(host.ids()).toEqual([]);
+    const again = host.add("org.example.beta", BETA);
+    await host.close();
+    await expect(again).rejects.toThrow(/closed|removed/);
+    expect(host.ids()).toEqual([]);
+    await expect(host.add("org.example.alpha", ALPHA)).rejects.toThrow(/closed/);
   });
 });
 

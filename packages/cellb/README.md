@@ -184,7 +184,12 @@ await host.remove("org.example.notes"); // stops its objects; its data is kept
 
 A single-project host's data at the top of `data` is never touched by the fragment host. Built
 folders (`cellb build`) are refused: their bundle reads the process's globals, so only one runs per
-process. Add a fragment's source folder instead.
+process. Add a fragment's source folder instead. Fragment ids are lowercase path segments
+(`org.example.notes`).
+
+One thing is still shared: with `nodejs_compat`, a project's text vars land in the process's
+`process.env` (Node shares its real process with the Worker), so a project reading
+`process.env.X` may see another project's value. `env.X` is always the project's own.
 
 ### A wrangler project over several worker threads
 
