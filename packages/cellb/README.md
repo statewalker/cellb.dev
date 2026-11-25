@@ -205,6 +205,7 @@ await fetch("/fragments/org.example.notes/list");
 await pool.remove("org.example.notes"); // its data is kept
 ```
 
+<<<<<<< HEAD
 **Disabled and unknown fragments, and the host's own peer path** (statewalker-root#259).
 `host.disable(id)` stops a fragment and keeps it known: its requests answer 503 and bindings to it
 are unavailable, without waking its DO, until `host.enable(id)` loads it again from the source it
@@ -215,6 +216,8 @@ answers 404. With `createFragmentHost({ peerId })`, `/peers/{peerId}/fragments/{
 answers 404 and 503 itself, without waking a shard, and serves `<basePath>peers/<peerId>/…` as
 `<basePath>…`.
 
+=======
+>>>>>>> origin/main
 **Service bindings between fragments** (#192). A project's `services: [{ binding, service,
 entrypoint?, props? }]` naming another fragment of the host (by its id) is a working binding,
 `fetch` and JS RPC, on Node and in a browser. Where a call runs follows the target's fragment DO:
