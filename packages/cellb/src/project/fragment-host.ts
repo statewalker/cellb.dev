@@ -137,12 +137,17 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
       ...loadOptions,
       ...(data !== undefined ? { data: join(data, "fragments", id) } : {}),
     });
-    const bindings = project.runtime.durableObjectBindings;
-    const names = Object.keys(bindings);
+    // The project's own bindings, as its configuration declares them: not the runtime's hidden
+    // ones (KV, D1, queues and workflows are Durable Objects inside it).
+    const names = (project.config.durable_objects?.bindings ?? []).map((b) => b.name);
     const chosen =
       entry ??
-      (FRAGMENT_BINDING in bindings ? FRAGMENT_BINDING : names.length === 1 ? names[0] : undefined);
-    if (!chosen || !(chosen in bindings)) {
+      (names.includes(FRAGMENT_BINDING)
+        ? FRAGMENT_BINDING
+        : names.length === 1
+          ? names[0]
+          : undefined);
+    if (!chosen || !names.includes(chosen)) {
       await project.close();
       throw new Error(
         entry
