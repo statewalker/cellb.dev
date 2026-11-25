@@ -55,7 +55,17 @@ export function httpEndpoint(
   return {
     // Not the caller's abort signal: an aborted caller does not cancel a local object's
     // fetch() either (the object answers, nobody reads), so neither does a remote one.
-    fetch: (req) => post(addHeaders(req, { [H.kind]: "fetch", ...base }, { detach: true })),
+    fetch: (req) => {
+      // `Cookie` does not survive a rebuilt Request in a browser: it travels as H.cookie.
+      const cookie = req.headers.get("cookie");
+      return post(
+        addHeaders(
+          req,
+          { [H.kind]: "fetch", ...base, ...(cookie ? { [H.cookie]: cookie } : {}) },
+          { detach: true },
+        ),
+      ).then(restoreSetCookies);
+    },
     async call(method, args) {
       const res = await post(
         control("rpc", { ...base, [H.method]: method }, codec.encode(toAnotherNode(args))),
@@ -94,4 +104,19 @@ export function keepUpgrade(from: Request, to: Request): Request {
 
 export function withScheme(req: Request): Request {
   return addHeaders(req, { [H.proto]: new URL(req.url).protocol.replace(":", "") });
+}
+
+/**
+ * The object's Set-Cookie back on its answer, from H.setCookie (`cellsHttpHandler` carries it so:
+ * a browser drops `Set-Cookie` from every Response it builds). The headers are replaced, not the
+ * Response, so its body and status stay as they are.
+ */
+function restoreSetCookies(res: Response): Response {
+  const tunnelled = res.headers.get(H.setCookie);
+  if (tunnelled === null) return res;
+  const headers = new Headers();
+  for (const [k, v] of res.headers) if (k !== H.setCookie) headers.append(k, v);
+  for (const c of tunnelled.split(",")) if (c) headers.append("set-cookie", decodeURIComponent(c));
+  Object.defineProperty(res, "headers", { value: headers, configurable: true, enumerable: true });
+  return res;
 }

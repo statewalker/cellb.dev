@@ -93,3 +93,68 @@ test("fragments are added and removed while the pool runs; the others keep servi
   expect(await json(page, `${b}/x`)).toMatchObject({ n: 2 });
   expect((await get(page, `nope-${stamp}/x`)).status).toBe(404);
 });
+
+test("fragments added at once each keep their own module env (cloudflare:workers)", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const stamp = Date.now().toString(36);
+  const [a, b] = [`alpha-${stamp}`, `beta-${stamp}`];
+  await openPool(page, 1);
+  const [fa, fb] = [await fragment("alpha"), await fragment("beta")];
+  await page.evaluate(
+    (jobs) => Promise.all(jobs.map((j) => (window as any).__addFragment(j))),
+    [
+      { id: a, ...fa },
+      { id: b, ...fb },
+    ],
+  );
+  expect(await json(page, `${a}/modkv?put=written-by-alpha`)).toEqual({
+    own: "written-by-alpha",
+    label: "alpha",
+  });
+  expect(await json(page, `${b}/modkv`)).toEqual({ own: null, label: "beta" });
+});
+
+test("a fragment DO takes sockets and the page's cookies, and its Set-Cookie reaches the page", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== "chromium", "the router's cookies need the Cookie Store API");
+  test.setTimeout(120_000);
+  const a = `alpha-${Date.now().toString(36)}`;
+  await openPool(page, 2);
+  await add(page, a, await fragment("alpha"));
+  expect(
+    await page.evaluate((p) => (window as any).__socket("/ws", "hi", p), `fragments/${a}`),
+  ).toBe("alpha: hi");
+  expect((await get(page, `${a}/set-cookie`)).body).toBe("set");
+  await expect.poll(() => page.evaluate(() => document.cookie)).toContain("fragcookie=1");
+  expect((await get(page, `${a}/cookie`)).body).toContain("fragcookie=1");
+});
+
+test("a fragment that cannot load is refused or reported, and the others keep serving", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const stamp = Date.now().toString(36);
+  const a = `alpha-${stamp}`;
+  await openPool(page, 2);
+  const alpha = await fragment("alpha");
+  // No fragment DO: two Durable Object bindings, neither named FRAGMENT.
+  const bad = {
+    ...alpha,
+    config: {
+      ...(alpha.config as Record<string, unknown>),
+      durable_objects: {
+        bindings: [
+          { name: "ONE", class_name: "Fragment" },
+          { name: "TWO", class_name: "Fragment" },
+        ],
+      },
+    },
+  };
+  await expect(add(page, `bad-${stamp}`, bad)).rejects.toThrow(/fragment DO/);
+  await add(page, a, alpha);
+  expect(await json(page, `${a}/x`)).toMatchObject({ label: "alpha", n: 1 });
+});

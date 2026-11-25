@@ -17,8 +17,9 @@
  */
 import { serveHttpInWorker, type WorkerHttpService } from "@statewalker/webrun-http-browser/sw";
 import type { DurableObjectNamespace } from "../core/namespace.js";
-import { cellsHttpHandler } from "../transport/cells-http.js";
+import { cellsHttpHandler, servePageRequest } from "../transport/cells-http.js";
 import { CfWebSocket } from "../ws/server.js";
+import { carryWebSocketHeaders } from "../ws/upgrade.js";
 import { browserProjectRuntime } from "./browser-host.js";
 import { throughRouter, upgradeOverPort } from "./browser-shards.js";
 import {
@@ -116,8 +117,14 @@ export function serveFragmentShard(opts: {
     const forwarded = new URL(target.path, url);
     forwarded.search = url.search;
     const ns = loaded.host.runtime.env[loaded.entry] as DurableObjectNamespace;
+    const stub = ns.get(ns.idFromName(target.id));
+    // As a project's Worker gets a page's request: its cookies in, its Set-Cookie out, no control
+    // headers; its Cookie and a socket's upgrade carried onto the rebuilt request (a browser
+    // drops them from every Request it builds).
     return upgradeOverPort(
-      await ns.get(ns.idFromName(target.id)).fetch(new Request(forwarded, req)),
+      await servePageRequest(req, (inner) =>
+        stub.fetch(carryWebSocketHeaders(inner.headers, new Request(forwarded, inner))),
+      ),
     );
   }
 
@@ -158,10 +165,18 @@ export function serveFragmentShard(opts: {
     await loaded.host.close();
   }
 
-  scope.addEventListener("message", async (e: MessageEvent) => {
+  // One message at a time: loading a fragment sets the realm's `cloudflare:workers` scope and
+  // then imports its bundle, so two loads at once would give the second's scope to the first
+  // (its module `env` would be another fragment's). Removals wait for the loads before them.
+  let queue: Promise<void> = Promise.resolve();
+  scope.addEventListener("message", (e: MessageEvent) => {
     const data = e.data as { type?: string } | undefined;
     if (![FRAGMENT_SHARD_INIT, FRAGMENT_ADD, FRAGMENT_REMOVE, CLOSE].includes(data?.type ?? ""))
       return;
+    queue = queue.then(() => handle(e, data));
+  });
+
+  async function handle(e: MessageEvent, data: { type?: string } | undefined): Promise<void> {
     const reply = e.ports[0] as MessagePort;
     try {
       if (data?.type === FRAGMENT_SHARD_INIT) {
@@ -190,5 +205,5 @@ export function serveFragmentShard(opts: {
     } catch (err) {
       reply.postMessage({ ok: false, error: String((err as Error)?.stack ?? err) });
     }
-  });
+  }
 }

@@ -52,24 +52,64 @@ export interface FragmentTabs extends ProjectTabs {
 /** A fragment id: a path segment of lowercase letters, digits, `.`, `_` and `-`. */
 const FRAGMENT_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 
+/** The fragment DO binding a fragment names, refused when it has none: as the shards decide it. */
+function checkEntry(id: string, fragment: BrowserFragment): void {
+  const names = (fragment.config.durable_objects?.bindings ?? []).map((b) => b.name);
+  const chosen =
+    fragment.entry ??
+    (names.includes("FRAGMENT") ? "FRAGMENT" : names.length === 1 ? names[0] : undefined);
+  if (!chosen || !names.includes(chosen))
+    throw new Error(
+      fragment.entry
+        ? `"${id}": no Durable Object binding "${fragment.entry}"`
+        : `"${id}": no fragment DO: name its binding FRAGMENT, or give its entry`,
+    );
+}
+
 export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<FragmentTabs> {
   const base = opts.basePath.endsWith("/") ? opts.basePath : `${opts.basePath}/`;
   const fragments = new Map<string, BrowserFragment>();
-  const workers = new Map<number, { worker: Worker; held: Set<string> }>();
+  // Per running worker, each fragment's load as it was sent: set at once, so a fragment is sent
+  // once, and a removal waits for a load still in flight.
+  const workers = new Map<number, { worker: Worker; held: Map<string, Promise<string[]>> }>();
   let ask!: AskShard;
 
-  /** Loads `id` in a worker, once. */
-  const load = async (worker: Worker, held: Set<string>, id: string) => {
+  /** Loads `id` in a worker, once; its unsupported configuration. */
+  const load = (worker: Worker, held: Map<string, Promise<string[]>>, id: string) => {
+    const known = held.get(id);
+    if (known) return known;
     const fragment = fragments.get(id);
-    if (!fragment || held.has(id)) return [];
-    const answer = await ask(worker, {
+    if (!fragment) return Promise.resolve([]);
+    const loading = ask(worker, {
       type: FRAGMENT_ADD,
       id,
       ...fragment,
-    } satisfies FragmentShardAdd);
-    if (!answer.ok) throw new Error(answer.error);
-    held.add(id);
-    return answer.unsupported ?? [];
+    } satisfies FragmentShardAdd).then((answer) => {
+      if (!answer.ok) throw new Error(answer.error);
+      return answer.unsupported ?? [];
+    });
+    held.set(id, loading);
+    loading.catch(() => {
+      if (held.get(id) === loading) held.delete(id);
+    });
+    return loading;
+  };
+
+  /** Loads every fragment in a worker; one that fails is reported, and the others still load. */
+  const loadAll = async (worker: Worker, held: Map<string, Promise<string[]>>, shard: number) => {
+    for (const id of [...fragments.keys()]) {
+      try {
+        const unsupported = await load(worker, held, id);
+        if (unsupported.length)
+          console.warn(
+            `cellb: fragment ${id} (shard ${shard}): unsupported: ${unsupported.join("; ")}`,
+          );
+      } catch (err) {
+        console.error(
+          `cellb: fragment ${id} failed in shard ${shard}: ${(err as Error)?.message ?? err}`,
+        );
+      }
+    }
   };
 
   const tabs = await joinShardPool({
@@ -91,20 +131,15 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
       } satisfies FragmentShardInit);
       if (!started.ok) return started;
       // Every fragment before the router can send it a request.
-      const held = new Set<string>();
+      const held = new Map<string, Promise<string[]>>();
       workers.set(shard, { worker, held });
-      try {
-        for (const id of [...fragments.keys()]) await load(worker, held, id);
-      } catch (err) {
-        workers.delete(shard);
-        return { ok: false, error: String((err as Error)?.message ?? err) };
-      }
+      await loadAll(worker, held, shard);
       return { ok: true };
     },
     started(shard) {
       // A fragment added while the shard was starting.
       const w = workers.get(shard);
-      if (w) for (const id of fragments.keys()) void load(w.worker, w.held, id).catch(() => {});
+      if (w) void loadAll(w.worker, w.held, shard);
     },
     stopped(shard) {
       workers.delete(shard);
@@ -118,23 +153,40 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
       if (!FRAGMENT_ID.test(id))
         throw new Error(`"${id}" is not a fragment id: lowercase letters, digits, ".", "_", "-"`);
       if (fragments.has(id)) throw new Error(`"${id}" is already on this host`);
+      checkEntry(id, fragment);
       fragments.set(id, fragment);
-      try {
-        let unsupported: string[] | undefined;
-        for (const w of [...workers.values()]) {
-          const found = await load(w.worker, w.held, id);
-          unsupported ??= found;
-        }
-        return { unsupported: unsupported ?? [] };
-      } catch (err) {
+      const running = [...workers.values()];
+      const results = await Promise.allSettled(running.map((w) => load(w.worker, w.held, id)));
+      const failed = results.find((r) => r.status === "rejected");
+      if (failed) {
+        // All or nothing: the shards that loaded it let it go again.
         fragments.delete(id);
-        throw err;
+        for (const [i, r] of results.entries()) {
+          const w = running[i];
+          if (r.status !== "fulfilled" || !w) continue;
+          w.held.delete(id);
+          await ask(w.worker, { type: FRAGMENT_REMOVE, id }).catch(() => {});
+        }
+        throw (failed as PromiseRejectedResult).reason;
       }
+      // With no shard running in this tab yet, a shard that loads it later warns what is unsupported.
+      const first = results[0];
+      return { unsupported: first?.status === "fulfilled" ? first.value : [] };
     },
     async remove(id) {
       if (!fragments.delete(id)) return;
       for (const w of [...workers.values()]) {
-        if (!w.held.delete(id)) continue;
+        const loading = w.held.get(id);
+        if (!loading) continue;
+        w.held.delete(id);
+        // A load still in flight finishes first (the worker takes messages in order anyway).
+        if (
+          !(await loading.then(
+            () => true,
+            () => false,
+          ))
+        )
+          continue;
         const answer = await ask(w.worker, { type: FRAGMENT_REMOVE, id });
         if (!answer.ok) throw new Error(answer.error);
       }
