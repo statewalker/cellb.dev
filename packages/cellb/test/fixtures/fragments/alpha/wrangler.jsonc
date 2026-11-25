@@ -1,0 +1,11 @@
+// A fragment's server half (statewalker/cellb.dev#191): the same name, class and bindings as its
+// sibling, so the fragment host must keep them apart.
+{
+  "name": "fragment",
+  "main": "worker.js",
+  "compatibility_date": "2025-06-01",
+  "vars": { "LABEL": "alpha" },
+  "durable_objects": { "bindings": [{ "name": "FRAGMENT", "class_name": "Fragment" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fragment"] }],
+  "kv_namespaces": [{ "binding": "KV", "id": "shared-name" }]
+}

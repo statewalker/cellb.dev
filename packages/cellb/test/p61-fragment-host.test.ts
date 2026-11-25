@@ -1,0 +1,141 @@
+// The fragment host on Node (#191): several wrangler.jsonc projects side by side in one runtime,
+// each in its own namespace, with one fragment DO per project at idFromName(<project-id>) reached
+// at /fragments/{id}/…
+import { existsSync, mkdtempSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { buildProject, createFragmentHost, loadProject } from "@statewalker/cellb/node";
+import { afterEach, describe, expect, test } from "vitest";
+
+const PKG = resolve(import.meta.dirname, "..");
+const ALPHA = join(PKG, "test/fixtures/fragments/alpha");
+const BETA = join(PKG, "test/fixtures/fragments/beta");
+const COUNTER = join(PKG, "conformance/celld-examples/counter");
+
+const tmp = (p: string) => mkdtempSync(join(tmpdir(), p));
+const req = (path: string) => new Request(`http://localhost${path}`);
+const opened: { close(): Promise<void> }[] = [];
+const track = <T extends { close(): Promise<void> }>(p: T) => {
+  opened.push(p);
+  return p;
+};
+afterEach(async () => {
+  for (const p of opened.splice(0)) await p.close();
+});
+
+async function json(host: { fetch(r: Request): Promise<Response> }, path: string) {
+  const res = await host.fetch(req(path));
+  expect(res.status).toBe(200);
+  return (await res.json()) as Record<string, unknown>;
+}
+
+describe("the fragment host on Node", () => {
+  test("loads two projects with the same class and binding names side by side, apart", async () => {
+    const host = track(createFragmentHost());
+    await host.add("org.example.alpha", ALPHA);
+    await host.add("org.example.beta", BETA);
+    expect(host.ids()).toEqual(["org.example.alpha", "org.example.beta"]);
+
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({
+      label: "alpha",
+      n: 1,
+    });
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 2 });
+    // The same class, binding and Worker name in the other project: its own data.
+    expect(await json(host, "/fragments/org.example.beta/x")).toMatchObject({
+      label: "beta",
+      n: 1,
+    });
+    await json(host, "/fragments/org.example.alpha/kv?put=from-alpha");
+    expect(await json(host, "/fragments/org.example.beta/kv")).toEqual({ kv: null });
+    expect(await json(host, "/fragments/org.example.alpha/kv")).toEqual({ kv: "from-alpha" });
+  });
+
+  test("routes /fragments/{id}/… to the fragment DO at idFromName(<id>), the prefix stripped", async () => {
+    const host = track(createFragmentHost());
+    await host.add("org.example.alpha", ALPHA);
+    const seen = await json(host, "/fragments/org.example.alpha/notes/1?q=2");
+    expect(seen.path).toBe("/notes/1");
+    const ns = host.project("org.example.alpha")?.runtime.env.FRAGMENT as {
+      idFromName(name: string): { toString(): string };
+    };
+    expect(seen.id).toBe(ns.idFromName("org.example.alpha").toString());
+    // The bare prefix reaches the fragment DO at "/".
+    expect((await json(host, "/fragments/org.example.alpha")).path).toBe("/");
+  });
+
+  test("answers 404 for a fragment it does not hold, and for a path outside /fragments/", async () => {
+    const host = track(createFragmentHost());
+    await host.add("org.example.alpha", ALPHA);
+    expect((await host.fetch(req("/fragments/org.example.nope/x"))).status).toBe(404);
+    expect((await host.fetch(req("/elsewhere"))).status).toBe(404);
+  });
+
+  test("reports a project's unsupported bindings for that project only", async () => {
+    const host = track(createFragmentHost());
+    const alpha = await host.add("org.example.alpha", ALPHA);
+    const beta = await host.add("org.example.beta", BETA);
+    expect(alpha.unsupported).toEqual([]);
+    expect(beta.unsupported).toEqual(["compatibility_flags: no_such_flag_for_test"]);
+    expect(host.project("org.example.alpha")?.unsupported).toEqual([]);
+  });
+
+  test("adds and removes projects while running; the others keep serving; data is kept", async () => {
+    const data = tmp("cellb-fragments-");
+    const host = track(createFragmentHost({ data }));
+    await host.add("org.example.alpha", ALPHA);
+    await host.add("org.example.beta", BETA);
+    await json(host, "/fragments/org.example.beta/x");
+    await host.remove("org.example.beta");
+    expect(host.ids()).toEqual(["org.example.alpha"]);
+    expect((await host.fetch(req("/fragments/org.example.beta/x"))).status).toBe(404);
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 1 });
+    // Added again, it finds its data.
+    await host.add("org.example.beta", BETA);
+    expect(await json(host, "/fragments/org.example.beta/x")).toMatchObject({ n: 2 });
+  });
+
+  test("refuses a second project under one id, and an id that is not a path segment", async () => {
+    const host = track(createFragmentHost());
+    await host.add("org.example.alpha", ALPHA);
+    await expect(host.add("org.example.alpha", BETA)).rejects.toThrow(/already/);
+    await expect(host.add("../escape", BETA)).rejects.toThrow(/id/);
+  });
+
+  test("names its entry binding when the project has no FRAGMENT binding", async () => {
+    const host = track(createFragmentHost());
+    // The counter example's only Durable Object binding is the entry by default.
+    await host.add("counter", COUNTER);
+    const res = await host.fetch(req("/fragments/counter/increment?name=a"));
+    expect(res.status).toBeLessThan(500);
+  });
+
+  test("refuses a built folder: its bundle reads the process's globals, one project per process", async () => {
+    const out = tmp("cellb-built-");
+    await buildProject(ALPHA, out);
+    const host = track(createFragmentHost());
+    await expect(host.add("org.example.alpha", out)).rejects.toThrow(/source/);
+  });
+});
+
+describe("the storage layout", () => {
+  test("keeps a single-project host's data where it is: fragments live under fragments/<id>/", async () => {
+    const data = tmp("cellb-data-");
+    const single = await loadProject(COUNTER, { data });
+    await single.fetch(req("/increment?name=alpha"));
+    await single.close();
+    const before = readdirSync(data).sort();
+
+    const host = createFragmentHost({ data });
+    await host.add("org.example.alpha", ALPHA);
+    await json(host, "/fragments/org.example.alpha/x");
+    await host.close();
+    expect(existsSync(join(data, "fragments", "org.example.alpha"))).toBe(true);
+    expect(readdirSync(data).sort()).toEqual([...before, "fragments"].sort());
+
+    // The single-project host reads its layout as before (no migration, nothing to roll back).
+    const again = track(await loadProject(COUNTER, { data }));
+    const n = (await (await again.fetch(req("/increment?name=alpha"))).json()) as { n: number };
+    expect(n.n).toBe(2);
+  });
+});

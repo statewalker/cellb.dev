@@ -24,6 +24,15 @@ export type {
   LoadProjectOptions,
   ProjectSource,
 } from "./project/built-project.js";
+export {
+  type AddFragmentOptions,
+  createFragmentHost,
+  FRAGMENT_BINDING,
+  FRAGMENTS_PREFIX,
+  type FragmentHost,
+  type FragmentHostOptions,
+  type HostedFragment,
+} from "./project/fragment-host.js";
 export { loadProject, type NodeLoadProjectOptions } from "./project/node-load.js";
 export { applyNodeD1Migrations, loadNodeProject } from "./project/node-project.js";
 export {
