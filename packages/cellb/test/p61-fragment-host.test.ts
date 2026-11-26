@@ -268,3 +268,35 @@ describe("removing a fragment with its data", () => {
     expect(await json(host, "/fragments/org.example.beta/x")).toMatchObject({ n: 2 });
   });
 });
+
+// Merge gate pass 1 on statewalker/cellb.dev#250 (H1, H2). The data directories sit three levels
+// inside a fresh temporary directory, so no id could reach outside it even if the check regressed.
+describe("remove with data: only the fragment's own data", () => {
+  const sandboxed = (prefix: string) => join(tmp(prefix), "a", "b", "c", "data");
+
+  test("refuses ids that are not fragment ids, deleting nothing", async () => {
+    const data = sandboxed("cellb-remove-ids-");
+    const host = track(createFragmentHost({ data }));
+    await host.add("org.example.alpha", ALPHA);
+    await json(host, "/fragments/org.example.alpha/x");
+    for (const id of ["..", "", "../..", "a/..", "."])
+      await expect(host.remove(id, { withData: true }), JSON.stringify(id)).rejects.toThrow(
+        /not a fragment id/,
+      );
+    expect(existsSync(join(data, "fragments", "org.example.alpha"))).toBe(true);
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 2 });
+  });
+
+  test("an add of the same id during the removal waits for it, and keeps its new data", async () => {
+    const data = sandboxed("cellb-remove-race-");
+    const host = track(createFragmentHost({ data }));
+    await host.add("org.example.alpha", ALPHA);
+    await json(host, "/fragments/org.example.alpha/x");
+    const removing = host.remove("org.example.alpha", { withData: true });
+    const adding = host.add("org.example.alpha", ALPHA);
+    await removing;
+    await adding;
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 1 });
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 2 });
+  });
+});
