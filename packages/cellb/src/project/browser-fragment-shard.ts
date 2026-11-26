@@ -30,6 +30,7 @@ import {
   FRAGMENTS_KEY,
   type FragmentShardAdd,
   type FragmentShardInit,
+  type FragmentShardRemove,
   INTERNAL_ORIGIN,
 } from "./browser-tab-protocol.js";
 import { hostOf, linkTo, remoteBase } from "./fragment-routes.js";
@@ -207,6 +208,35 @@ export function serveFragmentShard(opts: {
     await loaded.host.close();
   }
 
+  /**
+   * A fragment's data in this shard deleted (statewalker-root#261), once it is closed: its SQLite
+   * pool (SQLite WASM's `removeVfs`, which also lets the same pool be made again) and its files
+   * directory. Isolated Workers' storage (`.<pool>-iso-<id>`) is not deleted: its names cannot be
+   * told apart from another fragment's pool (statewalker/cellb.dev follow-up).
+   */
+  async function removeData(id: string): Promise<void> {
+    if (!init) throw new Error("the shard is not started");
+    const pool = `${FRAGMENTS_KEY}-${id}-shard-${init.shard}`;
+    const filesDir = `${FRAGMENTS_KEY}-${id}-files-${init.shard}`;
+    const module = (await sqlite3()) as {
+      installOpfsSAHPoolVfs(o: { name: string }): Promise<{
+        isPaused?(): boolean;
+        unpauseVfs?(): Promise<unknown>;
+        removeVfs(): Promise<boolean>;
+      }>;
+    };
+    const util = await module.installOpfsSAHPoolVfs({ name: pool });
+    if (util.isPaused?.()) await util.unpauseVfs?.();
+    await util.removeVfs();
+    const root = (await navigator.storage.getDirectory()) as FileSystemDirectoryHandle & {
+      keys(): AsyncIterable<string>;
+    };
+    const names: string[] = [];
+    for await (const name of root.keys())
+      if (name === filesDir || name === `.${pool}`) names.push(name);
+    for (const name of names) await root.removeEntry(name, { recursive: true });
+  }
+
   // One message at a time: loading a fragment sets the realm's `cloudflare:workers` scope and
   // then imports its bundle, so two loads at once would give the second's scope to the first
   // (its module `env` would be another fragment's). Removals wait for the loads before them.
@@ -240,7 +270,9 @@ export function serveFragmentShard(opts: {
         return reply.postMessage({ ok: true, unsupported });
       }
       if (data?.type === FRAGMENT_REMOVE) {
-        await remove((data as { id: string }).id);
+        const { id, withData } = data as FragmentShardRemove;
+        await remove(id);
+        if (withData) await removeData(id);
         return reply.postMessage({ ok: true });
       }
       // Closing: the cells move elsewhere, their sockets' clients reconnect there now.

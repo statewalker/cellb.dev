@@ -180,6 +180,7 @@ const notes = await host.add("org.example.notes", "./fragments/notes/server");
 notes.unsupported; // this project's unsupported configuration only
 const res = await host.fetch(new Request("http://local/fragments/org.example.notes/list"));
 await host.remove("org.example.notes"); // stops its objects; its data is kept
+// await host.remove("org.example.notes", { withData: true }); // …and deletes <data>/fragments/<id>/
 ```
 
 A single-project host's data at the top of `data` is never touched by the fragment host. Built
@@ -202,7 +203,7 @@ serveFragmentShard({ sqlite3 });
 const pool = await joinFragmentShards({ shards: 2, basePath: "/", spawn, serviceWorker });
 const { unsupported } = await pool.add("org.example.notes", { config, code: { bundle } });
 await fetch("/fragments/org.example.notes/list");
-await pool.remove("org.example.notes"); // its data is kept
+await pool.remove("org.example.notes"); // its data is kept ({ withData: true } deletes its pools)
 ```
 
 **Disabled and unknown fragments, and the host's own peer path** (statewalker-root#259).

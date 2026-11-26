@@ -165,7 +165,8 @@ Object.assign(window, {
   },
   __addFragment: async (job: { id: string; config: WranglerConfig; code: string }) =>
     fragmentTabs?.add(job.id, { config: job.config, code: { bundle: job.code } }),
-  __removeFragment: (id: string) => fragmentTabs?.remove(id),
+  __removeFragment: (id: string, withData?: boolean) =>
+    fragmentTabs?.remove(id, withData ? { withData } : undefined),
   __disableFragment: (id: string) => fragmentTabs?.disable(id),
   __enableFragment: (id: string) => fragmentTabs?.enable(id),
   __fragmentIds: () => fragmentTabs?.ids() ?? [],

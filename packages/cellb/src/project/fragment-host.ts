@@ -11,8 +11,8 @@
 // Projects share the process's realm (fragments are trusted). A project loaded from its sources
 // gets its own `cloudflare:workers` scope; a built folder (`cellb build`) reads the process's
 // globals instead, so the host refuses it.
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
   BUILD_MANIFEST,
@@ -90,8 +90,11 @@ export interface FragmentHost {
    * fragment DO binding.
    */
   add(id: string, source: ProjectSource, options?: AddFragmentOptions): Promise<HostedFragment>;
-  /** Stop a fragment's objects and drop it from the host; its data is kept. */
-  remove(id: string): Promise<void>;
+  /**
+   * Stop a fragment's objects and drop it from the host. Its data is kept, unless `withData`:
+   * then `<data>/fragments/<id>/` is deleted too (statewalker-root#261).
+   */
+  remove(id: string, options?: { withData?: boolean }): Promise<void>;
   /**
    * Stop a fragment's objects and keep it as disabled (statewalker-root#259): its requests answer
    * 503 without waking its DO, and bindings to it are unavailable. Its data is kept.
@@ -176,6 +179,8 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
   const loaded = new Map<string, { fragment: HostedFragment; project: LoadedProject }>();
   // Adds in flight, by id: a remove or a close during one cancels it (it closes its project).
   const adding = new Map<string, { cancelled?: string; done: Promise<unknown> }>();
+  // Removals in flight, by id: an add of the same id waits for them (its data may be deleted).
+  const removing = new Map<string, Promise<void>>();
   // Every fragment the host has, in the order added: its state and what it was added from.
   const known = new Map<
     string,
@@ -203,6 +208,10 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
     source: ProjectSource,
     { entry }: AddFragmentOptions,
   ): Promise<HostedFragment> {
+    // A removal of the same id still deleting its data: after it (never a yield otherwise, so an
+    // add registers at once and a remove or close during it can cancel it).
+    const removal = removing.get(id);
+    if (removal) await removal.catch(() => {});
     if (adding.has(id)) throw new Error(`"${id}" is already being added`);
     const pending: { cancelled?: string; done: Promise<unknown> } = { done: Promise.resolve() };
     adding.set(id, pending);
@@ -262,9 +271,28 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
     return fragment;
   }
 
-  async function remove(id: string, why = "removed"): Promise<void> {
-    known.delete(id);
-    await stop(id, why);
+  async function remove(id: string, { withData = false } = {}): Promise<void> {
+    // Its folder is `<data>/fragments/<id>`: only a fragment id names one (never `..`, `""`).
+    if (withData && !FRAGMENT_ID.test(id))
+      throw new Error(`"${id}" is not a fragment id: lowercase letters, digits, ".", "_", "-"`);
+    const done = (async () => {
+      known.delete(id);
+      await stop(id, "removed");
+      // Its project is closed (its databases with it): its folder can go, before the id can be
+      // added again (an add waits for `removing`).
+      if (withData && data !== undefined) {
+        const folder = join(data, "fragments", id);
+        if (dirname(folder) !== join(data, "fragments"))
+          throw new Error(`"${id}": not a folder of its own`);
+        rmSync(folder, { recursive: true, force: true });
+      }
+    })();
+    removing.set(id, done);
+    try {
+      await done;
+    } finally {
+      if (removing.get(id) === done) removing.delete(id);
+    }
   }
 
   async function disable(id: string): Promise<void> {
