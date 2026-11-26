@@ -150,3 +150,34 @@ test("after a ServiceWorker restart: every tab's table counts, and /peers/<self>
     expect(res.status, res.body).toBe(200);
   }
 });
+
+// statewalker-root#261: "remove with data" deletes the fragment's OPFS pools in the shards; a
+// plain removal keeps them (fragments.spec.ts).
+test("a fragment removed with its data starts from nothing when added again", async ({ page }) => {
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  await openPool(page);
+  const f = await alpha();
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  await get(page, `fragments/${id}/x`);
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 2 });
+  const pools = () =>
+    page.evaluate(async (i) => {
+      const names: string[] = [];
+      for await (const name of (
+        (await navigator.storage.getDirectory()) as unknown as { keys(): AsyncIterable<string> }
+      ).keys())
+        if (name.includes(i)) names.push(name);
+      return names.sort();
+    }, id);
+  expect((await pools()).length).toBeGreaterThan(0);
+  await page.evaluate(([i]) => (window as any).__removeFragment(i, true), [id] as const);
+  expect(await pools()).toEqual([]);
+  expect((await get(page, `fragments/${id}/x`)).status).toBe(404);
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 1 });
+  // Disabled, then removed with its data: gone as well.
+  await page.evaluate((i) => (window as any).__disableFragment(i), id);
+  await page.evaluate(([i]) => (window as any).__removeFragment(i, true), [id] as const);
+  expect(await pools()).toEqual([]);
+});

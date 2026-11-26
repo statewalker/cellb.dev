@@ -38,8 +38,15 @@ export const FRAGMENTS_KEY = "fragments";
 export const FRAGMENT_SHARD_INIT = "cellb:fragment-shard";
 /** A fragment is loaded into a shard worker of the fragment host. */
 export const FRAGMENT_ADD = "cellb:fragment-add";
-/** A fragment leaves a shard worker of the fragment host (its data is kept). */
+/** A fragment leaves a shard worker of the fragment host (its data kept, unless `withData`). */
 export const FRAGMENT_REMOVE = "cellb:fragment-remove";
+
+/** A fragment leaving a shard worker: with `withData`, its pools there are deleted too. */
+export interface FragmentShardRemove {
+  type: typeof FRAGMENT_REMOVE;
+  id: string;
+  withData?: boolean;
+}
 
 /** What a shard worker of the fragment host is told when it starts. */
 export interface FragmentShardInit {

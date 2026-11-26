@@ -11,7 +11,7 @@
 // Projects share the process's realm (fragments are trusted). A project loaded from its sources
 // gets its own `cloudflare:workers` scope; a built folder (`cellb build`) reads the process's
 // globals instead, so the host refuses it.
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import {
@@ -90,8 +90,11 @@ export interface FragmentHost {
    * fragment DO binding.
    */
   add(id: string, source: ProjectSource, options?: AddFragmentOptions): Promise<HostedFragment>;
-  /** Stop a fragment's objects and drop it from the host; its data is kept. */
-  remove(id: string): Promise<void>;
+  /**
+   * Stop a fragment's objects and drop it from the host. Its data is kept, unless `withData`:
+   * then `<data>/fragments/<id>/` is deleted too (statewalker-root#261).
+   */
+  remove(id: string, options?: { withData?: boolean }): Promise<void>;
   /**
    * Stop a fragment's objects and keep it as disabled (statewalker-root#259): its requests answer
    * 503 without waking its DO, and bindings to it are unavailable. Its data is kept.
@@ -262,9 +265,12 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
     return fragment;
   }
 
-  async function remove(id: string, why = "removed"): Promise<void> {
+  async function remove(id: string, { withData = false } = {}): Promise<void> {
     known.delete(id);
-    await stop(id, why);
+    await stop(id, "removed");
+    // Its project is closed (its databases with it): its folder can go.
+    if (withData && data !== undefined)
+      rmSync(join(data, "fragments", id), { recursive: true, force: true });
   }
 
   async function disable(id: string): Promise<void> {

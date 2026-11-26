@@ -238,3 +238,33 @@ describe("a disable during an enable", () => {
     expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ label: "alpha" });
   });
 });
+
+// statewalker-root#261: "remove with data" deletes the fragment's data; a plain removal keeps it.
+describe("removing a fragment with its data", () => {
+  test("deletes <data>/fragments/<id>/; added again, the fragment starts from nothing", async () => {
+    const data = tmp("cellb-remove-data-");
+    const host = track(createFragmentHost({ data }));
+    await host.add("org.example.alpha", ALPHA);
+    await json(host, "/fragments/org.example.alpha/x");
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 2 });
+    expect(existsSync(join(data, "fragments", "org.example.alpha"))).toBe(true);
+    await host.remove("org.example.alpha", { withData: true });
+    expect(existsSync(join(data, "fragments", "org.example.alpha"))).toBe(false);
+    expect(host.state("org.example.alpha")).toBeUndefined();
+    await host.add("org.example.alpha", ALPHA);
+    expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 1 });
+  });
+
+  test("deletes a disabled fragment's data too, and leaves the other fragments' alone", async () => {
+    const data = tmp("cellb-remove-data-");
+    const host = track(createFragmentHost({ data }));
+    await host.add("org.example.alpha", ALPHA);
+    await host.add("org.example.beta", BETA);
+    await json(host, "/fragments/org.example.alpha/x");
+    await json(host, "/fragments/org.example.beta/x");
+    await host.disable("org.example.alpha");
+    await host.remove("org.example.alpha", { withData: true });
+    expect(existsSync(join(data, "fragments", "org.example.alpha"))).toBe(false);
+    expect(await json(host, "/fragments/org.example.beta/x")).toMatchObject({ n: 2 });
+  });
+});

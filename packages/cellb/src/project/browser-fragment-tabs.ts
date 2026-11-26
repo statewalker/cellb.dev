@@ -16,6 +16,7 @@ import {
   FRAGMENTS_KEY,
   type FragmentShardAdd,
   type FragmentShardInit,
+  type FragmentShardRemove,
   type FragmentState,
   type FragmentTable,
   NEED_FRAGMENT_TABLE,
@@ -63,7 +64,7 @@ export interface FragmentTabs extends ProjectTabs {
    * Stop a fragment in the shards this tab runs; its data is kept. The ServiceWorker then answers
    * 404 for it, without waking a shard, unless another tab still has it.
    */
-  remove(id: string): Promise<void>;
+  remove(id: string, options?: { withData?: boolean }): Promise<void>;
   /**
    * Stop a fragment and keep it known as disabled: the ServiceWorker answers 503 for it, without
    * waking a shard, unless another tab has it enabled. Its data is kept.
@@ -237,17 +238,26 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
       return { unsupported: first?.status === "fulfilled" ? first.value : [] };
     },
     state: (id) => states.get(id),
-    async remove(id) {
+    async remove(id, { withData = false } = {}) {
       if (disabled.delete(id)) {
         states.delete(id);
         await announce();
-        return;
-      }
-      if (!fragments.has(id)) return;
-      // Unrouted first (404 from the router), then stopped.
-      states.delete(id);
-      await announce();
-      await unload(id);
+      } else if (fragments.has(id)) {
+        // Unrouted first (404 from the router), then stopped.
+        states.delete(id);
+        await announce();
+        await unload(id);
+      } else if (!withData) return;
+      // Its data: every shard this tab runs deletes the fragment's pools (statewalker-root#261).
+      if (withData)
+        for (const w of [...workers.values()]) {
+          const answer = await ask(w.worker, {
+            type: FRAGMENT_REMOVE,
+            id,
+            withData: true,
+          } satisfies FragmentShardRemove);
+          if (!answer.ok) throw new Error(answer.error);
+        }
     },
     async disable(id) {
       const fragment = fragments.get(id);
