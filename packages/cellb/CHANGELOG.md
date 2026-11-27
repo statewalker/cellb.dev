@@ -1,5 +1,24 @@
 # @statewalker/cellb
 
+## 0.16.0
+
+### Minor Changes
+
+- 812aa17: "Remove with data" reaches every tab's shards (statewalker/cellb.dev#252). `joinFragmentShards`' `remove(id, { withData: true })` deleted the fragment's data only in the shards the calling tab runs. Now it leaves a marker per shard in the origin's OPFS (`.cellb-fragment-removals`) and tells the other tabs on a BroadcastChannel; they remove the fragment and its data in the shards they run. A shard that starts later (another tab, a reload) deletes the data before it serves the fragment again, at its start and before loading it. `remove` waits up to `removeWaitMs` (10 s, new option) for the other shards to clear their markers. Each marker carries the removal's epoch: a tab that added the fragment after that removal keeps its copy, and a shard clears only the marker of the removal it applied. A pending removal that fails at a shard's start is reported and kept, never stopping the shard.
+- 183e1e2: Move a project's data to another host (#199). On Node:
+  - `FragmentHost.exportData(id, { handOver })`, `importData(id, files, { overwrite })`, `handedOver(id)` and `reactivate(id)`;
+  - `exportCellFiles`, `importCellFiles` and `reactivateCellFiles` for a `loadProject` data directory.
+  
+  A hand-over marks the source's data: `loadProject`, `add` and `enable` refuse it until it is reactivated or removed with its data, so only one host writes the objects. In browsers, `loadProject(url, { importCells: { files, overwrite } })` writes exported cells into the OPFS pool before any opens, so the cells round-trip browser → Node → browser.
+  
+  Migration and rollback: a move copies the files and does not transform them, so both hosts must run the same project version. Rolling back means reactivating the source, which kept its data, and discarding the target's copy.
+
+### Patch Changes
+
+- 183e1e2: "Remove with data" deletes a fragment's isolated Workers' storage too (statewalker/cellb.dev#251). Their OPFS SQLite pools in a browser shard are now named `.<pool>-ISO-<id>`: fragment ids are lowercase, so no other fragment's name can begin so, and the removal deletes them exactly, with those of the former name `.<pool>-iso-<id>` whose id holds no `-shard-`.
+  
+  Migration: an isolate whose pool exists under the former `-iso-` name and not under the new one goes on opening it (nothing is renamed or copied), and new isolates use the new name. Rollback: an earlier version opens the former names as before; pools created under the new name are not seen by it (their facets start empty there).
+
 ## 0.15.0
 
 ### Minor Changes
