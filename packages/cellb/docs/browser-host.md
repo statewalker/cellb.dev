@@ -372,6 +372,18 @@ state, the alarm index) are included, R2 objects are not. Call it between events
 read from the pool's file, and a transaction under way whose pages SQLite already spilled to it
 would be read half done.
 
+#### Importing cells: `importCells`
+
+The other way (#199), `loadProject(url, { data, importCells: { files, overwrite } })` writes
+cells into the OPFS pool before the runtime opens any: `exportCells()`' files from another
+browser, or the `*.sqlite` files of a Node data directory (`exportCellFiles(dir)`). The objects
+keep their ids (a name's `idFromName` is the same everywhere) and their data. The load fails when
+the pool already holds cells, unless `overwrite`, which deletes them and their journals first (a
+stale journal beside an imported database would be rolled back into it). Not with a bucket. Both
+sides must run the same project version: a move copies, it never transforms. The hand-over guard
+that keeps a source from writing after a move is Node's for now (`exportCellFiles(dir, {
+handOver })`).
+
 ## A fleet bucket on S3
 
 With `bucket`, a browser node keeps its cells in the same bucket as celld nodes, in celld's layout,

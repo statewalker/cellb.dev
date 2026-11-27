@@ -105,6 +105,8 @@ export type BrowserBucket =
 
 export interface BrowserProjectOptions {
   config: WranglerConfig;
+  /** Cells to write into the OPFS pool before the runtime opens any (#199). */
+  importCells?: { files: readonly [string, Uint8Array][]; overwrite?: boolean };
   /**
    * The project's Worker code, imported in this realm once its Workers globals (and with
    * nodejs_compat `Buffer` and `process`) are installed:
@@ -343,6 +345,22 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
             name: opts.pool,
             initialCapacity: 64, // grows on demand (sahpoolOpener)
           });
+  // Cells moved here from another host (#199): into the pool before the runtime opens any.
+  if (opts.importCells) {
+    const into = (
+      openSql as {
+        importFiles?: (f: readonly [string, Uint8Array][], o?: { overwrite?: boolean }) => string[];
+      }
+    ).importFiles;
+    if (!into)
+      throw new Error("importCells: the cells are not in an OPFS pool (a bucket holds them)");
+    try {
+      into(opts.importCells.files, { overwrite: opts.importCells.overwrite });
+    } catch (err) {
+      openSql.release(); // the pool's files, for the next load
+      throw err;
+    }
+  }
   const root = await navigator.storage.getDirectory();
   const files = new BrowserFilesApi({
     rootHandle: await root.getDirectoryHandle(opts.filesDir, { create: true }),

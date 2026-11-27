@@ -188,6 +188,28 @@ folders (`cellb build`) are refused: their bundle reads the process's globals, s
 process. Add a fragment's source folder instead. Fragment ids are lowercase path segments
 (`org.example.notes`).
 
+**Moving a fragment's data to another host** (#199; statewalker-root#263): a disabled fragment's
+data comes out as files (`[path, bytes]`, every file of `<data>/fragments/<id>/`), and goes into
+another host before the fragment is added there. A hand-over marks the source, so it cannot run
+(and write) again until it is reactivated (the Move rolled back) or removed with its data:
+
+```ts
+await source.disable("org.example.notes");
+const files = await source.exportData("org.example.notes", { handOver: { at: new Date().toISOString(), to: "b" } });
+await target.importData("org.example.notes", files); // refuses data already there, unless { overwrite: true }
+await target.add("org.example.notes", "./fragments/notes/server"); // the same objects, with their data
+await source.enable("org.example.notes"); // throws: handed over to b
+await source.reactivate("org.example.notes"); // rollback: enabled again with the data it kept
+// or: await source.remove("org.example.notes", { withData: true });
+```
+
+A move copies, it never transforms: both hosts must run the same project version. Outside a
+fragment host, `exportCellFiles(dir, { handOver })`, `importCellFiles(dir, files, { overwrite })`
+and `reactivateCellFiles(dir)` do the same with a `loadProject(dir, { data })` directory, and
+`loadProject` refuses a directory that was handed over. The cells' file names are the browser's:
+`exportCells()` of a browser project imports on Node as it is, and Node's `*.sqlite` files load in
+a browser with `loadProject(url, { importCells: { files } })`.
+
 **In a browser**, the fragment host is one pool of shard workers shared by the origin's tabs, each
 worker holding every fragment, each fragment in OPFS pools of its own. The ServiceWorker's router
 (`installProjectRouter`, unchanged) sends `<basePath>fragments/<id>/…` to the pool, and the

@@ -270,6 +270,8 @@ export async function sahpoolOpener(
       getFileCount(): number;
       getFileNames?(): string[];
       exportFile?(name: string): Uint8Array;
+      importDb?(name: string, bytes: Uint8Array): unknown;
+      unlink?(name: string): boolean;
       // Not in older SQLite WASM builds (sqlite-vec's): there `release()` does nothing.
       pauseVfs?(): unknown;
       isPaused?(): boolean;
@@ -282,6 +284,7 @@ export async function sahpoolOpener(
     reserve(n: number): Promise<number>;
     release(): void;
     exportFiles?(): [string, Uint8Array][];
+    importFiles?(files: readonly [string, Uint8Array][], opts?: { overwrite?: boolean }): string[];
   }
 > {
   const pool = await sqlite3.installOpfsSAHPoolVfs({
@@ -432,6 +435,37 @@ export async function sahpoolOpener(
                 name.replace(/^\/+/, ""),
                 pool.exportFile?.(name) as Uint8Array,
               ])
+        : undefined,
+    /**
+     * Writes exported cell databases into the pool (#199): `exportFiles()`' names, or a Node data
+     * directory's `*.sqlite` files. Only before any cell of the pool opens. Refuses a pool that
+     * holds databases unless `overwrite`, which deletes them (and their journals) first: a stale
+     * journal beside an imported database would be rolled back into it. Returns the names written.
+     */
+    importFiles:
+      pool.getFileNames && pool.importDb && pool.unlink
+        ? (files: readonly [string, Uint8Array][], { overwrite = false } = {}) => {
+            if (opened.size > 0)
+              throw new Error(
+                "the pool's cells are open: import before the project's first request",
+              );
+            const names = files.map(([name]) => {
+              if (!/^[\w.-]+\.sqlite$/.test(name) || name.startsWith("."))
+                throw new Error(`"${name}" is not a cell's database (<name>.sqlite)`);
+              return name;
+            });
+            if (new Set(names).size !== names.length) throw new Error("a database is given twice");
+            const held = (pool.getFileNames?.() ?? []).filter((n) =>
+              /\.sqlite(-journal)?$/.test(n),
+            );
+            if (held.some((n) => n.endsWith(".sqlite")) && !overwrite)
+              throw new Error(
+                "the pool already holds cells: pass { overwrite: true } to replace them",
+              );
+            for (const n of held) pool.unlink?.(n);
+            for (const [name, bytes] of files) pool.importDb?.(`/${name}`, bytes);
+            return names;
+          }
         : undefined,
   });
 }

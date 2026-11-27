@@ -26,6 +26,7 @@ import {
   readBuiltProject,
   urlReader,
 } from "./built-project.js";
+import { assertNotHandedOver } from "./cell-files.js";
 import * as workersClasses from "./cloudflare-workers.js";
 import { loadNodeProject, nodeIsolatedLoader, nodeModuleLoader } from "./node-project.js";
 import { workerScope } from "./worker-scope.js";
@@ -109,6 +110,8 @@ function nodeHost(options: NodeLoadProjectOptions): Omit<ProjectHost, "loadModul
   let files: FilesApi;
   if (options.data) {
     const data = resolve(options.data);
+    // Handed over to another host (#199): its objects are written there now.
+    assertNotHandedOver(data);
     mkdirSync(join(data, "files"), { recursive: true });
     files = new NodeFilesApi({ rootDir: join(data, "files") });
   } else files = new MemFilesApi();
