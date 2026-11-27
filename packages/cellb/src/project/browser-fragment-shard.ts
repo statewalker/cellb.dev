@@ -21,7 +21,7 @@ import type { CellRuntimeOptions } from "../core/runtime.js";
 import { cellsHttpHandler, servePageRequest } from "../transport/cells-http.js";
 import { CfWebSocket } from "../ws/server.js";
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
-import { clearRemoval, pendingRemovals, removalPending } from "./browser-fragment-removals.js";
+import { clearRemoval, pendingRemovals, removalEpoch } from "./browser-fragment-removals.js";
 import { browserProjectRuntime } from "./browser-host.js";
 import { throughRouter, upgradeOverPort } from "./browser-shards.js";
 import {
@@ -217,6 +217,8 @@ export function serveFragmentShard(opts: {
    */
   async function removeData(id: string): Promise<void> {
     if (!init) throw new Error("the shard is not started");
+    // The removal this deletion answers (#252): its marker, read before, is cleared after.
+    const epoch = await removalEpoch(id, init.shard);
     const pool = `${FRAGMENTS_KEY}-${id}-shard-${init.shard}`;
     const filesDir = `${FRAGMENTS_KEY}-${id}-files-${init.shard}`;
     const module = (await sqlite3()) as {
@@ -237,7 +239,7 @@ export function serveFragmentShard(opts: {
       if (name === filesDir || name === `.${pool}`) names.push(name);
     for (const name of names) await root.removeEntry(name, { recursive: true });
     // Done in this shard: a removal another tab asked for is no longer pending here (#252).
-    await clearRemoval(id, init.shard);
+    await clearRemoval(id, init.shard, epoch);
   }
 
   /**
@@ -247,13 +249,26 @@ export function serveFragmentShard(opts: {
   async function applyPendingRemovals(only?: string): Promise<void> {
     if (!init) return;
     const ids = only
-      ? (await removalPending(only, init.shard))
+      ? (await removalEpoch(only, init.shard)) !== undefined
         ? [only]
         : []
       : await pendingRemovals(init.shard);
     for (const id of ids) {
       await remove(id);
-      await removeData(id);
+      if (only) {
+        // Before a load: a failure fails the load, so the old data is never served.
+        await removeData(id);
+        continue;
+      }
+      // At the shard's start: a failure is reported and its marker kept (tried again at the next
+      // start, and before the fragment's next load), never keeping the shard from starting.
+      try {
+        await removeData(id);
+      } catch (err) {
+        console.error(
+          `cellb: shard ${init.shard}: fragment ${id}'s data not removed yet: ${(err as Error)?.message ?? err}`,
+        );
+      }
     }
   }
 

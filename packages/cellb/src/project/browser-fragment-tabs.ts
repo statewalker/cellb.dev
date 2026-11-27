@@ -214,9 +214,13 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
   // "Remove with data" told by another tab: this tab removes the fragment in the shards it runs
   // (statewalker/cellb.dev#252); the markers that tab left cover shards that start later.
   const removals = new BroadcastChannel(REMOVALS_CHANNEL);
+  /** When each fragment was last added in this tab (`Date.now() * 1000`). */
+  const addedAt = new Map<string, number>();
   removals.onmessage = (e: MessageEvent) => {
-    const id = (e.data as { removed?: unknown } | undefined)?.removed;
-    if (typeof id !== "string" || !FRAGMENT_ID.test(id)) return;
+    const { removed: id, epoch } = (e.data ?? {}) as { removed?: unknown; epoch?: unknown };
+    if (typeof id !== "string" || !FRAGMENT_ID.test(id) || typeof epoch !== "number") return;
+    // Added here after that removal (a re-add, a reinstall): this copy is newer, kept.
+    if ((addedAt.get(id) ?? 0) > epoch) return;
     void removeHere(id, true).catch((err: unknown) =>
       console.error(`cellb: fragment ${id} not removed here: ${(err as Error)?.message ?? err}`),
     );
@@ -230,6 +234,8 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
         throw new Error(`"${id}" is not a fragment id: lowercase letters, digits, ".", "_", "-"`);
       if (fragments.has(id) || disabled.has(id)) throw new Error(`"${id}" is already on this host`);
       checkEntry(id, fragment);
+      // When this copy was added, in a removal epoch's units: an older removal leaves it (#252).
+      addedAt.set(id, Date.now() * 1000 + 999);
       fragments.set(id, fragment);
       const running = [...workers.values()];
       const results = await Promise.allSettled(running.map((w) => load(w.worker, w.held, id)));
@@ -261,9 +267,9 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
         throw new Error(`"${id}" is not a fragment id: lowercase letters, digits, ".", "_", "-"`);
       // Every shard, in whichever tab, deletes the data (statewalker/cellb.dev#252): markers first
       // (for shards not running now), then the shards this tab runs, then the other tabs told.
-      await markRemoval(id, opts.shards);
+      const epoch = await markRemoval(id, opts.shards);
       await removeHere(id, true);
-      removals.postMessage({ removed: id });
+      removals.postMessage({ removed: id, epoch });
       // The other tabs' shards answer by clearing their markers; one that does not (its tab
       // closing) deletes the data when it next starts.
       const until = Date.now() + (opts.removeWaitMs ?? 10_000);

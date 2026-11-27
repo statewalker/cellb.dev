@@ -13,7 +13,10 @@
 /** The OPFS directory of the markers. */
 export const REMOVALS_DIR = ".cellb-fragment-removals";
 
-/** The BroadcastChannel the tabs tell each other on: `{ removed: <id> }`. */
+/**
+ * The BroadcastChannel the tabs tell each other on: `{ removed: <id>, epoch }`. A tab that added
+ * the fragment after `epoch` (a re-add) keeps it: the removal is older than its copy.
+ */
 export const REMOVALS_CHANNEL = "cellb:fragment-removals";
 
 const markerName = (id: string, shard: number) => `${id}@${shard}`;
@@ -29,11 +32,63 @@ async function markers(create: boolean): Promise<Dir | undefined> {
   }
 }
 
-/** Leave a marker for every shard: each deletes the fragment's data before it serves it again. */
-export async function markRemoval(id: string, shards: number): Promise<void> {
+/**
+ * Leave a marker for every shard: each deletes the fragment's data before it serves it again. The
+ * marker holds the removal's epoch (its time, unique), so a shard clears only the marker of the
+ * removal it applied, never a newer one. Returns the epoch.
+ */
+export async function markRemoval(id: string, shards: number): Promise<number> {
+  const epoch = Date.now() * 1000 + Math.floor(Math.random() * 1000);
   const dir = (await markers(true)) as Dir;
-  for (let shard = 0; shard < shards; shard++)
-    await dir.getFileHandle(markerName(id, shard), { create: true });
+  for (let shard = 0; shard < shards; shard++) {
+    const file = await dir.getFileHandle(markerName(id, shard), { create: true });
+    await writeText(file, String(epoch));
+  }
+  return epoch;
+}
+
+/** A small file's text, written through a writable stream, or a sync handle in a worker. */
+async function writeText(file: FileSystemFileHandle, text: string): Promise<void> {
+  const writable = (
+    file as FileSystemFileHandle & {
+      createWritable?(): Promise<{ write(t: string): Promise<void>; close(): Promise<void> }>;
+    }
+  ).createWritable;
+  if (writable) {
+    const w = await writable.call(file);
+    await w.write(text);
+    await w.close();
+    return;
+  }
+  const handle = await (
+    file as FileSystemFileHandle & {
+      createSyncAccessHandle(): Promise<{
+        truncate(n: number): void;
+        write(b: Uint8Array, o: { at: number }): number;
+        flush(): void;
+        close(): void;
+      }>;
+    }
+  ).createSyncAccessHandle();
+  try {
+    handle.truncate(0);
+    handle.write(new TextEncoder().encode(text), { at: 0 });
+    handle.flush();
+  } finally {
+    handle.close();
+  }
+}
+
+/** The epoch in fragment `id`'s marker for shard `shard`, or undefined when there is none. */
+export async function removalEpoch(id: string, shard: number): Promise<string | undefined> {
+  const dir = await markers(false);
+  if (!dir) return undefined;
+  try {
+    const file = await dir.getFileHandle(markerName(id, shard));
+    return await (await file.getFile()).text();
+  } catch {
+    return undefined;
+  }
 }
 
 /** The fragments whose data shard `shard` has still to delete. */
@@ -47,22 +102,19 @@ export async function pendingRemovals(shard: number): Promise<string[]> {
   return ids;
 }
 
-/** Whether shard `shard` has still to delete fragment `id`'s data. */
-export async function removalPending(id: string, shard: number): Promise<boolean> {
+/**
+ * Shard `shard` has deleted fragment `id`'s data for the removal of `epoch` (read before it
+ * deleted): the marker goes, unless a newer removal has replaced it meanwhile.
+ */
+export async function clearRemoval(
+  id: string,
+  shard: number,
+  epoch: string | undefined,
+): Promise<void> {
   const dir = await markers(false);
-  if (!dir) return false;
-  try {
-    await dir.getFileHandle(markerName(id, shard));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Shard `shard` has deleted fragment `id`'s data. */
-export async function clearRemoval(id: string, shard: number): Promise<void> {
-  const dir = await markers(false);
-  await dir?.removeEntry(markerName(id, shard)).catch(() => {});
+  if (!dir) return;
+  if (epoch !== undefined && (await removalEpoch(id, shard)) !== epoch) return;
+  await dir.removeEntry(markerName(id, shard)).catch(() => {});
 }
 
 /** The shards that have still to delete fragment `id`'s data. */
