@@ -11,6 +11,7 @@ import { realmWorkerScope } from "../project/worker-scope.js";
 import * as workersGlobals from "../project/workers-globals-module.js";
 import { routeFunctionImports } from "./function-imports.js";
 import { serveIsolate } from "./isolate.js";
+import { isolatePoolName } from "./pool-name.js";
 import type { PortLike } from "./protocol.js";
 import { makeGlobalsWritable } from "./writable-globals.js";
 
@@ -88,7 +89,13 @@ serveIsolate(
     // Facets of the loaded code: SQLite on OPFS, one sahpool per loaded Worker.
     openSql: async (load: any) => {
       const sqlite3 = await (sqlite3InitModule as any)({ print() {}, printErr() {} });
-      return sahpoolOpener(sqlite3, { name: load?.storageName ?? "isolate" });
+      const root = (await navigator.storage.getDirectory()) as FileSystemDirectoryHandle;
+      const exists = (n: string) =>
+        root.getDirectoryHandle(`.${n}`).then(
+          () => true,
+          () => false,
+        );
+      return sahpoolOpener(sqlite3, { name: await isolatePoolName(load, exists) });
     },
   },
 );

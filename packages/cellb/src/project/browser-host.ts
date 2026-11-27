@@ -363,7 +363,11 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       ? browserIsolatedLoader({
           isolateScript: opts.isolateScript,
           siteBaseUrl: site,
-          storagePrefix: `${opts.pool}-iso`,
+          // `-ISO-`: fragment ids are lowercase, so no other fragment's pool can share this
+          // prefix and a removal deletes these exactly (statewalker/cellb.dev#251); pools of the
+          // former `-iso-` name are still opened where they exist.
+          storagePrefix: `${opts.pool}-ISO`,
+          legacyStoragePrefix: `${opts.pool}-iso`,
           storage: () => shared, // facets of loaded code are logged like the root's own
         })
       : undefined,

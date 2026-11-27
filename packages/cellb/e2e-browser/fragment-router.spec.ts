@@ -364,3 +364,42 @@ test("a removal older than a tab's copy of the fragment leaves that copy", async
     .poll(async () => (await poolsOf(page, id)).filter((n) => n.includes("-shard-")))
     .toEqual([]);
 });
+
+// statewalker/cellb.dev#251: "remove with data" deletes the fragment's isolates' pools too, in
+// either name, and never another fragment's, even one whose id is chosen to collide.
+test("removed with its data, a fragment's isolates' pools go, and only its own", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const a = `iso${Date.now().toString(36)}`;
+  const b = `${a}-shard-0-iso-x`; // its names begin as a's former isolate pools did
+  const mine = [
+    `.fragments-${a}-shard-0-ISO-loader1`,
+    `.fragments-${a}-shard-1-ISO-loader2`,
+    `.fragments-${a}-shard-0-iso-former`,
+  ];
+  const others = [
+    `.fragments-${b}-shard-0`,
+    `.fragments-${b}-shard-0-ISO-z`,
+    `.fragments-${b}-shard-0-iso-z`,
+  ];
+  await openPool(page);
+  await page.evaluate(
+    async (names) => {
+      const root = await navigator.storage.getDirectory();
+      for (const n of names) await root.getDirectoryHandle(n, { create: true });
+    },
+    [...mine, ...others],
+  );
+  await page.evaluate(([i]) => (window as any).__removeFragment(i, true), [a] as const);
+  const left = await page.evaluate(
+    async (names) => {
+      const root = (await navigator.storage.getDirectory()) as any;
+      const found: string[] = [];
+      for await (const n of root.keys()) if (names.includes(n)) found.push(n);
+      return found.sort();
+    },
+    [...mine, ...others],
+  );
+  expect(left).toEqual([...others].sort());
+});
