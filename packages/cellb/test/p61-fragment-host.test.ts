@@ -415,6 +415,19 @@ describe("moving a fragment's data between hosts", () => {
     await host.enable(ID);
     expect(await counted(host)).toBe(2);
     await host.disable(ID);
+    // Merge gate pass 1 on #259: an import that cannot be written whole leaves the data as it was
+    // (here a file where another path needs a directory, refused before anything is written).
+    await expect(
+      host.importData(
+        ID,
+        [
+          ["a", new Uint8Array(1)],
+          ["a/b", new Uint8Array(1)],
+        ],
+        { overwrite: true },
+      ),
+    ).rejects.toThrow(/which is a file/);
+    expect((await host.exportData(ID)).map(([p]) => p)).toEqual(kept.map(([p]) => p));
     // Overwritten with the earlier export: the data is as it was then.
     await host.importData(ID, kept, { overwrite: true });
     await host.enable(ID);

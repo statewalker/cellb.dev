@@ -349,13 +349,16 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
   if (opts.importCells) {
     const into = (
       openSql as {
-        importFiles?: (f: readonly [string, Uint8Array][], o?: { overwrite?: boolean }) => string[];
+        importFiles?: (
+          f: readonly [string, Uint8Array][],
+          o?: { overwrite?: boolean },
+        ) => Promise<string[]>;
       }
     ).importFiles;
     if (!into)
       throw new Error("importCells: the cells are not in an OPFS pool (a bucket holds them)");
     try {
-      into(opts.importCells.files, { overwrite: opts.importCells.overwrite });
+      await into(opts.importCells.files, { overwrite: opts.importCells.overwrite });
     } catch (err) {
       openSql.release(); // the pool's files, for the next load
       throw err;

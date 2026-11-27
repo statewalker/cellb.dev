@@ -11,8 +11,10 @@
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -103,7 +105,9 @@ export interface ImportReport {
 /**
  * Writes exported files into a project's data directory, for `loadProject(dir, { data: dir })`.
  * Refuses a directory that holds anything (data, or a hand-over marker) unless `overwrite`, which
- * deletes what it holds first; refuses any path outside it. Nothing is written when it refuses.
+ * replaces what it holds; refuses any path outside it. The files are written into a temporary
+ * sibling directory first and swapped in once all are written: a refusal or a failed write
+ * (a full disk) leaves `dir` as it was.
  */
 export function importCellFiles(
   dir: string,
@@ -116,20 +120,33 @@ export function importCellFiles(
     if (seen.has(path)) throw new Error(`"${path}" is given twice`);
     seen.add(path);
   }
+  // A file where another path needs a directory (`a` and `a/b`) could not be written.
+  for (const { segments, path } of checked)
+    for (let i = 1; i < segments.length; i++)
+      if (seen.has(segments.slice(0, i).join("/")))
+        throw new Error(`"${path}" is inside "${segments.slice(0, i).join("/")}", which is a file`);
   const held = existsSync(dir) ? readdirSync(dir) : [];
   if (held.length > 0 && !options.overwrite)
     throw new Error(
       `${dir} already holds ${handedOver(dir) ? "handed-over data" : "data"}: pass { overwrite: true } to replace it`,
     );
-  if (held.length > 0) rmSync(dir, { recursive: true, force: true });
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dirname(dir), { recursive: true });
+  const staging = mkdtempSync(`${dir}.import-`);
   let bytes = 0;
-  for (const { segments, bytes: b } of checked) {
-    const target = join(dir, ...segments);
-    mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, b);
-    bytes += b.byteLength;
+  try {
+    for (const { segments, bytes: b } of checked) {
+      const target = join(staging, ...segments);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, b);
+      bytes += b.byteLength;
+    }
+  } catch (err) {
+    rmSync(staging, { recursive: true, force: true });
+    throw err;
   }
+  // Every file written: the old data goes, the new takes its place.
+  if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+  renameSync(staging, dir);
   return { files: checked.map((c) => c.path).sort(), bytes };
 }
 

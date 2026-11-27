@@ -284,7 +284,10 @@ export async function sahpoolOpener(
     reserve(n: number): Promise<number>;
     release(): void;
     exportFiles?(): [string, Uint8Array][];
-    importFiles?(files: readonly [string, Uint8Array][], opts?: { overwrite?: boolean }): string[];
+    importFiles?(
+      files: readonly [string, Uint8Array][],
+      opts?: { overwrite?: boolean },
+    ): Promise<string[]>;
   }
 > {
   const pool = await sqlite3.installOpfsSAHPoolVfs({
@@ -444,14 +447,22 @@ export async function sahpoolOpener(
      */
     importFiles:
       pool.getFileNames && pool.importDb && pool.unlink
-        ? (files: readonly [string, Uint8Array][], { overwrite = false } = {}) => {
+        ? async (files: readonly [string, Uint8Array][], { overwrite = false } = {}) => {
             if (opened.size > 0)
               throw new Error(
                 "the pool's cells are open: import before the project's first request",
               );
-            const names = files.map(([name]) => {
+            // Everything checked before anything is deleted or written: the names, each file a
+            // database (SQLite's header, as importDb checks it), and room for all of them.
+            const header = "SQLite format 3\0";
+            const names = files.map(([name, bytes]) => {
               if (!/^[\w.-]+\.sqlite$/.test(name) || name.startsWith("."))
                 throw new Error(`"${name}" is not a cell's database (<name>.sqlite)`);
+              if (
+                bytes.byteLength % 512 !== 0 ||
+                header.split("").some((c, k) => bytes[k] !== c.charCodeAt(0))
+              )
+                throw new Error(`"${name}" is not an SQLite database`);
               return name;
             });
             if (new Set(names).size !== names.length) throw new Error("a database is given twice");
@@ -462,6 +473,12 @@ export async function sahpoolOpener(
               throw new Error(
                 "the pool already holds cells: pass { overwrite: true } to replace them",
               );
+            // The held files go before the new ones come: room for every new one, journals ahead.
+            const after = pool.getFileCount() - held.length + names.length;
+            if (after + SLOTS_PER_CELL > pool.getCapacity())
+              await pool.reserveMinimumCapacity(after + SLOTS_PER_CELL * 4);
+            if (after > pool.getCapacity())
+              throw new Error(`the pool has room for ${pool.getCapacity()} files, not ${after}`);
             for (const n of held) pool.unlink?.(n);
             for (const [name, bytes] of files) pool.importDb?.(`/${name}`, bytes);
             return names;

@@ -113,3 +113,66 @@ test("cells move browser → Node → browser with their data", async ({ page })
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// Merge gate pass 1 on #259: an import is checked whole before the pool changes. More databases
+// than the pool's first capacity (64) import; a file that is not a database is refused with the
+// pool's cells left as they were.
+test("an import grows the pool for every database, and refuses a non-database before any change", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const project = `counter-many-${Date.now().toString(36)}`;
+  const out = join(PUBLIC, project);
+  const dir = mkdtempSync(join(tmpdir(), "cellb-cell-many-"));
+  try {
+    await buildProject(COUNTER, out);
+    const url = `/built/${project}/`;
+    const walk = (d: string): string[] =>
+      readdirSync(d).flatMap((f) =>
+        statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)],
+      );
+    for (const file of walk(out)) {
+      const at = `${url}${relative(out, file).split("\\").join("/")}`;
+      await expect
+        .poll(async () => (await (await page.request.get(at)).body()).length, { timeout: 15_000 })
+        .toBe(statSync(file).size);
+    }
+    // On Node: 80 names counted once each, then alpha twice.
+    const node = await loadProject(COUNTER, { data: dir });
+    for (let i = 0; i < 80; i++) await node.fetch(new Request(`http://localhost/?name=n${i}`));
+    await node.fetch(new Request("http://localhost/?name=alpha"));
+    await node.fetch(new Request("http://localhost/?name=alpha"));
+    await node.close();
+    const files = exportCellFiles(dir).filter(([p]) => p.endsWith(".sqlite"));
+    expect(files.length).toBeGreaterThan(64);
+
+    await page.goto("/load-project/");
+    await page.waitForFunction(() => document.body.dataset.ready === "true");
+    const data = `many-${Date.now().toString(36)}`;
+    const load = (job: object) => page.evaluate((a) => (window as any).__loadProject(a), job);
+    const ok = (await load({
+      url,
+      data,
+      runs: [["/?name=alpha", "/?name=n79"]],
+      importCells: files.map(([p, b]) => [p, b64(b)]),
+    })) as Result;
+    expect(ok.ok, ok.error).toBe(true);
+    expect(ok.out.flat().map((x) => JSON.parse(x.body).n)).toEqual([3, 2]);
+
+    const bad = (await load({
+      url,
+      data,
+      runs: [["/?name=alpha"]],
+      importCells: [["x.sqlite", b64(new Uint8Array(512))]],
+      overwrite: true,
+    })) as Result;
+    expect(bad.ok).toBe(false);
+    expect(bad.error).toMatch(/not an SQLite database/);
+    const after = (await load({ url, data, runs: [["/?name=alpha"]] })) as Result;
+    expect(after.ok, after.error).toBe(true);
+    expect(after.out.flat().map((x) => JSON.parse(x.body).n)).toEqual([4]);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
