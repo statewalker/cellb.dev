@@ -300,3 +300,137 @@ describe("remove with data: only the fragment's own data", () => {
     expect(await json(host, "/fragments/org.example.alpha/x")).toMatchObject({ n: 2 });
   });
 });
+
+// #199 (statewalker-root#263, Move): a fragment's data exported on one host and imported on
+// another; a hand-over keeps the source from writing until it is reactivated or deleted.
+describe("moving a fragment's data between hosts", () => {
+  const ID = "org.example.alpha";
+
+  async function counted(host: { fetch(r: Request): Promise<Response> }) {
+    return (await json(host, `/fragments/${ID}/x`)).n;
+  }
+
+  test("an export imported on a second host continues where the first one stopped", async () => {
+    const first = track(createFragmentHost({ data: tmp("cellb-move-a-") }));
+    await first.add(ID, ALPHA);
+    await counted(first);
+    await json(first, `/fragments/${ID}/kv?put=moved`);
+    expect(await counted(first)).toBe(2);
+    await first.disable(ID);
+    const files = await first.exportData(ID, { handOver: { at: "2026-11-27T00:00:00Z", to: "b" } });
+    expect(files.map(([p]) => p)).toEqual([...files.map(([p]) => p)].sort());
+    expect(files.some(([p]) => p.endsWith(".sqlite"))).toBe(true);
+    expect(files.some(([p]) => p.includes("handed-over"))).toBe(false);
+
+    const secondData = tmp("cellb-move-b-");
+    const second = track(createFragmentHost({ data: secondData }));
+    const report = await second.importData(ID, files);
+    expect(report.files).toEqual(files.map(([p]) => p));
+    expect(report.bytes).toBe(files.reduce((n, [, b]) => n + b.byteLength, 0));
+    await second.add(ID, ALPHA);
+    // The same object (idFromName(<id>)) with its data.
+    expect(await counted(second)).toBe(3);
+    expect(await json(second, `/fragments/${ID}/kv`)).toEqual({ kv: "moved" });
+  });
+
+  test("a handed-over source refuses to run until it is reactivated, with its data kept", async () => {
+    const data = tmp("cellb-move-src-");
+    const host = track(createFragmentHost({ data }));
+    await host.add(ID, ALPHA);
+    await counted(host);
+    await host.disable(ID);
+    await host.exportData(ID, {
+      handOver: { at: "2026-11-27T00:00:00Z", to: "url:https://b.example" },
+    });
+    expect(host.handedOver(ID)).toEqual({
+      at: "2026-11-27T00:00:00Z",
+      to: "url:https://b.example",
+    });
+    await expect(host.enable(ID)).rejects.toThrow(/handed over to url:https:\/\/b\.example/);
+    expect(host.state(ID)).toBe("disabled");
+    expect((await host.fetch(req(`/fragments/${ID}/x`))).status).toBe(503);
+    // Nor on a host started again over the same directory, nor by loadProject on its folder.
+    const again = track(createFragmentHost({ data }));
+    await expect(again.add(ID, ALPHA)).rejects.toThrow(/handed over/);
+    await expect(loadProject(ALPHA, { data: join(data, "fragments", ID) })).rejects.toThrow(
+      /handed over/,
+    );
+    // Rollback: the source runs again with the data it kept.
+    expect(await host.reactivate(ID)).toMatchObject({ id: ID });
+    expect(host.handedOver(ID)).toBeUndefined();
+    expect(await counted(host)).toBe(2);
+  });
+
+  test("removing a handed-over fragment with its data deletes the marker too", async () => {
+    const data = tmp("cellb-move-del-");
+    const host = track(createFragmentHost({ data }));
+    await host.add(ID, ALPHA);
+    await counted(host);
+    await host.disable(ID);
+    await host.exportData(ID, { handOver: true });
+    await host.remove(ID, { withData: true });
+    expect(host.handedOver(ID)).toBeUndefined();
+    await host.add(ID, ALPHA);
+    expect(await counted(host)).toBe(1);
+  });
+
+  test("refuses a running fragment, a memory host, and ids that are not fragment ids", async () => {
+    const host = track(createFragmentHost({ data: tmp("cellb-move-refuse-") }));
+    await host.add(ID, ALPHA);
+    await expect(host.exportData(ID)).rejects.toThrow(/running: disable it/);
+    await expect(host.importData(ID, [])).rejects.toThrow(/running: disable it/);
+    for (const id of ["..", "", "a/b"])
+      await expect(host.exportData(id), JSON.stringify(id)).rejects.toThrow(/not a fragment id/);
+    const memory = track(createFragmentHost());
+    await expect(memory.exportData(ID)).rejects.toThrow(/in memory/);
+  });
+
+  test("an import refuses existing data unless asked to overwrite, and paths outside the folder", async () => {
+    const data = join(tmp("cellb-move-import-"), "a", "b", "data");
+    const host = track(createFragmentHost({ data }));
+    for (const path of [
+      "../x.sqlite",
+      "/x.sqlite",
+      "a/../../x",
+      "",
+      "a//b",
+      ".cellb-handed-over.json",
+    ])
+      await expect(host.importData(ID, [[path, new Uint8Array(1)]]), path).rejects.toThrow();
+    await expect(
+      host.importData(ID, [
+        ["x.sqlite", new Uint8Array(1)],
+        ["x.sqlite", new Uint8Array(2)],
+      ]),
+    ).rejects.toThrow(/twice/);
+    expect(existsSync(join(data, "fragments", ID))).toBe(false);
+
+    await host.add(ID, ALPHA);
+    expect(await counted(host)).toBe(1);
+    await host.disable(ID);
+    const kept = await host.exportData(ID);
+    await expect(host.importData(ID, [["files/x", new Uint8Array(1)]])).rejects.toThrow(
+      /already holds data/,
+    );
+    await host.enable(ID);
+    expect(await counted(host)).toBe(2);
+    await host.disable(ID);
+    // Merge gate pass 1 on #259: an import that cannot be written whole leaves the data as it was
+    // (here a file where another path needs a directory, refused before anything is written).
+    await expect(
+      host.importData(
+        ID,
+        [
+          ["a", new Uint8Array(1)],
+          ["a/b", new Uint8Array(1)],
+        ],
+        { overwrite: true },
+      ),
+    ).rejects.toThrow(/which is a file/);
+    expect((await host.exportData(ID)).map(([p]) => p)).toEqual(kept.map(([p]) => p));
+    // Overwritten with the earlier export: the data is as it was then.
+    await host.importData(ID, kept, { overwrite: true });
+    await host.enable(ID);
+    expect(await counted(host)).toBe(2);
+  });
+});

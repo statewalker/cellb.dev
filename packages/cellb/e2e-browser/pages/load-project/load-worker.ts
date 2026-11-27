@@ -31,25 +31,43 @@ async function sourceFiles(sources: [string, string][]) {
 scope.addEventListener("message", async (e) => {
   if (!e.ports[0]) return; // not a job (the page's answers about sites)
   const reply = (v: unknown) => (e.ports[0] as MessagePort).postMessage(v);
-  const { url, sources, compile, data, runs } = e.data as {
+  const { url, sources, compile, data, runs, importCells, overwrite, exportCells } = e.data as {
     url?: string;
     sources?: [string, string][];
     compile?: "bundle" | "site";
     data: string;
     runs: string[][];
+    /** Cells to import (#199) before the first run's first request: `[name, base64]`. */
+    importCells?: [string, string][];
+    overwrite?: boolean;
+    /** Export the cells after the last run (#199), as `[name, base64]`. */
+    exportCells?: boolean;
   };
   try {
     const out: { status: number; type: string | null; body: string }[][] = [];
     let name = "";
     let unsupported: string[] = [];
+    let exported: [string, string][] | undefined;
     // Each run loads the project afresh (same `data`), then closes it.
     for (const paths of runs) {
+      // Cells moved here (#199): into the pool at the first run's load.
+      const cells =
+        importCells && out.length === 0
+          ? {
+              files: importCells.map(([n, b64]): [string, Uint8Array] => [
+                n,
+                Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)),
+              ]),
+              overwrite,
+            }
+          : undefined;
       const project = sources
         ? await loadProject(await sourceFiles(sources), {
             data,
             compile: compile ? await compiler(compile) : undefined,
+            importCells: cells,
           })
-        : await loadProject(url as string, { data });
+        : await loadProject(url as string, { data, importCells: cells });
       name = project.config.name ?? "";
       unsupported = project.unsupported;
       const responses = [];
@@ -61,10 +79,15 @@ scope.addEventListener("message", async (e) => {
           body: await res.text(),
         });
       }
+      if (exportCells && out.length === runs.length - 1)
+        exported = ((await project.exportCells?.()) ?? []).map(([n, b]) => [
+          n,
+          btoa(Array.from(b, (c) => String.fromCharCode(c)).join("")),
+        ]);
       await project.close();
       out.push(responses);
     }
-    reply({ ok: true, name, unsupported, out });
+    reply({ ok: true, name, unsupported, out, exported });
   } catch (err) {
     reply({ ok: false, error: String((err as Error)?.stack ?? err) });
   }

@@ -18,6 +18,7 @@
 import { serveHttpInWorker, type WorkerHttpService } from "@statewalker/webrun-http-browser/sw";
 import type { DurableObjectNamespace } from "../core/namespace.js";
 import type { CellRuntimeOptions } from "../core/runtime.js";
+import { isIsolatePoolOf } from "../isolate/pool-name.js";
 import { cellsHttpHandler, servePageRequest } from "../transport/cells-http.js";
 import { CfWebSocket } from "../ws/server.js";
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
@@ -212,8 +213,10 @@ export function serveFragmentShard(opts: {
   /**
    * A fragment's data in this shard deleted (statewalker-root#261), once it is closed: its SQLite
    * pool (SQLite WASM's `removeVfs`, which also lets the same pool be made again) and its files
-   * directory. Isolated Workers' storage (`.<pool>-iso-<id>`) is not deleted: its names cannot be
-   * told apart from another fragment's pool (statewalker/cellb.dev#251).
+   * directory, and its isolated Workers' pools (statewalker/cellb.dev#251): `.<pool>-ISO-<id>`,
+   * which no other fragment's name can begin with, and those of the former `.<pool>-iso-<id>`
+   * whose `<id>` holds no `-shard-` (every other fragment's pool name holds its own `-shard-<n>`
+   * after its id, so none is taken for this one's).
    */
   async function removeData(id: string): Promise<void> {
     if (!init) throw new Error("the shard is not started");
@@ -236,7 +239,7 @@ export function serveFragmentShard(opts: {
     };
     const names: string[] = [];
     for await (const name of root.keys())
-      if (name === filesDir || name === `.${pool}`) names.push(name);
+      if (name === filesDir || name === `.${pool}` || isIsolatePoolOf(pool, name)) names.push(name);
     for (const name of names) await root.removeEntry(name, { recursive: true });
     // Done in this shard: a removal another tab asked for is no longer pending here (#252).
     await clearRemoval(id, init.shard, epoch);

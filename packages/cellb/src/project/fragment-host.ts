@@ -20,6 +20,15 @@ import {
   type LoadedProject,
   type ProjectSource,
 } from "./built-project.js";
+import {
+  type CellFile,
+  exportCellFiles,
+  type HandOver,
+  handedOver,
+  type ImportReport,
+  importCellFiles,
+  reactivateCellFiles,
+} from "./cell-files.js";
 import { type FragmentRoutes, hostOf, linkTo, remoteBase } from "./fragment-routes.js";
 import { loadProject, localDir, type NodeLoadProjectOptions } from "./node-load.js";
 import {
@@ -120,6 +129,31 @@ export interface FragmentHost {
    * checks the peer's capability): it runs the methods of every fragment's entrypoints.
    */
   serveLink(request: Request): Promise<Response>;
+  /**
+   * A fragment's data, to move it to another host (#199): every file of `<data>/fragments/<id>/`,
+   * for `importData` there. Only while the fragment is not running (disabled, or not on the
+   * host), so no database is read half written; a fragment that never wrote anything has none.
+   * With `handOver` the data is marked as handed over first: the fragment cannot be enabled or
+   * added here again until `reactivate(id)`, or `remove(id, { withData: true })` deletes it.
+   */
+  exportData(id: string, options?: { handOver?: boolean | HandOver }): Promise<CellFile[]>;
+  /**
+   * Writes a fragment's exported data into `<data>/fragments/<id>/`, before it is added or while
+   * it is disabled. Refuses a fragment that holds data (or a hand-over marker) unless
+   * `overwrite`, which replaces it; writes nothing when it refuses.
+   */
+  importData(
+    id: string,
+    files: readonly CellFile[],
+    options?: { overwrite?: boolean },
+  ): Promise<ImportReport>;
+  /** The hand-over of a fragment's data here, or undefined when it was not handed over. */
+  handedOver(id: string): HandOver | undefined;
+  /**
+   * Lifts a hand-over (a Move rolled back): the fragment's kept data is its own again. A fragment
+   * on the host is enabled with it; returns it, or undefined for one not on the host.
+   */
+  reactivate(id: string): Promise<HostedFragment | undefined>;
   /** Remove every fragment. */
   close(): Promise<void>;
 }
@@ -364,9 +398,40 @@ export function createFragmentHost(options: FragmentHostOptions = {}): FragmentH
     return self && pathname.startsWith(self) ? pathname.slice(self.length - 1) : pathname;
   };
 
+  /** `<data>/fragments/<id>`: refuses a host without a data directory and a non-fragment id. */
+  function folderOf(id: string): string {
+    if (!FRAGMENT_ID.test(id))
+      throw new Error(`"${id}" is not a fragment id: lowercase letters, digits, ".", "_", "-"`);
+    if (data === undefined)
+      throw new Error("the fragment host keeps its data in memory: give it a data directory");
+    return join(data, "fragments", id);
+  }
+
+  /** Refuses a fragment that runs, or is being added, enabled or removed. */
+  function assertStopped(id: string, what: string): void {
+    if (loaded.has(id) || adding.has(id) || removing.has(id) || known.get(id)?.state === "enabled")
+      throw new Error(`"${id}" is running: disable it before you ${what} its data`);
+  }
+
   return {
     add,
     remove,
+    async exportData(id, { handOver } = {}) {
+      const folder = folderOf(id);
+      assertStopped(id, "export");
+      return exportCellFiles(folder, { handOver });
+    },
+    async importData(id, files, { overwrite } = {}) {
+      const folder = folderOf(id);
+      assertStopped(id, "import");
+      return importCellFiles(folder, files, { overwrite });
+    },
+    handedOver: (id) =>
+      data !== undefined && FRAGMENT_ID.test(id) ? handedOver(folderOf(id)) : undefined,
+    async reactivate(id) {
+      reactivateCellFiles(folderOf(id));
+      return known.has(id) ? enable(id) : undefined;
+    },
     disable,
     enable,
     state: (id) => known.get(id)?.state,

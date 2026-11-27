@@ -20,11 +20,17 @@ export function browserIsolatedLoader(opts: {
   siteBaseUrl?: string;
   /** Prefix of the OPFS SQLite pool each isolate keeps its facets in (one pool per loaded id). */
   storagePrefix?: string;
+  /** A former prefix: a pool under it is still opened, where no pool has the current name. */
+  legacyStoragePrefix?: string;
   /** The host's storage: facets of loaded code are logged and restored through it. */
   storage?: () => CellStorage | undefined;
 }): ModuleLoader {
   const storageName = (id: string) =>
     `${opts.storagePrefix ?? "isolate"}-${id}`.replace(/[^\w.-]/g, "_");
+  const legacyStorageName = (id: string) =>
+    opts.legacyStoragePrefix
+      ? `${opts.legacyStoragePrefix}-${id}`.replace(/[^\w.-]/g, "_")
+      : undefined;
   return isolatedModuleLoader({
     storage: opts.storage,
     spawn: () => {
@@ -39,6 +45,7 @@ export function browserIsolatedLoader(opts: {
           modules: (await compileWasmModules(code)).modules,
           mainModule: code.mainModule,
           storageName: storageName(id),
+          legacyStorageName: legacyStorageName(id),
         } as never;
       const base = opts.siteBaseUrl.endsWith("/") ? opts.siteBaseUrl : `${opts.siteBaseUrl}/`;
       const dir = encodeURIComponent(`isolate-${id}`);
@@ -49,6 +56,7 @@ export function browserIsolatedLoader(opts: {
         url: `${base}loaded/${dir}/~/${code.mainModule}`,
         consoleId: `isolate-${id}`,
         storageName: storageName(id),
+        legacyStorageName: legacyStorageName(id),
       } as never;
     },
   });

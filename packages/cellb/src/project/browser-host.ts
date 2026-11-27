@@ -105,6 +105,8 @@ export type BrowserBucket =
 
 export interface BrowserProjectOptions {
   config: WranglerConfig;
+  /** Cells to write into the OPFS pool before the runtime opens any (#199). */
+  importCells?: { files: readonly [string, Uint8Array][]; overwrite?: boolean };
   /**
    * The project's Worker code, imported in this realm once its Workers globals (and with
    * nodejs_compat `Buffer` and `process`) are installed:
@@ -343,6 +345,25 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
             name: opts.pool,
             initialCapacity: 64, // grows on demand (sahpoolOpener)
           });
+  // Cells moved here from another host (#199): into the pool before the runtime opens any.
+  if (opts.importCells) {
+    const into = (
+      openSql as {
+        importFiles?: (
+          f: readonly [string, Uint8Array][],
+          o?: { overwrite?: boolean },
+        ) => Promise<string[]>;
+      }
+    ).importFiles;
+    if (!into)
+      throw new Error("importCells: the cells are not in an OPFS pool (a bucket holds them)");
+    try {
+      await into(opts.importCells.files, { overwrite: opts.importCells.overwrite });
+    } catch (err) {
+      openSql.release(); // the pool's files, for the next load
+      throw err;
+    }
+  }
   const root = await navigator.storage.getDirectory();
   const files = new BrowserFilesApi({
     rootHandle: await root.getDirectoryHandle(opts.filesDir, { create: true }),
@@ -363,7 +384,11 @@ export async function browserProjectRuntime(opts: BrowserProjectOptions) {
       ? browserIsolatedLoader({
           isolateScript: opts.isolateScript,
           siteBaseUrl: site,
-          storagePrefix: `${opts.pool}-iso`,
+          // `-ISO-`: fragment ids are lowercase, so no other fragment's pool can share this
+          // prefix and a removal deletes these exactly (statewalker/cellb.dev#251); pools of the
+          // former `-iso-` name are still opened where they exist.
+          storagePrefix: `${opts.pool}-ISO`,
+          legacyStoragePrefix: `${opts.pool}-iso`,
           storage: () => shared, // facets of loaded code are logged like the root's own
         })
       : undefined,

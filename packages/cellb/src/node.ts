@@ -25,6 +25,16 @@ export type {
   ProjectSource,
 } from "./project/built-project.js";
 export {
+  type CellFile,
+  exportCellFiles,
+  HAND_OVER_MARKER,
+  type HandOver,
+  handedOver,
+  type ImportReport,
+  importCellFiles,
+  reactivateCellFiles,
+} from "./project/cell-files.js";
+export {
   type AddFragmentOptions,
   createFragmentHost,
   FRAGMENT_BINDING,

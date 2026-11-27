@@ -40,6 +40,14 @@ export interface BrowserLoadProjectOptions extends LoadProjectOptions<BrowserBuc
    * A folder written by `cellb build` loads as built either way.
    */
   compile?: ProjectCompiler;
+  /**
+   * Cells moved here from another host (#199): `exportCells()`' files, or a Node data
+   * directory's `*.sqlite` files (`exportCellFiles`), written into the OPFS pool before the
+   * runtime opens any cell. The load fails when the pool holds cells, unless `overwrite`, which
+   * replaces them. Not with a bucket (it holds the cells). The project's version must be the one
+   * that wrote them: a move copies, it never transforms.
+   */
+  importCells?: { files: readonly [string, Uint8Array][]; overwrite?: boolean };
 }
 
 /** The isolate worker this package ships (bundlers follow the `new Worker(new URL(…))` form). */
@@ -117,6 +125,7 @@ async function run(
     assetFiles: built.assets,
     sqlite3,
     pool: data,
+    importCells: options.importCells,
     filesDir: `${data}-files`,
     bucket: options.bucket,
     ai: options.ai,
