@@ -203,7 +203,7 @@ serveFragmentShard({ sqlite3 });
 const pool = await joinFragmentShards({ shards: 2, basePath: "/", spawn, serviceWorker });
 const { unsupported } = await pool.add("org.example.notes", { config, code: { bundle } });
 await fetch("/fragments/org.example.notes/list");
-await pool.remove("org.example.notes"); // its data is kept ({ withData: true } deletes its pools)
+await pool.remove("org.example.notes"); // its data is kept ({ withData: true } deletes its pools in every tab's shards)
 ```
 
 **Disabled and unknown fragments, and the host's own peer path** (statewalker-root#259).
