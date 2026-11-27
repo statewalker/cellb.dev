@@ -21,6 +21,7 @@ import type { CellRuntimeOptions } from "../core/runtime.js";
 import { cellsHttpHandler, servePageRequest } from "../transport/cells-http.js";
 import { CfWebSocket } from "../ws/server.js";
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
+import { clearRemoval, pendingRemovals, removalEpoch } from "./browser-fragment-removals.js";
 import { browserProjectRuntime } from "./browser-host.js";
 import { throughRouter, upgradeOverPort } from "./browser-shards.js";
 import {
@@ -212,10 +213,12 @@ export function serveFragmentShard(opts: {
    * A fragment's data in this shard deleted (statewalker-root#261), once it is closed: its SQLite
    * pool (SQLite WASM's `removeVfs`, which also lets the same pool be made again) and its files
    * directory. Isolated Workers' storage (`.<pool>-iso-<id>`) is not deleted: its names cannot be
-   * told apart from another fragment's pool (statewalker/cellb.dev follow-up).
+   * told apart from another fragment's pool (statewalker/cellb.dev#251).
    */
   async function removeData(id: string): Promise<void> {
     if (!init) throw new Error("the shard is not started");
+    // The removal this deletion answers (#252): its marker, read before, is cleared after.
+    const epoch = await removalEpoch(id, init.shard);
     const pool = `${FRAGMENTS_KEY}-${id}-shard-${init.shard}`;
     const filesDir = `${FRAGMENTS_KEY}-${id}-files-${init.shard}`;
     const module = (await sqlite3()) as {
@@ -235,6 +238,38 @@ export function serveFragmentShard(opts: {
     for await (const name of root.keys())
       if (name === filesDir || name === `.${pool}`) names.push(name);
     for (const name of names) await root.removeEntry(name, { recursive: true });
+    // Done in this shard: a removal another tab asked for is no longer pending here (#252).
+    await clearRemoval(id, init.shard, epoch);
+  }
+
+  /**
+   * The removals with data another tab asked for while this shard did not run, or before it next
+   * loads a fragment (statewalker/cellb.dev#252): applied first, so the old data never comes back.
+   */
+  async function applyPendingRemovals(only?: string): Promise<void> {
+    if (!init) return;
+    const ids = only
+      ? (await removalEpoch(only, init.shard)) !== undefined
+        ? [only]
+        : []
+      : await pendingRemovals(init.shard);
+    for (const id of ids) {
+      await remove(id);
+      if (only) {
+        // Before a load: a failure fails the load, so the old data is never served.
+        await removeData(id);
+        continue;
+      }
+      // At the shard's start: a failure is reported and its marker kept (tried again at the next
+      // start, and before the fragment's next load), never keeping the shard from starting.
+      try {
+        await removeData(id);
+      } catch (err) {
+        console.error(
+          `cellb: shard ${init.shard}: fragment ${id}'s data not removed yet: ${(err as Error)?.message ?? err}`,
+        );
+      }
+    }
   }
 
   // One message at a time: loading a fragment sets the realm's `cloudflare:workers` scope and
@@ -261,11 +296,13 @@ export function serveFragmentShard(opts: {
     try {
       if (data?.type === FRAGMENT_SHARD_INIT) {
         init = data as FragmentShardInit;
+        await applyPendingRemovals();
         service = serveHttpInWorker(serve);
         ready(service);
         return reply.postMessage({ ok: true });
       }
       if (data?.type === FRAGMENT_ADD) {
+        await applyPendingRemovals((data as FragmentShardAdd).id);
         const unsupported = await add(data as FragmentShardAdd);
         return reply.postMessage({ ok: true, unsupported });
       }

@@ -161,9 +161,10 @@ describe("P50 cellb serve: a fleet node", () => {
       await a.close();
       await b.close();
     }
-    // About 2 s unloaded: the owner's graceful leave lingers 500 ms for kept-alive connections,
-    // drains the calls in flight, then releases the cells; a loaded runner took it past vitest's
-    // default 5 s (statewalker/cellb.dev#249), as the other leave tests here allow 60 s.
+    // About 2 s unloaded: the owner's graceful leave lingers 500 ms for kept-alive connections on
+    // its public listener and 500 ms more on its peer server, each draining the calls in flight
+    // (bounded), then releases the cells; a loaded runner took it past vitest's default 5 s
+    // (statewalker/cellb.dev#249), as the other leave tests here allow 60 s.
   }, 30_000);
 
   it("a WebSocket on the public listener reaches the cell, on its owner or through it", async () => {

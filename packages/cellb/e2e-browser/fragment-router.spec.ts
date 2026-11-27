@@ -181,3 +181,186 @@ test("a fragment removed with its data starts from nothing when added again", as
   await page.evaluate(([i]) => (window as any).__removeFragment(i, true), [id] as const);
   expect(await pools()).toEqual([]);
 });
+
+// statewalker/cellb.dev#252: the tabs split the shards between them; "remove with data" from one
+// tab reaches the shards the others run, and a shard that starts later does not bring it back.
+async function joinSecond(page: Page) {
+  await page.goto("/tabs/index.html");
+  await page.waitForFunction(() => document.body.dataset.ready === "true");
+  await page.evaluate((job) => (window as any).__joinFragments(job), { shards: 2 });
+}
+
+const owned = (page: Page) => page.evaluate(() => document.body.dataset.fragmentsOwned ?? "");
+
+const poolsOf = (page: Page, id: string) =>
+  page.evaluate(async (i) => {
+    const names: string[] = [];
+    for await (const name of (
+      (await navigator.storage.getDirectory()) as unknown as { keys(): AsyncIterable<string> }
+    ).keys())
+      if (name.includes(i)) names.push(name);
+    return names.sort();
+  }, id);
+
+test("removed with its data from one tab, a fragment is gone from the shards every tab runs", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  const f = await alpha();
+  await openPool(page);
+  const other = await context.newPage();
+  await joinSecond(other);
+  // One shard each.
+  await expect
+    .poll(() => Promise.all([owned(page), owned(other)]))
+    .toEqual(
+      expect.arrayContaining([expect.stringMatching(/^[01]$/), expect.stringMatching(/^[01]$/)]),
+    );
+  expect(new Set([await owned(page), await owned(other)]).size).toBe(2);
+  // Both tabs add it (as every tab adds the enabled fragments): both shards hold its pool.
+  for (const p of [page, other])
+    await p.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  await get(page, `fragments/${id}/x`);
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 2 });
+  const before = await poolsOf(page, id);
+  expect(before.filter((n) => n.includes("-shard-")).length).toBe(2);
+
+  await page.evaluate(([i]) => (window as any).__removeFragment(i, true), [id] as const);
+  expect(await poolsOf(page, id)).toEqual([]);
+  // The other tab removed it too: nobody serves it.
+  await expect.poll(() => other.evaluate(() => (window as any).__fragmentIds())).toEqual([]);
+  expect((await get(page, `fragments/${id}/x`)).status).toBe(404);
+
+  for (const p of [page, other])
+    await p.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 1 });
+});
+
+test("a shard that starts after a removal with data deletes the data before it serves", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  const f = await alpha();
+  await openPool(page);
+  const other = await context.newPage();
+  await joinSecond(other);
+  await expect.poll(async () => new Set([await owned(page), await owned(other)]).size).toBe(2);
+  for (const p of [page, other])
+    await p.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  await get(page, `fragments/${id}/x`);
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 2 });
+
+  // The other tab goes: its shard is nobody's until this tab takes it, after the removal began.
+  await other.close();
+  await page.evaluate(([i]) => (window as any).__removeFragment(i, true), [id] as const);
+  await expect.poll(() => owned(page)).toBe("0,1");
+  expect(await poolsOf(page, id)).toEqual([]);
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 1 });
+});
+
+/** A removal marker left as a removing tab leaves it, for `shards` shards (#252). */
+const leaveMarkers = (page: Page, id: string, shards: number) =>
+  page.evaluate(
+    async ([i, n]) => {
+      const root = await navigator.storage.getDirectory();
+      const dir = await root.getDirectoryHandle(".cellb-fragment-removals", { create: true });
+      for (let s = 0; s < (n as number); s++) {
+        const file = await dir.getFileHandle(`${i}@${s}`, { create: true });
+        const w = await (file as any).createWritable();
+        await w.write(String(Date.now() * 1000));
+        await w.close();
+      }
+    },
+    [id, shards] as const,
+  );
+
+const markersLeft = (page: Page, id: string) =>
+  page.evaluate(async (i) => {
+    const root = await navigator.storage.getDirectory();
+    try {
+      const dir = (await root.getDirectoryHandle(".cellb-fragment-removals")) as any;
+      const names: string[] = [];
+      for await (const name of dir.keys()) if (name.startsWith(`${i}@`)) names.push(name);
+      return names;
+    } catch {
+      return [];
+    }
+  }, id);
+
+test("shards that start with a removal pending delete the data before they serve", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  const f = await alpha();
+  await openPool(page);
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  await get(page, `fragments/${id}/x`);
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 2 });
+  // The pool stops; a removal is left for its shards (a tab removed it meanwhile); it starts.
+  await page.evaluate(() => (window as any).__leaveFragments());
+  await leaveMarkers(page, id, 2);
+  await page.evaluate((job) => (window as any).__joinFragments(job), { shards: 2 });
+  await expect.poll(() => owned(page)).toBe("0,1");
+  await expect.poll(() => markersLeft(page, id)).toEqual([]);
+  expect((await poolsOf(page, id)).filter((n) => n.includes("-shard-"))).toEqual([]);
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 1 });
+});
+
+test("a removal pending for running shards is applied before the fragment loads again", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  const f = await alpha();
+  await openPool(page);
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  await get(page, `fragments/${id}/x`);
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 2 });
+  // Removed here keeping its data; meanwhile another tab's removal with data left its markers.
+  await page.evaluate((i) => (window as any).__removeFragment(i), id);
+  await leaveMarkers(page, id, 2);
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 1 });
+  expect(await markersLeft(page, id)).toEqual([]);
+});
+
+test("a removal older than a tab's copy of the fragment leaves that copy", async ({ page }) => {
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  const f = await alpha();
+  await openPool(page);
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  await get(page, `fragments/${id}/x`);
+  // Another tab's removal from before this copy was added, its message late: ignored.
+  await page.evaluate(
+    (i) =>
+      new BroadcastChannel("cellb:fragment-removals").postMessage({
+        removed: i,
+        epoch: (Date.now() - 60_000) * 1000,
+      }),
+    id,
+  );
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => (window as any).__fragmentIds())).toEqual([id]);
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 2 });
+  // A removal from after it: the fragment goes, with its data.
+  await page.evaluate(
+    (i) =>
+      new BroadcastChannel("cellb:fragment-removals").postMessage({
+        removed: i,
+        epoch: (Date.now() + 1000) * 1000,
+      }),
+    id,
+  );
+  await expect.poll(() => page.evaluate(() => (window as any).__fragmentIds())).toEqual([]);
+  await expect
+    .poll(async () => (await poolsOf(page, id)).filter((n) => n.includes("-shard-")))
+    .toEqual([]);
+});
