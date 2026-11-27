@@ -181,3 +181,84 @@ test("a fragment removed with its data starts from nothing when added again", as
   await page.evaluate(([i]) => (window as any).__removeFragment(i, true), [id] as const);
   expect(await pools()).toEqual([]);
 });
+
+// statewalker/cellb.dev#252: the tabs split the shards between them; "remove with data" from one
+// tab reaches the shards the others run, and a shard that starts later does not bring it back.
+async function joinSecond(page: Page) {
+  await page.goto("/tabs/index.html");
+  await page.waitForFunction(() => document.body.dataset.ready === "true");
+  await page.evaluate((job) => (window as any).__joinFragments(job), { shards: 2 });
+}
+
+const owned = (page: Page) => page.evaluate(() => document.body.dataset.fragmentsOwned ?? "");
+
+const poolsOf = (page: Page, id: string) =>
+  page.evaluate(async (i) => {
+    const names: string[] = [];
+    for await (const name of (
+      (await navigator.storage.getDirectory()) as unknown as { keys(): AsyncIterable<string> }
+    ).keys())
+      if (name.includes(i)) names.push(name);
+    return names.sort();
+  }, id);
+
+test("removed with its data from one tab, a fragment is gone from the shards every tab runs", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  const f = await alpha();
+  await openPool(page);
+  const other = await context.newPage();
+  await joinSecond(other);
+  // One shard each.
+  await expect
+    .poll(() => Promise.all([owned(page), owned(other)]))
+    .toEqual(
+      expect.arrayContaining([expect.stringMatching(/^[01]$/), expect.stringMatching(/^[01]$/)]),
+    );
+  expect(new Set([await owned(page), await owned(other)]).size).toBe(2);
+  // Both tabs add it (as every tab adds the enabled fragments): both shards hold its pool.
+  for (const p of [page, other])
+    await p.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  await get(page, `fragments/${id}/x`);
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 2 });
+  const before = await poolsOf(page, id);
+  expect(before.filter((n) => n.includes("-shard-")).length).toBe(2);
+
+  await page.evaluate(([i]) => (window as any).__removeFragment(i, true), [id] as const);
+  expect(await poolsOf(page, id)).toEqual([]);
+  // The other tab removed it too: nobody serves it.
+  await expect.poll(() => other.evaluate(() => (window as any).__fragmentIds())).toEqual([]);
+  expect((await get(page, `fragments/${id}/x`)).status).toBe(404);
+
+  for (const p of [page, other])
+    await p.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 1 });
+});
+
+test("a shard that starts after a removal with data deletes the data before it serves", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(120_000);
+  const id = `alpha-${Date.now().toString(36)}`;
+  const f = await alpha();
+  await openPool(page);
+  const other = await context.newPage();
+  await joinSecond(other);
+  await expect.poll(async () => new Set([await owned(page), await owned(other)]).size).toBe(2);
+  for (const p of [page, other])
+    await p.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  await get(page, `fragments/${id}/x`);
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 2 });
+
+  // The other tab goes: its shard is nobody's until this tab takes it, after the removal began.
+  await other.close();
+  await page.evaluate(([i]) => (window as any).__removeFragment(i, true), [id] as const);
+  await expect.poll(() => owned(page)).toBe("0,1");
+  expect(await poolsOf(page, id)).toEqual([]);
+  await page.evaluate((job) => (window as any).__addFragment(job), { id, ...f });
+  expect(JSON.parse((await get(page, `fragments/${id}/x`)).body)).toMatchObject({ n: 1 });
+});

@@ -21,6 +21,7 @@ import type { CellRuntimeOptions } from "../core/runtime.js";
 import { cellsHttpHandler, servePageRequest } from "../transport/cells-http.js";
 import { CfWebSocket } from "../ws/server.js";
 import { carryWebSocketHeaders } from "../ws/upgrade.js";
+import { clearRemoval, pendingRemovals, removalPending } from "./browser-fragment-removals.js";
 import { browserProjectRuntime } from "./browser-host.js";
 import { throughRouter, upgradeOverPort } from "./browser-shards.js";
 import {
@@ -212,7 +213,7 @@ export function serveFragmentShard(opts: {
    * A fragment's data in this shard deleted (statewalker-root#261), once it is closed: its SQLite
    * pool (SQLite WASM's `removeVfs`, which also lets the same pool be made again) and its files
    * directory. Isolated Workers' storage (`.<pool>-iso-<id>`) is not deleted: its names cannot be
-   * told apart from another fragment's pool (statewalker/cellb.dev follow-up).
+   * told apart from another fragment's pool (statewalker/cellb.dev#251).
    */
   async function removeData(id: string): Promise<void> {
     if (!init) throw new Error("the shard is not started");
@@ -235,6 +236,25 @@ export function serveFragmentShard(opts: {
     for await (const name of root.keys())
       if (name === filesDir || name === `.${pool}`) names.push(name);
     for (const name of names) await root.removeEntry(name, { recursive: true });
+    // Done in this shard: a removal another tab asked for is no longer pending here (#252).
+    await clearRemoval(id, init.shard);
+  }
+
+  /**
+   * The removals with data another tab asked for while this shard did not run, or before it next
+   * loads a fragment (statewalker/cellb.dev#252): applied first, so the old data never comes back.
+   */
+  async function applyPendingRemovals(only?: string): Promise<void> {
+    if (!init) return;
+    const ids = only
+      ? (await removalPending(only, init.shard))
+        ? [only]
+        : []
+      : await pendingRemovals(init.shard);
+    for (const id of ids) {
+      await remove(id);
+      await removeData(id);
+    }
   }
 
   // One message at a time: loading a fragment sets the realm's `cloudflare:workers` scope and
@@ -261,11 +281,13 @@ export function serveFragmentShard(opts: {
     try {
       if (data?.type === FRAGMENT_SHARD_INIT) {
         init = data as FragmentShardInit;
+        await applyPendingRemovals();
         service = serveHttpInWorker(serve);
         ready(service);
         return reply.postMessage({ ok: true });
       }
       if (data?.type === FRAGMENT_ADD) {
+        await applyPendingRemovals((data as FragmentShardAdd).id);
         const unsupported = await add(data as FragmentShardAdd);
         return reply.postMessage({ ok: true, unsupported });
       }

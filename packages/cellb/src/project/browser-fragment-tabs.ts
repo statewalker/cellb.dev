@@ -8,6 +8,7 @@
  * starts is given the fragments this tab holds, and a fragment added or removed here reaches the
  * shards this tab runs.
  */
+import { markRemoval, REMOVALS_CHANNEL, shardsPending } from "./browser-fragment-removals.js";
 import {
   FRAGMENT_ADD,
   FRAGMENT_REMOVE,
@@ -38,6 +39,11 @@ export interface FragmentTabsOptions
   > {
   /** Starts the worker of one shard; its script calls `serveFragmentShard`. */
   spawn: (shard: number) => Worker;
+  /**
+   * How long `remove(id, { withData: true })` waits for the other tabs' shards to delete the
+   * fragment's data (10 s); a shard that has not by then deletes it when it next starts.
+   */
+  removeWaitMs?: number;
   /** The ServiceWorker router's `basePath`: fragments are served at `<basePath>fragments/<id>/`. */
   basePath: string;
   /**
@@ -205,6 +211,17 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
     },
   });
 
+  // "Remove with data" told by another tab: this tab removes the fragment in the shards it runs
+  // (statewalker/cellb.dev#252); the markers that tab left cover shards that start later.
+  const removals = new BroadcastChannel(REMOVALS_CHANNEL);
+  removals.onmessage = (e: MessageEvent) => {
+    const id = (e.data as { removed?: unknown } | undefined)?.removed;
+    if (typeof id !== "string" || !FRAGMENT_ID.test(id)) return;
+    void removeHere(id, true).catch((err: unknown) =>
+      console.error(`cellb: fragment ${id} not removed here: ${(err as Error)?.message ?? err}`),
+    );
+  };
+
   const pool: FragmentTabs = {
     ...tabs,
     ids: () => [...states.keys()],
@@ -239,25 +256,19 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
     },
     state: (id) => states.get(id),
     async remove(id, { withData = false } = {}) {
-      if (disabled.delete(id)) {
-        states.delete(id);
-        await announce();
-      } else if (fragments.has(id)) {
-        // Unrouted first (404 from the router), then stopped.
-        states.delete(id);
-        await announce();
-        await unload(id);
-      } else if (!withData) return;
-      // Its data: every shard this tab runs deletes the fragment's pools (statewalker-root#261).
-      if (withData)
-        for (const w of [...workers.values()]) {
-          const answer = await ask(w.worker, {
-            type: FRAGMENT_REMOVE,
-            id,
-            withData: true,
-          } satisfies FragmentShardRemove);
-          if (!answer.ok) throw new Error(answer.error);
-        }
+      if (!withData) return removeHere(id, false);
+      if (!FRAGMENT_ID.test(id))
+        throw new Error(`"${id}" is not a fragment id: lowercase letters, digits, ".", "_", "-"`);
+      // Every shard, in whichever tab, deletes the data (statewalker/cellb.dev#252): markers first
+      // (for shards not running now), then the shards this tab runs, then the other tabs told.
+      await markRemoval(id, opts.shards);
+      await removeHere(id, true);
+      removals.postMessage({ removed: id });
+      // The other tabs' shards answer by clearing their markers; one that does not (its tab
+      // closing) deletes the data when it next starts.
+      const until = Date.now() + (opts.removeWaitMs ?? 10_000);
+      while ((await shardsPending(id)) > 0 && Date.now() < until)
+        await new Promise((r) => setTimeout(r, 50));
     },
     async disable(id) {
       const fragment = fragments.get(id);
@@ -289,12 +300,36 @@ export async function joinFragmentShards(opts: FragmentTabsOptions): Promise<Fra
       }
     },
     async close() {
+      removals.close();
       navigator.serviceWorker.removeEventListener("message", onNeedTable);
       await announce(null).catch(() => {});
       await tabs.close();
     },
   };
   return pool;
+
+  /** Removes a fragment in this tab and the shards it runs, with their data when `withData`. */
+  async function removeHere(id: string, withData: boolean): Promise<void> {
+    if (disabled.delete(id)) {
+      states.delete(id);
+      await announce();
+    } else if (fragments.has(id)) {
+      // Unrouted first (404 from the router), then stopped.
+      states.delete(id);
+      await announce();
+      await unload(id);
+    } else if (!withData) return;
+    // Its data: every shard this tab runs deletes the fragment's pools (statewalker-root#261).
+    if (withData)
+      for (const w of [...workers.values()]) {
+        const answer = await ask(w.worker, {
+          type: FRAGMENT_REMOVE,
+          id,
+          withData: true,
+        } satisfies FragmentShardRemove);
+        if (!answer.ok) throw new Error(answer.error);
+      }
+  }
 
   /** Stops a fragment in the shards this tab runs. */
   async function unload(id: string): Promise<void> {
